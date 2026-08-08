@@ -1,0 +1,558 @@
+:root[data-theme="light"] {
+  --text:   #1a1a1a;
+  --muted:  #6b6b6b;
+  --line:   #e0e0e0;
+  --bg:     #ffffff;
+  --panel:  #fafafa;
+  --hover:  #f6f6f6;
+  --field:  #ffffff;
+  --border: #c4c4c4;
+  --red:    #a32218;
+  --green:  #1f6b34;
+  --link:   #1a4f9c;
+  --blue:    #1a5fd0;
+  --blue-hi: #144ba8;
+}
+
+:root[data-theme="dark"] {
+  --text:   #e6e6e6;
+  --muted:  #9a9a9a;
+  --line:   #2f2f2f;
+  --bg:     #151515;
+  --panel:  #1c1c1c;
+  --hover:  #202020;
+  --field:  #1c1c1c;
+  --border: #3d3d3d;
+  --red:    #ef8078;
+  --green:  #74c98c;
+  --link:   #7fb3f2;
+  --blue:    #2f6fe0;
+  --blue-hi: #4886ef;
+}
+
+:root {
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+:root[data-theme="dark"] { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.bar {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: .6rem 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.nav {
+  display: flex;
+  gap: 1rem;
+  margin-right: auto;
+}
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: .875rem;
+  white-space: nowrap;
+}
+.nav a:hover { color: var(--text); text-decoration: underline; }
+
+.wrap {
+  max-width: 64rem;
+  margin: 0 auto;
+  /* bottom padding keeps content clear of the two fixed corner controls */
+  padding: 2rem 1.25rem 7rem;
+}
+
+h1 { font-size: 1.0625rem; font-weight: 600; margin: 0; }
+h2 { font-size: 1.0625rem; font-weight: 600; margin: 0; }
+
+.sub { margin: .25rem 0 0; color: var(--muted); font-size: .875rem; }
+
+.nav a.on { color: var(--text); font-weight: 600; }
+
+a { color: var(--link); }
+
+:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
+
+/* controls */
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: .75rem;
+}
+
+input, select, button {
+  font-family: inherit;
+  font-size: .875rem;
+  color: var(--text);
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: .5rem .6rem;
+  min-height: 38px;
+  min-width: 0;
+}
+
+
+button { cursor: pointer; padding: .5rem 1rem; }
+button:hover:not(:disabled) { background: var(--hover); }
+button:disabled { color: var(--muted); cursor: default; }
+
+.count {
+  margin: 0 0 .75rem;
+  font-size: .8125rem;
+  color: var(--muted);
+}
+
+/* table */
+
+table { width: 100%; border-collapse: collapse; }
+
+th {
+  text-align: left;
+  font-weight: 600;
+  font-size: .8125rem;
+  color: var(--muted);
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+td {
+  padding: .55rem .6rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+tbody tr.app { cursor: pointer; }
+tbody tr.app:hover td { background: var(--hover); }
+tbody tr.app:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
+
+.name { font-weight: 600; min-width: 11rem; }
+
+/* Columns switched off in settings. Kept to a single class each so nothing here
+   outranks them — the old per-screen rules used IDs and always won. */
+body.hide-c-dev   .c-dev,
+body.hide-c-chan  .c-chan,
+body.hide-c-price .c-price,
+body.hide-c-ver   .c-ver,
+body.hide-c-build .c-build,
+body.hide-c-date  .c-date,
+body.hide-c-devb  .c-devb { display: none; }
+
+/* Meta records carry no price, so that column never appears on their screen.
+   This only ever hides, so it cannot fight the toggles above. */
+#view-meta .c-price { display: none; }
+
+/* Some system builds carry 80-character version strings. Left alone they widen
+   the column until Status is pushed off the page, so clamp them here; the full
+   value is in the expanded row. */
+.clip {
+  display: inline-block;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.num { font-family: var(--mono); font-size: .8125rem; white-space: nowrap; }
+
+/* an unreleased build sitting ahead of everything on a channel */
+.dev-ahead { color: var(--red); max-width: 10rem; }
+.muted-cell { color: var(--muted); }
+.chan { font-size: .8125rem; white-space: nowrap; }
+.chan .more-chan { color: var(--muted); }
+
+/* cover art, off unless switched on in settings */
+.art {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 3px;
+  object-fit: cover;
+  vertical-align: -.6rem;
+  margin-right: .5rem;
+  background: var(--panel);
+}
+
+/* Scoped under .form so these beat the full-width text-input rules there. */
+.form .check {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-weight: 600;
+  font-size: .875rem;
+  cursor: pointer;
+}
+.form .check input {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--link);
+}
+
+.cols-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: .4rem 1rem;
+  max-width: 34rem;
+}
+.cols-grid .check { font-weight: 400; }
+
+.field__label {
+  display: block;
+  font-size: .875rem;
+  font-weight: 600;
+  margin-bottom: .5rem;
+}
+
+/* detail */
+
+tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1rem; }
+
+.detail p { margin: 0 0 .6rem; font-size: .875rem; }
+.detail p.warn { color: var(--red); }
+
+.detail h3 {
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0 0 .35rem;
+}
+
+.detail dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: .2rem 1rem;
+  margin: 0 0 1rem;
+  font-size: .875rem;
+}
+.detail dt { color: var(--muted); }
+.detail dd { margin: 0; font-family: var(--mono); font-size: .8125rem; }
+
+.chans {
+  width: auto;
+  margin: 0 0 1rem;
+  border-collapse: collapse;
+}
+.chans th, .chans td {
+  border-bottom: 1px solid var(--line);
+  padding: .3rem 1.25rem .3rem 0;
+  font-size: .8125rem;
+}
+.chans td { font-family: var(--mono); overflow-wrap: anywhere; }
+.chans td:first-child { font-family: var(--sans); white-space: nowrap; }
+.chans .muted { color: var(--muted); font-size: .75rem; }
+
+/* binary manifest */
+
+.info-out:empty { display: none; }
+.info-out { margin-top: 1.75rem; }
+.info-out .warn { color: var(--red); font-size: .875rem; }
+
+.perms {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  columns: 2;
+  column-gap: 2rem;
+  font-family: var(--mono);
+  font-size: .75rem;
+  color: var(--muted);
+}
+.perms li { break-inside: avoid; padding: .1rem 0; overflow-wrap: anywhere; }
+
+@media (max-width: 720px) { .perms { columns: 1; } }
+
+/* build history */
+
+.versions-out:empty { display: none; }
+.versions-out { margin-top: 1.25rem; }
+.versions-out .warn { color: var(--red); font-size: .875rem; }
+.versions-out .hint { margin: 0 0 .5rem; }
+
+.build-bar { margin: 0 0 .5rem; }
+.build-bar select {
+  min-height: 30px;
+  padding: .25rem .4rem;
+  font-size: .8125rem;
+  width: auto;
+}
+
+.vscroll {
+  max-height: 22rem;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+.vtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: .75rem;
+}
+.vtable th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  font-family: var(--sans);
+  padding: .35rem .6rem;
+}
+.vtable td {
+  padding: .3rem .6rem;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+/* builds that actually shipped on a channel */
+.vtable tr.on-channel td { color: var(--text); font-weight: 500; }
+.vtable tr:not(.on-channel) td { color: var(--muted); }
+
+.dl {
+  display: inline-block;
+  font-family: var(--sans);
+  font-size: .8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: #fff;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 3px;
+  padding: .35rem .9rem;
+  white-space: nowrap;
+}
+.dl:hover { background: var(--blue-hi); border-color: var(--blue-hi); }
+
+/* no account token set, so it leads to settings rather than a dead request */
+.dl-off {
+  background: none;
+  color: var(--muted);
+  border-color: var(--border);
+}
+.dl-off:hover { background: var(--hover); border-color: var(--border); }
+
+.vtable td:last-child { text-align: right; white-space: nowrap; }
+
+.more-versions { margin-top: .6rem; }
+
+.actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.actions a, .actions button {
+  display: inline-flex;
+  align-items: center;
+  padding: .5rem 1rem;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+  background: var(--field);
+  text-decoration: none;
+  font-size: .875rem;
+}
+.actions a:hover, .actions button:hover:not(:disabled) { background: var(--hover); }
+
+#view-apps > .sub,
+#view-meta > .sub,
+#view-settings > .sub { margin: .25rem 0 1.5rem; }
+
+#q, #metaQ { flex: 1 1 14rem; }
+
+/* store lookup */
+
+.lookup {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  margin-bottom: 1.25rem;
+}
+
+.lookup summary {
+  padding: .6rem .75rem;
+  cursor: pointer;
+  font-size: .875rem;
+}
+.lookup summary:hover { background: var(--hover); }
+
+.lookup__body {
+  padding: 0 .75rem .75rem;
+  border-top: 1px solid var(--line);
+}
+
+.hint {
+  margin: .75rem 0;
+  font-size: .8125rem;
+  color: var(--muted);
+  max-width: 60ch;
+}
+
+.lookup__out:empty,
+.resolve-out:empty { display: none; }
+
+.lookup__out,
+.resolve-out { font-size: .875rem; }
+
+.lookup__out .warn,
+.resolve-out .warn { color: var(--red); }
+
+.lookup__out pre,
+.resolve-out pre {
+  margin: .5rem 0 0;
+  padding: .6rem .75rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: .75rem;
+  overflow-x: auto;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.notice {
+  margin: 0 0 1.5rem;
+  padding: .6rem .75rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--red);
+  border-radius: 3px;
+  background: var(--panel);
+  font-size: .875rem;
+}
+
+.linkbtn {
+  border: 0;
+  background: none;
+  padding: 0;
+  min-height: 0;
+  font-size: inherit;
+  color: var(--link);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.linkbtn:hover { background: none; }
+
+/* settings form */
+
+.form { max-width: 46rem; }
+
+.form .field { margin-bottom: 1.5rem; }
+
+.form label {
+  display: block;
+  font-size: .875rem;
+  font-weight: 600;
+  margin-bottom: .3rem;
+}
+
+.form input { width: 100%; }
+
+.form .hint { margin: .4rem 0 0; }
+
+.form code {
+  font-family: var(--mono);
+  font-size: .75rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: .05rem .25rem;
+}
+
+.settings-out { margin: 1rem 0 0; font-size: .875rem; }
+.settings-out.ok { color: var(--green); }
+.settings-out.bad { color: var(--red); }
+
+/* show more */
+
+/* :not([hidden]) matters — a bare display:block would override the attribute */
+.more:not([hidden]) {
+  display: block;
+  width: 100%;
+  margin-top: .75rem;
+}
+
+/* fixed corners */
+
+.limitbar:not([hidden]) {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  font-size: .8125rem;
+  color: var(--muted);
+}
+.limitbar select {
+  min-height: 30px;
+  padding: .2rem .35rem;
+  font-size: .8125rem;
+}
+
+/* github corner */
+
+.gh {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  display: inline-flex;
+  align-items: center;
+  padding: .5rem .9rem;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+  text-decoration: none;
+  font-size: .8125rem;
+}
+.gh:hover { background: var(--hover); }
+
+/* misc */
+
+.empty, .foot { color: var(--muted); font-size: .8125rem; }
+.empty { padding: 1.5rem .6rem; }
+.foot { margin-top: 2rem; }
+
+@media (max-width: 720px) {
+  .c-dev, .c-build, .c-date, .c-price, .c-devb { display: none; }
+  /* the desktop minimum plus a 14rem version clamp overflows a phone, which
+     pushes Status off the edge */
+  .name { min-width: 0; }
+  .clip { max-width: 9rem; }
+}
+@media (max-width: 520px) {
+  .c-chan { display: none; }
+  .wrap { padding-top: 1.75rem; }
+
+  /* keep the bar on one line at phone widths */
+  .bar { padding: .5rem .75rem; gap: .6rem; }
+  .nav { gap: .6rem; }
+  .nav a { font-size: .8125rem; }
+  #theme { padding: .4rem .6rem; }
+}

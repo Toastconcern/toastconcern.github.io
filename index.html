@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaDB</title>
+<meta name="description" content="Version records for Quest and Rift apps, with a check against the live store.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script>
+  /* Set the theme before first paint so there is no flash. */
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem("theme"); } catch (e) {}
+    var dark = saved ? saved === "dark"
+      : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  })();
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="bar">
+    <h1>MetaDB</h1>
+    <nav class="nav">
+      <a href="#apps" data-view="apps">Apps and games</a>
+      <a href="#meta" data-view="meta">Meta apps</a>
+      <a href="#settings" data-view="settings">Settings</a>
+    </nav>
+    <button id="theme" type="button" aria-pressed="false">Dark</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <p id="relayNote" class="notice" hidden>
+    Update checks will fail until a relay is set — the browser is refused the store's
+    reply. <a href="#settings">Set one up in Settings</a>.
+  </p>
+
+  <!-- ---------- apps and games ---------- -->
+
+  <section id="view-apps">
+
+    <h2>Apps and games</h2>
+    <p class="sub" id="sub">
+      Search the Meta store, then open an app to pull its channels and build history.
+      Nothing is stored — every result is what the store says right now.
+    </p>
+
+    <div class="controls">
+      <input id="q" type="search" placeholder="App name, or an app ID, store link or package name" aria-label="Search the store" autocomplete="off" spellcheck="false">
+      <select id="hmd" aria-label="Headset"></select>
+      <select id="sort" aria-label="Sort by">
+        <option value="az" selected>Name A–Z</option>
+        <option value="za">Name Z–A</option>
+        <option value="newest">Newest update</option>
+        <option value="oldest">Oldest update</option>
+        <option value="priceUp">Price low to high</option>
+        <option value="priceDown">Price high to low</option>
+      </select>
+      <button id="searchGo" type="button">Search</button>
+      <button id="checkAll" type="button">Check shown</button>
+    </div>
+
+    <p class="count" id="count"></p>
+
+    <table>
+      <thead>
+                <tr>
+          <th scope="col">App</th>
+          <th scope="col" class="c-dev">Device</th>
+          <th scope="col" class="c-chan">Channel</th>
+          <th scope="col" class="c-price">Price</th>
+          <th scope="col" class="c-ver">Version</th>
+          <th scope="col" class="c-build">Build</th>
+          <th scope="col" class="c-date">Date</th>
+          <th scope="col" class="c-devb">Dev build</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+
+    <p id="empty" class="empty" hidden>Nothing matches.</p>
+
+  </section>
+
+  <!-- ---------- meta apps ---------- -->
+
+  <section id="view-meta" hidden>
+
+    <h2>Meta apps</h2>
+    <p class="sub" id="metaSub">Apps published by Meta.</p>
+
+    <div class="controls">
+      <input id="metaQ" type="search" placeholder="Filter this list by name, package or app ID" aria-label="Filter Meta apps" autocomplete="off" spellcheck="false">
+      <select id="metaChannel" aria-label="Filter by channel">
+        <option value="">All channels</option>
+      </select>
+      <select id="metaSort" aria-label="Sort by">
+        <option value="az">Name A–Z</option>
+        <option value="za">Name Z–A</option>
+        <option value="newest">Newest build</option>
+        <option value="oldest">Oldest build</option>
+      </select>
+      <button id="checkMeta" type="button">Check shown</button>
+    </div>
+
+    <table>
+      <thead>
+                <tr>
+          <th scope="col">App</th>
+          <th scope="col" class="c-dev">Device</th>
+          <th scope="col" class="c-chan">Channel</th>
+          <th scope="col" class="c-price">Price</th>
+          <th scope="col" class="c-ver">Version</th>
+          <th scope="col" class="c-build">Build</th>
+          <th scope="col" class="c-date">Date</th>
+          <th scope="col" class="c-devb">Dev build</th>
+        </tr>
+      </thead>
+      <tbody id="metaRows"></tbody>
+    </table>
+
+    <p id="metaEmpty" class="empty" hidden>data/meta-apps.json has no apps in it.</p>
+
+  </section>
+
+  <!-- ---------- settings ---------- -->
+
+  <section id="view-settings" hidden>
+
+    <h2>Settings</h2>
+    <p class="sub">Kept in this browser only. Nothing is sent anywhere but the store.</p>
+
+    <form id="settingsForm" class="form" autocomplete="off">
+
+      <div class="field">
+        <label for="token">Access token</label>
+        <input id="token" type="password" placeholder="paste your oc_www_at value" autocomplete="off" spellcheck="false">
+        <p class="hint">
+          Store search and package lookups need a token belonging to a logged-in
+          account. To get yours: sign in at
+          <a href="https://secure.oculus.com/" target="_blank" rel="noopener">secure.oculus.com</a>,
+          open your browser's developer tools, and under
+          <strong>Application → Storage → Cookies</strong> copy the value of the
+          <code>oc_www_at</code> cookie.
+        </p>
+        <p class="hint">
+          Leave it empty to fall back to the built-in public token, which can read
+          public LIVE builds and nothing else. Treat your own token like a password —
+          it signs in as you.
+        </p>
+      </div>
+
+      <div class="field">
+        <label for="acToken">Account token</label>
+        <input id="acToken" type="password" placeholder="paste your oc_ac_at value" autocomplete="off" spellcheck="false">
+        <p class="hint">
+          The <code>oc_ac_at</code> cookie, from the same place. This is the one
+          downloads authenticate with — everything else uses the access token above.
+          Without it, the Download buttons in a build history have nothing to sign
+          with and will point back here instead.
+        </p>
+
+        <div class="actions">
+          <button type="button" id="saveTokens">Save tokens</button>
+        </div>
+        <p id="tokensOut" class="settings-out" role="status"></p>
+      </div>
+
+      <div class="field">
+        <label class="check">
+          <input id="images" type="checkbox">
+          Show app art in search results
+        </label>
+        <p class="hint">
+          Store results include cover art. Off by default, since it means loading an
+          image per result straight from Meta's CDN.
+        </p>
+      </div>
+
+      <div class="field">
+        <label class="check">
+          <input id="store" type="checkbox" checked>
+          Show the open in store button
+        </label>
+        <p class="hint">
+          The link out to the app's page on meta.com, in each expanded app. On by
+          default.
+        </p>
+      </div>
+
+      <div class="field">
+        <label class="check">
+          <input id="details" type="checkbox">
+          Show the more app info button
+        </label>
+        <p class="hint">
+          Adds a button to each expanded app that fetches its binary manifest — package
+          name, download size, target SDK, required OS version, permissions and hashes.
+          This is the query a headset runs to work out what to install, so it needs a
+          logged-in account token.
+        </p>
+      </div>
+
+      <div class="field">
+        <span class="field__label">Columns</span>
+        <div id="cols" class="cols-grid"></div>
+        <p class="hint">
+          Applies to both lists, except Price — Meta apps have none, so that column
+          never shows there. Narrow screens still drop the secondary columns to fit,
+          whatever is ticked here.
+        </p>
+      </div>
+
+      <div class="field">
+        <label for="relay">Relay URL</label>
+        <input id="relay" type="url" placeholder="https://your-relay.example/?url={url}" spellcheck="false">
+        <p class="hint">
+          Required for checks to work from a browser. The store replies with
+          <code>Access-Control-Allow-Origin: https://facebook.com</code>, so this page
+          is refused the response no matter which token is used — that is decided by
+          the page's address, not the token. This is why the same request succeeds in
+          Insomnia or curl, which are not browsers. A relay is a small service you
+          control that fetches the URL and passes it back. Put <code>{url}</code> where
+          the target should go, or leave it off and it will be appended.
+        </p>
+        <p class="hint">
+          Running locally? Start <code>node tools/relay.mjs</code> in the project folder,
+          then <button type="button" id="useLocal" class="linkbtn">use the local relay</button>.
+        </p>
+      </div>
+
+      <div class="actions">
+        <button type="submit">Save</button>
+        <button type="button" id="testBtn">Test connection</button>
+        <button type="button" id="clearBtn">Reset</button>
+      </div>
+
+      <p id="settingsOut" class="settings-out" role="status"></p>
+
+    </form>
+
+  </section>
+
+  <p class="foot">Data comes from the Meta store. Not affiliated with Meta.</p>
+
+</div>
+
+<div class="limitbar">
+  <label for="limit">Show</label>
+  <select id="limit">
+    <option value="5" selected>5</option>
+    <option value="10">10</option>
+    <option value="25">25</option>
+    <option value="50">50</option>
+    <option value="100">100</option>
+  </select>
+</div>
+
+<a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

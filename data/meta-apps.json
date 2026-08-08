@@ -1,0 +1,715 @@
+{
+  "catalog": {
+    "updatedAt": "2026-08-08",
+    "source": "graph.oculus.com",
+    "note": "Apps published by Meta. System apps carry a packageName; the ones without an id could not be resolved."
+  },
+  "apps": [
+    {
+      "id": "2532035600194083",
+      "name": "Worlds",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "278.0.0.1.242",
+          "versionCode": 2413,
+          "releasedAt": "2026-07-31"
+        }
+      ]
+    },
+    {
+      "id": "1863547050392688",
+      "name": "First Steps",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "1.0",
+          "versionCode": 46242,
+          "releasedAt": "2019-08-13"
+        }
+      ]
+    },
+    {
+      "name": "Meta AI",
+      "packageName": "com.oculus.assistant",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "1233.0.0.4.109",
+          "versionCode": 343400340,
+          "releasedAt": "2026-08-03"
+        }
+      ],
+      "id": "2270234229757886"
+    },
+    {
+      "name": "EyeTrackingNux",
+      "packageName": "com.oculus.eyetrackingnux",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "208.0.0.0.410",
+          "versionCode": 1032699598,
+          "releasedAt": "2026-08-04"
+        }
+      ],
+      "id": "26017942004494021"
+    },
+    {
+      "name": "NUX Education",
+      "packageName": "com.meta.nuxeducation",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "4.0.0.0.22",
+          "versionCode": 56801215,
+          "releasedAt": "2026-07-23"
+        }
+      ],
+      "id": "26273539915572244"
+    },
+    {
+      "name": "Guides and Setup",
+      "packageName": "com.oculus.guidebook",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "117.0.0.0.75",
+          "versionCode": 330600387,
+          "releasedAt": "2026-05-29"
+        },
+        {
+          "name": "Q4B Lufthansa Pilot Public RC",
+          "group": "CUSTOM",
+          "version": "83.0.0.0.35",
+          "versionCode": 327200143,
+          "releasedAt": "2024-08-26"
+        }
+      ],
+      "id": "4296951573676418"
+    },
+    {
+      "name": "Help & Tips",
+      "packageName": "com.oculus.helpcenter",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "101.0.0.0.160",
+          "versionCode": 392100491,
+          "releasedAt": "2026-04-28"
+        }
+      ],
+      "id": "7655466654471309"
+    },
+    {
+      "name": "Oculus Accessibility",
+      "packageName": "com.oculus.accessibility",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "203.0.0.0.178",
+          "versionCode": 409800358,
+          "releasedAt": "2026-02-23"
+        },
+        {
+          "name": "Mainline Dogfooding",
+          "group": "CUSTOM",
+          "version": "208.0.0.0.172",
+          "versionCode": 413100342,
+          "releasedAt": "2026-07-20"
+        },
+        {
+          "name": "Release Dogfooding",
+          "group": "CUSTOM",
+          "version": "208.0.0.0.172",
+          "versionCode": 413100342,
+          "releasedAt": "2026-07-20"
+        }
+      ],
+      "id": "7756562997748361"
+    },
+    {
+      "name": "Hands Education Module",
+      "packageName": "com.meta.handseducationmodule",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "67.0.0.0.50",
+          "versionCode": 67000050,
+          "releasedAt": "2026-04-21"
+        }
+      ],
+      "id": "6995877103767543"
+    },
+    {
+      "name": "Oculus Social",
+      "packageName": "com.oculus.socialplatform",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "288.1.0.3.581",
+          "versionCode": 498002423,
+          "releasedAt": "2026-07-28"
+        }
+      ],
+      "id": "1953748974690454"
+    },
+    {
+      "name": "Media Player",
+      "packageName": "com.oculus.horizonmediaplayer",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "44.0.0.5.214",
+          "versionCode": 674301127,
+          "releasedAt": "2026-08-05"
+        }
+      ],
+      "id": "7541517859284800"
+    },
+    {
+      "name": "Camera",
+      "packageName": "com.oculus.metacam",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "200.0.0.6.655",
+          "versionCode": 519701324,
+          "releasedAt": "2026-07-22"
+        }
+      ],
+      "id": "5082157501798796"
+    },
+    {
+      "name": "Remote Desktop",
+      "packageName": "com.oculus.remotedesktop",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "169.0.0.3.104",
+          "versionCode": 715300626,
+          "releasedAt": "2026-08-04"
+        }
+      ],
+      "id": "4809522785759352"
+    },
+    {
+      "name": "Oculus System Utilities",
+      "packageName": "com.oculus.systemutilities",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "112.0.0.27.678",
+          "versionCode": 740403569,
+          "releasedAt": "2026-08-04"
+        }
+      ],
+      "id": "1689311011174858"
+    },
+    {
+      "name": "Gallery",
+      "packageName": "com.oculus.hzosgallery",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "49.0.0.26.491",
+          "versionCode": 654702660,
+          "releasedAt": "2026-07-31"
+        }
+      ],
+      "id": "8026465470786014"
+    },
+    {
+      "name": "Browser",
+      "packageName": "com.oculus.browser",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "150.0.0.27.30.1033549722",
+          "versionCode": 570300950,
+          "releasedAt": "2026-08-05"
+        }
+      ],
+      "id": "1916519981771802"
+    },
+    {
+      "name": "Oculus ASR Service",
+      "packageName": "com.oculus.asrservice",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "208.0.0.0.440",
+          "versionCode": 629000865,
+          "releasedAt": "2026-08-06"
+        },
+        {
+          "name": "Mainline Dogfooding",
+          "group": "CUSTOM",
+          "version": "208.0.0.0.457",
+          "versionCode": 629000896,
+          "releasedAt": "2026-08-07"
+        },
+        {
+          "name": "Release Dogfooding",
+          "group": "CUSTOM",
+          "version": "208.0.0.0.440",
+          "versionCode": 629000865,
+          "releasedAt": "2026-08-06"
+        }
+      ],
+      "id": "25687917654157387"
+    },
+    {
+      "name": "Loft",
+      "packageName": "com.meta.shell.env.footprint.haven2025",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "206.0.0.0.70",
+          "versionCode": 974700795,
+          "releasedAt": "2026-05-19"
+        }
+      ],
+      "id": "9699475960139281"
+    },
+    {
+      "name": "HzOs System Intelligence Service",
+      "packageName": "com.oculus.systemintelligence",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "208.0.0.0.74",
+          "versionCode": 751200451,
+          "releasedAt": "2026-07-21"
+        }
+      ],
+      "id": "9168275826598525"
+    },
+    {
+      "name": "Store",
+      "packageName": "com.oculus.store",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "328.0.0.4.340",
+          "versionCode": 385001782,
+          "releasedAt": "2026-08-03"
+        }
+      ],
+      "id": "3209391179128490"
+    },
+    {
+      "name": "Accounts Center",
+      "packageName": "com.oculus.accountscenter",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "220.0.0.1.108",
+          "versionCode": 714600552,
+          "releasedAt": "2026-07-29"
+        },
+        {
+          "name": "Mainline Dogfooding",
+          "group": "CUSTOM",
+          "version": "214.0.0.0.44",
+          "versionCode": 714000226,
+          "releasedAt": "2026-06-03"
+        }
+      ],
+      "id": "4594276237352475"
+    },
+    {
+      "name": "Loma Home",
+      "packageName": "com.meta.shell.env.prod.lomahome",
+      "platform": "ANDROID_6DOF",
+      "channels": []
+    },
+    {
+      "name": "Classic Home",
+      "packageName": "com.oculus.environment.prod.rifthome",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "rifthome",
+          "versionCode": 4,
+          "releasedAt": "2021-12-30"
+        }
+      ],
+      "id": "2279149812197085"
+    },
+    {
+      "name": "Winter Lodge",
+      "packageName": "com.oculus.environment.prod.winterlodge",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "OSE_LODGE_20230110",
+          "versionCode": 11,
+          "releasedAt": "2024-01-22"
+        }
+      ],
+      "id": "3397161850356438"
+    },
+    {
+      "name": "Futurescape",
+      "packageName": "com.meta.environment.prod.futurescape",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "Futurescape",
+          "versionCode": 2,
+          "releasedAt": "2024-05-01"
+        }
+      ],
+      "id": "6371182992938672"
+    },
+    {
+      "name": "Cascadia",
+      "packageName": "com.meta.environment.prod.vista",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "Vista",
+          "versionCode": 5,
+          "releasedAt": "2024-05-01"
+        }
+      ],
+      "id": "5009516192492569"
+    },
+    {
+      "name": "Mountain Study",
+      "packageName": "com.oculus.environment.prod.personaloffice02",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "PersonalOffice02",
+          "versionCode": 1,
+          "releasedAt": "2022-04-01"
+        }
+      ],
+      "id": "5077315605654672"
+    },
+    {
+      "name": "Studio",
+      "packageName": "com.oculus.environment.prod.personaloffice01",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "PersonalOffice01",
+          "versionCode": 5,
+          "releasedAt": "2022-04-04"
+        }
+      ],
+      "id": "4103186286403181"
+    },
+    {
+      "name": "Meta Horizon Terrace",
+      "packageName": "com.meta.environment.prod.stinson.launchpad",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "StinsonQ3",
+          "versionCode": 7,
+          "releasedAt": "2024-06-24"
+        }
+      ],
+      "id": "23954694280811521"
+    },
+    {
+      "name": "Cyber City",
+      "packageName": "com.oculus.environment.prod.cyberhome",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "cyberhome",
+          "versionCode": 2,
+          "releasedAt": "2021-12-30"
+        }
+      ],
+      "id": "2866842926757434"
+    },
+    {
+      "name": "Blue Hill Goldmine",
+      "packageName": "com.meta.environment.prod.bluehillgoldmine",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "BlueHillGoldMineQ3",
+          "versionCode": 4,
+          "releasedAt": "2023-11-02"
+        }
+      ],
+      "id": "9465027033537283"
+    },
+    {
+      "name": "Lakeside Peak",
+      "packageName": "com.meta.environment.prod.lakesidepeak",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "LakesidePeakQ2",
+          "versionCode": 8,
+          "releasedAt": "2024-05-21"
+        }
+      ],
+      "id": "7322868361059572"
+    },
+    {
+      "name": "Storybook",
+      "packageName": "com.meta.environment.prod.storybook",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "StorybookQ3",
+          "versionCode": 10,
+          "releasedAt": "2023-12-20"
+        }
+      ],
+      "id": "6707631349366674"
+    },
+    {
+      "name": "Space Station",
+      "packageName": "com.oculus.environment.prod.spacestation",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "spacestation",
+          "versionCode": 10,
+          "releasedAt": "2024-01-18"
+        }
+      ],
+      "id": "3759082287499712"
+    },
+    {
+      "name": "Ryokan Retreat",
+      "packageName": "com.oculus.environment.prod.japan",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "OSE-JAPAN-20200911_09rcx.gltf.ovrscene_system_environment_japan_ambix_20200903.ogg",
+          "versionCode": 2,
+          "releasedAt": "2020-09-14"
+        }
+      ],
+      "id": "3384742628260377"
+    },
+    {
+      "name": "The Great Sand Sea",
+      "packageName": "com.meta.environment.prod.asgardswrath",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "AsgardsWrath",
+          "versionCode": 480357705,
+          "releasedAt": "2023-05-31"
+        }
+      ],
+      "id": "9295315980541560"
+    },
+    {
+      "name": "Desert Terrace",
+      "packageName": "com.oculus.environment.prod.adobe",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "OSE-DELMAR-20230110",
+          "versionCode": 14,
+          "releasedAt": "2024-02-06"
+        }
+      ],
+      "id": "4421540051219573"
+    },
+    {
+      "name": "Abstraction",
+      "packageName": "com.meta.environment.prod.abstraction",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "Abstraction",
+          "versionCode": 1,
+          "releasedAt": "2023-01-20"
+        }
+      ],
+      "id": "5074124432688537"
+    },
+    {
+      "name": "Bubbles",
+      "packageName": "com.oculus.environment.prod.bubbles",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "bubbles",
+          "versionCode": 2,
+          "releasedAt": "2021-12-30"
+        }
+      ],
+      "id": "2527898934001655"
+    },
+    {
+      "name": "Crystal Atrium",
+      "packageName": "com.meta.environment.prod.monolith",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "Monolith",
+          "versionCode": 3,
+          "releasedAt": "2022-07-13"
+        }
+      ],
+      "id": "5230505793640167"
+    },
+    {
+      "name": "Quest Dome",
+      "packageName": "com.oculus.environment.prod.dome",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "20190221_env2_02default.gltf.ovrscene_system_environment_dome_ambix_20200810.ogg",
+          "versionCode": 3,
+          "releasedAt": "2020-08-10"
+        }
+      ],
+      "id": "3327542460590280"
+    },
+    {
+      "name": "Polar Village",
+      "packageName": "com.meta.environment.prod.polarvillage",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "PolarVillage-462411777",
+          "versionCode": 462411777,
+          "releasedAt": "2023-04-03"
+        }
+      ],
+      "id": "5660392284040822"
+    },
+    {
+      "name": "The Lord of the Rings: The Rings of Power - Khazad-dûm",
+      "packageName": "com.meta.environment.prod.rockquarry",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "Rockquarry",
+          "versionCode": 2,
+          "releasedAt": "2022-10-20"
+        }
+      ],
+      "id": "5435853296490630"
+    },
+    {
+      "name": "Oceanarium",
+      "packageName": "com.meta.environment.prod.underwater",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "OceanariumQ2",
+          "versionCode": 8,
+          "releasedAt": "2024-09-14"
+        }
+      ],
+      "id": "7974839269218069"
+    },
+    {
+      "name": "Paradiso",
+      "packageName": "com.meta.environment.prod.treehouse",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "Treehouse",
+          "versionCode": 5,
+          "releasedAt": "2024-05-01"
+        }
+      ],
+      "id": "6019363784742886"
+    }
+  ]
+}
