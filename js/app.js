@@ -3,6 +3,7 @@ import {
   lookupApp,
   lookupByPackage,
   appDetails,
+  storeListing,
   downloadURL,
   canDownload,
   searchStore,
@@ -12,7 +13,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=2";
+} from "./check.js?v=11";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
 
@@ -33,6 +34,25 @@ const COLUMNS = [
   ["c-build", "Build"],
   ["c-date", "Date"],
   ["c-devb", "Dev build"],
+];
+
+/* Build history orders. `list` arrives newest-first from the store. */
+const BUILD_SORTS = {
+  newest: (a, b) => b.createdAt - a.createdAt,
+  oldest: (a, b) => a.createdAt - b.createdAt,
+  buildDown: (a, b) => Number(b.versionCode) - Number(a.versionCode),
+  buildUp: (a, b) => Number(a.versionCode) - Number(b.versionCode),
+  released: (a, b) =>
+    Number(Boolean(b.channels.length)) - Number(Boolean(a.channels.length)) ||
+    b.createdAt - a.createdAt,
+};
+
+const BUILD_SORT_LABELS = [
+  ["released", "Released first"],
+  ["newest", "Newest first"],
+  ["oldest", "Oldest first"],
+  ["buildDown", "Build high to low"],
+  ["buildUp", "Build low to high"],
 ];
 
 /* ---------- sorting ---------- */
@@ -110,6 +130,9 @@ const el = {
   details: document.getElementById("details"),
   store: document.getElementById("store"),
   cols: document.getElementById("cols"),
+  defHmd: document.getElementById("defHmd"),
+  defSort: document.getElementById("defSort"),
+  defBuildSort: document.getElementById("defBuildSort"),
   useLocal: document.getElementById("useLocal"),
   relayNote: document.getElementById("relayNote"),
 
@@ -124,6 +147,9 @@ const el = {
 
 /** id -> { state, latest, error } */
 const results = new Map();
+
+/** id -> the store's own listing, filled in by a check. */
+const listings = new Map();
 const open = new Set();
 
 let metaList = [];
@@ -137,6 +163,9 @@ initTheme();
 initViews();
 initSettings();
 initColumns();
+/* The headset list has to exist before the defaults can select within it. */
+fillHmdPicker();
+initDefaults();
 boot();
 
 /* ---------- theme ---------- */
@@ -255,6 +284,10 @@ function initSettings() {
     el.store.checked = true;
     for (const box of el.cols.querySelectorAll("input")) box.checked = true;
     applyColumns();
+    const fresh = loadSettings();
+    el.defHmd.value = el.hmd.value = fresh.hmd;
+    el.defSort.value = el.sort.value = fresh.searchSort;
+    el.defBuildSort.value = fresh.buildSort;
     syncRelayNote();
     say("Cleared. Back to the built-in token and no relay.", "ok");
   });
@@ -288,6 +321,51 @@ function initSettings() {
 
     el.testBtn.disabled = false;
   });
+}
+
+/* ---------- defaults ---------- */
+
+/* The three list pickers start wherever settings say. Each settings dropdown is
+   filled from the same source as the control it governs, so they cannot drift
+   apart. */
+function initDefaults() {
+  const saved = loadSettings();
+
+  fillOptions(el.defHmd, HMD_TYPES.map(([v, label]) => [v, `${label} (${v})`]));
+  fillOptions(el.defSort, [...el.sort.options].map((o) => [o.value, o.textContent]));
+  fillOptions(el.defBuildSort, BUILD_SORT_LABELS);
+
+  const pairs = [
+    [el.defHmd, "hmd", saved.hmd, el.hmd],
+    [el.defSort, "searchSort", saved.searchSort, el.sort],
+    [el.defBuildSort, "buildSort", saved.buildSort, null],
+  ];
+
+  for (const [picker, key, value, live] of pairs) {
+    picker.value = value;
+    if (live) live.value = value;
+
+    picker.addEventListener("change", () => {
+      saveSettings({ [key]: picker.value });
+      /* Move the live control too, so the effect is visible immediately rather
+         than only on the next visit. */
+      if (live) {
+        live.value = picker.value;
+        live.dispatchEvent(new Event("change"));
+      }
+    });
+  }
+}
+
+function fillOptions(select, entries) {
+  select.replaceChildren(
+    ...entries.map(([value, label]) => {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      return opt;
+    })
+  );
 }
 
 /* ---------- columns ---------- */
@@ -398,7 +476,6 @@ async function boot() {
   }
 
   fillChannelFilter(el.metaChannel, metaList);
-  fillHmdPicker();
 
   el.searchGo.addEventListener("click", runSearch);
   el.q.addEventListener("keydown", (e) => {
@@ -686,32 +763,88 @@ function detailRow(app) {
     ? found.latest.channels
     : channelsOf(app);
 
-  const facts = [];
-  if (app.id) facts.push(["App ID", app.id]);
-  if (app.packageName) facts.push(["Package", app.packageName]);
-  facts.push(["Device", app.platform ? (DEVICE[app.platform] ?? app.platform) : "—"]);
-  if (app.price) facts.push(["Price", app.price]);
+  /* Filled in by a check, alongside the build history. */
+  const listed = (app.id && listings.get(app.id)) || null;
+  const store = listed?.data ?? null;
 
-  if (found?.latest) {
-    const L = found.latest;
+  const L = found?.latest;
 
-    facts.push(
-      ["Latest release", `${L.version} (build ${L.versionCode})`],
-      ["Released", `${L.releasedAt} on ${L.channel}`]
-    );
-
-    if (L.newest) {
-      const where = L.newest.channels.length
-        ? L.newest.channels.join(", ")
-        : "no channel";
-      facts.push(
+  const newest = L?.newest
+    ? [
         ["Newest build", `${L.newest.version} (build ${L.newest.versionCode})`],
-        ["Uploaded", `${L.newest.releasedAt} — ${where}`]
-      );
-    }
+        [
+          "Uploaded",
+          `${L.newest.releasedAt} — ${
+            L.newest.channels.length ? L.newest.channels.join(", ") : "no channel"
+          }`,
+        ],
+      ]
+    : [];
 
-    if (L.total) facts.push(["Builds on record", L.total]);
-  }
+  const groups = [
+    [
+      "App",
+      [
+        ["App ID", app.id],
+        ["Package", app.packageName],
+        ["Device", app.platform ? (DEVICE[app.platform] ?? app.platform) : null],
+        ["Price", app.price],
+      ],
+    ],
+    [
+      "Builds",
+      L
+        ? [
+            ["Latest release", `${L.version} (build ${L.versionCode})`],
+            ["Released", `${L.releasedAt} on ${L.channel}`],
+            ...newest,
+            ["On record", L.total],
+          ]
+        : [],
+    ],
+    [
+      "Listing",
+      store
+        ? [
+            ["Category", store.category],
+            ["Genres", commas(store.genres)],
+            ["Game modes", commas(store.modes)],
+            [
+              "Rating",
+              store.ratingCount
+                ? `${store.rating} — ${store.ratingCount} ratings`
+                : store.rating,
+            ],
+            ["On the store", store.released],
+            ["In-app ads", store.hasAds ? "yes" : null],
+          ]
+        : [],
+    ],
+    [
+      "Supports",
+      store
+        ? [
+            ["Player modes", commas(store.playerModes)],
+            ["Controllers", commas(store.controllers)],
+            ["Platforms", commas(store.platforms)],
+            ["Languages", commas(store.languages)],
+            ["Internet", store.internet],
+            ["Comfort", store.comfort],
+          ]
+        : [],
+    ],
+    [
+      "Published by",
+      store
+        ? [
+            ["Publisher", store.publisher],
+            /* Only its own line when it is not just the publisher again. */
+            ["Developer", store.developer === store.publisher ? null : store.developer],
+            ["Installs at", store.installSize],
+          ]
+        : [],
+    ],
+  ];
 
   const opts = loadSettings();
 
@@ -758,7 +891,12 @@ function detailRow(app) {
   tr.innerHTML = `
     <td colspan="8">
       ${note(found)}
-      <dl>${facts.map(([k, v]) => `<dt>${k}</dt><dd>${esc(String(v))}</dd>`).join("")}</dl>
+      ${factGroups(groups)}
+      ${
+        listed?.error
+          ? `<p class="warn">No store listing: ${esc(listed.error)}</p>`
+          : ""
+      }
       ${channelTable}
       <div class="actions">${actions}</div>
       <div class="resolve-out"></div>
@@ -847,34 +985,93 @@ function mb(bytes) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function drawAppInfo(out, info) {
-  const facts = [
-    ["Package", info.packageName],
-    ["Version", info.version && `${info.version} (build ${info.versionCode})`],
-    ["Download", mb(info.size)],
-    ["Space needed", mb(info.requiredSpace)],
-    ["File", info.fileName],
-    ["Built for", info.targetSdk && `Android SDK ${info.targetSdk}`],
-    ["Needs OS", info.requiredOs],
-    ["Tracking", info.headTracking],
-    [
-      "External storage",
-      info.externalStorage == null ? null : info.externalStorage ? "yes" : "no",
-    ],
-    ["Uploaded", info.releasedAt],
-    ["SHA-256", info.sha256],
-    ["MD5", info.checksum],
-    ["Cert signature", info.certSignature],
-  ].filter(([, v]) => v);
+/** A <dl> from [label, value] pairs, dropping the ones with nothing in them. */
+function factList(pairs) {
+  return `<dl>${pairs
+    .filter(([, v]) => v)
+    .map(([k, v]) => `<dt>${k}</dt><dd>${esc(String(v))}</dd>`)
+    .join("")}</dl>`;
+}
 
+/**
+ * A comma list that wraps between its items rather than through them.
+ *
+ * "Meta Quest 3S, Meta Quest 3, Meta Quest Pro" in a narrow column otherwise
+ * breaks after "Meta Quest", which reads as a different headset. The spaces
+ * inside each item are made non-breaking so only the commas are break points.
+ */
+const commas = (items) =>
+  items.map((s) => String(s).replace(/ /g, " ")).join(", ");
+
+/**
+ * Facts as titled groups laid out beside each other.
+ *
+ * A flat list of twenty rows is a long scroll for what is really four short
+ * lists. Groups that came back empty are dropped rather than left as a heading
+ * with nothing under it.
+ */
+function factGroups(groups) {
+  const filled = groups
+    .map(([title, pairs]) => [title, pairs.filter(([, v]) => v)])
+    .filter(([, pairs]) => pairs.length);
+
+  if (!filled.length) return "";
+
+  return `<div class="facts">${filled
+    .map(
+      ([title, pairs]) =>
+        `<section><h4>${title}</h4>${factList(pairs)}</section>`
+    )
+    .join("")}</div>`;
+}
+
+function drawAppInfo(out, info) {
   out.innerHTML = `
     <h3>Binary manifest</h3>
-    <dl>${facts
-      .map(([k, v]) => `<dt>${k}</dt><dd>${esc(String(v))}</dd>`)
-      .join("")}</dl>
+    ${factGroups([
+      [
+        "Binary",
+        [
+          ["Package", info.packageName],
+          ["Version", info.version && `${info.version} (build ${info.versionCode})`],
+          ["File", info.fileName],
+          ["Uploaded", info.releasedAt],
+        ],
+      ],
+      [
+        "Size",
+        [
+          ["Download", mb(info.size)],
+          ["Space needed", mb(info.requiredSpace)],
+        ],
+      ],
+      [
+        "Needs",
+        [
+          ["Built for", info.targetSdk && `Android SDK ${info.targetSdk}`],
+          ["OS", info.requiredOs],
+          ["Tracking", info.headTracking],
+          [
+            "External storage",
+            info.externalStorage == null ? null : info.externalStorage ? "yes" : "no",
+          ],
+        ],
+      ],
+    ])}
+    ${
+      /* Hashes are 64 characters of hex — they get their own full-width block
+         rather than squeezing a column to fit them. */
+      info.sha256 || info.checksum || info.certSignature
+        ? `<h4>Hashes</h4>${factList([
+            ["SHA-256", info.sha256],
+            ["MD5", info.checksum],
+            ["Cert signature", info.certSignature],
+          ])}`
+        : ""
+    }
     ${
       info.permissions.length
-        ? `<h3>Permissions (${info.permissions.length})</h3>
+        ? `<h4>Permissions (${info.permissions.length})</h4>
            <ul class="perms">${info.permissions
              .map((p) => `<li>${esc(p)}</li>`)
              .join("")}</ul>`
@@ -887,28 +1084,15 @@ function drawAppInfo(out, info) {
 const versionCache = new Map();
 const VERSION_PAGE = 100;
 
-/* Build history orders. `list` arrives newest-first from the store. */
-const BUILD_SORTS = {
-  newest: (a, b) => b.createdAt - a.createdAt,
-  oldest: (a, b) => a.createdAt - b.createdAt,
-  buildDown: (a, b) => Number(b.versionCode) - Number(a.versionCode),
-  buildUp: (a, b) => Number(a.versionCode) - Number(b.versionCode),
-  released: (a, b) =>
-    Number(Boolean(b.channels.length)) - Number(Boolean(a.channels.length)) ||
-    b.createdAt - a.createdAt,
-};
-
-const BUILD_SORT_LABELS = [
-  ["released", "Released first"],
-  ["newest", "Newest first"],
-  ["oldest", "Oldest first"],
-  ["buildDown", "Build high to low"],
-  ["buildUp", "Build low to high"],
-];
-
 /* Released first by default: most of a history is internal builds, and the
    handful that shipped are what anyone came to look at. */
-function drawVersions(out, list, limit, mode = "released", keepScroll = false) {
+function drawVersions(
+  out,
+  list,
+  limit,
+  mode = loadSettings().buildSort,
+  keepScroll = false
+) {
   if (!list.length) {
     out.innerHTML = `<p>No builds returned.</p>`;
     return;
@@ -1042,7 +1226,7 @@ function refreshRow(app) {
   }
 }
 
-async function checkOne(app) {
+async function checkOne(app, { listing: wantListing = true } = {}) {
   const key = keyOf(app);
 
   if (!app.id) {
@@ -1054,8 +1238,30 @@ async function checkOne(app) {
   results.set(key, { state: "checking" });
   refreshRow(app);
 
-  try {
-    const latest = await checkApp(app);
+  /* The store listing rides along with the check: one button, one wait, and
+     what the store says about the app lands beside what it says about its
+     builds. Separate queries, so the listing is allowed to fail on its own —
+     a missing genre is no reason to lose the build history. */
+  const [history, store] = await Promise.allSettled([
+    checkApp(app),
+    wantListing ? storeListing(app.id, el.hmd.value) : Promise.resolve(null),
+  ]);
+
+  /* Only record an outcome when one was asked for, so a sweep does not wipe a
+     listing an earlier check already fetched. */
+  if (wantListing) {
+    listings.set(
+      app.id,
+      store.status === "fulfilled"
+        ? { data: store.value }
+        : { error: store.reason.message }
+    );
+  }
+
+  if (history.status === "rejected") {
+    results.set(key, { state: "error", error: history.reason.message });
+  } else {
+    const latest = history.value;
 
     /* The check reads the whole history, so hand the build list to the version
        viewer rather than making it fetch the same payload again. */
@@ -1076,8 +1282,6 @@ async function checkOne(app) {
       latest,
       was: primary ? `${primary.version} (build ${primary.versionCode})` : null,
     });
-  } catch (err) {
-    results.set(key, { state: "error", error: err.message });
   }
 
   refreshRow(app);
@@ -1107,7 +1311,10 @@ async function checkList(list, button, label) {
   async function worker() {
     while (cursor < checkable.length) {
       const app = checkable[cursor++];
-      await checkOne(app);
+      /* A sweep is about versions, and none of the listing shows in the table —
+         so skip it here and halve the requests. Opening a row and pressing
+         Check this app fills it in. */
+      await checkOne(app, { listing: false });
       done += 1;
       button.textContent = `Checking ${done} of ${checkable.length}…`;
     }

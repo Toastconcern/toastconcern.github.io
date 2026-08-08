@@ -216,6 +216,22 @@ body.hide-c-devb  .c-devb { display: none; }
   accent-color: var(--link);
 }
 
+.defaults-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: .6rem 1rem;
+  max-width: 46rem;
+}
+.defaults-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  font-weight: 400;
+  font-size: .8125rem;
+  color: var(--muted);
+}
+.defaults-grid select { width: 100%; }
+
 .cols-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
@@ -253,7 +269,43 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
   font-size: .875rem;
 }
 .detail dt { color: var(--muted); }
-.detail dd { margin: 0; font-family: var(--mono); font-size: .8125rem; }
+/* Hashes and package names are long unbroken strings; let them break rather
+   than push the row — and the whole table — wider than the screen. */
+.detail dd {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: .8125rem;
+  overflow-wrap: anywhere;
+}
+
+/* Every label over a block of facts — the group titles, Hashes, Permissions —
+   reads as one kind of thing, so they all get the same treatment. */
+.detail h4 {
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 .3rem;
+}
+
+/* Facts sit as short columns side by side rather than one long list. The
+   columns wrap on their own, so this needs no breakpoints. */
+/* Columns take the width their contents need and pack to the left, rather
+   than each taking an equal share — an equal share leaves the short group
+   padded out with empty space and pushes the next one away from it. */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 2.5rem;
+  align-items: start;
+  margin-bottom: .4rem;
+}
+
+/* Wide enough for a sentence, capped so one long value cannot take the row,
+   and allowed to shrink below its content on a narrow screen. */
+.facts section { flex: 0 1 auto; max-width: 20rem; min-width: 0; }
+.facts dl { grid-template-columns: max-content minmax(0, 1fr); margin-bottom: 1rem; }
 
 .chans {
   width: auto;

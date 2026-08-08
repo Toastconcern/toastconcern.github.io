@@ -48,6 +48,10 @@ export function loadSettings() {
       images: localStorage.getItem("metadb.images") === "1",
       details: localStorage.getItem("metadb.details") === "1",
       limit: localStorage.getItem("metadb.limit") || "",
+      /* Starting values for the on-page pickers. */
+      hmd: localStorage.getItem("metadb.hmd") || "EUREKA",
+      searchSort: localStorage.getItem("metadb.searchSort") || "az",
+      buildSort: localStorage.getItem("metadb.buildSort") || "released",
       /* On unless explicitly turned off, so it keeps its old behaviour. */
       store: localStorage.getItem("metadb.store") !== "0",
       /* Column classes the user has switched off. */
@@ -63,6 +67,9 @@ export function loadSettings() {
       images: false,
       details: false,
       limit: "",
+      hmd: "EUREKA",
+      searchSort: "az",
+      buildSort: "released",
       store: true,
       hidden: [],
     };
@@ -91,7 +98,7 @@ export function saveSettings(patch) {
 
 export function clearSettings() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "hidden", "limit", "store"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "hidden", "limit", "store", "hmd", "searchSort", "buildSort"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -149,10 +156,20 @@ async function getJSON(url) {
   try {
     json = JSON.parse(text);
   } catch {
+    json = stitch(text);
+  }
+
+  if (!json) {
+    /* Quote the start of the body. "Not JSON" on its own is a dead end — an
+       empty reply, a relay error page and a login redirect all look the same
+       from here, and they need different fixes. */
+    const snippet = text.trim()
+      ? `${res.status}: ${text.trim().replace(/\s+/g, " ").slice(0, 120)}`
+      : `${res.status} with an empty body`;
     throw new Error(
       res.ok
-        ? "the reply was not JSON — the relay may be returning a page"
-        : `store returned ${res.status}`
+        ? `the reply was not JSON — got ${snippet}`
+        : `store returned ${snippet}`
     );
   }
 
@@ -163,6 +180,73 @@ async function getJSON(url) {
   }
 
   return json;
+}
+
+/** Every top-level JSON object in a body that holds several, back to back. */
+function split(text) {
+  const out = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
+
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+
+    if (c === '"') {
+      inString = true;
+    } else if (c === "{") {
+      if (depth === 0) start = i;
+      depth += 1;
+    } else if (c === "}") {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        try {
+          out.push(JSON.parse(text.slice(start, i + 1)));
+        } catch {
+          return out;
+        }
+        start = -1;
+      }
+    }
+  }
+
+  return out;
+}
+
+/**
+ * One object out of a reply delivered in instalments.
+ *
+ * Some store queries answer with GraphQL incremental delivery: the skeleton
+ * first, then a run of objects that fill in the slow parts as the server
+ * finishes them, concatenated with nothing in between — so `JSON.parse` stops
+ * at the second `{`. Each instalment says where it belongs (`path`), so they
+ * can be put back where they came from and the caller never has to know the
+ * reply arrived in pieces.
+ *
+ * Returns null when the text is not JSON at all, which is a different problem.
+ */
+function stitch(text) {
+  const parts = split(text);
+  const root = parts.find((p) => p.data || p.errors || p.error) ?? null;
+  if (!root?.data) return root;
+
+  for (const part of parts) {
+    if (part === root || !part.data || !Array.isArray(part.path)) continue;
+
+    let node = root.data;
+    for (const step of part.path) node = node?.[step];
+    if (node && typeof node === "object") Object.assign(node, part.data);
+  }
+
+  return root;
 }
 
 const day = (secs) => new Date(secs * 1000).toISOString().slice(0, 10);
@@ -435,6 +519,100 @@ export async function appDetails(id) {
     permissions: binary.permissions ?? [],
     updateRequired:
       update.application?.latest_available_binary?.is_update_required ?? null,
+  };
+}
+
+/* The query behind the Details panel further down an app's store page. It is
+   the one place the store publishes what a game actually supports — modes,
+   controllers, headsets, category — and it carries the publisher, comfort
+   rating and rating counts too, so one call covers the lot. */
+const STORE_DOC_ID = "26038741162490780";
+
+/** SITTING -> Sitting, COMFORTABLE_FOR_SOME -> Comfortable for some. */
+const words = (s) =>
+  String(s)
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/^./, (c) => c.toUpperCase());
+
+/* ROOM_SCALE would come out of `words` as "Room scale"; the store writes it
+   as one word, and these three are the whole set. */
+const PLAYER_MODES = {
+  SITTING: "Sitting",
+  STANDING: "Standing",
+  ROOM_SCALE: "Roomscale",
+};
+
+/** Bytes as GB, which is the unit the store prints install sizes in. */
+const gb = (bytes) =>
+  Number(bytes) ? `${(Number(bytes) / 1024 ** 3).toFixed(2)} GB` : null;
+
+/**
+ * What the store says an app is: genres, category, the modes and hardware it
+ * supports, who made it, how big it installs.
+ *
+ * The reply arrives in instalments — the details are a deferred fragment that
+ * follows the description — which `getJSON` has already put back together.
+ * Two of the fields the store shows are spelled as codes rather than prose
+ * (player modes, comfort) and are turned back into words here.
+ */
+export async function storeListing(id, hmdType = loadSettings().hmd) {
+  const { token } = loadSettings();
+
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        doc_id: STORE_DOC_ID,
+        variables: JSON.stringify({
+          hmdType,
+          itemId: String(id),
+          /* The page turns these on to get the metadata line and off to skip
+             the AI review summary. Both are required. */
+          __relay_internal__pv__MDCAppStorFortheMetadataLineEnablerelayprovider: true,
+          __relay_internal__pv__MDCAppStoreGenAIReviewSummaryEnabledrelayprovider: false,
+        }),
+      })
+  );
+
+  if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+  const app = json?.data?.app_store_item;
+  if (!app) throw new Error("no listing in the reply");
+
+  /* The description comes back immediately and the details follow. When only
+     the first instalment arrives the store has answered, just not with the
+     part worth having — say so rather than showing a panel of blanks. */
+  if (app.genre_names === undefined && app.category_name === undefined) {
+    throw new Error(
+      "the store sent the description but not the details — that half needs a " +
+        "logged-in access token, set on the Settings page"
+    );
+  }
+
+  const binary = app.latest_supported_binary ?? {};
+  const count = app.quality_rating_i18n_count_string;
+
+  return {
+    name: app.display_name ?? null,
+    genres: app.genre_names ?? [],
+    category: app.category_name ?? null,
+    modes: app.user_interaction_mode_names ?? [],
+    playerModes: (app.supported_player_modes ?? []).map((m) => PLAYER_MODES[m] ?? words(m)),
+    controllers: app.supported_input_device_names ?? [],
+    platforms: app.supported_platforms_i18n ?? [],
+    publisher: app.publisher_name ?? null,
+    developer: app.developer_name ?? null,
+    comfort: app.comfort_rating ? words(app.comfort_rating) : null,
+    internet: app.internet_connection_name ?? null,
+    languages: (app.supported_in_app_languages ?? []).map((l) => l.name),
+    installSize: gb(binary.total_installed_space),
+    released: app.release_info?.display_date ?? null,
+    rating: app.quality_rating_i18n_score_string ?? null,
+    ratingCount: count && count !== "0" ? count : null,
+    website: app.website_url ?? null,
+    hasAds: app.has_in_app_ads ?? null,
   };
 }
 

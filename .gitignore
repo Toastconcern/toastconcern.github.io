@@ -1,0 +1,28 @@
+# Everything the site needs is committed — it is plain HTML, CSS and JS with no
+# build step. What follows is machine-made or private, and none of it belongs in
+# a repository that is served straight to the web.
+
+# Local secrets. .dev.vars is where wrangler reads values for `pages dev`, and
+# the tokens this project uses are the kind that sign in as you.
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+
+# `wrangler pages dev` build output and the local runtime's state: the bundled
+# copy of functions/, its middleware wrapper, and miniflare's SQLite emulation
+# of the Cloudflare storage APIs. Rebuilt from scratch on every run.
+.wrangler/
+
+# Only present if something here ever grows a dependency.
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Editors and operating systems leaving things behind.
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp

@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=2">
+<link rel="stylesheet" href="css/style.css?v=11">
 <script>
   /* Set the theme before first paint so there is no flash. */
   (function () {
@@ -216,7 +216,21 @@
           Adds a button to each expanded app that fetches its binary manifest — package
           name, download size, target SDK, required OS version, permissions and hashes.
           This is the query a headset runs to work out what to install, so it needs a
-          logged-in account token.
+          logged-in account token. Genres, rating and age rating are not here — Check
+          this app brings those in with the build history.
+        </p>
+      </div>
+
+      <div class="field">
+        <span class="field__label">Defaults</span>
+        <div class="defaults-grid">
+          <label>Headset <select id="defHmd"></select></label>
+          <label>Search order <select id="defSort"></select></label>
+          <label>Build history order <select id="defBuildSort"></select></label>
+        </div>
+        <p class="hint">
+          What the pickers start on. Changing one on a list is just for that visit;
+          these are what it goes back to.
         </p>
       </div>
 
@@ -277,6 +291,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=2"></script>
+<script type="module" src="js/app.js?v=11"></script>
 </body>
 </html>
