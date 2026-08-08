@@ -11,6 +11,7 @@ import {
   loadSettings,
   saveSettings,
   clearSettings,
+  needsRelay,
 } from "./check.js";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
@@ -323,9 +324,11 @@ function applyColumns() {
   }
 }
 
-/** The banner is the only warning a visitor gets before a check fails. */
+/* The site may relay through its own /api, in which case there is nothing to
+   set up and nothing to warn about. The banner appears only once that turns out
+   not to exist here. */
 function syncRelayNote() {
-  el.relayNote.hidden = Boolean(loadSettings().relay);
+  el.relayNote.hidden = !needsRelay();
 }
 
 function say(text, kind) {
@@ -1078,6 +1081,7 @@ async function checkOne(app) {
   }
 
   refreshRow(app);
+  syncRelayNote();
 }
 
 async function checkList(list, button, label) {

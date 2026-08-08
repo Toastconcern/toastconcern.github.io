@@ -97,14 +97,24 @@ export function clearSettings() {
   } catch {}
 }
 
+/* The site's own relay, when it is hosted somewhere that can run one. Being a
+   relative path it is same-origin, so no cross-origin rule applies and there is
+   nothing for anyone to configure. A static host has no such endpoint, which is
+   what `builtInMissing` ends up recording. */
+const BUILT_IN_RELAY = "/api?url={url}";
+
+let builtInMissing = false;
+
+/** True once the built-in relay has turned out not to exist on this host. */
+export const needsRelay = () => builtInMissing && !loadSettings().relay;
+
 /**
- * Put a URL through the relay, if one is set.
- * `{url}` anywhere in the relay is replaced with the encoded target; otherwise
- * the encoded target is appended.
+ * Put a URL through a relay. A relay set in Settings wins; otherwise the site's
+ * own /api is used. `{url}` is replaced with the encoded target, or the encoded
+ * target is appended if the pattern has no placeholder.
  */
 function route(url) {
-  const { relay } = loadSettings();
-  if (!relay) return url;
+  const relay = loadSettings().relay || BUILT_IN_RELAY;
   return relay.includes("{url}")
     ? relay.replace("{url}", encodeURIComponent(url))
     : relay + encodeURIComponent(url);
@@ -121,6 +131,15 @@ async function getJSON(url) {
       relay
         ? "could not reach the relay — check the URL on the Settings page"
         : "the browser blocked this request; set a relay URL on the Settings page"
+    );
+  }
+
+  /* A static host has no /api, so the built-in relay 404s. Say so once rather
+     than letting it read as the store refusing the request. */
+  if (!relay && res.status === 404) {
+    builtInMissing = true;
+    throw new Error(
+      "this site has no built-in relay — set a relay URL on the Settings page"
     );
   }
 

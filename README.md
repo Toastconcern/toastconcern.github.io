@@ -15,6 +15,7 @@ js/app.js             screens, rendering, filtering, settings UI
 js/check.js           the only file that touches the network
 data/meta-apps.json   apps published by Meta
 tools/relay.mjs       CORS relay for local development
+functions/api.js      the same relay, served from the site's own origin
 ```
 
 No build step, no dependencies. Serve it through any static server
@@ -192,8 +193,13 @@ as you, so treat it like a password.
 with this one; every other request uses the access token above. Without it the Download
 buttons have nothing to sign with, so they lead back to Settings instead.
 
-**Relay URL** — required for any check to work from a browser, and the reason is not
-the token. `graph.oculus.com` answers with:
+**Relay URL** — only needed when the site is hosted somewhere that cannot relay for
+itself. The page first tries `/api` on its own origin; `functions/api.js` answers that on
+Cloudflare Pages, and because it is same-origin there is no cross-origin rule to satisfy
+and nothing to configure. On a static host such as GitHub Pages that path does not exist,
+the first check says so, and a relay has to be set here.
+
+The reason any of this is needed is not the token. `graph.oculus.com` answers with:
 
 ```
 Access-Control-Allow-Origin: https://facebook.com
@@ -211,6 +217,12 @@ A relay is a small service you control that fetches the URL server-side and retu
 with permissive CORS headers. Put `{url}` where the encoded target should go; without
 it, the target is appended.
 
+### Built in
+
+Hosted on Cloudflare Pages, `functions/api.js` is served at `/api` and used automatically.
+Nothing appears in Settings, no banner shows, and visitors never have to know a relay
+exists. Deploy the same repo to a static host and that endpoint is simply absent.
+
 ### Locally
 
 ```
@@ -223,13 +235,28 @@ URLs and only listens on `127.0.0.1`; it is for development, not for hosting.
 
 ### Deployed
 
-A Cloudflare Worker is enough:
+`127.0.0.1` means the visitor's own machine, so the local relay is no use once the site is
+published — a deployed page needs a relay at a public address. A Cloudflare Worker is
+enough:
 
 ```js
+/* Only these hosts are forwarded. Without this check the worker is an open proxy:
+   anyone who finds the URL can fetch anything through your account. */
+const ALLOWED = /^(graph|securecdn)\.oculus\.com$/;
+
 export default {
   async fetch(request) {
     const target = new URL(request.url).searchParams.get("url");
     if (!target) return new Response("no url", { status: 400 });
+
+    let host;
+    try {
+      host = new URL(target).hostname;
+    } catch {
+      return new Response("bad url", { status: 400 });
+    }
+    if (!ALLOWED.test(host)) return new Response("host not allowed", { status: 403 });
+
     const upstream = await fetch(target);
     return new Response(upstream.body, {
       status: upstream.status,
@@ -244,6 +271,17 @@ export default {
 
 Deployed at `https://your-worker.workers.dev`, the relay URL is
 `https://your-worker.workers.dev/?url={url}`.
+
+It has to be **https**. The published page is served over https, and a browser will not
+let an https page call an http one. (`http://127.0.0.1` is the exception — browsers treat
+localhost as trustworthy — which is why the local relay works while you are developing.)
+
+The relay lives in each visitor's `localStorage`, so everyone who opens the published site
+sets their own and sees the red banner until they do. If it should just work for visitors,
+put your relay URL in `check.js` as the fallback in `loadSettings` and it becomes the
+default that the Settings box overrides.
+
+Whoever runs the relay sees every URL passing through it, tokens included. Use your own.
 
 **Test connection** saves what is in the boxes, runs a real lookup against the first Meta
 app on file, and reports what came back.
