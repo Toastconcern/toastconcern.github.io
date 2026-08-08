@@ -8,7 +8,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
+<!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
+     held at the edge for hours, so a deploy that changes them must bump this or
+     visitors get new markup with old scripts. -->
+<link rel="stylesheet" href="css/style.css?v=2">
 <script>
   /* Set the theme before first paint so there is no flash. */
   (function () {
@@ -264,6 +267,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js"></script>
+<script type="module" src="js/app.js?v=2"></script>
 </body>
 </html>
