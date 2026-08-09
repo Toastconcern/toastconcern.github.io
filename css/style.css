@@ -394,10 +394,13 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
 /* A binary id is one 17-digit number — never break it across lines. */
 .vtable .bid { white-space: nowrap; }
 
-/* The id and date are fixed-length, so they take exactly what they need and
-   sit next to each other. `width: 1%` is the shrink-to-fit idiom for a table
-   column: the slack goes to the version and channel columns, which are the
-   two that actually vary in length. */
+/* Version, id and date each take exactly the width they need and sit next to
+   each other — `width: 1%` is the shrink-to-fit idiom for a table column. All
+   the slack goes to the channel column, the one thing here that genuinely
+   varies in length. None of the three wraps: they are single values, and a
+   version split over two lines reads as two versions. The box scrolls
+   sideways if the sum outgrows it. */
+.vtable th:nth-child(1), .vtable td:nth-child(1),
 .vtable th:nth-child(2), .vtable td:nth-child(2),
 .vtable th:nth-child(3), .vtable td:nth-child(3) {
   width: 1%;
