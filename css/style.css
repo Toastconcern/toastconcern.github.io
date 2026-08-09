@@ -296,12 +296,13 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
 
 /* Facts sit as short columns side by side rather than one long list. The
    columns wrap on their own, so this needs no breakpoints. */
-/* Columns take the width their contents need and pack to the left, rather
-   than each taking an equal share — an equal share leaves the short group
-   padded out with empty space and pushes the next one away from it. */
+/* A grid so the columns line up from one row to the next, but with tracks
+   sized to their own contents and packed left — an equal share would pad the
+   short groups out with empty space and push the rest away from them. */
 .facts {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), max-content));
+  justify-content: start;
   gap: 0 2.5rem;
   align-items: start;
   margin-bottom: .4rem;
@@ -309,7 +310,11 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
 
 /* Wide enough for a sentence, capped so one long value cannot take the row,
    and allowed to shrink below its content on a narrow screen. */
-.facts section { flex: 0 1 auto; max-width: 20rem; min-width: 0; }
+.facts section { max-width: 20rem; min-width: 0; }
+
+/* Break at spaces and commas only. `anywhere` is there for the hashes further
+   down the panel; inside a fact list it splits words like "Controlle/rs". */
+.facts dd { overflow-wrap: normal; }
 .facts dl { grid-template-columns: max-content minmax(0, 1fr); margin-bottom: 1rem; }
 
 .chans {
