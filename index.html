@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=11">
+<link rel="stylesheet" href="css/style.css?v=15">
 <script>
   /* Set the theme before first paint so there is no flash. */
   (function () {
@@ -222,6 +222,20 @@
       </div>
 
       <div class="field">
+        <label class="check">
+          <input id="devDownloads" type="checkbox">
+          Offer downloads for builds with no channel
+        </label>
+        <p class="hint">
+          A build history is mostly internal builds that were never put on a
+          channel. Normally only the released ones get a Download button; switch
+          this on to get one on the rest too, shown in red so the difference is
+          obvious. Whether the store hands any particular one over is its call —
+          expect these to fail more often than not, even on an app you own.
+        </p>
+      </div>
+
+      <div class="field">
         <span class="field__label">Defaults</span>
         <div class="defaults-grid">
           <label>Headset <select id="defHmd"></select></label>
@@ -291,6 +305,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=11"></script>
+<script type="module" src="js/app.js?v=15"></script>
 </body>
 </html>

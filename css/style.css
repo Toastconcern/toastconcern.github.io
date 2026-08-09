@@ -12,6 +12,9 @@
   --link:   #1a4f9c;
   --blue:    #1a5fd0;
   --blue-hi: #144ba8;
+  /* A red the same white label can sit on, unlike --red which is for text. */
+  --warn:    #a32218;
+  --warn-hi: #8a1d14;
 }
 
 :root[data-theme="dark"] {
@@ -28,6 +31,8 @@
   --link:   #7fb3f2;
   --blue:    #2f6fe0;
   --blue-hi: #4886ef;
+  --warn:    #c2352a;
+  --warn-hi: #d4463a;
 }
 
 :root {
@@ -358,7 +363,12 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
 
 .vscroll {
   max-height: 22rem;
-  overflow-y: auto;
+  /* Both axes: the id column can make the table wider than a phone, and it
+     should scroll inside this box rather than widen the page. Containment is
+     what makes that work — without it the table's width sets the cell's width,
+     the box never has to scroll, and the whole page grows instead. */
+  overflow: auto;
+  contain: inline-size;
   border: 1px solid var(--line);
   border-radius: 3px;
 }
@@ -381,6 +391,19 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
   border-bottom: 1px solid var(--line);
   overflow-wrap: anywhere;
 }
+/* A binary id is one 17-digit number — never break it across lines. */
+.vtable .bid { white-space: nowrap; }
+
+/* The id and date are fixed-length, so they take exactly what they need and
+   sit next to each other. `width: 1%` is the shrink-to-fit idiom for a table
+   column: the slack goes to the version and channel columns, which are the
+   two that actually vary in length. */
+.vtable th:nth-child(2), .vtable td:nth-child(2),
+.vtable th:nth-child(3), .vtable td:nth-child(3) {
+  width: 1%;
+  white-space: nowrap;
+}
+
 /* builds that actually shipped on a channel */
 .vtable tr.on-channel td { color: var(--text); font-weight: 500; }
 .vtable tr:not(.on-channel) td { color: var(--muted); }
@@ -399,6 +422,10 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
   white-space: nowrap;
 }
 .dl:hover { background: var(--blue-hi); border-color: var(--blue-hi); }
+
+/* never reached a channel — red so it does not read as an ordinary download */
+.dl-dev { background: var(--warn); border-color: var(--warn); }
+.dl-dev:hover { background: var(--warn-hi); border-color: var(--warn-hi); }
 
 /* no account token set, so it leads to settings rather than a dead request */
 .dl-off {

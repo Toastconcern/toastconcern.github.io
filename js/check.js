@@ -29,7 +29,7 @@ export const DEFAULT_TOKEN = "OC|1317831034909742|";
    over once so nobody has to paste their token again. */
 (function migrate() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "limit", "store"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "limit", "store"]) {
       const old = localStorage.getItem(`oculusdb.${key}`);
       if (old !== null && localStorage.getItem(`metadb.${key}`) === null) {
         localStorage.setItem(`metadb.${key}`, old);
@@ -47,6 +47,7 @@ export function loadSettings() {
       relay: localStorage.getItem("metadb.relay") || "",
       images: localStorage.getItem("metadb.images") === "1",
       details: localStorage.getItem("metadb.details") === "1",
+      devDownloads: localStorage.getItem("metadb.devDownloads") === "1",
       limit: localStorage.getItem("metadb.limit") || "",
       /* Starting values for the on-page pickers. */
       hmd: localStorage.getItem("metadb.hmd") || "EUREKA",
@@ -66,6 +67,7 @@ export function loadSettings() {
       relay: "",
       images: false,
       details: false,
+      devDownloads: false,
       limit: "",
       hmd: "EUREKA",
       searchSort: "az",
@@ -98,7 +100,7 @@ export function saveSettings(patch) {
 
 export function clearSettings() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "hidden", "limit", "store", "hmd", "searchSort", "buildSort"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "hidden", "limit", "store", "hmd", "searchSort", "buildSort"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}

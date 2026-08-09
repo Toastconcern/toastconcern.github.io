@@ -13,7 +13,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=11";
+} from "./check.js?v=15";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
 
@@ -128,6 +128,7 @@ const el = {
   settingsOut: document.getElementById("settingsOut"),
   images: document.getElementById("images"),
   details: document.getElementById("details"),
+  devDownloads: document.getElementById("devDownloads"),
   store: document.getElementById("store"),
   cols: document.getElementById("cols"),
   defHmd: document.getElementById("defHmd"),
@@ -257,7 +258,11 @@ function initSettings() {
     }
   });
 
-  for (const [node, key] of [[el.images, "images"], [el.details, "details"]]) {
+  for (const [node, key] of [
+    [el.images, "images"],
+    [el.details, "details"],
+    [el.devDownloads, "devDownloads"],
+  ]) {
     node.checked = saved[key];
     node.addEventListener("change", () => {
       saveSettings({ [key]: node.checked });
@@ -281,6 +286,7 @@ function initSettings() {
     el.relay.value = "";
     el.images.checked = false;
     el.details.checked = false;
+    el.devDownloads.checked = false;
     el.store.checked = true;
     for (const box of el.cols.querySelectorAll("input")) box.checked = true;
     applyColumns();
@@ -1084,6 +1090,50 @@ function drawAppInfo(out, info) {
 const versionCache = new Map();
 const VERSION_PAGE = 100;
 
+/**
+ * A build named the way the store names it: binary id, then build number.
+ *
+ * The id is what a download is addressed by and the build number is what the
+ * rest of the page counts in, so the two belong together — "37348935798086923
+ * (2811)". Either can be missing on old records, in which case the other is
+ * shown on its own rather than beside a dash.
+ */
+function buildId(v) {
+  if (v.id == null) return v.versionCode ?? "—";
+  if (v.versionCode == null) return v.id;
+  return `${v.id} (${v.versionCode})`;
+}
+
+/**
+ * The download cell for one build.
+ *
+ * A build that reached a channel was published, so it is offered plainly. One
+ * that never did is a different proposition: the store may well refuse it even
+ * for an account that owns the app, so it is only offered when asked for, and
+ * marked red to say it is not the same thing as the blue ones.
+ *
+ * Either way a download needs an account token to sign with, so without one
+ * the button leads to Settings rather than a request that cannot work.
+ */
+function downloadCell(v, offerDev) {
+  if (!v.id) return "";
+
+  const dev = !v.channels.length;
+  if (dev && !offerDev) return "";
+
+  if (!canDownload()) {
+    return `<a class="dl dl-off" href="#settings"
+              title="Add your oc_ac_at account token in Settings">Download</a>`;
+  }
+
+  return `<a class="dl${dev ? " dl-dev" : ""}" href="${esc(downloadURL(v.id))}"
+            target="_blank" rel="noopener" title="${esc(
+              dev
+                ? `${v.fileName || "download"} — never released to a channel`
+                : v.fileName || "download"
+            )}">Download</a>`;
+}
+
 /* Released first by default: most of a history is internal builds, and the
    handful that shipped are what anyone came to look at. */
 function drawVersions(
@@ -1105,6 +1155,7 @@ function drawVersions(
   const ordered = [...list].sort(BUILD_SORTS[mode] ?? BUILD_SORTS.released);
   const page = ordered.slice(0, limit);
   const released = list.filter((v) => v.channels.length).length;
+  const offerDev = loadSettings().devDownloads;
 
   out.innerHTML = `
     <h3>Build history</h3>
@@ -1124,29 +1175,17 @@ function drawVersions(
     <div class="vscroll">
       <table class="vtable">
         <thead>
-          <tr><th>Version</th><th>Build</th><th>Date</th><th>Channel</th><th></th></tr>
+          <tr><th>Version</th><th>ID (build)</th><th>Date</th><th>Channel</th><th></th></tr>
         </thead>
         <tbody>
           ${page
             .map(
               (v) => `<tr${v.channels.length ? ' class="on-channel"' : ""}>
                 <td>${esc(v.version)}</td>
-                <td>${v.versionCode ?? "—"}</td>
+                <td class="bid">${buildId(v)}</td>
                 <td>${v.releasedAt ?? "—"}</td>
                 <td>${v.channels.length ? esc(v.channels.join(", ")) : "—"}</td>
-                <td>${
-                  /* Only builds that reached a channel are offered. Everything
-                     else was never published to anyone. Without an account token
-                     there is nothing to authenticate with, so the button points
-                     at Settings instead of a dead request. */
-                  !(v.channels.length && v.id)
-                    ? ""
-                    : canDownload()
-                      ? `<a class="dl" href="${esc(downloadURL(v.id))}" target="_blank"
-                           rel="noopener" title="${esc(v.fileName || "download")}">Download</a>`
-                      : `<a class="dl dl-off" href="#settings"
-                           title="Add your oc_ac_at account token in Settings">Download</a>`
-                }</td>
+                <td>${downloadCell(v, offerDev)}</td>
               </tr>`
             )
             .join("")}
