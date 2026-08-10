@@ -52,6 +52,7 @@ export function loadSettings() {
       /* Starting values for the on-page pickers. */
       hmd: localStorage.getItem("metadb.hmd") || "EUREKA",
       searchSort: localStorage.getItem("metadb.searchSort") || "az",
+      mineSort: localStorage.getItem("metadb.mineSort") || "az",
       buildSort: localStorage.getItem("metadb.buildSort") || "released",
       /* On unless explicitly turned off, so it keeps its old behaviour. */
       store: localStorage.getItem("metadb.store") !== "0",
@@ -71,6 +72,7 @@ export function loadSettings() {
       limit: "",
       hmd: "EUREKA",
       searchSort: "az",
+      mineSort: "az",
       buildSort: "released",
       store: true,
       hidden: [],
@@ -100,7 +102,7 @@ export function saveSettings(patch) {
 
 export function clearSettings() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "hidden", "limit", "store", "hmd", "searchSort", "buildSort"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -757,20 +759,161 @@ export async function lookupByPackage(packageName) {
   return out;
 }
 
+/* The library query the headset itself runs — every Android entitlement on the
+   account, with the binary each one is currently allowed to install. Like the
+   other client_doc_id queries it wants a logged-in account token. */
+const ENTITLEMENTS_DOC_ID = "412097616712440770934752951129";
+
+/* Sent as the headset sends them. Most are artwork sizes this page never uses,
+   but the query is persisted: it takes the variables it was built with or
+   nothing. `cursorID` is the one that changes, a page at a time. */
+const ENTITLEMENTS_VARIABLES = {
+  smallLandscapeImageSize: "180x100",
+  skipFetchingRequiredUpdates: true,
+  coverSquareImageSize: "225x225",
+  iconImageSize: "64x64",
+  landscapeImageSize: "405x720",
+  fetch_fallback_uris: true,
+  machine_id: "1",
+  imageScale: 1.0,
+  cursorID: null,
+  count: 1000,
+  allFields: true,
+  onlyDefaultApps: false,
+  excludePackages: null,
+  fetchAchievementBasedTrialInfo: false,
+  compatibilityFilter: "DEFAULT",
+};
+
+/* A thousand at a time, and the reply still says there is more — so this pages.
+   The cap is what stops a cursor that never advances from looping forever. */
+const ENTITLEMENT_PAGES = 10;
+
 /**
- * The store's own download endpoint for one binary.
+ * One entitlement edge as a row.
+ *
+ * The edge's own `id` is the entitlement ("<user>:<app>"), not the app — the
+ * app is `item`, and that is the ID everything else here is keyed by.
+ * `latest_supported_binary` is the build this account may install right now,
+ * which is what fills the version columns before any check has run.
+ */
+function entitlementApp(node) {
+  const app = node?.item;
+  if (!app?.id) return null;
+
+  const binary = app.latest_supported_binary ?? null;
+
+  return {
+    id: String(app.id),
+    name: app.display_name || app.package_name || String(app.id),
+    packageName: app.package_name ?? null,
+    /* This query is the Android library, so everything in it is a Quest app. */
+    platform: "ANDROID_6DOF",
+    /* Marks the row as coming from a library rather than the store, which says
+       nothing about channels either way. */
+    owned: true,
+    /* PAID_OFFER, NUX, DEVELOPER, OCULUS_KEYS … how it was come by. */
+    grant: node.grant_reason ?? null,
+    /* PERMANENT, or a lease with an expiry — a trial or a subscription. */
+    state: node.active_state ?? null,
+    /* The query asks for artwork — the sizes are in its variables — but the
+       capture this was built from came back without any. Whichever of these
+       the store does fill in is used; with none, the row simply has no art. */
+    image:
+      app.cover_square_image?.uri ??
+      app.icon_image?.uri ??
+      app.cover_landscape_image?.uri ??
+      null,
+    lastUsed: node.last_used || null,
+    latest: binary
+      ? {
+          version: binary.version ?? null,
+          versionCode: binary.version_code ?? null,
+          id: binary.id ?? null,
+          releasedAt: null,
+        }
+      : null,
+  };
+}
+
+/**
+ * Everything the signed-in account owns.
+ *
+ * Entitlements belong to a person, so this reads the access token (`oc_www_at`)
+ * — the built-in public one has no account behind it and is refused.
+ */
+export async function myEntitlements() {
+  const { token } = loadSettings();
+
+  const out = new Map();
+  let cursor = null;
+
+  for (let page = 0; page < ENTITLEMENT_PAGES; page++) {
+    const json = await getJSON(
+      `${ENDPOINT}?` +
+        new URLSearchParams({
+          access_token: token,
+          client_doc_id: ENTITLEMENTS_DOC_ID,
+          variables: JSON.stringify({
+            ...ENTITLEMENTS_VARIABLES,
+            cursorID: cursor,
+          }),
+        })
+    );
+
+    if (json.errors?.length) {
+      const msg = json.errors[0].message ?? "query refused";
+      throw new Error(
+        /logged out|unauthorized/i.test(msg)
+          ? `${msg} Your entitlements needs your own account token, set on the Settings page.`
+          : msg
+      );
+    }
+
+    if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+    const list = json.data?.entitlements?.active_android_entitlements;
+    if (!list) {
+      throw new Error(
+        "the store returned no entitlements list — this one needs an access " +
+          "token belonging to a logged-in account, set on the Settings page"
+      );
+    }
+
+    for (const edge of list.edges ?? []) {
+      const app = entitlementApp(edge?.node);
+      if (app && !out.has(app.id)) out.set(app.id, app);
+    }
+
+    if (!list.page_info?.has_next_page) break;
+    cursor = list.page_info.end_cursor ?? null;
+    if (!cursor) break;
+  }
+
+  return [...out.values()];
+}
+
+/**
+ * The store's own download endpoint for one binary, put through the relay.
  *
  * Downloads authenticate with the account token (`oc_ac_at`), not the one every
- * other request here uses. It goes straight to Meta's CDN rather than through
- * the relay — this is a file, not JSON. Meta decides whether to serve it: the
- * account has to be entitled to the app, so this is not a way around ownership.
+ * other request here uses. Meta decides whether to serve it: the account has to
+ * be entitled to the app, so this is not a way around ownership.
+ *
+ * It goes through the relay rather than straight to the CDN so the request can
+ * carry the companion app's `User-Agent`. That is a forbidden header name in a
+ * browser — a page cannot set it on a link or a fetch — so the relay attaches it
+ * on the way past. Everything here already needs a relay to work at all, so
+ * this costs nothing that was not being paid.
  */
 export function downloadURL(binaryId) {
   const { acToken } = loadSettings();
-  return `https://securecdn.oculus.com/binaries/download/?${new URLSearchParams({
-    id: String(binaryId),
-    access_token: acToken,
-  })}`;
+  return route(
+    `https://securecdn.oculus.com/binaries/download/?${new URLSearchParams({
+      id: String(binaryId),
+      access_token: acToken,
+    })}`
+  );
 }
 
 /** Whether a download can be attempted at all. */

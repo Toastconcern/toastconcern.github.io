@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=17">
+<link rel="stylesheet" href="css/style.css?v=25">
 <script>
   /* Set the theme before first paint so there is no flash. */
   (function () {
@@ -41,6 +41,7 @@
     <nav class="nav">
       <a href="#apps" data-view="apps">Apps and games</a>
       <a href="#meta" data-view="meta">Meta apps</a>
+      <a href="#mine" data-view="mine">Your entitlements</a>
       <a href="#settings" data-view="settings">Settings</a>
     </nav>
     <button id="theme" type="button" aria-pressed="false">Dark</button>
@@ -142,6 +143,53 @@
 
   </section>
 
+  <!-- ---------- your entitlements ---------- -->
+
+  <section id="view-mine" hidden>
+
+    <h2>Your entitlements</h2>
+    <p class="sub" id="mineSub">Apps and games this account owns.</p>
+
+    <div class="controls">
+      <input id="mineQ" type="search" placeholder="Filter what you own by name, package or app ID" aria-label="Filter your entitlements" autocomplete="off" spellcheck="false">
+      <select id="mineSort" aria-label="Sort by">
+        <option value="az">Name A–Z</option>
+        <option value="za">Name Z–A</option>
+        <option value="used">Recently played</option>
+        <option value="unused">Longest untouched</option>
+        <option value="stateAz">State A–Z</option>
+        <option value="stateZa">State Z–A</option>
+        <option value="sourceAz">Source A–Z</option>
+        <option value="sourceZa">Source Z–A</option>
+        <option value="deviceAz">Device A–Z</option>
+        <option value="deviceZa">Device Z–A</option>
+      </select>
+      <button id="mineLoad" type="button">Get entitlements</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">App</th>
+          <th scope="col" class="c-dev">Device</th>
+          <th scope="col" class="c-chan">Channel</th>
+          <th scope="col" class="c-price">Price</th>
+          <th scope="col" class="c-ver">Version</th>
+          <th scope="col" class="c-build">Build</th>
+          <th scope="col" class="c-date">Date</th>
+          <th scope="col" class="c-used">Last played</th>
+          <th scope="col" class="c-state">State</th>
+          <th scope="col" class="c-grant">Source</th>
+          <th scope="col" class="c-devb">Dev build</th>
+        </tr>
+      </thead>
+      <tbody id="mineRows"></tbody>
+    </table>
+
+    <p id="mineEmpty" class="empty" hidden></p>
+
+  </section>
+
   <!-- ---------- settings ---------- -->
 
   <section id="view-settings" hidden>
@@ -151,38 +199,67 @@
 
     <form id="settingsForm" class="form" autocomplete="off">
 
+      <h3 class="form__group">Getting in</h3>
+
       <div class="field">
-        <label for="token">Access token</label>
-        <input id="token" type="password" placeholder="paste your oc_www_at value" autocomplete="off" spellcheck="false">
+        <label for="acToken">Account token</label>
+        <input id="acToken" class="token" type="password" placeholder="paste your oc_ac_at value" autocomplete="off" spellcheck="false">
         <p class="hint">
-          Store search and package lookups need a token belonging to a logged-in
-          account. To get yours: sign in at
+          The <code>oc_ac_at</code> cookie. To get yours: sign in at
           <a href="https://secure.oculus.com/" target="_blank" rel="noopener">secure.oculus.com</a>,
           open your browser's developer tools, and under
-          <strong>Application → Storage → Cookies</strong> copy the value of the
-          <code>oc_www_at</code> cookie.
+          <strong>Application → Storage → Cookies</strong> copy its value. This is
+          the one downloads authenticate with. Without it, the Download buttons in
+          a build history have nothing to sign with and will point back here instead.
+        </p>
+      </div>
+
+      <div class="field">
+        <label for="token">Access token</label>
+        <input id="token" class="token" type="password" placeholder="paste your oc_www_at value" autocomplete="off" spellcheck="false">
+        <p class="hint">
+          The <code>oc_www_at</code> cookie, from the same place. Everything that
+          is not a download uses this one — store search, package lookups and your
+          entitlements all need a token belonging to a logged-in account.
         </p>
         <p class="hint">
           Leave it empty to fall back to the built-in public token, which can read
           public LIVE builds and nothing else. Treat your own token like a password —
           it signs in as you.
         </p>
-      </div>
-
-      <div class="field">
-        <label for="acToken">Account token</label>
-        <input id="acToken" type="password" placeholder="paste your oc_ac_at value" autocomplete="off" spellcheck="false">
-        <p class="hint">
-          The <code>oc_ac_at</code> cookie, from the same place. This is the one
-          downloads authenticate with — everything else uses the access token above.
-          Without it, the Download buttons in a build history have nothing to sign
-          with and will point back here instead.
-        </p>
 
         <div class="actions">
           <button type="button" id="saveTokens">Save tokens</button>
         </div>
         <p id="tokensOut" class="settings-out" role="status"></p>
+      </div>
+
+      <h3 class="form__group">The lists</h3>
+
+      <div class="field">
+        <span class="field__label">Defaults</span>
+        <div class="defaults-grid">
+          <label>Headset <select id="defHmd"></select></label>
+          <label>Search order <select id="defSort"></select></label>
+          <label>Entitlements order <select id="defMineSort"></select></label>
+          <label>Build history order <select id="defBuildSort"></select></label>
+        </div>
+        <p class="hint">
+          What the pickers start on. Changing one on a list is just for that visit;
+          these are what it goes back to.
+        </p>
+      </div>
+
+      <div class="field">
+        <span class="field__label">Columns</span>
+        <div id="cols" class="cols-grid"></div>
+        <p class="hint">
+          Applies to every list, but a column only shows where there is something
+          to put in it: Price is skipped on Meta apps and on your entitlements,
+          and Last played, State and Source exist only on your entitlements.
+          Narrow screens still drop the secondary columns to fit, whatever is
+          ticked here.
+        </p>
       </div>
 
       <div class="field">
@@ -195,6 +272,8 @@
           image per result straight from Meta's CDN.
         </p>
       </div>
+
+      <h3 class="form__group">Inside an app</h3>
 
       <div class="field">
         <label class="check">
@@ -235,28 +314,7 @@
         </p>
       </div>
 
-      <div class="field">
-        <span class="field__label">Defaults</span>
-        <div class="defaults-grid">
-          <label>Headset <select id="defHmd"></select></label>
-          <label>Search order <select id="defSort"></select></label>
-          <label>Build history order <select id="defBuildSort"></select></label>
-        </div>
-        <p class="hint">
-          What the pickers start on. Changing one on a list is just for that visit;
-          these are what it goes back to.
-        </p>
-      </div>
-
-      <div class="field">
-        <span class="field__label">Columns</span>
-        <div id="cols" class="cols-grid"></div>
-        <p class="hint">
-          Applies to both lists, except Price — Meta apps have none, so that column
-          never shows there. Narrow screens still drop the secondary columns to fit,
-          whatever is ticked here.
-        </p>
-      </div>
+      <h3 class="form__group">The relay</h3>
 
       <div class="field">
         <label for="relay">Relay URL</label>
@@ -305,6 +363,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=17"></script>
+<script type="module" src="js/app.js?v=25"></script>
 </body>
 </html>

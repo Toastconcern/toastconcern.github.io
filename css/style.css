@@ -72,7 +72,8 @@ body {
 
 .nav {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: .35rem 1rem;
   margin-right: auto;
 }
 .nav a {
@@ -167,11 +168,17 @@ body.hide-c-price .c-price,
 body.hide-c-ver   .c-ver,
 body.hide-c-build .c-build,
 body.hide-c-date  .c-date,
+body.hide-c-used  .c-used,
+body.hide-c-state .c-state,
+body.hide-c-grant .c-grant,
 body.hide-c-devb  .c-devb { display: none; }
 
 /* Meta records carry no price, so that column never appears on their screen.
    This only ever hides, so it cannot fight the toggles above. */
-#view-meta .c-price { display: none; }
+/* Neither list carries a price: Meta apps have none, and the library query
+   reports what you own rather than what it costs. */
+#view-meta .c-price,
+#view-mine .c-price { display: none; }
 
 /* Some system builds carry 80-character version strings. Left alone they widen
    the column until Status is pushed off the page, so clamp them here; the full
@@ -464,7 +471,12 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
 
 #view-apps > .sub,
 #view-meta > .sub,
+#view-mine > .sub,
 #view-settings > .sub { margin: .25rem 0 1.5rem; }
+
+/* Your entitlements says why it is empty in the same line that would otherwise
+   count them, so that line has to be able to read as a refusal. */
+.sub.warn { color: var(--red); }
 
 #q, #metaQ { flex: 1 1 14rem; }
 
@@ -546,6 +558,20 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
 
 .form .field { margin-bottom: 1.5rem; }
 
+/* Three groups: what gets you in, what the lists look like, what an opened app
+   offers. Quiet enough to be a signpost rather than another heading level. */
+.form__group {
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 2.25rem 0 .9rem;
+  padding-bottom: .4rem;
+  border-bottom: 1px solid var(--line);
+}
+.form__group:first-child { margin-top: .25rem; }
+
 .form label {
   display: block;
   font-size: .875rem;
@@ -554,6 +580,10 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
 }
 
 .form input { width: 100%; }
+
+/* Tokens keep the full width — they are long strings and get pasted in — but
+   sit a little shallower than the boxes that are read back. */
+.form input.token { min-height: 32px; padding-top: .3rem; padding-bottom: .3rem; }
 
 .form .hint { margin: .4rem 0 0; }
 
@@ -628,13 +658,16 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
 
 @media (max-width: 720px) {
   .c-dev, .c-build, .c-date, .c-price, .c-devb { display: none; }
+  /* Of the library's own columns, when it was last opened is the one worth
+     keeping on a phone; how it was granted can wait for a wider screen. */
+  .c-state, .c-grant { display: none; }
   /* the desktop minimum plus a 14rem version clamp overflows a phone, which
      pushes Status off the edge */
   .name { min-width: 0; }
   .clip { max-width: 9rem; }
 }
 @media (max-width: 520px) {
-  .c-chan { display: none; }
+  .c-chan, .c-used { display: none; }
   .wrap { padding-top: 1.75rem; }
 
   /* keep the bar on one line at phone widths */

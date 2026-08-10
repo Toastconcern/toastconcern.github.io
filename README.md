@@ -257,14 +257,19 @@ export default {
     }
     if (!ALLOWED.test(host)) return new Response("host not allowed", { status: 403 });
 
-    const upstream = await fetch(target);
-    return new Response(upstream.body, {
-      status: upstream.status,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
+    /* Binary downloads want the companion app's User-Agent, which a browser
+       will not let a page set. See functions/api.js for the full string. */
+    const download = host === "securecdn.oculus.com";
+    const upstream = await fetch(target, {
+      headers: download ? { "User-Agent": DOWNLOAD_UA } : {},
     });
+
+    const headers = new Headers({ "Access-Control-Allow-Origin": "*" });
+    for (const name of ["Content-Type", "Content-Length", "Content-Disposition"]) {
+      const value = upstream.headers.get(name);
+      if (value) headers.set(name, value);
+    }
+    return new Response(upstream.body, { status: upstream.status, headers });
   },
 };
 ```
@@ -348,9 +353,18 @@ store's own endpoint:
 https://securecdn.oculus.com/binaries/download/?id=<binary id>&access_token=<oc_ac_at>
 ```
 
-It goes straight to the CDN rather than through the relay, because it is a file rather
-than JSON. Meta decides whether to serve it — the account has to be entitled to the app,
-so this is not a route around ownership. Builds that never reached a channel get no link.
+That URL goes through the relay rather than straight to the CDN, because the request
+carries the companion app's `User-Agent`:
+
+```
+Dalvik/2.1.0 (Linux; U; Android 14; Quest 3 Build/UP1A.231005.007.A1) [FBAN/OculusOCMS;…]
+```
+
+`User-Agent` is a forbidden header name in a browser — a page cannot set it on a link or
+a `fetch` — so the relay attaches it on the way past, and streams the file back with the
+CDN's own `Content-Disposition` so it saves under its real name. Meta still decides
+whether to serve it: the account has to be entitled to the app, so this is not a route
+around ownership. Builds that never reached a channel get no link.
 
 The history has its own order picker: newest or oldest first, build number high to low or
 low to high, or released first, which floats the handful of builds that reached a channel

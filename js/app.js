@@ -4,6 +4,7 @@ import {
   lookupByPackage,
   appDetails,
   storeListing,
+  myEntitlements,
   downloadURL,
   canDownload,
   searchStore,
@@ -13,7 +14,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=17";
+} from "./check.js?v=25";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
 
@@ -33,6 +34,11 @@ const COLUMNS = [
   ["c-ver", "Version"],
   ["c-build", "Build"],
   ["c-date", "Date"],
+  /* Only Your entitlements has these three — the library is the only thing
+     that reports them — but they switch off the same way as the rest. */
+  ["c-used", "Last played"],
+  ["c-state", "State"],
+  ["c-grant", "Source"],
   ["c-devb", "Dev build"],
 ];
 
@@ -86,6 +92,12 @@ function nullsLast(read, dir, compare) {
 
 const blankToNull = (read) => (app) => read(app) || null;
 
+/** Both directions of a text sort, as `<name>Az` and `<name>Za`. */
+const alphabetical = (name, read) => ({
+  [`${name}Az`]: nullsLast(read, 1, (x, y) => x.localeCompare(y)),
+  [`${name}Za`]: nullsLast(read, -1, (x, y) => x.localeCompare(y)),
+});
+
 const SORTS = {
   az: (a, b) => a.name.localeCompare(b.name),
   za: (a, b) => b.name.localeCompare(a.name),
@@ -93,6 +105,15 @@ const SORTS = {
   oldest: nullsLast(blankToNull(dateOf), -1, (x, y) => y.localeCompare(x)),
   priceUp: nullsLast(priceOf, 1, (x, y) => x - y),
   priceDown: nullsLast(priceOf, -1, (x, y) => x - y),
+  /* Entitlements only: what the library reports and the store does not. Each
+     sorts on the words the column shows, and ties fall back to the name. */
+  used: nullsLast((app) => app.lastUsed ?? null, 1, (x, y) => y - x),
+  unused: nullsLast((app) => app.lastUsed ?? null, -1, (x, y) => y - x),
+  ...alphabetical("state", (app) => (app.state ? words(app.state) : null)),
+  ...alphabetical("source", (app) => (app.owned ? grantLabel(app.grant) : null)),
+  ...alphabetical("device", (app) =>
+    app.platform ? (DEVICE[app.platform] ?? app.platform) : null
+  ),
 };
 
 const sorted = (list, mode) => [...list].sort(SORTS[mode] ?? SORTS.az);
@@ -133,6 +154,7 @@ const el = {
   cols: document.getElementById("cols"),
   defHmd: document.getElementById("defHmd"),
   defSort: document.getElementById("defSort"),
+  defMineSort: document.getElementById("defMineSort"),
   defBuildSort: document.getElementById("defBuildSort"),
   useLocal: document.getElementById("useLocal"),
   relayNote: document.getElementById("relayNote"),
@@ -141,6 +163,14 @@ const el = {
   metaSub: document.getElementById("metaSub"),
   metaEmpty: document.getElementById("metaEmpty"),
   checkMeta: document.getElementById("checkMeta"),
+
+  viewMine: document.getElementById("view-mine"),
+  mineRows: document.getElementById("mineRows"),
+  mineSub: document.getElementById("mineSub"),
+  mineEmpty: document.getElementById("mineEmpty"),
+  mineQ: document.getElementById("mineQ"),
+  mineSort: document.getElementById("mineSort"),
+  mineLoad: document.getElementById("mineLoad"),
 
   theme: document.getElementById("theme"),
   navLinks: document.querySelectorAll(".nav a"),
@@ -154,6 +184,12 @@ const listings = new Map();
 const open = new Set();
 
 let metaList = [];
+
+/** What the account owns, once it has been asked for. */
+let mineList = [];
+let mineNote = "";
+let mineAsked = false;
+let mineLoading = false;
 
 /** What the Apps and games table is currently showing. */
 let listing = [];
@@ -197,10 +233,11 @@ function initViews() {
 
 function applyView() {
   const hash = location.hash.replace("#", "");
-  const view = ["meta", "settings"].includes(hash) ? hash : "apps";
+  const view = ["meta", "mine", "settings"].includes(hash) ? hash : "apps";
 
   el.viewApps.hidden = view !== "apps";
   el.viewMeta.hidden = view !== "meta";
+  el.viewMine.hidden = view !== "mine";
   el.viewSettings.hidden = view !== "settings";
 
   /* the limit only governs the apps list, so hide it elsewhere */
@@ -339,11 +376,16 @@ function initDefaults() {
 
   fillOptions(el.defHmd, HMD_TYPES.map(([v, label]) => [v, `${label} (${v})`]));
   fillOptions(el.defSort, [...el.sort.options].map((o) => [o.value, o.textContent]));
+  fillOptions(
+    el.defMineSort,
+    [...el.mineSort.options].map((o) => [o.value, o.textContent])
+  );
   fillOptions(el.defBuildSort, BUILD_SORT_LABELS);
 
   const pairs = [
     [el.defHmd, "hmd", saved.hmd, el.hmd],
     [el.defSort, "searchSort", saved.searchSort, el.sort],
+    [el.defMineSort, "mineSort", saved.mineSort, el.mineSort],
     [el.defBuildSort, "buildSort", saved.buildSort, null],
   ];
 
@@ -519,6 +561,10 @@ async function boot() {
     checkList(metaApps(), el.checkMeta, "Check shown")
   );
 
+  el.mineQ.addEventListener("input", renderAll);
+  el.mineSort.addEventListener("change", renderAll);
+  el.mineLoad.addEventListener("click", loadEntitlements);
+
   runSearch();
 }
 
@@ -529,6 +575,48 @@ function fillHmdPicker() {
     opt.value = value;
     opt.textContent = `${label} (${value})`;
     el.hmd.append(opt);
+  }
+}
+
+/* ---------- your entitlements ---------- */
+
+/** What the account owns, filtered and sorted like the other lists. */
+function mineApps() {
+  const q = el.mineQ.value.trim().toLowerCase();
+  return sorted(
+    mineList.filter((a) => matches(a, q)),
+    el.mineSort.value
+  );
+}
+
+/**
+ * Ask the store what this account owns.
+ *
+ * Errors are kept rather than thrown at the console: an entitlements list is
+ * the one screen where "nothing here" and "the store refused" look identical,
+ * and the difference is usually a missing token.
+ */
+async function loadEntitlements() {
+  if (mineLoading) return;
+
+  mineAsked = true;
+  mineLoading = true;
+  mineNote = "";
+  el.mineLoad.disabled = true;
+  el.mineLoad.textContent = "Asking…";
+  renderAll();
+
+  try {
+    mineList = await myEntitlements();
+  } catch (err) {
+    mineList = [];
+    mineNote = err.message;
+  } finally {
+    mineLoading = false;
+    el.mineLoad.disabled = false;
+    el.mineLoad.textContent = "Get entitlements";
+    syncRelayNote();
+    renderAll();
   }
 }
 
@@ -666,11 +754,39 @@ function renderAll() {
       ? `${metaList.length} app${metaList.length === 1 ? "" : "s"} published by Meta.`
       : `${meta.length} of ${metaList.length} apps published by Meta.`;
 
+  const mine = mineApps();
+  buildRows(el.mineRows, mine, "mine");
+  el.mineSub.textContent = mineStatus(mine.length);
+  el.mineSub.classList.toggle("warn", Boolean(mineNote));
+  el.mineEmpty.hidden = mine.length > 0 || mineLoading || Boolean(mineNote);
+  el.mineEmpty.textContent = !mineAsked
+    ? "Press Get entitlements to list what this account owns."
+    : mineList.length
+      ? "Nothing matches."
+      : "This account owns nothing the store will list.";
+
   if (focusId) {
     (focusScope ?? el.rows).querySelector(`tr.app[data-id="${focusId}"]`)?.focus();
     focusId = null;
     focusScope = null;
   }
+}
+
+/** The line under the Your entitlements heading: progress, refusal, or count. */
+function mineStatus(shown) {
+  if (mineLoading) return "Asking the store what this account owns…";
+  if (mineNote) return mineNote;
+  if (!mineAsked) {
+    return (
+      "Everything on your account, from the same library query a headset runs. " +
+      "Needs your own access token, set on the Settings page."
+    );
+  }
+  const total = mineList.length;
+  const word = `entitlement${total === 1 ? "" : "s"}`;
+  return shown === total
+    ? `${total} ${word}.`
+    : `${shown} of ${total} ${word}.`;
 }
 
 function appRow(app, scope) {
@@ -681,7 +797,9 @@ function appRow(app, scope) {
      the old version next to the notice saying so. */
   const found = results.get(keyOf(app))?.latest;
   const channels = found?.channels?.length ? found.channels : channelsOf(app);
-  const primary = found ?? primaryOf(app);
+  /* An entitlement arrives knowing the build the account may install, which is
+     worth showing before anyone presses Check. A check still wins. */
+  const primary = found ?? primaryOf(app) ?? app.latest ?? null;
   const extra = Math.max(0, channels.length - 1);
   const showArt = loadSettings().images;
 
@@ -697,7 +815,13 @@ function appRow(app, scope) {
         : ""
     }${esc(app.name)}</td>
     <td class="c-dev">${app.platform ? (DEVICE[app.platform] ?? app.platform) : "—"}</td>
-    <td class="chan c-chan">${esc(primary?.name ?? primary?.channel ?? NO_CHANNEL)}${
+    <td class="chan c-chan">${esc(
+      primary?.name ??
+        primary?.channel ??
+        /* An entitlement says nothing about channels either way, so it gets a
+           blank rather than being labelled as never released. */
+        (app.owned ? "—" : NO_CHANNEL)
+    )}${
       extra ? ` <span class="more-chan">+${extra}</span>` : ""
     }</td>
     <td class="num c-price">${app.price ? esc(app.price) : "—"}</td>
@@ -706,6 +830,7 @@ function appRow(app, scope) {
     )}</span></td>
     <td class="num c-build">${primary?.versionCode ?? "—"}</td>
     <td class="num c-date">${primary?.releasedAt ?? app.releasedAt ?? "—"}</td>
+    ${app.owned ? ownedCells(app) : ""}
     ${devCell(app)}`;
 
   const toggle = (e) => {
@@ -724,6 +849,33 @@ function appRow(app, scope) {
   });
 
   return tr;
+}
+
+/** SHOUTY_CONSTANT -> "Shouty constant". */
+const words = (s) =>
+  String(s).toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+
+/**
+ * How the entitlement was come by.
+ *
+ * The store reports an ordinary purchase as UNKNOWN, which reads like a fault
+ * rather than the commonest case there is, so it is named after where it came
+ * from. The rest say what they mean once they are out of shouting case.
+ */
+const grantLabel = (grant) =>
+  !grant || grant === "UNKNOWN" ? "Store" : words(grant);
+
+/* The three columns only a library row has: when it was last opened, whether
+   the entitlement is permanent or a lease, and where it came from. */
+function ownedCells(app) {
+  const played = app.lastUsed
+    ? new Date(app.lastUsed * 1000).toISOString().slice(0, 10)
+    : "—";
+
+  return `
+    <td class="num c-used">${played}</td>
+    <td class="c-state">${esc(app.state ? words(app.state) : "—")}</td>
+    <td class="c-grant">${esc(grantLabel(app.grant))}</td>`;
 }
 
 /**
@@ -895,7 +1047,7 @@ function detailRow(app) {
   const tr = document.createElement("tr");
   tr.className = "detail";
   tr.innerHTML = `
-    <td colspan="8">
+    <td colspan="${app.owned ? 11 : 8}">
       ${note(found)}
       ${factGroups(groups)}
       ${
