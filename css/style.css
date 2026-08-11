@@ -151,7 +151,9 @@ th {
 td {
   padding: .55rem .6rem;
   border-bottom: 1px solid var(--line);
-  vertical-align: top;
+  /* Baselines, not box tops: half the row is mono at a smaller size than the
+     app name beside it, and aligning the boxes left the two a pixel apart. */
+  vertical-align: baseline;
 }
 
 tbody tr.app { cursor: pointer; }
@@ -261,7 +263,13 @@ body.hide-c-devb  .c-devb { display: none; }
 
 /* detail */
 
-tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1rem; }
+/* A panel, not a line of text — there is no baseline to share. */
+tr.detail td {
+  background: var(--panel);
+  padding-top: .75rem;
+  padding-bottom: 1rem;
+  vertical-align: top;
+}
 
 .detail p { margin: 0 0 .6rem; font-size: .875rem; }
 .detail p.warn { color: var(--red); }
@@ -279,6 +287,9 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
   gap: .2rem 1rem;
   margin: 0 0 1rem;
   font-size: .875rem;
+  /* Same reason as the table rows: the label is sans and the value mono, so
+     they line up on the baseline they share, not on the tops of their boxes. */
+  align-items: baseline;
 }
 .detail dt { color: var(--muted); }
 /* Hashes and package names are long unbroken strings; let them break rather
@@ -293,12 +304,14 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
 /* Every label over a block of facts — the group titles, Hashes, Permissions —
    reads as one kind of thing, so they all get the same treatment. */
 .detail h4 {
-  font-size: .6875rem;
+  font-size: .8125rem;
   font-weight: 600;
   letter-spacing: .06em;
   text-transform: uppercase;
-  color: var(--muted);
-  margin: 0 0 .3rem;
+  /* Full-strength text against the muted labels underneath, so the eye finds
+     the group before it starts reading the facts in it. */
+  color: var(--text);
+  margin: 0 0 .45rem;
 }
 
 /* Facts sit as short columns side by side rather than one long list. The
