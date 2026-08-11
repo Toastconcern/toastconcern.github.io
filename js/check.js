@@ -771,10 +771,15 @@ export async function lookupByPackage(packageName) {
   return out;
 }
 
-/* The library query the headset itself runs — every Android entitlement on the
-   account, with the binary each one is currently allowed to install. Like the
-   other client_doc_id queries it wants a logged-in account token. */
-const ENTITLEMENTS_DOC_ID = "412097616712440770934752951129";
+/* The library queries the client itself runs — every entitlement on the
+   account, with the binary each one is currently allowed to install. One per
+   store: the headset asks for its Android library, the desktop app for the
+   Rift one. Like the other client_doc_id queries they want a logged-in account
+   token, and both take the same variables. */
+const ENTITLEMENTS_DOC_IDS = {
+  quest: "412097616712440770934752951129",
+  pc: "2890869346616033607941569925",
+};
 
 /* Sent as the headset sends them. Most are artwork sizes this page never uses,
    but the query is persisted: it takes the variables it was built with or
@@ -809,7 +814,7 @@ const ENTITLEMENT_PAGES = 10;
  * `latest_supported_binary` is the build this account may install right now,
  * which is what fills the version columns before any check has run.
  */
-function entitlementApp(node) {
+function entitlementApp(node, platform) {
   const app = node?.item;
   if (!app?.id) return null;
 
@@ -819,8 +824,9 @@ function entitlementApp(node) {
     id: String(app.id),
     name: app.display_name || app.package_name || String(app.id),
     packageName: app.package_name ?? null,
-    /* This query is the Android library, so everything in it is a Quest app. */
-    platform: "ANDROID_6DOF",
+    /* Each library is one store's worth, so the query answers this rather than
+       the row — unless the reply says otherwise for itself. */
+    platform: app.platform ?? platform,
     /* Marks the row as coming from a library rather than the store, which says
        nothing about channels either way. */
     owned: true,
@@ -849,13 +855,33 @@ function entitlementApp(node) {
 }
 
 /**
- * Everything the signed-in account owns.
+ * The connection holding the entitlements, whatever this library calls it.
  *
- * Entitlements belong to a person, so this reads the access token (`oc_www_at`)
- * — the built-in public one has no account behind it and is refused.
+ * The Quest reply files them under `active_android_entitlements`; the Rift one
+ * uses its own name. Both put a single connection under `entitlements`, so it
+ * is taken by shape rather than by a name that has to be guessed at.
  */
-export async function myEntitlements() {
+function entitlementConnection(json) {
+  const root = json?.data?.entitlements;
+  if (!root || typeof root !== "object") return null;
+  return Object.values(root).find((v) => v && Array.isArray(v.edges)) ?? null;
+}
+
+/**
+ * Everything the signed-in account owns, from one store's library.
+ *
+ * `kind` is "quest" for the Android library or "pc" for the Rift one — two
+ * queries, same variables, same shape. Entitlements belong to a person, so
+ * this reads the access token (`oc_www_at`); the built-in public one has no
+ * account behind it and is refused.
+ */
+export async function myEntitlements(kind = "quest") {
   const { token } = loadSettings();
+
+  const clientDocId = ENTITLEMENTS_DOC_IDS[kind];
+  if (!clientDocId) throw new Error(`no entitlements query for "${kind}"`);
+
+  const platform = kind === "pc" ? "PC" : "ANDROID_6DOF";
 
   const out = new Map();
   let cursor = null;
@@ -865,7 +891,7 @@ export async function myEntitlements() {
       `${ENDPOINT}?` +
         new URLSearchParams({
           access_token: token,
-          client_doc_id: ENTITLEMENTS_DOC_ID,
+          client_doc_id: clientDocId,
           variables: JSON.stringify({
             ...ENTITLEMENTS_VARIABLES,
             cursorID: cursor,
@@ -884,7 +910,7 @@ export async function myEntitlements() {
 
     if (json.error) throw new Error(json.error.message ?? "request rejected");
 
-    const list = json.data?.entitlements?.active_android_entitlements;
+    const list = entitlementConnection(json);
     if (!list) {
       throw new Error(
         "the store returned no entitlements list — this one needs an access " +
@@ -893,7 +919,7 @@ export async function myEntitlements() {
     }
 
     for (const edge of list.edges ?? []) {
-      const app = entitlementApp(edge?.node);
+      const app = entitlementApp(edge?.node, platform);
       if (app && !out.has(app.id)) out.set(app.id, app);
     }
 

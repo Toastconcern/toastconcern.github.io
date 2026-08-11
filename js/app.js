@@ -15,7 +15,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=27";
+} from "./check.js?v=28";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
 
@@ -173,6 +173,7 @@ const el = {
   mineQ: document.getElementById("mineQ"),
   mineSort: document.getElementById("mineSort"),
   mineLoad: document.getElementById("mineLoad"),
+  minePC: document.getElementById("minePC"),
 
   theme: document.getElementById("theme"),
   navLinks: document.querySelectorAll(".nav a"),
@@ -200,6 +201,9 @@ let mineList = [];
 let mineNote = "";
 let mineAsked = false;
 let mineLoading = false;
+
+/** Which library is on screen — "quest" or "pc". */
+let mineKind = "quest";
 
 /** What the Apps and games table is currently showing. */
 let listing = [];
@@ -574,7 +578,8 @@ async function boot() {
 
   el.mineQ.addEventListener("input", renderAll);
   el.mineSort.addEventListener("change", renderAll);
-  el.mineLoad.addEventListener("click", loadEntitlements);
+  el.mineLoad.addEventListener("click", () => loadEntitlements("quest"));
+  el.minePC.addEventListener("click", () => loadEntitlements("pc"));
 
   runSearch();
 }
@@ -600,32 +605,47 @@ function mineApps() {
   );
 }
 
+/* The two libraries, each with its own query and its own button. */
+const LIBRARIES = {
+  quest: { label: "Quest", button: () => el.mineLoad },
+  pc: { label: "PC", button: () => el.minePC },
+};
+
 /**
- * Ask the store what this account owns.
+ * Ask the store what this account owns on one of its stores.
+ *
+ * A library is one store's worth, so a load replaces the list rather than
+ * adding to it — mixing the two would leave a count nobody could account for.
  *
  * Errors are kept rather than thrown at the console: an entitlements list is
  * the one screen where "nothing here" and "the store refused" look identical,
  * and the difference is usually a missing token.
  */
-async function loadEntitlements() {
+async function loadEntitlements(kind) {
   if (mineLoading) return;
 
+  const library = LIBRARIES[kind];
+  const button = library.button();
+
   mineAsked = true;
+  mineKind = kind;
   mineLoading = true;
   mineNote = "";
   el.mineLoad.disabled = true;
-  el.mineLoad.textContent = "Asking…";
+  el.minePC.disabled = true;
+  button.textContent = "Asking…";
   renderAll();
 
   try {
-    mineList = await myEntitlements();
+    mineList = await myEntitlements(kind);
   } catch (err) {
     mineList = [];
     mineNote = err.message;
   } finally {
     mineLoading = false;
     el.mineLoad.disabled = false;
-    el.mineLoad.textContent = "Get entitlements";
+    el.minePC.disabled = false;
+    button.textContent = `Get ${library.label} entitlements`;
     syncRelayNote();
     renderAll();
   }
@@ -771,10 +791,10 @@ function renderAll() {
   el.mineSub.classList.toggle("warn", Boolean(mineNote));
   el.mineEmpty.hidden = mine.length > 0 || mineLoading || Boolean(mineNote);
   el.mineEmpty.textContent = !mineAsked
-    ? "Press Get entitlements to list what this account owns."
+    ? "Press one of the buttons above to list what this account owns."
     : mineList.length
       ? "Nothing matches."
-      : "This account owns nothing the store will list.";
+      : `This account owns nothing on ${LIBRARIES[mineKind].label} that the store will list.`;
 
   if (focusId) {
     (focusScope ?? el.rows).querySelector(`tr.app[data-id="${focusId}"]`)?.focus();
@@ -785,16 +805,18 @@ function renderAll() {
 
 /** The line under the Your entitlements heading: progress, refusal, or count. */
 function mineStatus(shown) {
-  if (mineLoading) return "Asking the store what this account owns…";
+  if (mineLoading) {
+    return `Asking the store what this account owns on ${LIBRARIES[mineKind].label}…`;
+  }
   if (mineNote) return mineNote;
   if (!mineAsked) {
     return (
-      "Everything on your account, from the same library query a headset runs. " +
-      "Needs your own access token, set on the Settings page."
+      "Everything on your account, from the same library queries a headset and " +
+      "the desktop app run. Needs your own access token, set on the Settings page."
     );
   }
   const total = mineList.length;
-  const word = `entitlement${total === 1 ? "" : "s"}`;
+  const word = `${LIBRARIES[mineKind].label} entitlement${total === 1 ? "" : "s"}`;
   return shown === total
     ? `${total} ${word}.`
     : `${shown} of ${total} ${word}.`;
