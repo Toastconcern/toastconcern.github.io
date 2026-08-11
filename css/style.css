@@ -438,6 +438,17 @@ tr.detail td { background: var(--panel); padding-top: .75rem; padding-bottom: 1r
 }
 .dl:hover { background: var(--blue-hi); border-color: var(--blue-hi); }
 
+/* The expansion file sits in front of its APK, quieter than the button it
+   belongs to — it is the other half of a download, not another one. */
+.dl-obb {
+  background: none;
+  color: var(--link);
+  border-color: var(--border);
+  padding: .35rem .55rem;
+  margin-right: .35rem;
+}
+.dl-obb:hover { background: var(--hover); border-color: var(--border); }
+
 /* never reached a channel — red so it does not read as an ordinary download */
 .dl-dev { background: var(--warn); border-color: var(--warn); }
 .dl-dev:hover { background: var(--warn-hi); border-color: var(--warn-hi); }

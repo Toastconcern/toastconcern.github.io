@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=25">
+<link rel="stylesheet" href="css/style.css?v=26">
 <script>
   /* Set the theme before first paint so there is no flash. */
   (function () {
@@ -314,6 +314,20 @@
         </p>
       </div>
 
+      <div class="field">
+        <label class="check">
+          <input id="obb" type="checkbox">
+          Look up OBB expansion files
+        </label>
+        <p class="hint">
+          Some apps ship a second file next to the APK — an OBB holding the
+          assets — and it is no use having one without the other. The store only
+          reports OBBs from its release-channel query, so switching this on adds
+          one request per channel to every check, and puts an
+          <strong>OBB</strong> link beside the builds that have one.
+        </p>
+      </div>
+
       <h3 class="form__group">The relay</h3>
 
       <div class="field">
@@ -363,6 +377,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=25"></script>
+<script type="module" src="js/app.js?v=26"></script>
 </body>
 </html>

@@ -4,6 +4,7 @@ import {
   lookupByPackage,
   appDetails,
   storeListing,
+  channelObbs,
   myEntitlements,
   downloadURL,
   canDownload,
@@ -14,7 +15,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=25";
+} from "./check.js?v=26";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
 
@@ -150,6 +151,7 @@ const el = {
   images: document.getElementById("images"),
   details: document.getElementById("details"),
   devDownloads: document.getElementById("devDownloads"),
+  obb: document.getElementById("obb"),
   store: document.getElementById("store"),
   cols: document.getElementById("cols"),
   defHmd: document.getElementById("defHmd"),
@@ -181,6 +183,14 @@ const results = new Map();
 
 /** id -> the store's own listing, filled in by a check. */
 const listings = new Map();
+
+/* Binary ID -> its OBB's binary ID, gathered per release channel when the
+   setting is on. Binary IDs are unique store-wide, so one map serves every
+   app and a build found through one channel stays found. */
+const obbs = new Map();
+
+/** Why the last OBB lookup came back with nothing, when it did. */
+let obbNote = "";
 const open = new Set();
 
 let metaList = [];
@@ -299,6 +309,7 @@ function initSettings() {
     [el.images, "images"],
     [el.details, "details"],
     [el.devDownloads, "devDownloads"],
+    [el.obb, "obb"],
   ]) {
     node.checked = saved[key];
     node.addEventListener("change", () => {
@@ -1242,6 +1253,10 @@ function drawAppInfo(out, info) {
 const versionCache = new Map();
 const VERSION_PAGE = 100;
 
+/* An app can sit on a dozen channels; four lookups is enough to cover the ones
+   anyone downloads from without turning one check into a dozen requests. */
+const CHANNEL_LOOKUPS = 4;
+
 /**
  * A build named the way the store names it: binary id, then build number.
  *
@@ -1266,6 +1281,9 @@ function buildId(v) {
  *
  * Either way a download needs an account token to sign with, so without one
  * the button leads to Settings rather than a request that cannot work.
+ *
+ * A build with an expansion file gets a second link: the APK alone will install
+ * and then sit there missing its assets, so the pair belongs together.
  */
 function downloadCell(v, offerDev) {
   if (!v.id) return "";
@@ -1278,7 +1296,16 @@ function downloadCell(v, offerDev) {
               title="Add your oc_ac_at account token in Settings">Download</a>`;
   }
 
-  return `<a class="dl${dev ? " dl-dev" : ""}" href="${esc(downloadURL(v.id))}"
+  const obb = obbs.get(String(v.id));
+
+  return `${
+    obb
+      ? `<a class="dl dl-obb" href="${esc(downloadURL(obb))}" target="_blank"
+            rel="noopener" title="${esc(
+              `Expansion file for ${v.version} — binary ${obb}`
+            )}">OBB</a>`
+      : ""
+  }<a class="dl${dev ? " dl-dev" : ""}" href="${esc(downloadURL(v.id))}"
             target="_blank" rel="noopener" title="${esc(
               dev
                 ? `${v.fileName || "download"} — never released to a channel`
@@ -1316,6 +1343,7 @@ function drawVersions(
       channel. Showing ${page.length}. Builds that reached a channel can be pulled from
       the store${canDownload() ? " if your account is entitled to them" : ", once an oc_ac_at account token is set in Settings"}.
     </p>
+    ${obbNote ? `<p class="warn">${esc(obbNote)}</p>` : ""}
     <div class="build-bar">
       <select class="build-sort" aria-label="Order builds">
         ${BUILD_SORT_LABELS.map(
@@ -1473,10 +1501,44 @@ async function checkOne(app, { listing: wantListing = true } = {}) {
       latest,
       was: primary ? `${primary.version} (build ${primary.versionCode})` : null,
     });
+
+    if (loadSettings().obb) await findObbs(latest.channels);
   }
 
   refreshRow(app);
   syncRelayNote();
+}
+
+/**
+ * Which of an app's builds ship an OBB, one request per channel.
+ *
+ * Only the release-channel query knows, and it takes a single channel, so an
+ * app on four channels costs four requests — hence the setting. A channel that
+ * refuses is skipped rather than failing the check around it: the build history
+ * is the point, and a missing OBB link is a smaller loss than no history.
+ */
+async function findObbs(channels = []) {
+  obbNote = "";
+
+  const ids = [...new Set(channels.map((c) => c.id).filter(Boolean))].slice(0, CHANNEL_LOOKUPS);
+
+  if (!ids.length) {
+    /* Say so rather than looking like every build simply has no OBB. */
+    if (channels.length) {
+      obbNote = "No OBB lookup: the build history reported no channel IDs.";
+    }
+    return;
+  }
+
+  const replies = await Promise.allSettled(ids.map((id) => channelObbs(id)));
+  for (const reply of replies) {
+    if (reply.status !== "fulfilled") continue;
+    for (const [binary, obb] of reply.value) obbs.set(binary, obb);
+  }
+
+  if (replies.every((r) => r.status === "rejected")) {
+    obbNote = `No OBB lookup: ${replies[0].reason.message}`;
+  }
 }
 
 async function checkList(list, button, label) {

@@ -48,6 +48,7 @@ export function loadSettings() {
       images: localStorage.getItem("metadb.images") === "1",
       details: localStorage.getItem("metadb.details") === "1",
       devDownloads: localStorage.getItem("metadb.devDownloads") === "1",
+      obb: localStorage.getItem("metadb.obb") === "1",
       limit: localStorage.getItem("metadb.limit") || "",
       /* Starting values for the on-page pickers. */
       hmd: localStorage.getItem("metadb.hmd") || "EUREKA",
@@ -69,6 +70,7 @@ export function loadSettings() {
       images: false,
       details: false,
       devDownloads: false,
+      obb: false,
       limit: "",
       hmd: "EUREKA",
       searchSort: "az",
@@ -102,7 +104,7 @@ export function saveSettings(patch) {
 
 export function clearSettings() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -295,6 +297,15 @@ function parseHistory(json) {
     }))
     .sort((a, b) => b.createdAt - a.createdAt);
 
+  /* Channels are named on every binary that reached one, and carry their own
+     ID — which is what the OBB lookup is keyed by, so it is kept here. */
+  const channelIds = new Map();
+  for (const node of nodes) {
+    for (const c of node.binary_release_channels?.nodes ?? []) {
+      if (c?.channel_name && c.id) channelIds.set(c.channel_name, String(c.id));
+    }
+  }
+
   /* Walking newest-first means the first time a channel appears is its latest. */
   const byChannel = new Map();
   for (const b of builds) {
@@ -302,6 +313,7 @@ function parseHistory(json) {
       if (byChannel.has(name)) continue;
       byChannel.set(name, {
         name,
+        id: channelIds.get(name) ?? null,
         group: name === "LIVE" ? "PRIMARY" : "CUSTOM",
         version: b.version,
         versionCode: b.versionCode,
@@ -891,6 +903,53 @@ export async function myEntitlements() {
   }
 
   return [...out.values()];
+}
+
+/* One release channel: the binaries on it and the app's recent uploads, each
+   with the ID of its OBB expansion file where there is one. Nothing else here
+   reports OBBs — not the build history, not the manifest — and it costs a
+   request per channel, which is why it sits behind a setting. */
+const CHANNEL_DOC_ID = "3973666182694273";
+
+/**
+ * Binary ID -> OBB binary ID, for one release channel.
+ *
+ * Both halves of the reply carry the pairing: `binaries` is what is on the
+ * channel, `application.primary_binaries` the app's latest uploads whatever
+ * channel they are on. Both are read, and both are one page — this query takes
+ * a channel and nothing else, so there is no cursor to follow.
+ */
+export async function channelObbs(releaseChannelID) {
+  const { token } = loadSettings();
+
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        doc_id: CHANNEL_DOC_ID,
+        variables: JSON.stringify({ releaseChannelID: String(releaseChannelID) }),
+      })
+  );
+
+  if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+  const node = json.data?.node;
+  if (!node) throw new Error("the store returned no such release channel");
+
+  const pairs = new Map();
+
+  const take = (binary) => {
+    if (binary?.id && binary.obb_binary?.id) {
+      pairs.set(String(binary.id), String(binary.obb_binary.id));
+    }
+  };
+
+  for (const edge of node.application?.primary_binaries?.edges ?? []) take(edge?.node);
+  for (const edge of node.binaries?.edges ?? []) take(edge?.node);
+  take(node.latest_supported_binary);
+
+  return pairs;
 }
 
 /**
