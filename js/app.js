@@ -292,10 +292,22 @@ function initFontSize() {
   const size = applyFontSize(loadSettings().fontSize);
   el.fontSize.value = size;
 
+  /* While typing: the page follows every keystroke that reads as a size in
+     range, so the number can be judged against the page it is changing. The box
+     is left exactly as typed — correcting it here would fight the typing, since
+     the first digit of "20" is a 2. Out-of-range keystrokes simply do nothing
+     until the field is left. */
+  el.fontSize.addEventListener("input", () => {
+    const typed = Number(el.fontSize.value);
+    if (!el.fontSize.value.trim() || Number.isNaN(typed)) return;
+    if (typed < FONT_MIN || typed > FONT_MAX) return;
+    saveSettings({ fontSize: String(applyFontSize(typed)) });
+  });
+
+  /* On the way out — blur, Enter, the spinner — clamp and tidy, and put the
+     corrected number back in the box so what it says is what the page does. */
   el.fontSize.addEventListener("change", () => {
     const applied = applyFontSize(el.fontSize.value);
-    /* Put the corrected number back in the box, so what it says is what the
-       page is doing. */
     el.fontSize.value = applied;
     saveSettings({ fontSize: String(applied) });
   });
