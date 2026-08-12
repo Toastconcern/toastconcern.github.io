@@ -44,6 +44,60 @@
 
 * { box-sizing: border-box; }
 
+/* ---------- motion ----------
+   Two moments, both short: a screen arriving, and an app's panel taking the
+   window or giving it back. Every rule here waits for a class that only the
+   page's own code adds, so with the setting off nothing animates at all —
+   there is no transition sitting on an element waiting to be triggered.
+   The duration comes from settings; the media query below outranks both. */
+
+:root { --speed: 180ms; }
+
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+/* No fill in either direction, and the class comes off at the end.
+
+   `forwards` would leave the element holding a transform — an identity matrix,
+   not `none` — which is enough to make it the containing block for anything
+   `fixed` inside it, and the expanded panel would be fixed to the section
+   rather than the window. `backwards` is no better: it holds the *first* frame
+   until the animation starts, so anything that stops it starting leaves the
+   element shrunk. With no fill, an animation that never runs simply does
+   nothing, which is the right way for this to fail. */
+.view-in { animation: view-in var(--speed) ease-out; }
+
+/* A real fade now that it can afford one: the row underneath keeps its own
+   panel and the page no longer re-lays itself, so what shows through while the
+   sheet arrives is simply the list, sitting still. */
+@keyframes stage-in {
+  from { opacity: 0; transform: scale(.994); }
+  to   { opacity: 1; transform: none; }
+}
+.stage.stage-in { animation: stage-in var(--speed) ease-out; }
+
+@keyframes stage-out {
+  from { opacity: 1; transform: none; }
+  to   { opacity: 0; transform: scale(.99); }
+}
+/* The one that does hold its last frame: the panel has to stay faded out until
+   the row underneath is rebuilt a moment later, and it is leaving anyway. */
+.stage.stage-out { animation: stage-out var(--speed) ease-in forwards; }
+
+/* Asked for plainly by the reader's own system, so it wins over the setting. */
+@media (prefers-reduced-motion: reduce) {
+  .view-in,
+  .stage.stage-in,
+  .stage.stage-out { animation: none; }
+}
+
+/* Keep the scrollbar's space reserved whether or not there is one. Settings is
+   long and Meta apps can be short, so without this the centred column steps
+   sideways by a scrollbar's width every time the tab changes — and again when
+   an expanded panel locks scrolling. */
+html { scrollbar-gutter: stable; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -162,6 +216,106 @@ tbody tr.app:focus-visible { outline: 2px solid var(--link); outline-offset: -2p
 
 .name { font-weight: 600; min-width: 11rem; }
 
+/* ---------- large display ----------
+   One app's panel, given the whole browser window. Stacked it is the ordinary
+   expanded row; staged it becomes two columns — the art and what the app is on
+   the left, what the store holds for it on the right. */
+
+.panel { position: relative; }
+
+.stage-btn {
+  position: absolute;
+  top: -.2rem;
+  right: 0;
+  min-height: 30px;
+  padding: .25rem .7rem;
+  font-size: .8125rem;
+}
+
+/* The overlay: a window-sized sheet of its own, holding a second copy of the
+   app's panel. The row it came from is untouched underneath. */
+.stage {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  /* Out past the reserved gutter, so the sheet and its own scrollbar reach the
+     window's edge while the page underneath keeps its layout exactly as it
+     was. `--sbw` is this browser's scrollbar width, measured at startup; where
+     scrollbars float over the content it is 0 and this is simply 0. */
+  right: calc(-1 * var(--sbw, 0px));
+  z-index: 60;
+  /* Always a scrollbar, never sometimes: with `auto`, a short app has none and
+     a long one does, so the sheet's content edge — and everything measured
+     from it, the Close button included — sits a scrollbar's width apart
+     between one app and the next. */
+  overflow-y: scroll;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+}
+
+.stage .panel {
+  min-height: 100%;
+  padding: 1.5rem 2rem 3rem;
+  display: grid;
+  grid-template-columns: minmax(16rem, 21rem) minmax(0, 1fr);
+  grid-template-areas: "title title" "side main";
+  gap: 1rem 2.5rem;
+  align-content: start;
+}
+
+/* Fixed, so it stays in the corner while the sheet scrolls under it. */
+.stage .stage-btn { position: fixed; top: 1.4rem; right: 2rem; z-index: 61; }
+
+.stage .stage-title {
+  grid-area: title;
+  font-size: 1.375rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+  margin: 0 0 .5rem;
+}
+
+.stage .panel__side { grid-area: side; }
+.stage .panel__main { grid-area: main; min-width: 0; }
+
+.panel__art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--panel);
+  margin-bottom: 1.1rem;
+}
+
+/* The side column is one column wide, so the facts stop trying to sit side by
+   side and simply run down it. */
+.stage .facts { grid-template-columns: minmax(0, 1fr); }
+.stage .facts section { max-width: none; }
+
+/* The reason for doing any of this: a few hundred builds through a 22rem
+   window is the one place this page feels cramped. */
+.stage .vscroll { max-height: none; }
+
+/* Scrolling stops, but the gutter stays reserved: releasing it re-lays the
+   whole page a scrollbar's width over, which is seen as a shift the moment the
+   sheet is anything less than opaque — and takes the Close button with it. The
+   sheet reaches the true edge by hanging over the gutter instead, below. */
+html.staged { overflow: hidden; }
+
+/* Two columns need the width for it; below that the panel fills the window
+   but stays stacked, which is still better than a row inside a table. */
+@media (max-width: 900px) {
+  .stage .panel {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "title" "side" "main";
+  }
+  .panel__art { max-width: 16rem; }
+}
+
 /* Columns switched off in settings. Kept to a single class each so nothing here
    outranks them — the old per-screen rules used IDs and always won. */
 body.hide-c-dev   .c-dev,
@@ -263,25 +417,37 @@ body.hide-c-devb  .c-devb { display: none; }
 
 /* detail */
 
-/* A panel, not a line of text — there is no baseline to share. */
-tr.detail td {
+/* A panel, not a line of text — there is no baseline to share.
+
+   Direct child only: as a descendant rule this also painted and padded every
+   cell of the channel and build-history tables inside the panel, which is why
+   their rows sat so far apart and why their own padding never took effect. */
+tr.detail > td {
   background: var(--panel);
   padding-top: .75rem;
   padding-bottom: 1rem;
   vertical-align: top;
 }
 
-.detail p { margin: 0 0 .6rem; font-size: .875rem; }
-.detail p.warn { color: var(--red); }
+.panel p { margin: 0 0 .6rem; font-size: .875rem; }
+.panel p.warn { color: var(--red); }
+/* A claim is the one action here that changes something, so it answers in
+   plain green or red rather than quietly. */
+.panel p.ok { color: var(--green); }
+.claim-out:empty { display: none; }
 
-.detail h3 {
-  font-size: .8125rem;
+/* Channels and Build history head whole sections, so they sit a step above the
+   group titles inside them — same uppercase treatment, a size larger. */
+.panel h3 {
+  font-size: .875rem;
   font-weight: 600;
-  color: var(--muted);
-  margin: 0 0 .35rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin: 0 0 .45rem;
 }
 
-.detail dl {
+.panel dl {
   display: grid;
   grid-template-columns: max-content 1fr;
   gap: .2rem 1rem;
@@ -291,10 +457,10 @@ tr.detail td {
      they line up on the baseline they share, not on the tops of their boxes. */
   align-items: baseline;
 }
-.detail dt { color: var(--muted); }
+.panel dt { color: var(--muted); }
 /* Hashes and package names are long unbroken strings; let them break rather
    than push the row — and the whole table — wider than the screen. */
-.detail dd {
+.panel dd {
   margin: 0;
   font-family: var(--mono);
   font-size: .8125rem;
@@ -303,7 +469,7 @@ tr.detail td {
 
 /* Every label over a block of facts — the group titles, Hashes, Permissions —
    reads as one kind of thing, so they all get the same treatment. */
-.detail h4 {
+.panel h4 {
   font-size: .8125rem;
   font-weight: 600;
   letter-spacing: .06em;
@@ -332,9 +498,12 @@ tr.detail td {
    and allowed to shrink below its content on a narrow screen. */
 .facts section { max-width: 20rem; min-width: 0; }
 
-/* Break at spaces and commas only. `anywhere` is there for the hashes further
-   down the panel; inside a fact list it splits words like "Controlle/rs". */
-.facts dd { overflow-wrap: normal; }
+/* Break at spaces and commas while there is room, and only split a word when
+   there is genuinely nowhere else to go — which is what a package name like
+   com.Shibuya_Nobuaki_MD.Crowbar_Climber_MD needs. `break-word` rather than
+   `anywhere`: `anywhere` lets the column be sized narrower than its longest
+   word, which is what used to split "Touch Controlle/rs". */
+.facts dd { overflow-wrap: break-word; }
 .facts dl { grid-template-columns: max-content minmax(0, 1fr); margin-bottom: 1rem; }
 
 .chans {
@@ -348,6 +517,18 @@ tr.detail td {
   font-size: .8125rem;
 }
 .chans td { font-family: var(--mono); overflow-wrap: anywhere; }
+
+/* The rows read a few pixels in from the header they hang under. Indented
+   rather than moved: shifting the cell takes its background and its rule along
+   with it, and those belong where the header put them. */
+.chans tbody td { text-indent: 4px; }
+
+/* Each channel reads as its own bar. One tone for both places the panel can
+   be: a step above the panel colour it normally sits on, and a step above the
+   page colour it sits on once expanded to the window. */
+.chans tbody td { background: var(--hover); }
+.chans tbody td:first-child { border-radius: 3px 0 0 3px; }
+.chans tbody td:last-child { border-radius: 0 3px 3px 0; }
 .chans td:first-child { font-family: var(--sans); white-space: nowrap; }
 .chans .muted { color: var(--muted); font-size: .75rem; }
 
@@ -502,7 +683,9 @@ tr.detail td {
    count them, so that line has to be able to read as a refusal. */
 .sub.warn { color: var(--red); }
 
-#q, #metaQ { flex: 1 1 14rem; }
+/* The search and filter boxes take whatever the pickers and buttons beside
+   them leave, on every list. */
+#q, #metaQ, #mineQ { flex: 1 1 14rem; }
 
 /* store lookup */
 

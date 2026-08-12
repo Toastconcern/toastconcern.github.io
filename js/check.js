@@ -49,6 +49,11 @@ export function loadSettings() {
       details: localStorage.getItem("metadb.details") === "1",
       devDownloads: localStorage.getItem("metadb.devDownloads") === "1",
       obb: localStorage.getItem("metadb.obb") === "1",
+      claim: localStorage.getItem("metadb.claim") === "1",
+      wide: localStorage.getItem("metadb.wide") === "1",
+      /* On unless turned off, like the store button. */
+      motion: localStorage.getItem("metadb.motion") !== "0",
+      motionSpeed: localStorage.getItem("metadb.motionSpeed") || "180",
       limit: localStorage.getItem("metadb.limit") || "",
       /* Starting values for the on-page pickers. */
       hmd: localStorage.getItem("metadb.hmd") || "EUREKA",
@@ -71,6 +76,10 @@ export function loadSettings() {
       details: false,
       devDownloads: false,
       obb: false,
+      claim: false,
+      wide: false,
+      motion: true,
+      motionSpeed: "180",
       limit: "",
       hmd: "EUREKA",
       searchSort: "az",
@@ -82,18 +91,26 @@ export function loadSettings() {
   }
 }
 
-/** A patch: only the keys present are written, so callers cannot clear the rest. */
+/**
+ * A patch: only the keys present are written, so callers cannot clear the rest.
+ *
+ * A switch that is off is written as "0" rather than removed. Removing it is
+ * the same as never having set it, and the settings that default to on — the
+ * store button, the animations — read "not set" as on, so turning them off did
+ * nothing at all. Text and lists still remove when empty, which is what makes
+ * an emptied token fall back to the built-in one.
+ */
 export function saveSettings(patch) {
   try {
     for (const [key, value] of Object.entries(patch)) {
       const name = `metadb.${key}`;
-      const stored = Array.isArray(value)
-        ? value.join(",")
-        : typeof value === "boolean"
-          ? value
-            ? "1"
-            : ""
-          : value;
+
+      if (typeof value === "boolean") {
+        localStorage.setItem(name, value ? "1" : "0");
+        continue;
+      }
+
+      const stored = Array.isArray(value) ? value.join(",") : value;
       if (stored) localStorage.setItem(name, stored);
       else localStorage.removeItem(name);
     }
@@ -104,7 +121,7 @@ export function saveSettings(patch) {
 
 export function clearSettings() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "claim", "wide", "motion", "motionSpeed", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -434,6 +451,11 @@ function extractApps(json) {
             : null,
         /* Free apps report "$0.00"; pre-orders and coming-soon carry no price. */
         price: app.current_offer?.price?.formatted ?? null,
+        /* What a claim is made against, and whether there is anything to pay.
+           `offset_amount` is minor units as a string, so "0" is the only free
+           one; a coming-soon offer has no price at all and is not free. */
+        offerId: app.current_offer?.id ? String(app.current_offer.id) : null,
+        free: app.current_offer?.price?.offset_amount === "0",
         releasedAt: app.release_date
           ? new Date(app.release_date * 1000).toISOString().slice(0, 10)
           : null,
@@ -929,6 +951,55 @@ export async function myEntitlements(kind = "quest") {
   }
 
   return [...out.values()];
+}
+
+/* Claiming a free app — the mutation behind the store's own Get button. It is
+   an offer that is claimed, not an app, and only one with nothing to pay: the
+   store refuses anything priced, which is why the button is only offered where
+   the price is zero. Like a download it acts as you, but on the access token
+   (`oc_www_at`) rather than the account one. */
+const CLAIM_DOC_ID = "24220194524234992";
+
+/**
+ * Add a free app to the signed-in account.
+ *
+ * Resolves when the store accepts it; throws with the store's own words when
+ * it does not — already owned, priced, or a token with no account behind it.
+ */
+export async function claimOffer(offerId, hmdType = loadSettings().hmd) {
+  const { token } = loadSettings();
+
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        doc_id: CLAIM_DOC_ID,
+        variables: JSON.stringify({
+          input: {
+            offer_id: String(offerId),
+            hmd_type: hmdType,
+            include_entitlement: true,
+            client_mutation_id: "1",
+          },
+        }),
+      })
+  );
+
+  if (json.errors?.length) {
+    const msg = json.errors[0].message ?? "the store refused it";
+    throw new Error(
+      /logged out|unauthorized/i.test(msg)
+        ? `${msg} Claiming needs your own access token, set on the Settings page.`
+        : msg
+    );
+  }
+
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+  /* The reply nests the result under the mutation's own name. Rather than
+     hard-code that, take the first object under `data` and let the caller
+     treat anything at all as acceptance — the errors above are the failures. */
+  return Object.values(json.data ?? {})[0] ?? {};
 }
 
 /* One release channel: the binaries on it and the app's recent uploads, each

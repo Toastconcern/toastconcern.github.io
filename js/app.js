@@ -5,6 +5,7 @@ import {
   appDetails,
   storeListing,
   channelObbs,
+  claimOffer,
   myEntitlements,
   downloadURL,
   canDownload,
@@ -15,7 +16,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=28";
+} from "./check.js?v=52";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
 
@@ -152,6 +153,10 @@ const el = {
   details: document.getElementById("details"),
   devDownloads: document.getElementById("devDownloads"),
   obb: document.getElementById("obb"),
+  claim: document.getElementById("claim"),
+  wide: document.getElementById("wide"),
+  motion: document.getElementById("motion"),
+  motionSpeed: document.getElementById("motionSpeed"),
   store: document.getElementById("store"),
   cols: document.getElementById("cols"),
   defHmd: document.getElementById("defHmd"),
@@ -205,12 +210,19 @@ let mineLoading = false;
 /** Which library is on screen — "quest" or "pc". */
 let mineKind = "quest";
 
+/* The app whose panel is filling the window, if any. Declared up here with the
+   rest of the state because applyView runs before the module finishes
+   evaluating, and reaching a later `let` from there is a TDZ error. */
+let stagedApp = null;
+
 /** What the Apps and games table is currently showing. */
 let listing = [];
 let listingNote = "";
 let searching = false;
 
 initTheme();
+initMotion();
+initStage();
 initViews();
 initSettings();
 initColumns();
@@ -238,6 +250,166 @@ function syncThemeButton() {
   el.theme.title = dark ? "Switch to light mode" : "Switch to dark mode";
 }
 
+/* ---------- motion ---------- */
+
+/* Declarations, not consts: applyView runs before this module has finished
+   evaluating, and it asks whether it may animate.
+
+   The reader's own system setting outranks the page's: with reduced motion
+   asked for, nothing here animates however the switches are left. Read each
+   time rather than once, so changing it mid-session is honoured. */
+function animates() {
+  return (
+    loadSettings().motion &&
+    !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+/** How long one of these takes, in ms — the same number the CSS is given. */
+function speed() {
+  return Number(loadSettings().motionSpeed) || 180;
+}
+
+function initMotion() {
+  applySpeed();
+  el.motionSpeed.value = loadSettings().motionSpeed;
+  el.motionSpeed.addEventListener("change", () => {
+    saveSettings({ motionSpeed: el.motionSpeed.value });
+    applySpeed();
+  });
+}
+
+function applySpeed() {
+  document.documentElement.style.setProperty("--speed", `${speed()}ms`);
+}
+
+/**
+ * Play a one-shot animation, restarting it if it is already on the element.
+ *
+ * The class comes off again when it finishes, and that is not tidiness. An
+ * element left holding a transform animation keeps a transform — an identity
+ * matrix rather than `none` — and any transform makes it the containing block
+ * for `position: fixed` inside it. Leave it on the section and the expanded
+ * panel is fixed to the section instead of the window.
+ *
+ * `keep` is for the fade a panel leaves on: it has to hold its last frame
+ * until the row underneath is rebuilt, and it is on its way out anyway.
+ */
+function play(node, className, { keep = false } = {}) {
+  if (!node || !animates()) return;
+
+  node.classList.remove(className);
+  /* Reading layout between the two is what makes the browser start again
+     rather than treat it as the same running animation. */
+  void node.offsetWidth;
+  node.classList.add(className);
+
+  if (!keep) {
+    node.addEventListener(
+      "animationend",
+      () => node.classList.remove(className),
+      { once: true }
+    );
+  }
+}
+
+/* ---------- large display ---------- */
+
+const isStaged = (app) => Boolean(stagedApp) && keyOf(stagedApp) === keyOf(app);
+
+const stageEl = () => document.querySelector(".stage");
+
+/**
+ * Take the whole window for one app.
+ *
+ * The overlay is its own element with its own copy of the panel; the row it
+ * came from is left exactly as it was, still holding its own. Nothing empties
+ * itself as this opens, so there is nothing to see flicker underneath.
+ */
+function openStage(app) {
+  closeStage({ animate: false });
+
+  stagedApp = app;
+  /* Nothing behind it should scroll while it is covering the page. */
+  document.documentElement.classList.add("staged");
+
+  const stage = document.createElement("div");
+  stage.className = "stage";
+  stage.append(appPanel(app, { staged: true }));
+  document.body.append(stage);
+
+  play(stage, "stage-in");
+}
+
+/**
+ * Put the window back.
+ *
+ * The overlay lives on <body> and the scroll lock on <html>, so anything that
+ * can take it off screen has to come through here — otherwise the page is left
+ * locked with nothing visible to unlock it, which is what Back used to do.
+ */
+function closeStage({ animate = true } = {}) {
+  if (!stagedApp) return;
+
+  stagedApp = null;
+  const stage = stageEl();
+
+  const done = () => {
+    stage?.remove();
+    document.documentElement.classList.remove("staged");
+  };
+
+  if (!stage || !animate || !animates()) return done();
+
+  play(stage, "stage-out", { keep: true });
+  setTimeout(done, speed());
+}
+
+/** Rebuild what the overlay is showing — after a check, say. */
+function refreshStage() {
+  const stage = stageEl();
+  if (!stagedApp || !stage) return;
+
+  /* Keep the reader where they were in a list that may be hundreds long. */
+  const at = stage.scrollTop;
+  stage.replaceChildren(appPanel(stagedApp, { staged: true }));
+  stage.scrollTop = at;
+}
+
+/**
+ * Give one app's panel the whole browser window, or give it back.
+ *
+ * The row is rebuilt rather than reshuffled: the panel is laid out from the
+ * same markup either way, so the only thing that changes is which arrangement
+ * it is built into — and a check that redraws the row mid-view keeps it.
+ */
+function toggleStage(app) {
+  if (isStaged(app)) closeStage();
+  else openStage(app);
+}
+
+function initStage() {
+  /* This browser's scrollbar width. The page keeps its gutter reserved even
+     while the sheet is up — that is what stops everything shifting — so the
+     sheet is told to hang out over the gutter by exactly this much. Measured
+     off a box of its own: reading it from the document at startup returns 0,
+     because nothing has been laid out yet. */
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:absolute;top:-9999px;width:100px;height:100px;overflow:scroll";
+  document.body.append(probe);
+  document.documentElement.style.setProperty(
+    "--sbw",
+    `${probe.offsetWidth - probe.clientWidth}px`
+  );
+  probe.remove();
+
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeStage();
+  });
+}
+
 /* ---------- views ---------- */
 
 function initViews() {
@@ -246,6 +418,11 @@ function initViews() {
 }
 
 function applyView() {
+  /* Back, Forward or a tab in the nav — the panel belongs to the screen it was
+     opened from, and its row is about to be hidden along with that screen.
+     Nothing to fade out to, since that screen is going with it. */
+  closeStage({ animate: false });
+
   const hash = location.hash.replace("#", "");
   const view = ["meta", "mine", "settings"].includes(hash) ? hash : "apps";
 
@@ -259,6 +436,14 @@ function applyView() {
 
   for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);
   window.scrollTo(0, 0);
+
+  /* The screen that just arrived, not the one that left: a leaving screen
+     would have to be kept on the page to be animated, and it is the arriving
+     one the reader is looking for. */
+  play(
+    [el.viewApps, el.viewMeta, el.viewMine, el.viewSettings].find((s) => !s.hidden),
+    "view-in"
+  );
 }
 
 /* ---------- settings ---------- */
@@ -314,10 +499,16 @@ function initSettings() {
     [el.details, "details"],
     [el.devDownloads, "devDownloads"],
     [el.obb, "obb"],
+    [el.claim, "claim"],
+    [el.wide, "wide"],
+    [el.motion, "motion"],
   ]) {
     node.checked = saved[key];
     node.addEventListener("change", () => {
       saveSettings({ [key]: node.checked });
+      /* Switching the mode off while a panel is filling the window would
+         otherwise leave it there with no way back. */
+      if (key === "wide" && !node.checked) closeStage();
       renderAll();
     });
   }
@@ -948,7 +1139,14 @@ function devCell(app) {
   )}">${esc(label)}</span></td>`;
 }
 
-function detailRow(app) {
+/**
+ * One app's panel, built the same either way.
+ *
+ * The row keeps its own copy and the expanded view builds another into the
+ * overlay, so opening the big view takes nothing away from what is underneath
+ * — which is what stopped it flickering as the row emptied itself.
+ */
+function appPanel(app, { staged = false } = {}) {
   const found = results.get(keyOf(app));
   const list = found?.latest?.channels?.length
     ? found.latest.channels
@@ -1045,6 +1243,12 @@ function detailRow(app) {
           ? `<button type="button" data-info="1">More app info</button>`
           : ""
       }${
+        /* Only where the store says there is nothing to pay — it refuses a
+           claim on anything priced, so a button there would only ever fail. */
+        opts.claim && app.free && app.offerId
+          ? `<button type="button" data-claim="1">Get entitlement</button>`
+          : ""
+      }${
         opts.store
           ? `<a href="https://www.meta.com/experiences/${app.id}/" target="_blank"
                rel="noopener">Open in store</a>`
@@ -1077,10 +1281,29 @@ function detailRow(app) {
             : "Not checked yet — press Check this app for its channels and builds."
       }</p>`;
 
-  const tr = document.createElement("tr");
-  tr.className = "detail";
-  tr.innerHTML = `
-    <td colspan="${app.owned ? 11 : 8}">
+  const panel = document.createElement("div");
+  panel.className = "panel";
+
+  /* Two halves either way. Stacked they read as one panel, as they always did;
+     in the overlay they become the two columns — what the app is on the left,
+     what the store holds for it on the right. */
+  panel.innerHTML = `
+    ${
+      opts.wide
+        ? `<button type="button" class="stage-btn" data-stage>${
+            staged ? "Close" : "Expand"
+          }</button>`
+        : ""
+    }
+    ${staged ? `<h3 class="stage-title">${esc(app.name)}</h3>` : ""}
+    <div class="panel__side">
+      ${
+        /* Cover art is cover art wherever it appears: with app art turned off,
+           no image is fetched from Meta's CDN here either. */
+        staged && app.image && opts.images
+          ? `<img class="panel__art" src="${esc(app.image)}" alt="">`
+          : ""
+      }
       ${note(found)}
       ${factGroups(groups)}
       ${
@@ -1088,26 +1311,39 @@ function detailRow(app) {
           ? `<p class="warn">No store listing: ${esc(listed.error)}</p>`
           : ""
       }
+    </div>
+    <div class="panel__main">
       ${channelTable}
       <div class="actions">${actions}</div>
+      <div class="claim-out"></div>
       <div class="resolve-out"></div>
       <div class="info-out"></div>
       <div class="versions-out"></div>
-    </td>`;
+    </div>`;
 
-  tr.querySelector("[data-check]")?.addEventListener("click", (e) => {
+  panel.querySelector("[data-stage]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleStage(app);
+  });
+
+  panel.querySelector("[data-check]")?.addEventListener("click", (e) => {
     e.stopPropagation();
     checkOne(app);
   });
 
-  tr.querySelector("[data-resolve]")?.addEventListener("click", (e) => {
+  panel.querySelector("[data-claim]")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    resolveId(app, tr.querySelector(".resolve-out"), e.currentTarget);
+    claimOne(app, panel.querySelector(".claim-out"), e.currentTarget);
   });
 
-  const infoBtn = tr.querySelector("[data-info]");
+  panel.querySelector("[data-resolve]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    resolveId(app, panel.querySelector(".resolve-out"), e.currentTarget);
+  });
+
+  const infoBtn = panel.querySelector("[data-info]");
   if (infoBtn) {
-    const infoOut = tr.querySelector(".info-out");
+    const infoOut = panel.querySelector(".info-out");
     syncInfoButton(infoBtn, app);
 
     infoBtn.addEventListener("click", (e) => {
@@ -1123,9 +1359,22 @@ function detailRow(app) {
   /* Checking an app returns its whole build history, so the list appears on its
      own once a check has run — there is nothing separate to press. */
   if (versionCache.has(app.id)) {
-    drawVersions(tr.querySelector(".versions-out"), versionCache.get(app.id), VERSION_PAGE);
+    drawVersions(panel.querySelector(".versions-out"), versionCache.get(app.id), VERSION_PAGE);
   }
 
+  return panel;
+}
+
+/** The expanded row under an app: its panel, in a cell wide enough to hold it. */
+function detailRow(app) {
+  const tr = document.createElement("tr");
+  tr.className = "detail";
+
+  const td = document.createElement("td");
+  td.colSpan = app.owned ? 11 : 8;
+  td.append(appPanel(app));
+
+  tr.append(td);
   return tr;
 }
 
@@ -1420,6 +1669,29 @@ function drawVersions(
 }
 
 /**
+ * Claim a free app for the signed-in account.
+ *
+ * The one thing here that writes rather than reads, so it says plainly what it
+ * did and leaves the answer on screen — including "you already own this",
+ * which is the store's way of saying there was nothing to do.
+ */
+async function claimOne(app, out, button) {
+  button.disabled = true;
+  out.innerHTML = `<p>Asking the store for ${esc(app.name)}…</p>`;
+
+  try {
+    await claimOffer(app.offerId, el.hmd.value);
+    out.innerHTML = `<p class="ok">${esc(app.name)} is on your account. It will
+      show up under Your entitlements the next time you fetch them.</p>`;
+  } catch (err) {
+    out.innerHTML = `<p class="warn">Not claimed: ${esc(err.message)}</p>`;
+  }
+
+  button.disabled = false;
+  syncRelayNote();
+}
+
+/**
  * System apps are listed by package name only. The store can map a package to
  * an ID, but the built-in public token is refused, so this needs a token with
  * more access set on the Settings page.
@@ -1465,6 +1737,9 @@ function refreshRow(app) {
     tr.replaceWith(appRow(app, scope));
     if (next?.classList.contains("detail")) next.replaceWith(detailRow(app));
   }
+
+  /* The overlay holds its own copy of the same panel, so it needs the news. */
+  if (isStaged(app)) refreshStage();
 }
 
 async function checkOne(app, { listing: wantListing = true } = {}) {
