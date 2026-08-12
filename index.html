@@ -17,19 +17,29 @@
 <meta name="theme-color" content="#2f6fe0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=52">
+<link rel="stylesheet" href="css/style.css?v=58">
 <script>
-  /* Set the theme before first paint so there is no flash. */
+  /* Set the theme before first paint so there is no flash. Anything saved wins;
+     with nothing saved the system decides. Whatever name is stored is used as
+     it stands, so adding a palette to the stylesheet is all it takes. */
   (function () {
     var saved = null;
     try { saved = localStorage.getItem("theme"); } catch (e) {}
-    var dark = saved ? saved === "dark"
-      : window.matchMedia("(prefers-color-scheme: dark)").matches;
-    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    var system = window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+    document.documentElement.dataset.theme = saved || system;
+
+    /* Same reason: a page set to 20px should not be drawn at 16 first. */
+    var size = null;
+    try { size = Number(localStorage.getItem("metadb.fontSize")); } catch (e) {}
+    if (size >= 11 && size <= 24) {
+      document.documentElement.style.setProperty("--font", size + "px");
+    }
   })();
 </script>
 </head>
@@ -44,7 +54,7 @@
       <a href="#mine" data-view="mine">Your entitlements</a>
       <a href="#settings" data-view="settings">Settings</a>
     </nav>
-    <button id="theme" type="button" aria-pressed="false">Dark</button>
+    <select id="theme" aria-label="Theme"></select>
   </div>
 </header>
 
@@ -252,6 +262,20 @@
       </div>
 
       <div class="field">
+        <label for="fontSize">Text size</label>
+        <!-- No min/max/step: the browser would nag about anything outside them
+             the moment Enter is pressed. The number is clamped and rounded in
+             JS instead, and the corrected value is put back in the box. -->
+        <input id="fontSize" type="number" step="any">
+        <p class="hint">
+          Pixels, 11 to 24, halves and other decimals allowed, and 16 to begin
+          with. The whole page is measured
+          from this one number, so the rows and spacing grow with the type
+          rather than the text alone getting bigger inside boxes that do not.
+        </p>
+      </div>
+
+      <div class="field">
         <span class="field__label">Columns</span>
         <div id="cols" class="cols-grid"></div>
         <p class="hint">
@@ -432,6 +456,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=52"></script>
+<script type="module" src="js/app.js?v=58"></script>
 </body>
 </html>

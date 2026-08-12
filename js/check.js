@@ -54,6 +54,7 @@ export function loadSettings() {
       /* On unless turned off, like the store button. */
       motion: localStorage.getItem("metadb.motion") !== "0",
       motionSpeed: localStorage.getItem("metadb.motionSpeed") || "180",
+      fontSize: localStorage.getItem("metadb.fontSize") || "16",
       limit: localStorage.getItem("metadb.limit") || "",
       /* Starting values for the on-page pickers. */
       hmd: localStorage.getItem("metadb.hmd") || "EUREKA",
@@ -80,6 +81,7 @@ export function loadSettings() {
       wide: false,
       motion: true,
       motionSpeed: "180",
+      fontSize: "16",
       limit: "",
       hmd: "EUREKA",
       searchSort: "az",
@@ -121,7 +123,7 @@ export function saveSettings(patch) {
 
 export function clearSettings() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "claim", "wide", "motion", "motionSpeed", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "claim", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}

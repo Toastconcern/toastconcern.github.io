@@ -35,12 +35,144 @@
   --warn-hi: #d4463a;
 }
 
+/* Grey type on a navy ground. Every pair here clears WCAG AA against what it
+   sits on: text 10.1:1 on the page and 9.1:1 on a panel, the muted labels
+   5.9:1 and 5.3:1, and white on both button fills above 4.5:1. */
+:root[data-theme="midnight"] {
+  --text:   #b8c2d4;
+  --muted:  #8794ab;
+  --line:   #243350;
+  --bg:     #0e1626;
+  --panel:  #152034;
+  --hover:  #1b2840;
+  --field:  #152034;
+  --border: #3d5177;
+  --red:    #f08b83;
+  --green:  #7fd396;
+  --link:   #8fbcf5;
+  --blue:    #2f6fe0;
+  --blue-hi: #4886ef;
+  --warn:    #c2352a;
+  --warn-hi: #d4463a;
+}
+
+/* Black ground, white type, very dark grey for anything raised off it. Chosen
+   against the AAA line rather than AA: text 21:1, the muted labels 14.2:1,
+   links 12.4:1. The rules are a lighter grey than the other themes use — at
+   #3d3d3d a divider on black is 1.9:1 and effectively invisible, so they sit
+   at 3.3:1 and control edges at 6.1:1. Buttons darken on hover instead of
+   lightening, so their white label keeps 7.5:1. */
+:root[data-theme="contrast"] {
+  --text:   #ffffff;
+  --muted:  #d4d4d4;
+  --line:   #606060;
+  --bg:     #000000;
+  --panel:  #121212;
+  --hover:  #1e1e1e;
+  --field:  #121212;
+  --border: #8a8a8a;
+  --red:    #ff9b93;
+  --green:  #8ae8a3;
+  --link:   #9ecbff;
+  --blue:    #1d5fd6;
+  --blue-hi: #174fb4;
+  --warn:    #c2352a;
+  --warn-hi: #a02219;
+}
+
+/* Ink on warm paper — the light theme for people who find a white page harsh.
+   Text 13.2:1 on the page, muted labels 5.4:1, links 6.6:1. */
+:root[data-theme="paper"] {
+  --text:   #2a2521;
+  --muted:  #6b6055;
+  --line:   #d3c4aa;
+  --bg:     #f5efe3;
+  --panel:  #fffaf0;
+  --hover:  #ece3d3;
+  --field:  #fffaf0;
+  --border: #8d7c65;
+  --red:    #a3291a;
+  --green:  #2b6136;
+  --link:   #1f5591;
+  --blue:    #2f5d96;
+  --blue-hi: #24507f;
+  --warn:    #a3291a;
+  --warn-hi: #872015;
+}
+
+/* Warm dark: a brown-black ground with amber for anything you can click.
+   Text 14.7:1, muted 6.7:1, links 9.0:1, white on the amber button 6.5:1. */
+:root[data-theme="ember"] {
+  --text:   #eee2d4;
+  --muted:  #a99787;
+  --line:   #3a2f26;
+  --bg:     #16110e;
+  --panel:  #1f1813;
+  --hover:  #271e18;
+  --field:  #1f1813;
+  --border: #7c6653;
+  --red:    #f3897c;
+  --green:  #8ac98d;
+  --link:   #e7a75c;
+  --blue:    #8f4c14;
+  --blue-hi: #a85a1a;
+  --warn:    #b3382a;
+  --warn-hi: #c94436;
+}
+
+/* Deep green. Text 13.9:1, muted 7.4:1, links 10.1:1; the button darkens on
+   hover rather than lightening, which keeps its white label at 7.5:1. */
+:root[data-theme="forest"] {
+  --text:   #d7e3d8;
+  --muted:  #94a998;
+  --line:   #2b3a31;
+  --bg:     #0e1611;
+  --panel:  #151f18;
+  --hover:  #1b271e;
+  --field:  #151f18;
+  --border: #4d7a5c;
+  --red:    #ef8a80;
+  --green:  #85d398;
+  --link:   #8ccfa2;
+  --blue:    #2c7548;
+  --blue-hi: #23603a;
+  --warn:    #b3382a;
+  --warn-hi: #c94436;
+}
+
+/* Phosphor green on near-black, for the terminal it half is. Softer than the
+   #00ff00 the look is remembered as, which vibrates against black: text
+   14.6:1, muted 8.1:1, links 13.0:1. */
+:root[data-theme="terminal"] {
+  --text:   #b9e8bd;
+  --muted:  #7fb184;
+  --line:   #1d3020;
+  --bg:     #050a06;
+  --panel:  #0c140d;
+  --hover:  #122016;
+  --field:  #0c140d;
+  --border: #3f6b48;
+  --red:    #ff8f80;
+  --green:  #79e089;
+  --link:   #7fe6a0;
+  --blue:    #1a5c2c;
+  --blue-hi: #226f37;
+  --warn:    #a8291d;
+  --warn-hi: #c1382a;
+}
+
 :root {
   --sans: "IBM Plex Sans", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, monospace;
   color-scheme: light;
 }
-:root[data-theme="dark"] { color-scheme: dark; }
+/* Every dark ground wants dark form controls and scrollbars. */
+:root[data-theme="dark"],
+:root[data-theme="midnight"],
+:root[data-theme="contrast"],
+:root[data-theme="ember"],
+:root[data-theme="forest"],
+:root[data-theme="terminal"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 
@@ -98,12 +230,21 @@
    an expanded panel locks scrolling. */
 html { scrollbar-gutter: stable; }
 
+/* The size everything else is measured from: the page is laid out in rem, so
+   this one number scales the type and the spacing with it.
+
+   16px is what the root has always been — every rem in this file was written
+   against it — and body text has always been 15, which is .9375 of it. Leaving
+   the default at 16 keeps the page pixel-identical to what it was before there
+   was a setting at all. */
+html { font-size: var(--font, 16px); }
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: .9375rem;
   line-height: 1.5;
 }
 
@@ -205,14 +346,26 @@ th {
 td {
   padding: .55rem .6rem;
   border-bottom: 1px solid var(--line);
-  /* Baselines, not box tops: half the row is mono at a smaller size than the
-     app name beside it, and aligning the boxes left the two a pixel apart. */
+  /* Baselines, not box tops: half the row is mono, and its metrics differ
+     enough from the sans beside it that aligning the boxes left the two a
+     pixel apart. */
   vertical-align: baseline;
 }
 
 tbody tr.app { cursor: pointer; }
 tbody tr.app:hover td { background: var(--hover); }
 tbody tr.app:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
+
+/* The list rows, and only them: the child combinator and the row's own class
+   keep this off the channel and history tables nested inside an expanded row,
+   which carry their own smaller scale.
+
+   Two decisions live here. Weight goes up a step, because 400 mono on a dark
+   ground goes thin and the rows are the thing being read. Size goes down a
+   step, so the data sits under the app name rather than competing with it —
+   the name keeps the body size and its 600. */
+tbody tr.app > td { font-weight: 500; font-size: .875rem; }
+tbody tr.app > td.name { font-weight: 600; font-size: .9375rem; }
 
 .name { font-weight: 600; min-width: 11rem; }
 
@@ -348,12 +501,14 @@ body.hide-c-devb  .c-devb { display: none; }
   vertical-align: bottom;
 }
 
-.num { font-family: var(--mono); font-size: .8125rem; white-space: nowrap; }
+/* Mono, but the same size as the sans columns beside it — a row reads as one
+   line of text rather than two sizes of it. */
+.num { font-family: var(--mono); font-size: inherit; white-space: nowrap; }
 
 /* an unreleased build sitting ahead of everything on a channel */
 .dev-ahead { color: var(--red); max-width: 10rem; }
 .muted-cell { color: var(--muted); }
-.chan { font-size: .8125rem; white-space: nowrap; }
+.chan { white-space: nowrap; }
 .chan .more-chan { color: var(--muted); }
 
 /* cover art, off unless switched on in settings */
@@ -791,6 +946,9 @@ tr.detail > td {
 /* Tokens keep the full width — they are long strings and get pasted in — but
    sit a little shallower than the boxes that are read back. */
 .form input.token { min-height: 32px; padding-top: .3rem; padding-bottom: .3rem; }
+
+/* A two-digit number needs room for two digits and a spinner, not a line. */
+.form input[type="number"] { width: auto; max-width: 7rem; }
 
 .form .hint { margin: .4rem 0 0; }
 

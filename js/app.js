@@ -16,7 +16,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=52";
+} from "./check.js?v=58";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
 
@@ -43,6 +43,34 @@ const COLUMNS = [
   ["c-grant", "Source"],
   ["c-devb", "Dev build"],
 ];
+
+/* Each theme is a palette in the stylesheet, named by its `data-theme` value.
+   Adding another is a block of tokens there and a line here. "" follows the
+   system, and keeps following it as the system changes.
+
+   Up here with the other constants, not down beside initTheme: the init calls
+   run before this module finishes evaluating, and a `const` declared below
+   them cannot be read from one — the same trap the staged panel hit. */
+/* Light first, then dark, then the two that are neither about lightness.
+   Adding one is a palette in the stylesheet and a line here. */
+const THEMES = [
+  ["", "System"],
+  ["light", "Light"],
+  ["paper", "Paper"],
+  ["dark", "Dark"],
+  ["midnight", "Midnight Blue"],
+  ["ember", "Ember"],
+  ["forest", "Forest"],
+  ["terminal", "Terminal"],
+  ["contrast", "High contrast"],
+];
+
+/* Everything is sized in rem, so the root size is the size of the page. Kept
+   inside a range that still lays out: below 11 the tables crowd, above 24 the
+   two-column panel has nowhere to go. */
+const FONT_MIN = 11;
+const FONT_MAX = 24;
+const FONT_DEFAULT = 16;
 
 /* Build history orders. `list` arrives newest-first from the store. */
 const BUILD_SORTS = {
@@ -157,6 +185,7 @@ const el = {
   wide: document.getElementById("wide"),
   motion: document.getElementById("motion"),
   motionSpeed: document.getElementById("motionSpeed"),
+  fontSize: document.getElementById("fontSize"),
   store: document.getElementById("store"),
   cols: document.getElementById("cols"),
   defHmd: document.getElementById("defHmd"),
@@ -221,6 +250,7 @@ let listingNote = "";
 let searching = false;
 
 initTheme();
+initFontSize();
 initMotion();
 initStage();
 initViews();
@@ -233,21 +263,74 @@ boot();
 
 /* ---------- theme ---------- */
 
-function initTheme() {
-  syncThemeButton();
-  el.theme.addEventListener("click", () => {
-    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
-    try { localStorage.setItem("theme", next); } catch {}
-    syncThemeButton();
+function systemTheme() {
+  return window.matchMedia("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
+/**
+ * The page's root text size, which everything else is measured from.
+ *
+ * Applied on the way in as well as on every change, and clamped: a saved value
+ * from a hand-edited localStorage should not be able to make the page
+ * unreadable, and the box itself accepts anything typed until it is corrected.
+ */
+function applyFontSize(px) {
+  /* Fractions are kept — 15.5 is a real size, and rounding it away was the box
+     appearing to ignore what was typed. Two places is enough to stop float
+     arithmetic writing 15.500000000000002 into the settings. */
+  const size =
+    Math.round(
+      Math.min(FONT_MAX, Math.max(FONT_MIN, Number(px) || FONT_DEFAULT)) * 100,
+    ) / 100;
+  document.documentElement.style.setProperty("--font", `${size}px`);
+  return size;
+}
+
+function initFontSize() {
+  const size = applyFontSize(loadSettings().fontSize);
+  el.fontSize.value = size;
+
+  el.fontSize.addEventListener("change", () => {
+    const applied = applyFontSize(el.fontSize.value);
+    /* Put the corrected number back in the box, so what it says is what the
+       page is doing. */
+    el.fontSize.value = applied;
+    saveSettings({ fontSize: String(applied) });
   });
 }
 
-function syncThemeButton() {
-  const dark = document.documentElement.dataset.theme === "dark";
-  el.theme.textContent = dark ? "Light" : "Dark";
-  el.theme.setAttribute("aria-pressed", String(dark));
-  el.theme.title = dark ? "Switch to light mode" : "Switch to dark mode";
+function initTheme() {
+  fillOptions(el.theme, THEMES);
+
+  let saved = "";
+  try {
+    saved = localStorage.getItem("theme") ?? "";
+  } catch {}
+
+  /* A palette that has since been removed falls back to following the system
+     rather than leaving the picker showing something that does not exist. */
+  el.theme.value = THEMES.some(([value]) => value === saved) ? saved : "";
+  applyTheme();
+
+  el.theme.addEventListener("change", () => {
+    try {
+      if (el.theme.value) localStorage.setItem("theme", el.theme.value);
+      else localStorage.removeItem("theme");
+    } catch {}
+    applyTheme();
+  });
+
+  window
+    .matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", () => {
+      if (!el.theme.value) applyTheme();
+    });
+}
+
+function applyTheme() {
+  document.documentElement.dataset.theme = el.theme.value || systemTheme();
 }
 
 /* ---------- motion ---------- */
