@@ -16,7 +16,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=58";
+} from "./check.js?v=60";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
 
@@ -61,6 +61,7 @@ const THEMES = [
   ["midnight", "Midnight Blue"],
   ["ember", "Ember"],
   ["forest", "Forest"],
+  ["forest-deep", "Forest (deep)"],
   ["terminal", "Terminal"],
   ["contrast", "High contrast"],
 ];
@@ -71,6 +72,12 @@ const THEMES = [
 const FONT_MIN = 11;
 const FONT_MAX = 24;
 const FONT_DEFAULT = 16;
+
+/* When the page checks whether a newer build has been published. Up here with
+   the other constants because initUpdates runs before this module has finished
+   evaluating, and a `const` further down would still be in its dead zone. */
+const UPDATE_FIRST = 45_000;
+const UPDATE_EVERY = 15 * 60_000;
 
 /* Build history orders. `list` arrives newest-first from the store. */
 const BUILD_SORTS = {
@@ -259,7 +266,94 @@ initColumns();
 /* The headset list has to exist before the defaults can select within it. */
 fillHmdPicker();
 initDefaults();
+initUpdates();
 boot();
+
+/* ---------- new builds ----------
+   A page left open on a tab for a week goes on running whatever it loaded that
+   day, and there is nothing a deploy can do to reach it. So the page asks: it
+   re-fetches its own HTML now and then and compares the ?v= on the stylesheet
+   with the one it was itself loaded with. That number already changes on every
+   deploy — it is the cache buster — so there is no build stamp to remember to
+   update.
+
+   Finding a new one it reloads, but only when that cannot lose anything: with
+   the tab in the background, or with nothing typed into and no app expanded.
+   Otherwise it says so and leaves the choice alone. */
+
+function loadedBuild() {
+  const link = document.querySelector('link[rel="stylesheet"][href*="style.css"]');
+  return link?.getAttribute("href").match(/[?&]v=(\d+)/)?.[1] ?? null;
+}
+
+async function publishedBuild() {
+  const res = await fetch(location.pathname, { cache: "no-store" });
+  if (!res.ok) return null;
+  return (await res.text()).match(/style\.css\?v=(\d+)/)?.[1] ?? null;
+}
+
+/** Nothing in progress that a reload would throw away. */
+function safeToReload() {
+  if (document.hidden) return true;
+  if (stagedApp) return false;
+  const tag = document.activeElement?.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return false;
+  return true;
+}
+
+async function checkForUpdate() {
+  const mine = loadedBuild();
+  if (!mine) return;
+
+  let live = null;
+  try {
+    live = await publishedBuild();
+  } catch {
+    /* offline, or opened from disk — nothing to do either way */
+    return;
+  }
+  if (!live || live === mine) return;
+
+  /* Reloading once per new build at most. If the reload comes back still on the
+     old build — a proxy holding the HTML, say — the page asks rather than
+     spinning. */
+  let already = null;
+  try {
+    already = sessionStorage.getItem("metadb.reloadedFor");
+  } catch {}
+
+  if (already !== live && safeToReload()) {
+    try {
+      sessionStorage.setItem("metadb.reloadedFor", live);
+    } catch {}
+    location.reload();
+    return;
+  }
+  showUpdateNotice();
+}
+
+function showUpdateNotice() {
+  if (document.getElementById("updateNote")) return;
+
+  const note = document.createElement("p");
+  note.id = "updateNote";
+  note.className = "notice notice--update";
+  note.innerHTML =
+    'A newer version of this page has been published. ' +
+    '<button type="button" class="linkbtn">Reload to get it</button>';
+  note.querySelector("button").addEventListener("click", () => location.reload());
+  document.querySelector(".wrap").prepend(note);
+}
+
+function initUpdates() {
+  setTimeout(checkForUpdate, UPDATE_FIRST);
+  setInterval(checkForUpdate, UPDATE_EVERY);
+  /* Coming back to the tab is the moment a reload costs least and is most
+     likely to be wanted. */
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) checkForUpdate();
+  });
+}
 
 /* ---------- theme ---------- */
 

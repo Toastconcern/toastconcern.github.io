@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=58">
+<link rel="stylesheet" href="css/style.css?v=60">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -304,13 +304,11 @@
           Large display mode
         </label>
         <p class="hint">
-          <strong>Desktop only — for big screens.</strong> Puts an Expand button
-          in the top right of each opened app. Pressing it gives that one app
-          the whole browser window and lays it out properly: cover art top left
-          with the app's details under it, and the channels, manifest and build
-          history down the right. Escape or Close puts it back. On a laptop or a
-          phone there is no room for two columns, which is why it is off unless
-          you ask for it.
+          Puts an Expand button in the top right of each opened app. Pressing it
+          gives that one app the whole browser window and lays it out properly:
+          cover art top left with the app's details under it, and the channels,
+          manifest and build history down the right. Narrow screens keep the
+          same panel in one column. Escape or Close puts it back.
         </p>
       </div>
 
@@ -456,6 +454,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=58"></script>
+<script type="module" src="js/app.js?v=60"></script>
 </body>
 </html>

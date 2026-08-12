@@ -81,16 +81,18 @@
 }
 
 /* Ink on warm paper — the light theme for people who find a white page harsh.
-   Text 13.2:1 on the page, muted labels 5.4:1, links 6.6:1. */
+   The cream is a real cream: at the first attempt's #f5efe3 it sat ΔE 8.5 from
+   plain white and read as white with a tint, so it moved out to 13.7. Text
+   12.2:1 on the page, muted labels 5.4:1, links 6.2:1. */
 :root[data-theme="paper"] {
-  --text:   #2a2521;
-  --muted:  #6b6055;
-  --line:   #d3c4aa;
-  --bg:     #f5efe3;
-  --panel:  #fffaf0;
-  --hover:  #ece3d3;
-  --field:  #fffaf0;
-  --border: #8d7c65;
+  --text:   #2b2620;
+  --muted:  #665b4c;
+  --line:   #cdb99a;
+  --bg:     #f2e7d3;
+  --panel:  #fdf6e8;
+  --hover:  #e6d7ba;
+  --field:  #fdf6e8;
+  --border: #8a785f;
   --red:    #a3291a;
   --green:  #2b6136;
   --link:   #1f5591;
@@ -100,29 +102,55 @@
   --warn-hi: #872015;
 }
 
-/* Warm dark: a brown-black ground with amber for anything you can click.
-   Text 14.7:1, muted 6.7:1, links 9.0:1, white on the amber button 6.5:1. */
+/* Warm dark: a brown ground with amber for anything you can click. Brown, not
+   brown-black — the first attempt's #16110e was ΔE 6 from black and simply
+   looked like the dark theme. This one is 17 from black and 13 from the neutral
+   dark, which is the difference between a tint and a colour. Text 12.6:1,
+   muted 6.7:1, links 8.3:1, white on the amber button 5.4:1. */
 :root[data-theme="ember"] {
-  --text:   #eee2d4;
-  --muted:  #a99787;
-  --line:   #3a2f26;
-  --bg:     #16110e;
-  --panel:  #1f1813;
-  --hover:  #271e18;
-  --field:  #1f1813;
-  --border: #7c6653;
-  --red:    #f3897c;
-  --green:  #8ac98d;
-  --link:   #e7a75c;
-  --blue:    #8f4c14;
-  --blue-hi: #a85a1a;
+  --text:   #f4e2cf;
+  --muted:  #c0a48b;
+  --line:   #573c2a;
+  --bg:     #2e1f16;
+  --panel:  #3a2820;
+  --hover:  #452f24;
+  --field:  #3a2820;
+  --border: #96795e;
+  --red:    #f79184;
+  --green:  #93d193;
+  --link:   #f2ad60;
+  --blue:    #a35516;
+  --blue-hi: #8a4611;
   --warn:    #b3382a;
-  --warn-hi: #c94436;
+  --warn-hi: #962c20;
 }
 
-/* Deep green. Text 13.9:1, muted 7.4:1, links 10.1:1; the button darkens on
-   hover rather than lightening, which keeps its white label at 7.5:1. */
+/* Deep green — the ground is ΔE 21 from black, so it reads as green rather
+   than as a dark theme someone breathed on. Text 12.7:1, muted 7.7:1, links
+   9.8:1; the button darkens on hover rather than lightening, which keeps its
+   white label at 6.7:1. */
 :root[data-theme="forest"] {
+  --text:   #dcefdd;
+  --muted:  #9dc0a4;
+  --line:   #2e5138;
+  --bg:     #102a1c;
+  --panel:  #17351f;
+  --hover:  #1e4128;
+  --field:  #17351f;
+  --border: #4f8a63;
+  --red:    #f79184;
+  --green:  #8ade9f;
+  --link:   #93dfa9;
+  --blue:    #2e7d4a;
+  --blue-hi: #25683c;
+  --warn:    #b3382a;
+  --warn-hi: #962c20;
+}
+
+/* The first Forest, kept because it was liked: the same green an octave down,
+   nearly black, where Forest proper is a green you can see. Text 13.9:1 on the
+   page, muted 7.4:1, links 10.1:1. */
+:root[data-theme="forest-deep"] {
   --text:   #d7e3d8;
   --muted:  #94a998;
   --line:   #2b3a31;
@@ -137,28 +165,30 @@
   --blue:    #2c7548;
   --blue-hi: #23603a;
   --warn:    #b3382a;
-  --warn-hi: #c94436;
+  --warn-hi: #962c20;
 }
 
-/* Phosphor green on near-black, for the terminal it half is. Softer than the
-   #00ff00 the look is remembered as, which vibrates against black: text
-   14.6:1, muted 8.1:1, links 13.0:1. */
+/* Phosphor green on near-black. This is the one theme whose ground stays at
+   black on purpose — the look is the green type, not the paper — so the green
+   carries it and is saturated enough to be unmistakable at a glance. Still
+   short of the #00ff00 it is remembered as, which vibrates against black.
+   Text 12.9:1, muted 7.8:1, links 15.7:1. */
 :root[data-theme="terminal"] {
-  --text:   #b9e8bd;
-  --muted:  #7fb184;
-  --line:   #1d3020;
-  --bg:     #050a06;
-  --panel:  #0c140d;
-  --hover:  #122016;
-  --field:  #0c140d;
-  --border: #3f6b48;
+  --text:   #6fe887;
+  --muted:  #4fb567;
+  --line:   #17361f;
+  --bg:     #030a05;
+  --panel:  #0a1a0e;
+  --hover:  #102616;
+  --field:  #0a1a0e;
+  --border: #3f7a4c;
   --red:    #ff8f80;
   --green:  #79e089;
-  --link:   #7fe6a0;
-  --blue:    #1a5c2c;
-  --blue-hi: #226f37;
+  --link:   #8dfba6;
+  --blue:    #186b2f;
+  --blue-hi: #125223;
   --warn:    #a8291d;
-  --warn-hi: #c1382a;
+  --warn-hi: #8a2018;
 }
 
 :root {
@@ -172,6 +202,7 @@
 :root[data-theme="contrast"],
 :root[data-theme="ember"],
 :root[data-theme="forest"],
+:root[data-theme="forest-deep"],
 :root[data-theme="terminal"] { color-scheme: dark; }
 
 * { box-sizing: border-box; }
@@ -913,6 +944,10 @@ tr.detail > td {
   cursor: pointer;
 }
 .linkbtn:hover { background: none; }
+
+/* Not a problem, unlike the notice this borrows from — a new build is waiting,
+   that is all — so it is marked in the ordinary accent rather than in red. */
+.notice--update { border-left-color: var(--blue); }
 
 /* settings form */
 
