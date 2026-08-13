@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=60">
+<link rel="stylesheet" href="css/style.css?v=62">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -300,11 +300,12 @@
 
       <div class="field">
         <label class="check">
-          <input id="wide" type="checkbox">
+          <input id="wide" type="checkbox" checked>
           Large display mode
         </label>
         <p class="hint">
-          Puts an Expand button in the top right of each opened app. Pressing it
+          On to begin with: puts an Expand button in the top right of each
+          opened app, and switching this off takes it away. Pressing it
           gives that one app the whole browser window and lays it out properly:
           cover art top left with the app's details under it, and the channels,
           manifest and build history down the right. Narrow screens keep the
@@ -355,15 +356,16 @@
 
       <div class="field">
         <label class="check">
-          <input id="obb" type="checkbox">
+          <input id="obb" type="checkbox" checked>
           Look up OBB expansion files
         </label>
         <p class="hint">
           Some apps ship a second file next to the APK — an OBB holding the
-          assets — and it is no use having one without the other. The store only
-          reports OBBs from its release-channel query, so switching this on adds
-          one request per channel to every check, and puts an
-          <strong>OBB</strong> link beside the builds that have one.
+          assets — and it is no use having one without the other, so this is on
+          to begin with: builds that have one get an <strong>OBB</strong> link
+          beside the download. The store only reports OBBs from its
+          release-channel query, which costs one extra request per channel on
+          every check — switch it off if you would rather not spend them.
         </p>
       </div>
 
@@ -454,6 +456,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=60"></script>
+<script type="module" src="js/app.js?v=62"></script>
 </body>
 </html>

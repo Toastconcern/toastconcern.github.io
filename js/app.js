@@ -16,7 +16,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=60";
+} from "./check.js?v=62";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
 

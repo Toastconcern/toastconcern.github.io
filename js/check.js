@@ -48,9 +48,11 @@ export function loadSettings() {
       images: localStorage.getItem("metadb.images") === "1",
       details: localStorage.getItem("metadb.details") === "1",
       devDownloads: localStorage.getItem("metadb.devDownloads") === "1",
-      obb: localStorage.getItem("metadb.obb") === "1",
+      /* On unless turned off: a build with an OBB is no use without it. */
+      obb: localStorage.getItem("metadb.obb") !== "0",
       claim: localStorage.getItem("metadb.claim") === "1",
-      wide: localStorage.getItem("metadb.wide") === "1",
+      /* On unless turned off, same as the OBB lookup above. */
+      wide: localStorage.getItem("metadb.wide") !== "0",
       /* On unless turned off, like the store button. */
       motion: localStorage.getItem("metadb.motion") !== "0",
       motionSpeed: localStorage.getItem("metadb.motionSpeed") || "180",
@@ -76,9 +78,9 @@ export function loadSettings() {
       images: false,
       details: false,
       devDownloads: false,
-      obb: false,
+      obb: true,
       claim: false,
-      wide: false,
+      wide: true,
       motion: true,
       motionSpeed: "180",
       fontSize: "16",
