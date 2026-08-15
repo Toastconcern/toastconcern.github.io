@@ -1,6 +1,6 @@
 {
   "catalog": {
-    "updatedAt": "2026-08-08",
+    "updatedAt": "2026-08-13",
     "source": "graph.oculus.com",
     "note": "Apps published by Meta. System apps carry a packageName; the ones without an id could not be resolved."
   },
@@ -41,9 +41,9 @@
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "1233.0.0.4.109",
-          "versionCode": 343400340,
-          "releasedAt": "2026-08-03"
+          "version": "1234.0.0.4.109",
+          "versionCode": 343500343,
+          "releasedAt": "2026-08-10"
         }
       ],
       "id": "2270234229757886"
@@ -57,7 +57,7 @@
           "name": "LIVE",
           "group": "PRIMARY",
           "version": "208.0.0.0.410",
-          "versionCode": 1032699598,
+          "versionCode": 1032699615,
           "releasedAt": "2026-08-04"
         }
       ],
@@ -108,9 +108,9 @@
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "101.0.0.0.160",
-          "versionCode": 392100491,
-          "releasedAt": "2026-04-28"
+          "version": "108.0.0.0.155",
+          "versionCode": 392800467,
+          "releasedAt": "2026-08-10"
         }
       ],
       "id": "7655466654471309"
@@ -128,14 +128,14 @@
           "releasedAt": "2026-02-23"
         },
         {
-          "name": "Mainline Dogfooding",
+          "name": "Release Dogfooding",
           "group": "CUSTOM",
           "version": "208.0.0.0.172",
           "versionCode": 413100342,
           "releasedAt": "2026-07-20"
         },
         {
-          "name": "Release Dogfooding",
+          "name": "Mainline Dogfooding",
           "group": "CUSTOM",
           "version": "208.0.0.0.172",
           "versionCode": 413100342,
@@ -167,9 +167,9 @@
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "288.1.0.3.581",
-          "versionCode": 498002423,
-          "releasedAt": "2026-07-28"
+          "version": "289.0.0.2.676",
+          "versionCode": 500002803,
+          "releasedAt": "2026-08-10"
         }
       ],
       "id": "1953748974690454"
@@ -205,16 +205,16 @@
       "id": "5082157501798796"
     },
     {
-      "name": "Remote Desktop",
+      "name": "Virtual Display",
       "packageName": "com.oculus.remotedesktop",
       "platform": "ANDROID_6DOF",
       "channels": [
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "169.0.0.3.104",
-          "versionCode": 715300626,
-          "releasedAt": "2026-08-04"
+          "version": "170.0.0.8.105",
+          "versionCode": 715400421,
+          "releasedAt": "2026-08-11"
         }
       ],
       "id": "4809522785759352"
@@ -242,9 +242,9 @@
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "49.0.0.26.491",
-          "versionCode": 654702660,
-          "releasedAt": "2026-07-31"
+          "version": "50.0.0.27.292",
+          "versionCode": 654801622,
+          "releasedAt": "2026-08-13"
         }
       ],
       "id": "8026465470786014"
@@ -257,9 +257,9 @@
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "150.0.0.27.30.1033549722",
-          "versionCode": 570300950,
-          "releasedAt": "2026-08-05"
+          "version": "150.0.0.39.30.1038228660",
+          "versionCode": 570301102,
+          "releasedAt": "2026-08-11"
         }
       ],
       "id": "1916519981771802"
@@ -279,9 +279,9 @@
         {
           "name": "Mainline Dogfooding",
           "group": "CUSTOM",
-          "version": "208.0.0.0.457",
-          "versionCode": 629000896,
-          "releasedAt": "2026-08-07"
+          "version": "209.0.0.0.15",
+          "versionCode": 629800031,
+          "releasedAt": "2026-08-13"
         },
         {
           "name": "Release Dogfooding",
@@ -710,6 +710,414 @@
         }
       ],
       "id": "6019363784742886"
+    },
+    {
+      "name": "Account Center",
+      "packageName": "com.meta.AccountsCenter.pwa",
+      "platform": "ANDROID_6DOF",
+      "channels": [],
+      "id": "6235463366468459"
+    },
+    {
+      "name": "Passwords",
+      "packageName": "com.meta.credentialsmanager",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "207.0.0.48.433",
+          "versionCode": 802600963,
+          "releasedAt": "2026-07-20"
+        }
+      ],
+      "id": "24303391756007980"
+    },
+    {
+      "name": "Oculus Federated Computing",
+      "packageName": "com.meta.federatedcomputing.oculus",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "96.0.0.999.2",
+          "versionCode": 573209000,
+          "releasedAt": "2025-10-28"
+        }
+      ],
+      "id": "5988815751146142"
+    },
+    {
+      "name": "HPI Assets",
+      "packageName": "com.meta.hpiassets",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "0.0.0.4.91",
+          "versionCode": 723100001,
+          "releasedAt": "2025-04-22"
+        }
+      ],
+      "id": "24100391416229710"
+    },
+    {
+      "name": "Meta Horizon Hyperscape Capture (Beta)",
+      "packageName": "com.meta.HyperscapeHmdCapture",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "17.0.0.1.262",
+          "versionCode": 1015808524,
+          "releasedAt": "2026-07-10"
+        }
+      ],
+      "id": "8798130056953686"
+    },
+    {
+      "name": "Meta Horizon Link",
+      "packageName": "com.meta.pclinkservice.server",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "73.0.0.7.64",
+          "versionCode": 705100142,
+          "releasedAt": "2026-07-17"
+        }
+      ],
+      "id": "9046438435382970"
+    },
+    {
+      "name": "Meta Quest HDMI Link",
+      "packageName": "com.meta.quest_hard_link",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "208.0.0.1.182",
+          "versionCode": 1022896973,
+          "releasedAt": "2026-07-21"
+        }
+      ],
+      "id": "7452106424824357"
+    },
+    {
+      "name": "RL Trust Service",
+      "packageName": "com.meta.rl.trust.service",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "2629.0.0.0.142",
+          "versionCode": 623206640,
+          "releasedAt": "2026-07-23"
+        },
+        {
+          "name": "Release Dogfooding",
+          "group": "CUSTOM",
+          "version": "2545.0.0.8.142",
+          "versionCode": 622301080,
+          "releasedAt": "2025-11-11"
+        }
+      ],
+      "id": "7449638858453572"
+    },
+    {
+      "name": "Meta TransportManager",
+      "packageName": "com.meta.transport",
+      "platform": "ANDROID_6DOF",
+      "channels": [],
+      "id": "27073962468857594"
+    },
+    {
+      "name": "Worlds",
+      "packageName": "com.meta.worlds",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "184.0.0.11.671",
+          "versionCode": 1035321571,
+          "releasedAt": "2026-08-07"
+        }
+      ],
+      "id": "9242838009145891"
+    },
+    {
+      "name": "Meta Avatars",
+      "packageName": "com.oculus.avatareditor",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "137.0.0.1.321",
+          "versionCode": 389301293,
+          "releasedAt": "2026-03-26"
+        }
+      ],
+      "id": "4791138304286993"
+    },
+    {
+      "name": "Feed",
+      "packageName": "com.oculus.explore",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "294.0.0.17.333",
+          "versionCode": 345600893,
+          "releasedAt": "2026-03-30"
+        }
+      ],
+      "id": "2646830762095036"
+    },
+    {
+      "name": "Facebook",
+      "packageName": "com.oculus.facebook",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "104.0.0.21.109",
+          "versionCode": 610400669,
+          "releasedAt": "2026-08-11"
+        }
+      ],
+      "id": "7495711360547796"
+    },
+    {
+      "name": "Meta Haptics Studio",
+      "packageName": "com.oculus.HapticsStudio",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "2.2.0",
+          "versionCode": 14,
+          "releasedAt": "2025-12-10"
+        }
+      ],
+      "id": "6759764157450104"
+    },
+    {
+      "name": "Highwind",
+      "packageName": "com.oculus.highwindservice",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "1.0.0.0.325",
+          "versionCode": 717490275,
+          "releasedAt": "2025-04-17"
+        }
+      ],
+      "id": "9669734806390078"
+    },
+    {
+      "name": "Instagram",
+      "packageName": "com.oculus.igvr",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "433.0.0.3.109",
+          "versionCode": 610300450,
+          "releasedAt": "2026-08-10"
+        }
+      ],
+      "id": "6894135610696226"
+    },
+    {
+      "name": "MagicIslandCastingService",
+      "packageName": "com.oculus.magicislandcastingservice",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "2.0.0.0.3921",
+          "versionCode": 770486731,
+          "releasedAt": "2025-08-12"
+        }
+      ],
+      "id": "6193480277429437"
+    },
+    {
+      "name": "MrdsService",
+      "packageName": "com.oculus.mrds",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "188.0.0.1.108",
+          "versionCode": 714200219,
+          "releasedAt": "2026-08-04"
+        }
+      ],
+      "id": "6054497724633433"
+    },
+    {
+      "name": "Oculus Core Mobile Services",
+      "packageName": "com.oculus.ocms",
+      "platform": "ANDROID_6DOF",
+      "channels": [],
+      "id": "3882658358475670"
+    },
+    {
+      "name": "Q4B OEMConfig",
+      "packageName": "com.oculus.oemconfig",
+      "platform": "ANDROID_6DOF",
+      "channels": [],
+      "id": "7104947676276164"
+    },
+    {
+      "name": "OVR Metrics Tool",
+      "packageName": "com.oculus.ovrmonitormetricsservice",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "86.0.0.0.0",
+          "versionCode": 489900002,
+          "releasedAt": "2026-03-30"
+        }
+      ],
+      "id": "2372625889463779"
+    },
+    {
+      "name": "Calendar",
+      "packageName": "com.oculus.panelapp.calendar",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "52.0.0.1.217",
+          "versionCode": 711100859,
+          "releasedAt": "2026-07-21"
+        }
+      ],
+      "id": "26068143862800108"
+    },
+    {
+      "name": "Gaming Guides and Setup",
+      "packageName": "com.oculus.panelapp.devicepairing",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "228.0.0.2.110",
+          "versionCode": 699800225,
+          "releasedAt": "2026-07-30"
+        }
+      ],
+      "id": "9279068048849522"
+    },
+    {
+      "name": "Oculus Q4B Kiosk Home",
+      "packageName": "com.oculus.panelapp.kiosk",
+      "platform": "ANDROID_6DOF",
+      "channels": [],
+      "id": "6458368297580025"
+    },
+    {
+      "name": "Oculus Q4B MDM",
+      "packageName": "com.oculus.q4b.mdm",
+      "platform": "ANDROID_6DOF",
+      "channels": [],
+      "id": "6074885215967818"
+    },
+    {
+      "name": "Supernatural Next",
+      "packageName": "com.oculus.supernatural",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "0.0.0.0.316",
+          "versionCode": 830000025,
+          "releasedAt": "2025-11-18"
+        },
+        {
+          "name": "POC",
+          "group": "CUSTOM",
+          "version": "0.0.0.0.606",
+          "versionCode": 830000304,
+          "releasedAt": "2025-12-01"
+        }
+      ],
+      "id": "10007747312610320"
+    },
+    {
+      "name": "Threads",
+      "packageName": "com.oculus.thvr",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "43.0.0.4.40",
+          "versionCode": 814200347,
+          "releasedAt": "2026-08-09"
+        }
+      ],
+      "id": "25017910261166697"
+    },
+    {
+      "name": "TV",
+      "packageName": "com.oculus.tv",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "231.0.0.2.217",
+          "versionCode": 711201633,
+          "releasedAt": "2026-08-06"
+        }
+      ],
+      "id": "1931356740318898"
+    },
+    {
+      "name": "Privacy and social settings",
+      "packageName": "com.oculus.vrprivacycheckup",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "157.0.0.0.2734",
+          "versionCode": 482400027,
+          "releasedAt": "2025-08-20"
+        }
+      ],
+      "id": "6122534951199045"
+    },
+    {
+      "name": "Horizon Platform Providers",
+      "packageName": "horizon.platform.providers",
+      "platform": "ANDROID_6DOF",
+      "channels": [],
+      "id": "9636907659709997"
     }
   ]
 }

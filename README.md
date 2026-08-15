@@ -416,3 +416,13 @@ Each result carries name, price (`current_offer.price.formatted`, absent on pre-
 coming-soon), release date and cover art, and the platform is read off the end of
 `canonicalName` — `…-android6d0f` means Quest. Results become the table on the Apps and
 games screen; opening one fetches its channels and builds.
+
+## License
+
+Copyright (c) 2026 ToastConcern.
+
+Licensed under the [GNU AGPL-3.0](LICENSE). Use, modify and share it freely —
+but any copy, modified version, or **hosted deployment** must stay open under
+the same license, keep this copyright notice, and make its complete source
+available to users. That is what stops anyone taking it closed-source and
+selling it as their own.

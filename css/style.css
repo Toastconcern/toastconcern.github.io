@@ -387,6 +387,14 @@ tbody tr.app { cursor: pointer; }
 tbody tr.app:hover td { background: var(--hover); }
 tbody tr.app:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
 
+/* Apps already on the account (with the setting on): a faint wash across the
+   row and a solid bar down the left edge, both drawn from the theme's own green
+   so it reads the same in every theme. The bar sits inside the first cell so it
+   survives the row's hover repaint. */
+tbody tr.app.owned td { background: color-mix(in srgb, var(--green) 9%, transparent); }
+tbody tr.app.owned:hover td { background: color-mix(in srgb, var(--green) 16%, var(--hover)); }
+tbody tr.app.owned > td.name { box-shadow: inset 3px 0 0 var(--green); }
+
 /* The list rows, and only them: the child combinator and the row's own class
    keep this off the channel and history tables nested inside an expanded row,
    which carry their own smaller scale.
@@ -692,31 +700,17 @@ tr.detail > td {
 .facts dd { overflow-wrap: break-word; }
 .facts dl { grid-template-columns: max-content minmax(0, 1fr); margin-bottom: 1rem; }
 
-.chans {
-  width: auto;
-  margin: 0 0 1rem;
-  border-collapse: collapse;
+/* Channels on the left, the revisions table beside them on the right. Both are
+   the build-history table in miniature. Below the room for two they wrap and
+   stack, channels first; each takes an even share of the row. */
+.chan-rev {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 2.5rem;
+  align-items: flex-start;
 }
-.chans th, .chans td {
-  border-bottom: 1px solid var(--line);
-  padding: .3rem 1.25rem .3rem 0;
-  font-size: .8125rem;
-}
-.chans td { font-family: var(--mono); overflow-wrap: anywhere; }
-
-/* The rows read a few pixels in from the header they hang under. Indented
-   rather than moved: shifting the cell takes its background and its rule along
-   with it, and those belong where the header put them. */
-.chans tbody td { text-indent: 4px; }
-
-/* Each channel reads as its own bar. One tone for both places the panel can
-   be: a step above the panel colour it normally sits on, and a step above the
-   page colour it sits on once expanded to the window. */
-.chans tbody td { background: var(--hover); }
-.chans tbody td:first-child { border-radius: 3px 0 0 3px; }
-.chans tbody td:last-child { border-radius: 0 3px 3px 0; }
-.chans td:first-child { font-family: var(--sans); white-space: nowrap; }
-.chans .muted { color: var(--muted); font-size: .75rem; }
+.chan-rev .chans-col { flex: 1 1 16rem; min-width: 0; }
+.chan-rev .revisions { flex: 1 1 20rem; min-width: 0; }
 
 /* binary manifest */
 
@@ -777,6 +771,9 @@ tr.detail > td {
   background: var(--panel);
   font-family: var(--sans);
   padding: .35rem .6rem;
+  /* Left, not the th default of centre: in the wide last column a centred
+     heading drifts to the middle while the row values sit at the left edge. */
+  text-align: left;
 }
 .vtable td {
   padding: .3rem .6rem;
@@ -802,6 +799,15 @@ tr.detail > td {
 /* builds that actually shipped on a channel */
 .vtable tr.on-channel td { color: var(--text); font-weight: 500; }
 .vtable tr:not(.on-channel) td { color: var(--muted); }
+
+/* The channels and revisions tables borrow the build-history look but not its
+   shipped/not-shipped dimming — every row is a real channel or revision, so
+   they read at full strength. Placed after the rule above to win the tie. */
+.vtable.plain tbody td { color: var(--text); font-weight: 400; }
+
+/* Short scroll box: about five rows, then it scrolls. The build history keeps
+   its taller default; only the channels and revisions tables carry `short`. */
+.vscroll.short { max-height: 10rem; }
 
 .dl {
   display: inline-block;
@@ -841,11 +847,16 @@ tr.detail > td {
 }
 .dl-off:hover { background: var(--hover); border-color: var(--border); }
 
-.vtable td:last-child { text-align: right; white-space: nowrap; }
+/* Only the build-history table's last column is the download button, which sits
+   at the right. The plain channels/revisions tables keep their last column left,
+   so it lines up with its heading. */
+.vtable:not(.plain) td:last-child { text-align: right; white-space: nowrap; }
 
 .more-versions { margin-top: .6rem; }
 
-.actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+/* Space above so the buttons stand clear of the channels/revisions tables,
+   which no longer carry their own bottom margin. */
+.actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1.5rem; }
 .actions a, .actions button {
   display: inline-flex;
   align-items: center;
@@ -953,7 +964,11 @@ tr.detail > td {
 
 .form { max-width: 46rem; }
 
-.form .field { margin-bottom: 1.5rem; }
+.form .field { margin-bottom: 1.25rem; }
+
+/* Toggle rows need less air than a labelled input: a checkbox and its folded
+   hint pack closer, so the switches read as one tidy block. */
+.form .field--toggle { margin-bottom: .75rem; }
 
 /* Three groups: what gets you in, what the lists look like, what an opened app
    offers. Quiet enough to be a signpost rather than another heading level. */
@@ -963,7 +978,7 @@ tr.detail > td {
   letter-spacing: .06em;
   text-transform: uppercase;
   color: var(--muted);
-  margin: 2.25rem 0 .9rem;
+  margin: 1.9rem 0 .85rem;
   padding-bottom: .4rem;
   border-bottom: 1px solid var(--line);
 }
@@ -986,6 +1001,40 @@ tr.detail > td {
 .form input[type="number"] { width: auto; max-width: 7rem; }
 
 .form .hint { margin: .4rem 0 0; }
+
+/* Each control's explanation folds away behind a small disclosure, so Settings
+   reads as a scannable list rather than a wall of prose. */
+.form details.hint { margin: .3rem 0 0; max-width: none; }
+.form details.hint > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  width: fit-content;
+  font-size: .75rem;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.form details.hint > summary::-webkit-details-marker { display: none; }
+.form details.hint > summary::before {
+  content: "";
+  border-left: 4px solid currentColor;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  transition: transform .15s ease;
+}
+.form details.hint[open] > summary::before { transform: rotate(90deg); }
+.form details.hint > summary:hover { color: var(--text); }
+.form details.hint > p {
+  margin: .5rem 0 0;
+  font-size: .8125rem;
+  color: var(--muted);
+  max-width: 60ch;
+}
+@media (prefers-reduced-motion: reduce) {
+  .form details.hint > summary::before { transition: none; }
+}
 
 .form code {
   font-family: var(--mono);

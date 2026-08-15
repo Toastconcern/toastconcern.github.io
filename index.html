@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=62">
+<link rel="stylesheet" href="css/style.css?v=74">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -79,7 +79,8 @@
       <input id="q" type="search" placeholder="App name, or an app ID, store link or package name" aria-label="Search the store" autocomplete="off" spellcheck="false">
       <select id="hmd" aria-label="Headset"></select>
       <select id="sort" aria-label="Sort by">
-        <option value="az" selected>Name A–Z</option>
+        <option value="relevance" selected>Relevance</option>
+        <option value="az">Name A–Z</option>
         <option value="za">Name Z–A</option>
         <option value="newest">Newest update</option>
         <option value="oldest">Oldest update</option>
@@ -215,29 +216,35 @@
       <div class="field">
         <label for="acToken">Account token</label>
         <input id="acToken" class="token" type="password" placeholder="paste your oc_ac_at value" autocomplete="off" spellcheck="false">
-        <p class="hint">
-          The <code>oc_ac_at</code> cookie. To get yours: sign in at
-          <a href="https://secure.oculus.com/" target="_blank" rel="noopener">secure.oculus.com</a>,
-          open your browser's developer tools, and under
-          <strong>Application → Storage → Cookies</strong> copy its value. This is
-          the one downloads authenticate with. Without it, the Download buttons in
-          a build history have nothing to sign with and will point back here instead.
-        </p>
+        <details class="hint">
+          <summary>What this is</summary>
+          <p>
+            The <code>oc_ac_at</code> cookie. To get yours: sign in at
+            <a href="https://secure.oculus.com/" target="_blank" rel="noopener">secure.oculus.com</a>,
+            open your browser's developer tools, and under
+            <strong>Application → Storage → Cookies</strong> copy its value. This is
+            the one downloads authenticate with. Without it, the Download buttons in
+            a build history have nothing to sign with and will point back here instead.
+          </p>
+        </details>
       </div>
 
       <div class="field">
         <label for="token">Access token</label>
         <input id="token" class="token" type="password" placeholder="paste your oc_www_at value" autocomplete="off" spellcheck="false">
-        <p class="hint">
-          The <code>oc_www_at</code> cookie, from the same place. Everything that
-          is not a download uses this one — store search, package lookups and your
-          entitlements all need a token belonging to a logged-in account.
-        </p>
-        <p class="hint">
-          Leave it empty to fall back to the built-in public token, which can read
-          public LIVE builds and nothing else. Treat your own token like a password —
-          it signs in as you.
-        </p>
+        <details class="hint">
+          <summary>What this is</summary>
+          <p>
+            The <code>oc_www_at</code> cookie, from the same place. Everything that
+            is not a download uses this one — store search, package lookups and your
+            entitlements all need a token belonging to a logged-in account.
+          </p>
+          <p>
+            Leave it empty to fall back to the built-in public token, which can read
+            public LIVE builds and nothing else. Treat your own token like a password —
+            it signs in as you.
+          </p>
+        </details>
 
         <div class="actions">
           <button type="button" id="saveTokens">Save tokens</button>
@@ -255,10 +262,13 @@
           <label>Entitlements order <select id="defMineSort"></select></label>
           <label>Build history order <select id="defBuildSort"></select></label>
         </div>
-        <p class="hint">
-          What the pickers start on. Changing one on a list is just for that visit;
-          these are what it goes back to.
-        </p>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            What the pickers start on. Changing one on a list is just for that visit;
+            these are what it goes back to.
+          </p>
+        </details>
       </div>
 
       <div class="field">
@@ -267,135 +277,182 @@
              the moment Enter is pressed. The number is clamped and rounded in
              JS instead, and the corrected value is put back in the box. -->
         <input id="fontSize" type="number" step="any" value="16">
-        <p class="hint">
-          Pixels, 11 to 24, halves and other decimals allowed, and 16 to begin
-          with. The whole page is measured
-          from this one number, so the rows and spacing grow with the type
-          rather than the text alone getting bigger inside boxes that do not.
-        </p>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Pixels, 11 to 24, halves and other decimals allowed, and 16 to begin
+            with. The whole page is measured
+            from this one number, so the rows and spacing grow with the type
+            rather than the text alone getting bigger inside boxes that do not.
+          </p>
+        </details>
       </div>
 
       <div class="field">
         <span class="field__label">Columns</span>
         <div id="cols" class="cols-grid"></div>
-        <p class="hint">
-          Applies to every list, but a column only shows where there is something
-          to put in it: Price is skipped on Meta apps and on your entitlements,
-          and Last played, State and Source exist only on your entitlements.
-          Narrow screens still drop the secondary columns to fit, whatever is
-          ticked here.
-        </p>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Applies to every list, but a column only shows where there is something
+            to put in it: Price is skipped on Meta apps and on your entitlements,
+            and Last played, State and Source exist only on your entitlements.
+            Narrow screens still drop the secondary columns to fit, whatever is
+            ticked here.
+          </p>
+        </details>
       </div>
 
-      <div class="field">
+      <div class="field field--toggle">
         <label class="check">
           <input id="images" type="checkbox">
           Show app art in search results
         </label>
-        <p class="hint">
-          Store results include cover art. Off by default, since it means loading an
-          image per result straight from Meta's CDN.
-        </p>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Store results include cover art. Off by default, since it means loading an
+            image per result straight from Meta's CDN.
+          </p>
+        </details>
       </div>
 
-      <div class="field">
+      <div class="field field--toggle">
         <label class="check">
           <input id="wide" type="checkbox" checked>
           Large display mode
         </label>
-        <p class="hint">
-          On to begin with: puts an Expand button in the top right of each
-          opened app, and switching this off takes it away. Pressing it
-          gives that one app the whole browser window and lays it out properly:
-          cover art top left with the app's details under it, and the channels,
-          manifest and build history down the right. Narrow screens keep the
-          same panel in one column. Escape or Close puts it back.
-        </p>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            On to begin with: puts an Expand button in the top right of each
+            opened app, and switching this off takes it away. Pressing it
+            gives that one app the whole browser window and lays it out properly:
+            cover art top left with the app's details under it, and the channels,
+            manifest and build history down the right. Narrow screens keep the
+            same panel in one column. Escape or Close puts it back.
+          </p>
+        </details>
       </div>
 
       <h3 class="form__group">Inside an app</h3>
 
-      <div class="field">
+      <div class="field field--toggle">
         <label class="check">
           <input id="store" type="checkbox" checked>
           Show the open in store button
         </label>
-        <p class="hint">
-          The link out to the app's page on meta.com, in each expanded app. On by
-          default.
-        </p>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            The link out to the app's page on meta.com, in each expanded app. On by
+            default.
+          </p>
+        </details>
       </div>
 
-      <div class="field">
+      <div class="field field--toggle">
         <label class="check">
           <input id="details" type="checkbox">
           Show the more app info button
         </label>
-        <p class="hint">
-          Adds a button to each expanded app that fetches its binary manifest — package
-          name, download size, target SDK, required OS version, permissions and hashes.
-          This is the query a headset runs to work out what to install, so it needs a
-          logged-in account token. Genres, rating and age rating are not here — Check
-          this app brings those in with the build history.
-        </p>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Adds a button to each expanded app that fetches its binary manifest — package
+            name, download size, target SDK, required OS version, permissions and hashes.
+            This is the query a headset runs to work out what to install, so it needs a
+            logged-in account token. Genres, rating and age rating are not here — Check
+            this app brings those in with the build history.
+          </p>
+        </details>
       </div>
 
-      <div class="field">
+      <div class="field field--toggle">
         <label class="check">
           <input id="devDownloads" type="checkbox">
           Offer downloads for builds with no channel
         </label>
-        <p class="hint">
-          A build history is mostly internal builds that were never put on a
-          channel. Normally only the released ones get a Download button; switch
-          this on to get one on the rest too, shown in red so the difference is
-          obvious. Whether the store hands any particular one over is its call —
-          expect these to fail more often than not, even on an app you own.
-        </p>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            A build history is mostly internal builds that were never put on a
+            channel. Normally only the released ones get a Download button; switch
+            this on to get one on the rest too, shown in red so the difference is
+            obvious. Whether the store hands any particular one over is its call —
+            expect these to fail more often than not, even on an app you own.
+          </p>
+        </details>
       </div>
 
-      <div class="field">
+      <div class="field field--toggle">
         <label class="check">
           <input id="obb" type="checkbox" checked>
           Look up OBB expansion files
         </label>
-        <p class="hint">
-          Some apps ship a second file next to the APK — an OBB holding the
-          assets — and it is no use having one without the other, so this is on
-          to begin with: builds that have one get an <strong>OBB</strong> link
-          beside the download. The store only reports OBBs from its
-          release-channel query, which costs one extra request per channel on
-          every check — switch it off if you would rather not spend them.
-        </p>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Some apps ship a second file next to the APK — an OBB holding the
+            assets — and it is no use having one without the other, so this is on
+            to begin with: builds that have one get an <strong>OBB</strong> link
+            beside the download. The store only reports OBBs from its
+            release-channel query, which costs one extra request per channel on
+            every check — switch it off if you would rather not spend them.
+          </p>
+        </details>
       </div>
 
-      <div class="field">
+      <div class="field field--toggle">
         <label class="check">
           <input id="claim" type="checkbox">
           Offer to add free apps to your account
         </label>
-        <p class="hint">
-          Adds a <strong>Get entitlement</strong> button to search results that
-          cost nothing — the same thing the store's own Get button does, run
-          against your account with your access token. It only appears where the
-          price is zero, since the store refuses a claim on anything priced.
-          Off by default: it is the one control here that changes something on
-          your account rather than just reading it.
-        </p>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Adds a <strong>Get entitlement</strong> button to search results that
+            cost nothing — the same thing the store's own Get button does, run
+            against your account with your access token. It only appears where the
+            price is zero, since the store refuses a claim on anything priced.
+            Off by default: it is the one control here that changes something on
+            your account rather than just reading it.
+          </p>
+        </details>
+      </div>
+
+      <div class="field field--toggle">
+        <label class="check">
+          <input id="autoOwned" type="checkbox">
+          Load your entitlements on start, and mark apps you own
+        </label>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Fetches your Quest library as soon as the page opens — the same list
+            the <strong>Your entitlements</strong> tab shows — so search results
+            and the Meta apps list can flag anything already on your account with
+            a green tint down the left edge. Off by default, since it spends a
+            request on load and needs your own access token to return anything.
+          </p>
+        </details>
       </div>
 
       <h3 class="form__group">Motion</h3>
 
-      <div class="field">
+      <div class="field field--toggle">
         <label class="check">
           <input id="motion" type="checkbox" checked>
           Animate screen changes
         </label>
-        <p class="hint">
-          A short fade as a tab comes in, and as an app's panel opens or closes
-          over the window. On by default, and off automatically whenever the
-          system asks for reduced motion, whatever this says.
-        </p>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            A short fade as a tab comes in, and as an app's panel opens or closes
+            over the window. On by default, and off automatically whenever the
+            system asks for reduced motion, whatever this says.
+          </p>
+        </details>
         <div class="defaults-grid">
           <label>Speed
             <select id="motionSpeed">
@@ -412,19 +469,22 @@
       <div class="field">
         <label for="relay">Relay URL</label>
         <input id="relay" type="url" placeholder="https://your-relay.example/?url={url}" spellcheck="false">
-        <p class="hint">
-          Required for checks to work from a browser. The store replies with
-          <code>Access-Control-Allow-Origin: https://facebook.com</code>, so this page
-          is refused the response no matter which token is used — that is decided by
-          the page's address, not the token. This is why the same request succeeds in
-          Insomnia or curl, which are not browsers. A relay is a small service you
-          control that fetches the URL and passes it back. Put <code>{url}</code> where
-          the target should go, or leave it off and it will be appended.
-        </p>
-        <p class="hint">
-          Running locally? Start <code>node tools/relay.mjs</code> in the project folder,
-          then <button type="button" id="useLocal" class="linkbtn">use the local relay</button>.
-        </p>
+        <details class="hint">
+          <summary>What this is</summary>
+          <p>
+            Required for checks to work from a browser. The store replies with
+            <code>Access-Control-Allow-Origin: https://facebook.com</code>, so this page
+            is refused the response no matter which token is used — that is decided by
+            the page's address, not the token. This is why the same request succeeds in
+            Insomnia or curl, which are not browsers. A relay is a small service you
+            control that fetches the URL and passes it back. Put <code>{url}</code> where
+            the target should go, or leave it off and it will be appended.
+          </p>
+          <p>
+            Running locally? Start <code>node tools/relay.mjs</code> in the project folder,
+            then <button type="button" id="useLocal" class="linkbtn">use the local relay</button>.
+          </p>
+        </details>
       </div>
 
       <div class="actions">
@@ -456,6 +516,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=62"></script>
+<script type="module" src="js/app.js?v=74"></script>
 </body>
 </html>

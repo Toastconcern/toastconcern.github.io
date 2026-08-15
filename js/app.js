@@ -16,7 +16,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=62";
+} from "./check.js?v=74";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
 
@@ -136,6 +136,9 @@ const alphabetical = (name, read) => ({
 });
 
 const SORTS = {
+  /* The order the store returned — its own relevance ranking. A comparator that
+     never reorders keeps it, since Array.prototype.sort is stable. */
+  relevance: () => 0,
   az: (a, b) => a.name.localeCompare(b.name),
   za: (a, b) => b.name.localeCompare(a.name),
   newest: nullsLast(blankToNull(dateOf), 1, (x, y) => y.localeCompare(x)),
@@ -189,6 +192,7 @@ const el = {
   devDownloads: document.getElementById("devDownloads"),
   obb: document.getElementById("obb"),
   claim: document.getElementById("claim"),
+  autoOwned: document.getElementById("autoOwned"),
   wide: document.getElementById("wide"),
   motion: document.getElementById("motion"),
   motionSpeed: document.getElementById("motionSpeed"),
@@ -242,6 +246,11 @@ let mineList = [];
 let mineNote = "";
 let mineAsked = false;
 let mineLoading = false;
+
+/* The keys (store id or package name) of everything the account owns, so the
+   search and Meta lists can flag a row without walking the whole library each
+   time. Rebuilt from mineList at the top of every render. */
+let ownedKeys = new Set();
 
 /** Which library is on screen — "quest" or "pc". */
 let mineKind = "quest";
@@ -710,6 +719,15 @@ function initSettings() {
     renderAll();
   });
 
+  /* Turning it on fetches the library there and then, so the tint appears
+     without waiting for the next reload; turning it off just drops the tint. */
+  el.autoOwned.checked = saved.autoOwned;
+  el.autoOwned.addEventListener("change", () => {
+    saveSettings({ autoOwned: el.autoOwned.checked });
+    if (el.autoOwned.checked && !mineAsked) loadEntitlements("quest");
+    else renderAll();
+  });
+
   el.clearBtn.addEventListener("click", () => {
     clearSettings();
     el.token.value = "";
@@ -719,6 +737,7 @@ function initSettings() {
     el.images.checked = false;
     el.details.checked = false;
     el.devDownloads.checked = false;
+    el.autoOwned.checked = false;
     el.store.checked = true;
     for (const box of el.cols.querySelectorAll("input")) box.checked = true;
     applyColumns();
@@ -962,6 +981,10 @@ async function boot() {
   el.minePC.addEventListener("click", () => loadEntitlements("pc"));
 
   runSearch();
+
+  /* With the setting on, pull the library in the background so the tint is
+     ready by the time a search returns. Its own errors stay on the mine tab. */
+  if (loadSettings().autoOwned) loadEntitlements("quest");
 }
 
 /** Headset picker, showing the store's codename next to each name. */
@@ -1135,6 +1158,9 @@ function buildRows(tbody, list, scope) {
 }
 
 function renderAll() {
+  /* Only tint when the setting is on and there is a library to match against. */
+  ownedKeys = loadSettings().autoOwned ? new Set(mineList.map(keyOf)) : new Set();
+
   const list = visible();
 
   const idle = !searching && !el.q.value.trim() && !listingNote;
@@ -1216,8 +1242,12 @@ function appRow(app, scope) {
   const extra = Math.max(0, channels.length - 1);
   const showArt = loadSettings().images;
 
+  /* Flag rows for apps already on the account — but not in the library itself,
+     where every row is owned and the tint would say nothing. */
+  const isOwned = scope !== "mine" && ownedKeys.has(keyOf(app));
+
   const tr = document.createElement("tr");
-  tr.className = "app";
+  tr.className = isOwned ? "app owned" : "app";
   tr.dataset.id = keyOf(app);
   tr.tabIndex = 0;
   tr.setAttribute("aria-expanded", String(open.has(key)));
@@ -1447,21 +1477,25 @@ function appPanel(app, { staged = false } = {}) {
 
   const channelTable = list.length
     ? `<h3>Channels</h3>
-       <table class="chans">
-         <thead><tr><th>Channel</th><th>Version</th><th>Build</th><th>Date</th></tr></thead>
-         <tbody>
-           ${list
-             .map(
-               (c) => `<tr>
-                 <td>${esc(c.name)}</td>
-                 <td>${esc(c.version ?? "—")}</td>
-                 <td>${c.versionCode ?? "—"}</td>
-                 <td>${c.releasedAt ?? "—"}</td>
-               </tr>`
-             )
-             .join("")}
-         </tbody>
-       </table>`
+       <div class="vscroll short">
+         <table class="vtable plain">
+           <thead>
+             <tr><th>Channel</th><th>Version</th><th>Build</th><th>Date</th></tr>
+           </thead>
+           <tbody>
+             ${list
+               .map(
+                 (c) => `<tr>
+                   <td>${esc(c.name)}</td>
+                   <td>${esc(c.version ?? "—")}</td>
+                   <td>${c.versionCode ?? "—"}</td>
+                   <td>${c.releasedAt ?? "—"}</td>
+                 </tr>`
+               )
+               .join("")}
+           </tbody>
+         </table>
+       </div>`
     : `<p>${
         !app.id
           ? "No store ID to check against."
@@ -1469,6 +1503,38 @@ function appPanel(app, { staged = false } = {}) {
             ? "No published channel."
             : "Not checked yet — press Check this app for its channels and builds."
       }</p>`;
+
+  /* Draft/in-review builds a developer has staged, when the token can see them.
+     Its own short table under the channels, since it is the same kind of data
+     — one row per revision — just from the submission side rather than live.
+     Only in the staged view: it is developer-side detail, and a wide table in
+     the inline row crowds the two halves out of their grid. It rides along on
+     the build-history reply, so it is only here once a check has run. */
+  const revs = staged ? L?.revisions ?? [] : [];
+  const revisionTable = revs.length
+    ? `<div class="revisions">
+         <h3>Revisions</h3>
+         <div class="vscroll short">
+           <table class="vtable plain">
+             <thead>
+               <tr><th>Status</th><th>Created</th><th>Submissions</th><th>ID</th></tr>
+             </thead>
+             <tbody>
+               ${revs
+                 .map(
+                   (r) => `<tr>
+                     <td>${esc(r.status ?? "—")}</td>
+                     <td>${esc(r.created ?? "—")}</td>
+                     <td>${r.submissions}</td>
+                     <td class="bid">${esc(r.id ?? "—")}</td>
+                   </tr>`
+                 )
+                 .join("")}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : "";
 
   const panel = document.createElement("div");
   panel.className = "panel";
@@ -1502,7 +1568,13 @@ function appPanel(app, { staged = false } = {}) {
       }
     </div>
     <div class="panel__main">
-      ${channelTable}
+      ${
+        /* With revisions to show they sit as a second table to the right of the
+           channels; without, the channels stand alone exactly as before. */
+        revisionTable
+          ? `<div class="chan-rev"><div class="chans-col">${channelTable}</div>${revisionTable}</div>`
+          : channelTable
+      }
       <div class="actions">${actions}</div>
       <div class="claim-out"></div>
       <div class="resolve-out"></div>
@@ -1679,6 +1751,7 @@ function drawAppInfo(out, info) {
         [
           ["Built for", info.targetSdk && `Android SDK ${info.targetSdk}`],
           ["OS", info.requiredOs],
+          ["PSDK", info.requiredPsdk],
           ["Tracking", info.headTracking],
           [
             "External storage",

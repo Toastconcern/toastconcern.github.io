@@ -51,6 +51,8 @@ export function loadSettings() {
       /* On unless turned off: a build with an OBB is no use without it. */
       obb: localStorage.getItem("metadb.obb") !== "0",
       claim: localStorage.getItem("metadb.claim") === "1",
+      /* Off by default: fetch the library on load and tint apps you own. */
+      autoOwned: localStorage.getItem("metadb.autoOwned") === "1",
       /* On unless turned off, same as the OBB lookup above. */
       wide: localStorage.getItem("metadb.wide") !== "0",
       /* On unless turned off, like the store button. */
@@ -60,7 +62,7 @@ export function loadSettings() {
       limit: localStorage.getItem("metadb.limit") || "",
       /* Starting values for the on-page pickers. */
       hmd: localStorage.getItem("metadb.hmd") || "EUREKA",
-      searchSort: localStorage.getItem("metadb.searchSort") || "az",
+      searchSort: localStorage.getItem("metadb.searchSort") || "relevance",
       mineSort: localStorage.getItem("metadb.mineSort") || "az",
       buildSort: localStorage.getItem("metadb.buildSort") || "released",
       /* On unless explicitly turned off, so it keeps its old behaviour. */
@@ -80,13 +82,14 @@ export function loadSettings() {
       devDownloads: false,
       obb: true,
       claim: false,
+      autoOwned: false,
       wide: true,
       motion: true,
       motionSpeed: "180",
       fontSize: "16",
       limit: "",
       hmd: "EUREKA",
-      searchSort: "az",
+      searchSort: "relevance",
       mineSort: "az",
       buildSort: "released",
       store: true,
@@ -125,7 +128,7 @@ export function saveSettings(patch) {
 
 export function clearSettings() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "claim", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "claim", "autoOwned", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -346,7 +349,16 @@ function parseHistory(json) {
   const channels = [...byChannel.values()];
   const live = channels.find((c) => c.name === "LIVE") ?? channels[0] ?? null;
 
-  return { builds, channels, live, newest: builds[0] ?? null };
+  /* Developer-side submission history, when the token can see it — it rides
+     along on the app node beside the binaries rather than in the store listing. */
+  const revisions = (json?.data?.node?.revisions?.nodes ?? []).map((r) => ({
+    id: r.id ?? null,
+    status: r.administration_status ? words(r.administration_status) : null,
+    created: r.created_date ? day(r.created_date) : null,
+    submissions: r.submission_events?.count ?? 0,
+  }));
+
+  return { builds, channels, live, newest: builds[0] ?? null, revisions };
 }
 
 export async function fetchHistory(id) {
@@ -365,7 +377,7 @@ export async function fetchHistory(id) {
  * builds, total } or throws.
  */
 export async function checkApp(app) {
-  const { builds, channels, live, newest } = await fetchHistory(app.id);
+  const { builds, channels, live, newest, revisions } = await fetchHistory(app.id);
 
   if (!live && !newest) throw new Error("no published binary");
 
@@ -380,6 +392,7 @@ export async function checkApp(app) {
     newest,
     builds,
     total: builds.length,
+    revisions,
   };
 }
 
@@ -536,12 +549,18 @@ export async function appDetails(id) {
   const binary = update?.new_binary;
   if (!binary) throw new Error("no binary manifest in the reply");
 
-  /* The OS requirement rides along as a dependency config rather than a field. */
+  /* The OS and platform-SDK requirements ride along as dependency configs
+     rather than fields. PSDK is the Meta platform SDK the build was made
+     against — a headset on an older PSDK is told to update before it can run it. */
   const deps =
     update.application?.latest_available_binary?.dependency_configs?.edges ?? [];
-  const requiredOs = deps
-    .map((e) => e.node)
-    .find((n) => /required_os_version/i.test(n?.identifier ?? ""))?.version;
+  const depNodes = deps.map((e) => e.node);
+  const requiredOs = depNodes.find((n) =>
+    /required_os_version/i.test(n?.identifier ?? "")
+  )?.version;
+  const requiredPsdk = depNodes.find((n) =>
+    /required_psdk_version/i.test(n?.identifier ?? "")
+  )?.version;
 
   return {
     packageName: binary.package_name ?? null,
@@ -555,6 +574,7 @@ export async function appDetails(id) {
     externalStorage: binary.can_use_external_storage ?? null,
     releasedAt: binary.release_date ? day(binary.release_date) : null,
     requiredOs: requiredOs ?? null,
+    requiredPsdk: requiredPsdk ?? null,
     sha256: binary.sha256 ?? null,
     checksum: binary.checksum_hash ?? null,
     certSignature: binary.apk_cert_signature ?? null,
