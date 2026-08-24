@@ -50,7 +50,6 @@ export function loadSettings() {
       devDownloads: localStorage.getItem("metadb.devDownloads") === "1",
       /* On unless turned off: a build with an OBB is no use without it. */
       obb: localStorage.getItem("metadb.obb") !== "0",
-      claim: localStorage.getItem("metadb.claim") === "1",
       /* Off by default: fetch the library on load and tint apps you own. */
       autoOwned: localStorage.getItem("metadb.autoOwned") === "1",
       /* On unless turned off, same as the OBB lookup above. */
@@ -81,7 +80,6 @@ export function loadSettings() {
       details: false,
       devDownloads: false,
       obb: true,
-      claim: false,
       autoOwned: false,
       wide: true,
       motion: true,
@@ -128,7 +126,7 @@ export function saveSettings(patch) {
 
 export function clearSettings() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "claim", "autoOwned", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "autoOwned", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -666,6 +664,7 @@ export async function storeListing(id, hmdType = loadSettings().hmd) {
     platforms: app.supported_platforms_i18n ?? [],
     publisher: app.publisher_name ?? null,
     developer: app.developer_name ?? null,
+    orgId: app.organization?.id ?? null,
     comfort: app.comfort_rating ? words(app.comfort_rating) : null,
     internet: app.internet_connection_name ?? null,
     languages: (app.supported_in_app_languages ?? []).map((l) => l.name),
@@ -675,6 +674,41 @@ export async function storeListing(id, hmdType = loadSettings().hmd) {
     ratingCount: count && count !== "0" ? count : null,
     website: app.website_url ?? null,
     hasAds: app.has_in_app_ads ?? null,
+  };
+}
+
+/* The app-page (above-the-fold) query. It carries the buy button, which is the
+   only place an app's claimable offer and its price live — the store listing and
+   the build history have neither. */
+const OFFER_DOC_ID = "27653348084360166";
+
+/**
+ * One app's current offer: its ID and whether it costs nothing. Returns null
+ * when the store shows no offer (unpublished, region-locked, or system apps that
+ * cannot be claimed). Used to light up the Get-entitlement button on apps that
+ * did not arrive from a search — Meta apps and an organization's apps.
+ */
+export async function appOffer(id, hmdType = loadSettings().hmd) {
+  const { token } = loadSettings();
+
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        doc_id: OFFER_DOC_ID,
+        variables: JSON.stringify({ itemId: String(id), hmdType }),
+      })
+  );
+
+  if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+  const offer = json?.data?.app_store_item?.current_offer;
+  if (!offer?.id) return null;
+
+  return {
+    offerId: String(offer.id),
+    free: offer.price?.offset_amount === "0",
   };
 }
 
@@ -1071,6 +1105,81 @@ export async function channelObbs(releaseChannelID) {
   take(node.latest_supported_binary);
 
   return pairs;
+}
+
+/* ---------- an organization's apps ---------- */
+
+/* The dashboard's grid pagination query. Unlike the initial loader (which is
+   pinned to the first 20 and ignores every cursor argument), this one honours
+   `after`, so walking it end to end returns the whole list. Twenty per page is
+   the server's fixed size; `platform` filters to nothing here, so it is left
+   null and the platform filtering is done on what comes back. */
+const ORG_APPS_DOC_ID = "27915674441422265";
+
+/**
+ * Every app an organization has published, walked page by page so nothing is
+ * cut off at 20. Each app carries its own `platform`, so the caller can filter.
+ *
+ * The org id is the numeric one in a dashboard URL. This needs a signed-in
+ * `oc_www_at` — the built-in public token sees nothing here — so an empty result
+ * on a real org usually means the token is missing.
+ */
+export async function orgApps(orgID) {
+  const { token } = loadSettings();
+  const out = new Map();
+  let after = null;
+
+  /* Safety cap: 40 pages × 20 is 800 apps, well past any real organization. */
+  for (let page = 0; page < 40; page += 1) {
+    const json = await getJSON(
+      `${ENDPOINT}?` +
+        new URLSearchParams({
+          access_token: token,
+          doc_id: ORG_APPS_DOC_ID,
+          variables: JSON.stringify({
+            after,
+            display_name: null,
+            exclude_hyperscapes: true,
+            exclude_platforms: ["HORIZON_WORLD", "HORIZON_UNITY_WORLD"],
+            first: 20,
+            orderby: "DISPLAY_NAME",
+            platform: null,
+            id: String(orgID),
+          }),
+        })
+    );
+
+    if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
+    if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+    const conn =
+      json.data?.node?.applications ?? json.data?.organization?.applications ?? {};
+
+    /* Same app shape the store search returns, so an org's apps render and
+       expand through exactly the same list code as every other tab. */
+    for (const edge of conn.edges ?? []) {
+      const n = edge?.node;
+      if (!n?.id || out.has(String(n.id))) continue;
+      out.set(String(n.id), {
+        id: String(n.id),
+        name: n.display_name || String(n.id),
+        slug: null,
+        category: null,
+        platform: n.platform ?? null,
+        price: null,
+        offerId: null,
+        free: false,
+        releasedAt: null,
+        image: n.cover_landscape_image?.uri ?? null,
+      });
+    }
+
+    const pi = conn.page_info ?? {};
+    if (!pi.has_next_page || !pi.end_cursor) break;
+    after = pi.end_cursor;
+  }
+
+  return [...out.values()];
 }
 
 /**

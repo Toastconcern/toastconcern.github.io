@@ -882,7 +882,11 @@ tr.detail > td {
 
 /* The search and filter boxes take whatever the pickers and buttons beside
    them leave, on every list. */
-#q, #metaQ, #mineQ { flex: 1 1 14rem; }
+#q, #metaQ, #mineQ, #orgId, #orgQ { flex: 1 1 14rem; }
+
+/* Organizations never show a price — the org list has none — so the shared row
+   renderer's price cell is dropped for that view only. */
+#view-orgs .c-price { display: none; }
 
 /* store lookup */
 

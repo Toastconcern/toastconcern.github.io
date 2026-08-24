@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=74">
+<link rel="stylesheet" href="css/style.css?v=87">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -52,6 +52,7 @@
       <a href="#apps" data-view="apps">Apps and games</a>
       <a href="#meta" data-view="meta">Meta apps</a>
       <a href="#mine" data-view="mine">Your entitlements</a>
+      <a href="#orgs" data-view="orgs">Organizations</a>
       <a href="#settings" data-view="settings">Settings</a>
     </nav>
     <select id="theme" aria-label="Theme"></select>
@@ -199,6 +200,58 @@
     </table>
 
     <p id="mineEmpty" class="empty" hidden></p>
+
+  </section>
+
+  <!-- ---------- organizations ---------- -->
+
+  <section id="view-orgs" hidden>
+
+    <h2>Organizations</h2>
+    <p class="sub" id="orgSub">Enter an organization ID to list every app it has published, then open one for its channels and build history. Needs your own access token, set in Settings.</p>
+
+    <div class="controls">
+      <input id="orgId" type="search" placeholder="Organization ID (numbers only)" aria-label="Organization ID" autocomplete="off" spellcheck="false">
+      <button id="orgGo" type="button">List apps</button>
+      <button id="checkOrg" type="button">Check shown</button>
+    </div>
+
+    <div class="controls">
+      <input id="orgQ" type="search" placeholder="Filter these apps by name or app ID" aria-label="Filter this organization's apps" autocomplete="off" spellcheck="false">
+      <select id="orgPlatform" aria-label="Filter by platform">
+        <option value="">All platforms</option>
+        <option value="ANDROID_6DOF">Quest</option>
+        <option value="PC">Rift / PC</option>
+        <option value="ANDROID">Oculus Go</option>
+      </select>
+      <select id="orgSort" aria-label="Sort by">
+        <option value="az">Name A–Z</option>
+        <option value="za">Name Z–A</option>
+        <option value="newest">Newest date</option>
+        <option value="oldest">Oldest date</option>
+        <option value="deviceAz">Device A–Z</option>
+        <option value="deviceZa">Device Z–A</option>
+      </select>
+    </div>
+
+    <p class="count" id="orgCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">App</th>
+          <th scope="col" class="c-dev">Device</th>
+          <th scope="col" class="c-chan">Channel</th>
+          <th scope="col" class="c-ver">Version</th>
+          <th scope="col" class="c-build">Build</th>
+          <th scope="col" class="c-date">Date</th>
+          <th scope="col" class="c-devb">Dev build</th>
+        </tr>
+      </thead>
+      <tbody id="orgRows"></tbody>
+    </table>
+
+    <p id="orgEmpty" class="empty" hidden></p>
 
   </section>
 
@@ -403,23 +456,6 @@
         </details>
       </div>
 
-      <div class="field field--toggle">
-        <label class="check">
-          <input id="claim" type="checkbox">
-          Offer to add free apps to your account
-        </label>
-        <details class="hint">
-          <summary>What this does</summary>
-          <p>
-            Adds a <strong>Get entitlement</strong> button to search results that
-            cost nothing — the same thing the store's own Get button does, run
-            against your account with your access token. It only appears where the
-            price is zero, since the store refuses a claim on anything priced.
-            Off by default: it is the one control here that changes something on
-            your account rather than just reading it.
-          </p>
-        </details>
-      </div>
 
       <div class="field field--toggle">
         <label class="check">
@@ -516,6 +552,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=74"></script>
+<script type="module" src="js/app.js?v=87"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 {
   "catalog": {
-    "updatedAt": "2026-08-13",
+    "updatedAt": "2026-08-16",
     "source": "graph.oculus.com",
     "note": "Apps published by Meta. System apps carry a packageName; the ones without an id could not be resolved."
   },
@@ -41,9 +41,9 @@
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "1234.0.0.4.109",
-          "versionCode": 343500343,
-          "releasedAt": "2026-08-10"
+          "version": "1235.0.0.4.108",
+          "versionCode": 343600337,
+          "releasedAt": "2026-08-17"
         }
       ],
       "id": "2270234229757886"
@@ -197,9 +197,9 @@
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "200.0.0.6.655",
-          "versionCode": 519701324,
-          "releasedAt": "2026-07-22"
+          "version": "201.0.0.5.636",
+          "versionCode": 519801269,
+          "releasedAt": "2026-08-05"
         }
       ],
       "id": "5082157501798796"
@@ -212,9 +212,9 @@
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "170.0.0.8.105",
-          "versionCode": 715400421,
-          "releasedAt": "2026-08-11"
+          "version": "170.0.0.11.105",
+          "versionCode": 715400432,
+          "releasedAt": "2026-08-17"
         }
       ],
       "id": "4809522785759352"
@@ -242,9 +242,9 @@
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "50.0.0.27.292",
-          "versionCode": 654801622,
-          "releasedAt": "2026-08-13"
+          "version": "49.0.0.26.491",
+          "versionCode": 654702660,
+          "releasedAt": "2026-07-31"
         }
       ],
       "id": "8026465470786014"
@@ -316,9 +316,9 @@
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "208.0.0.0.74",
-          "versionCode": 751200451,
-          "releasedAt": "2026-07-21"
+          "version": "208.0.0.0.462",
+          "versionCode": 751202827,
+          "releasedAt": "2026-08-07"
         }
       ],
       "id": "9168275826598525"
@@ -331,9 +331,9 @@
         {
           "name": "LIVE",
           "group": "PRIMARY",
-          "version": "328.0.0.4.340",
-          "versionCode": 385001782,
-          "releasedAt": "2026-08-03"
+          "version": "330.0.0.4.325",
+          "versionCode": 385201652,
+          "releasedAt": "2026-08-17"
         }
       ],
       "id": "3209391179128490"
@@ -823,9 +823,9 @@
         {
           "name": "Release Dogfooding",
           "group": "CUSTOM",
-          "version": "2545.0.0.8.142",
-          "versionCode": 622301080,
-          "releasedAt": "2025-11-11"
+          "version": "2532.0.0.1.354",
+          "versionCode": 622100001,
+          "releasedAt": "2025-08-15"
         }
       ],
       "id": "7449638858453572"
@@ -1118,6 +1118,72 @@
       "platform": "ANDROID_6DOF",
       "channels": [],
       "id": "9636907659709997"
+    },
+    {
+      "name": "Oculus Calendar",
+      "packageName": "com.oculus.calendar",
+      "platform": "ANDROID_6DOF",
+      "channels": [],
+      "id": "5057410564301384"
+    },
+    {
+      "name": "Avalanche",
+      "packageName": "com.oculus.loneechoavalanche",
+      "platform": "ANDROID_6DOF",
+      "channels": [],
+      "id": "7126270980739896"
+    },
+    {
+      "name": "Meta Horizon Hyperscape Preview",
+      "packageName": "com.oculus.paracosmaavalanche",
+      "platform": "ANDROID_6DOF",
+      "channels": [],
+      "id": "7972066712871980"
+    },
+    {
+      "name": "Timer",
+      "packageName": "com.oculus.timer",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "20.1.0.7.170",
+          "versionCode": 390600536,
+          "releasedAt": "2022-12-12"
+        }
+      ],
+      "id": "3365525586866399"
+    },
+    {
+      "name": "Rooms Lobby",
+      "packageName": "com.oculus.workroomsshell",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "75.0.0.0.30",
+          "versionCode": 653565700,
+          "releasedAt": "2024-10-17"
+        }
+      ],
+      "id": "5656455997788701"
+    },
+    {
+      "name": "HorizonOS Prescription Lens",
+      "packageName": "com.oculus.prescriptionlens",
+      "platform": "ANDROID_6DOF",
+      "channels": [
+        {
+          "name": "LIVE",
+          "group": "PRIMARY",
+          "version": "1.0.0.0.0",
+          "versionCode": 1040396735,
+          "releasedAt": "2026-08-13"
+        }
+      ],
+      "id": "1220744097790431"
     }
   ]
 }

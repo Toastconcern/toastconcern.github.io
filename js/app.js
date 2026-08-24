@@ -6,7 +6,9 @@ import {
   storeListing,
   channelObbs,
   claimOffer,
+  appOffer,
   myEntitlements,
+  orgApps,
   downloadURL,
   canDownload,
   searchStore,
@@ -16,9 +18,9 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=74";
+} from "./check.js?v=87";
 
-const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", PC: "Rift" };
+const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
 /* Apps that publish no channel at all are grouped under this label. */
 const NO_CHANNEL = "Developer";
@@ -176,7 +178,19 @@ const el = {
 
   viewApps: document.getElementById("view-apps"),
   viewMeta: document.getElementById("view-meta"),
+  viewOrgs: document.getElementById("view-orgs"),
   viewSettings: document.getElementById("view-settings"),
+
+  orgId: document.getElementById("orgId"),
+  orgQ: document.getElementById("orgQ"),
+  orgPlatform: document.getElementById("orgPlatform"),
+  orgSort: document.getElementById("orgSort"),
+  orgGo: document.getElementById("orgGo"),
+  checkOrg: document.getElementById("checkOrg"),
+  orgRows: document.getElementById("orgRows"),
+  orgSub: document.getElementById("orgSub"),
+  orgCount: document.getElementById("orgCount"),
+  orgEmpty: document.getElementById("orgEmpty"),
 
   settingsForm: document.getElementById("settingsForm"),
   token: document.getElementById("token"),
@@ -191,7 +205,6 @@ const el = {
   details: document.getElementById("details"),
   devDownloads: document.getElementById("devDownloads"),
   obb: document.getElementById("obb"),
-  claim: document.getElementById("claim"),
   autoOwned: document.getElementById("autoOwned"),
   wide: document.getElementById("wide"),
   motion: document.getElementById("motion"),
@@ -235,6 +248,10 @@ const listings = new Map();
    app and a build found through one channel stays found. */
 const obbs = new Map();
 
+/* Release-channel IDs already looked up, so a re-check of the same app never
+   fires the same channel query twice. */
+const obbChecked = new Set();
+
 /** Why the last OBB lookup came back with nothing, when it did. */
 let obbNote = "";
 const open = new Set();
@@ -271,6 +288,7 @@ initMotion();
 initStage();
 initViews();
 initSettings();
+initOrgs();
 initColumns();
 /* The headset list has to exist before the defaults can select within it. */
 fillHmdPicker();
@@ -310,7 +328,15 @@ function safeToReload() {
   return true;
 }
 
+let lastUpdateCheck = 0;
+
 async function checkForUpdate() {
+  /* Returning to the tab triggers this, so a burst of tab-switching could fetch
+     the HTML over and over. At most once a minute is plenty for a build check. */
+  const now = Date.now();
+  if (now - lastUpdateCheck < 60_000) return;
+  lastUpdateCheck = now;
+
   const mine = loadedBuild();
   if (!mine) return;
 
@@ -622,11 +648,12 @@ function applyView() {
   closeStage({ animate: false });
 
   const hash = location.hash.replace("#", "");
-  const view = ["meta", "mine", "settings"].includes(hash) ? hash : "apps";
+  const view = ["meta", "mine", "orgs", "settings"].includes(hash) ? hash : "apps";
 
   el.viewApps.hidden = view !== "apps";
   el.viewMeta.hidden = view !== "meta";
   el.viewMine.hidden = view !== "mine";
+  el.viewOrgs.hidden = view !== "orgs";
   el.viewSettings.hidden = view !== "settings";
 
   /* the limit only governs the apps list, so hide it elsewhere */
@@ -639,9 +666,86 @@ function applyView() {
      would have to be kept on the page to be animated, and it is the arriving
      one the reader is looking for. */
   play(
-    [el.viewApps, el.viewMeta, el.viewMine, el.viewSettings].find((s) => !s.hidden),
+    [el.viewApps, el.viewMeta, el.viewMine, el.viewOrgs, el.viewSettings].find((s) => !s.hidden),
     "view-in"
   );
+}
+
+/* ---------- organizations ---------- */
+
+/* Apps published by the organization last looked up. They are ordinary store
+   apps, so they render and expand through the same list code as every tab. */
+let orgList = [];
+let orgLoading = false;
+let orgAsked = false;
+let orgNote = "";
+
+/* The list is fetched whole, then narrowed by platform and the filter box, and
+   sorted — all on what is already loaded. "" platform means every platform;
+   Oculus Go apps report either "ANDROID" or "ANDROID_3DOF". */
+function orgVisible() {
+  const p = el.orgPlatform.value;
+  const q = el.orgQ.value.trim().toLowerCase();
+
+  let list = orgList;
+  if (p === "ANDROID") {
+    list = list.filter((a) => a.platform === "ANDROID" || a.platform === "ANDROID_3DOF");
+  } else if (p) {
+    list = list.filter((a) => a.platform === p);
+  }
+  list = list.filter((a) => matches(a, q));
+
+  return sorted(list, el.orgSort.value);
+}
+
+function initOrgs() {
+  el.orgGo.addEventListener("click", runOrgApps);
+  el.orgId.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runOrgApps();
+    }
+  });
+  /* The whole list is fetched once; the platform, the filter box and the sort
+     all work on what is already loaded, so they are instant and need no second
+     request. */
+  el.orgPlatform.addEventListener("change", renderAll);
+  el.orgQ.addEventListener("input", renderAll);
+  el.orgSort.addEventListener("change", renderAll);
+  el.checkOrg.addEventListener("click", () =>
+    checkList(orgList, el.checkOrg, "Check shown")
+  );
+}
+
+async function runOrgApps() {
+  const id = el.orgId.value.trim();
+  if (!/^\d+$/.test(id)) {
+    orgList = [];
+    orgAsked = true;
+    orgNote = "Enter a numeric organization ID.";
+    renderAll();
+    return;
+  }
+  if (orgLoading) return;
+
+  orgAsked = true;
+  orgLoading = true;
+  orgNote = "";
+  el.orgGo.disabled = true;
+  el.orgGo.textContent = "Loading…";
+  renderAll();
+
+  try {
+    orgList = await orgApps(id);
+  } catch (err) {
+    orgList = [];
+    orgNote = err.message || "Could not load the organization's apps.";
+  } finally {
+    orgLoading = false;
+    el.orgGo.disabled = false;
+    el.orgGo.textContent = "List apps";
+    renderAll();
+  }
 }
 
 /* ---------- settings ---------- */
@@ -697,7 +801,6 @@ function initSettings() {
     [el.details, "details"],
     [el.devDownloads, "devDownloads"],
     [el.obb, "obb"],
-    [el.claim, "claim"],
     [el.wide, "wide"],
     [el.motion, "motion"],
   ]) {
@@ -1202,6 +1305,26 @@ function renderAll() {
       ? "Nothing matches."
       : `This account owns nothing on ${LIBRARIES[mineKind].label} that the store will list.`;
 
+  const orgShown = orgVisible();
+  buildRows(el.orgRows, orgShown, "orgs");
+  el.orgEmpty.hidden = orgShown.length > 0 || orgLoading;
+  el.orgEmpty.textContent = orgLoading
+    ? ""
+    : orgNote
+      ? orgNote
+      : !orgAsked
+        ? "Enter an organization ID above to list its apps."
+        : orgList.length
+          ? "Nothing matches."
+          : "No apps for that organization.";
+  el.orgCount.textContent = orgLoading
+    ? "Asking the store…"
+    : !orgAsked || orgNote
+      ? ""
+      : orgShown.length === orgList.length
+        ? `${orgList.length} app${orgList.length === 1 ? "" : "s"}.`
+        : `${orgShown.length} of ${orgList.length} apps.`;
+
   if (focusId) {
     (focusScope ?? el.rows).querySelector(`tr.app[data-id="${focusId}"]`)?.focus();
     focusId = null;
@@ -1394,6 +1517,9 @@ function appPanel(app, { staged = false } = {}) {
       "App",
       [
         ["App ID", app.id],
+        /* The organization comes back with the store listing, so it fills in
+           once the app has been checked. */
+        ["Organization", store?.orgId],
         ["Package", app.packageName],
         ["Device", app.platform ? (DEVICE[app.platform] ?? app.platform) : null],
         ["Price", app.price],
@@ -1462,9 +1588,10 @@ function appPanel(app, { staged = false } = {}) {
           ? `<button type="button" data-info="1">More app info</button>`
           : ""
       }${
-        /* Only where the store says there is nothing to pay — it refuses a
-           claim on anything priced, so a button there would only ever fail. */
-        opts.claim && app.free && app.offerId
+        /* Shown on every free app that carries an offer. The store refuses a
+           claim on anything priced, so the button only appears where it can
+           actually succeed. */
+        app.free && app.offerId
           ? `<button type="button" data-claim="1">Get entitlement</button>`
           : ""
       }${
@@ -2019,11 +2146,24 @@ async function checkOne(app, { listing: wantListing = true } = {}) {
   /* The store listing rides along with the check: one button, one wait, and
      what the store says about the app lands beside what it says about its
      builds. Separate queries, so the listing is allowed to fail on its own —
-     a missing genre is no reason to lose the build history. */
-  const [history, store] = await Promise.allSettled([
+     a missing genre is no reason to lose the build history.
+
+     The offer rides along too, but only for apps that did not come from a
+     search — Meta apps and an organization's apps carry no offer of their own,
+     so this is what lets their free ones show a Get-entitlement button. */
+  const wantOffer = wantListing && !app.offerId;
+  const [history, store, offer] = await Promise.allSettled([
     checkApp(app),
     wantListing ? storeListing(app.id, el.hmd.value) : Promise.resolve(null),
+    wantOffer ? appOffer(app.id, el.hmd.value) : Promise.resolve(null),
   ]);
+
+  /* An offer found this way fills the app in, so the panel condition (free with
+     an offer) can light the button and the claim has something to run against. */
+  if (offer.status === "fulfilled" && offer.value) {
+    app.offerId = offer.value.offerId;
+    app.free = offer.value.free;
+  }
 
   /* Only record an outcome when one was asked for, so a sweep does not wipe a
      listing an earlier check already fetched. */
@@ -2079,17 +2219,22 @@ async function checkOne(app, { listing: wantListing = true } = {}) {
 async function findObbs(channels = []) {
   obbNote = "";
 
-  const ids = [...new Set(channels.map((c) => c.id).filter(Boolean))].slice(0, CHANNEL_LOOKUPS);
+  const all = [...new Set(channels.map((c) => c.id).filter(Boolean))];
+  /* Skip channels already looked up this session — their OBBs are in the map. */
+  const ids = all.filter((id) => !obbChecked.has(id)).slice(0, CHANNEL_LOOKUPS);
 
   if (!ids.length) {
-    /* Say so rather than looking like every build simply has no OBB. */
-    if (channels.length) {
+    /* No channel IDs at all is worth saying; every ID already looked up is not. */
+    if (channels.length && !all.length) {
       obbNote = "No OBB lookup: the build history reported no channel IDs.";
     }
     return;
   }
 
   const replies = await Promise.allSettled(ids.map((id) => channelObbs(id)));
+  ids.forEach((id, i) => {
+    if (replies[i].status === "fulfilled") obbChecked.add(id);
+  });
   for (const reply of replies) {
     if (reply.status !== "fulfilled") continue;
     for (const [binary, obb] of reply.value) obbs.set(binary, obb);
@@ -2105,6 +2250,7 @@ async function checkList(list, button, label) {
 
   el.checkAll.disabled = true;
   el.checkMeta.disabled = true;
+  el.checkOrg.disabled = true;
 
   /* Mark the ones with no store ID up front rather than counting them. */
   const checkable = [];
@@ -2123,10 +2269,10 @@ async function checkList(list, button, label) {
   async function worker() {
     while (cursor < checkable.length) {
       const app = checkable[cursor++];
-      /* A sweep is about versions, and none of the listing shows in the table —
-         so skip it here and halve the requests. Opening a row and pressing
-         Check this app fills it in. */
-      await checkOne(app, { listing: false });
+      /* Check shown runs the same full check as Check this app on every app —
+         build history, OBB pairings, and the store listing (organization,
+         genres, rating, …) — so nothing needs a second per-app check after. */
+      await checkOne(app);
       done += 1;
       button.textContent = `Checking ${done} of ${checkable.length}…`;
     }
@@ -2139,6 +2285,7 @@ async function checkList(list, button, label) {
   button.textContent = label;
   el.checkAll.disabled = false;
   el.checkMeta.disabled = false;
+  el.checkOrg.disabled = false;
 }
 
 /* ---------- util ---------- */
