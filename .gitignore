@@ -26,3 +26,7 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# Instructions for Claude Code — guidance for editing this site, not part of it.
+CLAUDE.md
+.claude/
