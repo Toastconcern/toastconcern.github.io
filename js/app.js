@@ -10,6 +10,7 @@ import {
   myEntitlements,
   accountDevices,
   orgApps,
+  setDevicePTC,
   downloadURL,
   canDownload,
   searchStore,
@@ -19,7 +20,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=100";
+} from "./check.js?v=104";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -193,6 +194,7 @@ const el = {
   devicesSub: document.getElementById("devicesSub"),
   devicesCount: document.getElementById("devicesCount"),
   devicesEmpty: document.getElementById("devicesEmpty"),
+  ptcOut: document.getElementById("ptcOut"),
   sharedSection: document.getElementById("sharedSection"),
   sharedRows: document.getElementById("sharedRows"),
   sharedCount: document.getElementById("sharedCount"),
@@ -781,6 +783,7 @@ async function runOrgApps() {
 
 function initDevices() {
   el.devicesLoad.addEventListener("click", loadDevices);
+  el.devicesRows.addEventListener("click", onDevicePTCClick);
   el.devicesQ.addEventListener("input", renderDevices);
   el.devicesSort.addEventListener("change", renderDevices);
   renderDevices();
@@ -820,16 +823,65 @@ function sortDevices(list, mode) {
   return [...list].sort(mode === "modelZa" ? (a, b) => -byModel(a, b) : byModel);
 }
 
-function deviceRowsHtml(list) {
+/* `testChannel` is off for the shared table: the store refuses the switch on a
+   headset the account does not own. So the column comes off those rows
+   altogether rather than showing a control that cannot work — which is why
+   this drops the whole cell, not just the buttons inside it. The shared table
+   is three columns wide as a result, and its header matches. */
+function deviceRowsHtml(list, { testChannel = true } = {}) {
   return list
     .map(
       (d) => `<tr>
       <td class="name">${esc(d.model ?? "Unknown device")}</td>
       <td class="num">${esc(d.serial)}</td>
-      <td>${esc(deviceStatus(d))}</td>
+      <td>${esc(deviceStatus(d))}</td>${
+        testChannel
+          ? `
+      <td class="ptc-cell"><button type="button" class="ptc-btn" data-ptc-serial="${esc(
+        d.serial
+      )}" data-ptc-on="1">Enable</button><button type="button" class="ptc-btn"
+        data-ptc-serial="${esc(d.serial)}" data-ptc-on="0">Disable</button></td>`
+          : ""
+      }
     </tr>`
     )
     .join("");
+}
+
+function setPtcOut(text, bad = false) {
+  el.ptcOut.textContent = text;
+  el.ptcOut.classList.toggle("bad", bad);
+  el.ptcOut.hidden = !text;
+}
+
+/* The rows are rebuilt by innerHTML on every render, so the listener sits on
+   the table body once and reads the serial off whichever button was pressed
+   rather than being re-attached to each. */
+function onDevicePTCClick(e) {
+  const button = e.target.closest("[data-ptc-serial]");
+  if (!button) return;
+  setDevicePTCOne(button.dataset.ptcSerial, button.dataset.ptcOn === "1", button);
+}
+
+/* Both switches on the row go dead while the request is out, so a second press
+   cannot race the first. */
+async function setDevicePTCOne(serial, enabled, button) {
+  const buttons = [...button.closest("tr").querySelectorAll(".ptc-btn")];
+  buttons.forEach((b) => (b.disabled = true));
+  setPtcOut(`${enabled ? "Enabling" : "Disabling"} the test channel on ${serial}…`);
+
+  try {
+    await setDevicePTC(serial, enabled);
+    setPtcOut(
+      `Test channel ${enabled ? "on" : "off"} for ${serial}. The headset picks
+       the change up when it next looks for an update.`
+    );
+  } catch (err) {
+    setPtcOut(`Not changed: ${err.message}`, true);
+  }
+
+  buttons.forEach((b) => (b.disabled = false));
+  syncRelayNote();
 }
 
 function renderDevices() {
@@ -865,7 +917,7 @@ function renderDevices() {
 
   /* Shared — its own section, shown only when the account has shared devices. */
   el.sharedSection.hidden = !devicesAsked || devicesLoading || sharedAll.length === 0;
-  el.sharedRows.innerHTML = deviceRowsHtml(shared);
+  el.sharedRows.innerHTML = deviceRowsHtml(shared, { testChannel: false });
   el.sharedCount.textContent =
     shared.length === sharedAll.length
       ? `${sharedAll.length} shared device${sharedAll.length === 1 ? "" : "s"}.`

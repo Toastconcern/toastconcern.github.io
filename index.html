@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=100">
+<link rel="stylesheet" href="css/style.css?v=104">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -234,10 +234,13 @@
           <th scope="col">Device</th>
           <th scope="col">Serial</th>
           <th scope="col">Status</th>
+          <th scope="col">Test channel</th>
         </tr>
       </thead>
       <tbody id="devicesRows"></tbody>
     </table>
+
+    <p class="hint" id="ptcOut" role="status" hidden></p>
 
     <p id="devicesEmpty" class="empty" hidden></p>
 
@@ -607,6 +610,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=100"></script>
+<script type="module" src="js/app.js?v=104"></script>
 </body>
 </html>
