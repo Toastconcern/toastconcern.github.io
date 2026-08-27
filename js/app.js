@@ -8,6 +8,7 @@ import {
   claimOffer,
   appOffer,
   myEntitlements,
+  accountDevices,
   orgApps,
   downloadURL,
   canDownload,
@@ -18,7 +19,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=87";
+} from "./check.js?v=99";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -173,13 +174,28 @@ const el = {
   metaSort: document.getElementById("metaSort"),
   metaChannel: document.getElementById("metaChannel"),
   checkAll: document.getElementById("checkAll"),
+  binId: document.getElementById("binId"),
+  binGo: document.getElementById("binGo"),
+  binNote: document.getElementById("binNote"),
   limit: document.getElementById("limit"),
   limitbar: document.querySelector(".limitbar"),
 
   viewApps: document.getElementById("view-apps"),
   viewMeta: document.getElementById("view-meta"),
   viewOrgs: document.getElementById("view-orgs"),
+  viewDevices: document.getElementById("view-devices"),
   viewSettings: document.getElementById("view-settings"),
+
+  devicesLoad: document.getElementById("devicesLoad"),
+  devicesQ: document.getElementById("devicesQ"),
+  devicesSort: document.getElementById("devicesSort"),
+  devicesRows: document.getElementById("devicesRows"),
+  devicesSub: document.getElementById("devicesSub"),
+  devicesCount: document.getElementById("devicesCount"),
+  devicesEmpty: document.getElementById("devicesEmpty"),
+  sharedSection: document.getElementById("sharedSection"),
+  sharedRows: document.getElementById("sharedRows"),
+  sharedCount: document.getElementById("sharedCount"),
 
   orgId: document.getElementById("orgId"),
   orgQ: document.getElementById("orgQ"),
@@ -264,6 +280,14 @@ let mineNote = "";
 let mineAsked = false;
 let mineLoading = false;
 
+/* The account's registered headsets, once asked for. Declared up here (not beside
+   the devices functions) because initDevices runs during module setup, before a
+   `let` further down would have initialized. */
+let deviceList = [];
+let devicesLoading = false;
+let devicesAsked = false;
+let devicesNote = "";
+
 /* The keys (store id or package name) of everything the account owns, so the
    search and Meta lists can flag a row without walking the whole library each
    time. Rebuilt from mineList at the top of every render. */
@@ -289,6 +313,8 @@ initStage();
 initViews();
 initSettings();
 initOrgs();
+initDevices();
+initDirectDownload();
 initColumns();
 /* The headset list has to exist before the defaults can select within it. */
 fillHmdPicker();
@@ -648,11 +674,12 @@ function applyView() {
   closeStage({ animate: false });
 
   const hash = location.hash.replace("#", "");
-  const view = ["meta", "mine", "orgs", "settings"].includes(hash) ? hash : "apps";
+  const view = ["meta", "mine", "devices", "orgs", "settings"].includes(hash) ? hash : "apps";
 
   el.viewApps.hidden = view !== "apps";
   el.viewMeta.hidden = view !== "meta";
   el.viewMine.hidden = view !== "mine";
+  el.viewDevices.hidden = view !== "devices";
   el.viewOrgs.hidden = view !== "orgs";
   el.viewSettings.hidden = view !== "settings";
 
@@ -666,7 +693,9 @@ function applyView() {
      would have to be kept on the page to be animated, and it is the arriving
      one the reader is looking for. */
   play(
-    [el.viewApps, el.viewMeta, el.viewMine, el.viewOrgs, el.viewSettings].find((s) => !s.hidden),
+    [el.viewApps, el.viewMeta, el.viewMine, el.viewDevices, el.viewOrgs, el.viewSettings].find(
+      (s) => !s.hidden
+    ),
     "view-in"
   );
 }
@@ -746,6 +775,109 @@ async function runOrgApps() {
     el.orgGo.textContent = "List apps";
     renderAll();
   }
+}
+
+/* ---------- your devices ---------- */
+
+function initDevices() {
+  el.devicesLoad.addEventListener("click", loadDevices);
+  el.devicesQ.addEventListener("input", renderDevices);
+  el.devicesSort.addEventListener("change", renderDevices);
+  renderDevices();
+}
+
+async function loadDevices() {
+  if (devicesLoading) return;
+  devicesAsked = true;
+  devicesLoading = true;
+  devicesNote = "";
+  el.devicesLoad.disabled = true;
+  el.devicesLoad.textContent = "Loading…";
+  renderDevices();
+
+  try {
+    deviceList = await accountDevices();
+  } catch (err) {
+    deviceList = [];
+    devicesNote = err.message || "Could not load your devices.";
+  } finally {
+    devicesLoading = false;
+    el.devicesLoad.disabled = false;
+    el.devicesLoad.textContent = "Get devices";
+    renderDevices();
+  }
+}
+
+/* A neutral VR-headset glyph, themed with currentColor. Meta returns no image
+   for a device (hwm_image is null), so this stands in for every model. */
+const DEVICE_ICON =
+  '<svg class="dev-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+  'stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">' +
+  '<rect x="2.4" y="7.5" width="19.2" height="9" rx="3"/>' +
+  '<path d="M9.3 16.5 L12 13.9 L14.7 16.5"/></svg>';
+
+function deviceStatus(d) {
+  if (!d.wipeStatus || d.wipeStatus === "NONE") return "—";
+  if (d.wipeStatus === "PENDING") return "Remote wipe pending";
+  return words(d.wipeStatus);
+}
+
+function sortDevices(list, mode) {
+  const byModel = (a, b) =>
+    (a.model ?? "").localeCompare(b.model ?? "") || a.serial.localeCompare(b.serial);
+  return [...list].sort(mode === "modelZa" ? (a, b) => -byModel(a, b) : byModel);
+}
+
+function deviceRowsHtml(list) {
+  return list
+    .map(
+      (d) => `<tr>
+      <td class="name"><span class="dev-cell">${DEVICE_ICON}${esc(d.model ?? "Unknown device")}</span></td>
+      <td class="num">${esc(d.serial)}</td>
+      <td>${esc(deviceStatus(d))}</td>
+    </tr>`
+    )
+    .join("");
+}
+
+function renderDevices() {
+  const q = el.devicesQ.value.trim().toLowerCase();
+  const match = (d) =>
+    !q || d.serial.toLowerCase().includes(q) || (d.model ?? "").toLowerCase().includes(q);
+  const mode = el.devicesSort.value;
+
+  const ownedAll = deviceList.filter((d) => d.ownership !== "shared");
+  const sharedAll = deviceList.filter((d) => d.ownership === "shared");
+  const owned = sortDevices(ownedAll.filter(match), mode);
+  const shared = sortDevices(sharedAll.filter(match), mode);
+
+  /* Owned — the main list. */
+  el.devicesRows.innerHTML = deviceRowsHtml(owned);
+  el.devicesEmpty.hidden = owned.length > 0 || devicesLoading;
+  el.devicesEmpty.textContent = devicesLoading
+    ? ""
+    : devicesNote
+      ? devicesNote
+      : !devicesAsked
+        ? "Press Get devices to list the headsets on this account."
+        : ownedAll.length
+          ? "Nothing matches."
+          : "No devices found on this account.";
+  el.devicesCount.textContent = devicesLoading
+    ? "Asking the store…"
+    : !devicesAsked || devicesNote
+      ? ""
+      : owned.length === ownedAll.length
+        ? `${ownedAll.length} device${ownedAll.length === 1 ? "" : "s"}.`
+        : `${owned.length} of ${ownedAll.length} devices.`;
+
+  /* Shared — its own section, shown only when the account has shared devices. */
+  el.sharedSection.hidden = !devicesAsked || devicesLoading || sharedAll.length === 0;
+  el.sharedRows.innerHTML = deviceRowsHtml(shared);
+  el.sharedCount.textContent =
+    shared.length === sharedAll.length
+      ? `${sharedAll.length} shared device${sharedAll.length === 1 ? "" : "s"}.`
+      : `${shared.length} of ${sharedAll.length} shared devices.`;
 }
 
 /* ---------- settings ---------- */
@@ -1931,6 +2063,64 @@ function buildId(v) {
   return `${v.id} (${v.versionCode})`;
 }
 
+/* ---------- download by binary ID ---------- */
+
+/* The ID (build) column already prints the binary ID beside every version, so
+   the shortest route to a single APK is to paste that number back in. Nothing
+   is resolved here: a binary ID *is* the address the store's download endpoint
+   takes, so this builds the same link the Download button does, addressed by
+   hand rather than by row. Entitlement is still Meta's call, not ours. */
+function initDirectDownload() {
+  el.binGo.addEventListener("click", directDownload);
+  el.binId.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") directDownload();
+  });
+  /* Typing again drops the last verdict rather than leaving a stale one sitting
+     under a box whose contents have moved on. */
+  el.binId.addEventListener("input", () => setBinNote(""));
+}
+
+function setBinNote(text, bad = false) {
+  el.binNote.textContent = text;
+  el.binNote.classList.toggle("bad", bad);
+  el.binNote.hidden = !text;
+}
+
+/* Deliberately synchronous. A popup only counts as user-initiated while the
+   click is still on the stack, so anything awaited here would hand the download
+   to the popup blocker instead. */
+function directDownload() {
+  const id = el.binId.value.trim();
+
+  if (!id) {
+    setBinNote("Paste a binary ID first.", true);
+    return;
+  }
+
+  /* Digits only, and long: a version code is four or five digits and would be
+     accepted by a looser test, then 404 as a binary that does not exist. */
+  if (!/^\d{8,}$/.test(id)) {
+    setBinNote(
+      "That is not a binary ID — copy the long number from a build's ID (build) column, not the version code in brackets.",
+      true
+    );
+    return;
+  }
+
+  if (!canDownload()) {
+    setBinNote(
+      "Downloads sign with the account token — add your oc_ac_at on the Settings page first.",
+      true
+    );
+    return;
+  }
+
+  window.open(downloadURL(id), "_blank", "noopener");
+  setBinNote(
+    `Asked the store for binary ${id}. It refuses anything the account is not entitled to.`
+  );
+}
+
 /**
  * The download cell for one build.
  *
@@ -2120,7 +2310,18 @@ function refreshRow(app) {
      row is rebuilt, not just its status — a store result gains its version and
      build columns only once the check comes back. */
   for (const tr of document.querySelectorAll(`tr.app[data-id="${keyOf(app)}"]`)) {
-    const scope = tr.closest("tbody") === el.metaRows ? "meta" : "main";
+    /* Rebuild each row in the scope it actually lives in. Getting this wrong is
+       how a checked entitlement picked up the "owned" tint: refreshed as the
+       main list, its row read as owned rather than as part of the library. */
+    const tbody = tr.closest("tbody");
+    const scope =
+      tbody === el.metaRows
+        ? "meta"
+        : tbody === el.mineRows
+          ? "mine"
+          : tbody === el.orgRows
+            ? "orgs"
+            : "main";
     const next = tr.nextElementSibling;
 
     tr.replaceWith(appRow(app, scope));

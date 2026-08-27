@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=87">
+<link rel="stylesheet" href="css/style.css?v=99">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -52,6 +52,7 @@
       <a href="#apps" data-view="apps">Apps and games</a>
       <a href="#meta" data-view="meta">Meta apps</a>
       <a href="#mine" data-view="mine">Your entitlements</a>
+      <a href="#devices" data-view="devices">Your Devices</a>
       <a href="#orgs" data-view="orgs">Organizations</a>
       <a href="#settings" data-view="settings">Settings</a>
     </nav>
@@ -91,6 +92,12 @@
       <button id="searchGo" type="button">Search</button>
       <button id="checkAll" type="button">Check shown</button>
     </div>
+
+    <div class="controls controls-sub">
+      <input id="binId" type="search" inputmode="numeric" placeholder="Binary ID, from a build's ID (build) column" aria-label="Binary ID to download" autocomplete="off" spellcheck="false">
+      <button id="binGo" type="button">Download APK</button>
+    </div>
+    <p class="hint" id="binNote" role="status" hidden></p>
 
     <p class="count" id="count"></p>
 
@@ -200,6 +207,54 @@
     </table>
 
     <p id="mineEmpty" class="empty" hidden></p>
+
+  </section>
+
+  <!-- ---------- your devices ---------- -->
+
+  <section id="view-devices" hidden>
+
+    <h2>Your Devices</h2>
+    <p class="sub" id="devicesSub">Headsets registered to this account. Needs your own access token, set in Settings.</p>
+
+    <div class="controls">
+      <input id="devicesQ" type="search" placeholder="Filter by model or serial" aria-label="Filter your devices" autocomplete="off" spellcheck="false">
+      <select id="devicesSort" aria-label="Sort by">
+        <option value="modelAz">Device type A–Z</option>
+        <option value="modelZa">Device type Z–A</option>
+      </select>
+      <button id="devicesLoad" type="button">Get devices</button>
+    </div>
+
+    <p class="count" id="devicesCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Device</th>
+          <th scope="col">Serial</th>
+          <th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody id="devicesRows"></tbody>
+    </table>
+
+    <p id="devicesEmpty" class="empty" hidden></p>
+
+    <div id="sharedSection" hidden>
+      <h3 class="devices-sub-h">Shared with you</h3>
+      <p class="count" id="sharedCount"></p>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Device</th>
+            <th scope="col">Serial</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody id="sharedRows"></tbody>
+      </table>
+    </div>
 
   </section>
 
@@ -552,6 +607,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=87"></script>
+<script type="module" src="js/app.js?v=99"></script>
 </body>
 </html>

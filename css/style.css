@@ -888,6 +888,20 @@ tr.detail > td {
    renderer's price cell is dropped for that view only. */
 #view-orgs .c-price { display: none; }
 
+/* Your Devices: a headset glyph beside the model name. */
+.dev-cell { display: flex; align-items: center; gap: .6rem; }
+.dev-icon { width: 1.9rem; height: 1.9rem; color: var(--muted); flex: none; }
+.devices-sub-h { font-size: 1rem; font-weight: 600; margin: 2.25rem 0 .5rem; }
+/* Both device tables share one fixed column layout, so Serial and Status line up
+   between the owned and shared sections. */
+#view-devices table { table-layout: fixed; }
+#view-devices th:nth-child(1), #view-devices td:nth-child(1) { width: 45%; }
+#view-devices th:nth-child(2), #view-devices td:nth-child(2) { width: 30%; }
+#view-devices th:nth-child(3), #view-devices td:nth-child(3) { width: 25%; }
+/* Center each cell vertically in its row (the headset icon is taller than the
+   text, so the default baseline made the serial sit low). */
+#view-devices td { vertical-align: middle; }
+
 /* store lookup */
 
 .lookup {
@@ -914,6 +928,15 @@ tr.detail > td {
   color: var(--muted);
   max-width: 60ch;
 }
+
+/* The second controls row is a side door, not the main search, so its input
+   keeps the row's rhythm without competing for the eye: the search box above
+   still opens the section. */
+.controls-sub { margin-top: -.25rem; }
+.controls-sub input { flex: 1 1 20rem; }
+
+/* A rejected binary ID is the one hint that is a verdict rather than a note. */
+.hint.bad { color: var(--red); }
 
 .lookup__out:empty,
 .resolve-out:empty { display: none; }

@@ -430,9 +430,18 @@ export const HMD_TYPES = [
   ["SEACLIFF", "Quest Pro"],
   ["HOLLYWOOD", "Quest 2"],
   ["MONTEREY", "Quest"],
+  ["PACIFIC", "Go"],
   ["RIFT", "Rift"],
   ["LOMA", "Unknown"],
 ];
+
+/* The platform each headset's store sells. Every headset is served its own
+   catalogue, so this is what a search result's platform falls back to when the
+   slug does not spell it out. Anything not listed is a 6DOF Quest store. */
+const HMD_PLATFORM = {
+  PACIFIC: "ANDROID_3DOF",
+  RIFT: "PC",
+};
 
 /**
  * Pull apps out of a search reply.
@@ -442,7 +451,7 @@ export const HMD_TYPES = [
  * by ID with the first category winning. The node's own `id` is an opaque story
  * ID; the app lives under `target_object`.
  */
-function extractApps(json) {
+function extractApps(json, fallbackPlatform = null) {
   const categories = json?.data?.viewer?.contextual_search?.all_category_results;
   if (!Array.isArray(categories)) return [];
 
@@ -458,12 +467,15 @@ function extractApps(json) {
         name: app.display_name || app.canonicalName || app.id,
         slug: app.canonicalName ?? null,
         category: category.display_name ?? category.name ?? null,
-        /* The slug ends in the platform, e.g. "…-android6d0f". */
+        /* The slug usually ends in the platform, e.g. "…-android6d0f". Older
+           mobile listings — the Go and Gear VR ones — often carry no marker at
+           all, so the store that was searched stands in rather than leaving the
+           Device column empty. */
         platform: /android6d0f/i.test(app.canonicalName ?? "")
           ? "ANDROID_6DOF"
-          : /android3dof/i.test(app.canonicalName ?? "")
+          : /android3dof|gearvr|gear-vr/i.test(app.canonicalName ?? "")
             ? "ANDROID_3DOF"
-            : null,
+            : fallbackPlatform,
         /* Free apps report "$0.00"; pre-orders and coming-soon carry no price. */
         price: app.current_offer?.price?.formatted ?? null,
         /* What a claim is made against, and whether there is anything to pay.
@@ -740,7 +752,7 @@ export async function searchStore(query, { limit = 5, hmdType = "EUREKA" } = {})
 
   if (json.error) throw new Error(json.error.message ?? "request rejected");
 
-  return extractApps(json).slice(0, limit);
+  return extractApps(json, HMD_PLATFORM[hmdType] ?? "ANDROID_6DOF").slice(0, limit);
 }
 
 /* Maps Android package names to store app IDs. Takes an array, so a whole
@@ -1179,6 +1191,55 @@ export async function orgApps(orgID) {
     after = pi.end_cursor;
   }
 
+  return [...out.values()];
+}
+
+/* ---------- the account's devices ---------- */
+
+const DEVICES_DOC_ID = "26205914622391442";
+
+/**
+ * The headsets on the signed-in account, with their model. Needs the account's
+ * own `oc_www_at`; the built-in public token returns nothing here.
+ *
+ * Returns both the account's **owned** headsets (`owned_devices.nodes`) and the
+ * **shared** ones it can use (`all_usable_devices`), each tagged with
+ * `ownership`. Deduped by serial, with owned winning if a device is in both.
+ * (`all_device_manifests` is a separate thing and deliberately ignored.)
+ */
+export async function accountDevices() {
+  const { token } = loadSettings();
+
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        doc_id: DEVICES_DOC_ID,
+        variables: "{}",
+      })
+  );
+
+  if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+  const root = json.data?.xoc_oc_user_from_frl ?? {};
+  const owned = root.owned_devices?.nodes ?? [];
+  const shared = root.all_usable_devices ?? [];
+
+  const out = new Map();
+  const add = (n, ownership) => {
+    if (!n?.serial || out.has(n.serial)) return;
+    out.set(n.serial, {
+      id: n.id ?? null,
+      serial: n.serial,
+      model: n.hwm_mapped_device_type ?? null, // e.g. "Meta Quest 3"
+      deviceType: n.hwm_device_type ?? null, // e.g. "OCULUS_EUREKA"
+      wipeStatus: n.hwm_ent_persisted_config?.remote_wipe_status ?? null,
+      ownership, // "owned" | "shared"
+    });
+  };
+  owned.forEach((n) => add(n, "owned"));
+  shared.forEach((n) => add(n, "shared"));
   return [...out.values()];
 }
 
