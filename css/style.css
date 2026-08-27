@@ -889,8 +889,6 @@ tr.detail > td {
 #view-orgs .c-price { display: none; }
 
 /* Your Devices: a headset glyph beside the model name. */
-.dev-cell { display: flex; align-items: center; gap: .6rem; }
-.dev-icon { width: 1.9rem; height: 1.9rem; color: var(--muted); flex: none; }
 .devices-sub-h { font-size: 1rem; font-weight: 600; margin: 2.25rem 0 .5rem; }
 /* Both device tables share one fixed column layout, so Serial and Status line up
    between the owned and shared sections. */
