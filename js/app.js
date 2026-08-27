@@ -19,7 +19,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=99";
+} from "./check.js?v=100";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -808,14 +808,6 @@ async function loadDevices() {
   }
 }
 
-/* A neutral VR-headset glyph, themed with currentColor. Meta returns no image
-   for a device (hwm_image is null), so this stands in for every model. */
-const DEVICE_ICON =
-  '<svg class="dev-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-  'stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">' +
-  '<rect x="2.4" y="7.5" width="19.2" height="9" rx="3"/>' +
-  '<path d="M9.3 16.5 L12 13.9 L14.7 16.5"/></svg>';
-
 function deviceStatus(d) {
   if (!d.wipeStatus || d.wipeStatus === "NONE") return "—";
   if (d.wipeStatus === "PENDING") return "Remote wipe pending";
@@ -832,7 +824,7 @@ function deviceRowsHtml(list) {
   return list
     .map(
       (d) => `<tr>
-      <td class="name"><span class="dev-cell">${DEVICE_ICON}${esc(d.model ?? "Unknown device")}</span></td>
+      <td class="name">${esc(d.model ?? "Unknown device")}</td>
       <td class="num">${esc(d.serial)}</td>
       <td>${esc(deviceStatus(d))}</td>
     </tr>`
