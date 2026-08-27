@@ -630,6 +630,7 @@ tr.detail > td {
 .panel p.ok { color: var(--green); }
 .claim-out:empty { display: none; }
 
+
 /* Channels and Build history head whole sections, so they sit a step above the
    group titles inside them — same uppercase treatment, a size larger. */
 .panel h3 {
@@ -935,6 +936,17 @@ tr.detail > td {
 
 /* A rejected binary ID is the one hint that is a verdict rather than a note. */
 .hint.bad { color: var(--red); }
+
+/* Two switches per headset, sized like the build table's download button so
+   the tables read as one family. Neutral rather than blue: blue is a download
+   here, and these are neither. */
+.ptc-cell { white-space: nowrap; }
+.ptc-btn {
+  font-size: .8125rem;
+  padding: .35rem .9rem;
+  min-height: 0;
+}
+.ptc-btn + .ptc-btn { margin-left: .35rem; }
 
 .lookup__out:empty,
 .resolve-out:empty { display: none; }

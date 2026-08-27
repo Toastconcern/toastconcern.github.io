@@ -1072,6 +1072,60 @@ export async function claimOffer(offerId, hmdType = loadSettings().hmd) {
   return Object.values(json.data ?? {})[0] ?? {};
 }
 
+/* The headset test-channel switch — the per-device opt-in, not a per-app one.
+   It is keyed by device serial: a headset is on the test channel or it is not,
+   and every app it runs follows from that. One mutation does both directions,
+   `is_enabled` picking which.
+
+   doc_id and variable shape were read off a real request. `actor_id` came from
+   that capture too; it names the account doing the acting, so if the store
+   refuses with something about the actor, this is the value to check first.
+   `client_mutation_id` is only a tag the caller chooses, and nothing reads it
+   back. No serial is stored here — each one comes from the device row it was
+   pressed on. */
+const DEVICE_PTC_DOC_ID = "4595761627188741";
+const PTC_ACTOR_ID = 49;
+
+/**
+ * Turn a headset's test channel on or off.
+ *
+ * `serial` is the device serial as Your Devices lists it; `enabled` true opts
+ * the headset in, false takes it back out. Resolves when the store accepts it,
+ * throws with the store's own words when it does not.
+ */
+export async function setDevicePTC(serial, enabled) {
+  const { token } = loadSettings();
+
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        doc_id: DEVICE_PTC_DOC_ID,
+        variables: JSON.stringify({
+          setStatusData: {
+            device_serial: String(serial),
+            is_enabled: Boolean(enabled),
+            actor_id: PTC_ACTOR_ID,
+            client_mutation_id: PTC_ACTOR_ID,
+          },
+        }),
+      })
+  );
+
+  if (json.errors?.length) {
+    const msg = json.errors[0].message ?? "the store refused it";
+    throw new Error(
+      /logged out|unauthorized/i.test(msg)
+        ? `${msg} Changing a headset's test channel needs your own access token, set on the Settings page.`
+        : msg
+    );
+  }
+
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+  return Object.values(json.data ?? {})[0] ?? {};
+}
+
 /* One release channel: the binaries on it and the app's recent uploads, each
    with the ID of its OBB expansion file where there is one. Nothing else here
    reports OBBs — not the build history, not the manifest — and it costs a
