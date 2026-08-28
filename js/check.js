@@ -755,6 +755,141 @@ export async function searchStore(query, { limit = 5, hmdType = "EUREKA" } = {})
   return extractApps(json, HMD_PLATFORM[hmdType] ?? "ANDROID_6DOF").slice(0, limit);
 }
 
+/* The apps Meta pre-installs on a headset. This is the same persisted query the
+   on-device app manager (OCMS) runs to decide what a fresh or updating headset
+   should have: it asks the store for the default set for one headset and one
+   install trigger. Addressed by `client_doc_id` like the other account-gated
+   queries, but a public app token reads it fine — the set is store content, not
+   account data. The doc_id, store node and trigger values were read out of the
+   OCMS APK and confirmed against the live store. */
+const DEFAULT_APPS_DOC_ID = "401634805713809711258408144";
+
+/* OCULUS_6DOF_STORE_ID — the Quest store node the app manager asks against. */
+const DEFAULT_APPS_STORE_ID = "215871315640047";
+
+/* The three triggers OCMS passes. Each returns a different set: AUTO_UPDATER is
+   the full auto-update list, NUX_BLOCKING the apps first-run setup waits on, and
+   NUX_NON_BLOCKING the rest of the first-run set. The store rejects anything
+   else, so these are the only three. */
+export const DEFAULT_APP_TRIGGERS = [
+  ["AUTO_UPDATER", "AUTO_UPDATER"],
+  ["NUX_BLOCKING", "NUX_BLOCKING"],
+  ["NUX_NON_BLOCKING", "NUX_NON_BLOCKING"],
+];
+
+/* The image sizes OCMS reads from server config; the store accepts any sensible
+   WxH, so these fixed ones match what its store attributes already request. */
+const DEFAULT_APPS_VARS = {
+  iconImageSize: "360x360",
+  landscapeImageSize: "720x405",
+  coverSquareImageSize: "360x360",
+};
+
+/**
+ * The default apps for a headset and install trigger.
+ *
+ * Resolves to the same plain app objects the rest of the UI renders, so the
+ * list drops straight into a table. `hmdType` is a store codename (EUREKA,
+ * HOLLYWOOD, …); a headset with no 6DOF store, like the Go, simply comes back
+ * empty.
+ */
+export async function defaultApps(hmdType = "HOLLYWOOD", trigger = "AUTO_UPDATER") {
+  const { token } = loadSettings();
+
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        client_doc_id: DEFAULT_APPS_DOC_ID,
+        variables: JSON.stringify({
+          hmd: hmdType,
+          node_id: DEFAULT_APPS_STORE_ID,
+          install_trigger: trigger,
+          ...DEFAULT_APPS_VARS,
+        }),
+      })
+  );
+
+  if (json.errors?.length) {
+    const msg = json.errors[0].message ?? "query refused";
+    throw new Error(
+      /logged out|unauthorized/i.test(msg)
+        ? `${msg} This query needs an access token, set on the Settings page.`
+        : msg
+    );
+  }
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+  const nodes = json.data?.fetch__AppStore?.default_applications ?? [];
+  return nodes.map(defaultAppRow);
+}
+
+/* One default-apps node -> the app object shape the rows expect. The binary the
+   store hands back rides along as `latest`, so the version and build columns
+   fill in without a check having to run. */
+function defaultAppRow(n) {
+  const b = n.latest_supported_binary;
+  return {
+    id: String(n.id),
+    name: n.display_name || n.package_name || String(n.id),
+    packageName: n.package_name ?? null,
+    platform: n.platform ?? null,
+    image: n.cover_square_image?.uri ?? n.icon_image?.uri ?? null,
+    category: n.category ?? null,
+    price: null,
+    offerId: null,
+    free: false,
+    channels: [],
+    latest: b
+      ? {
+          version: b.version ?? null,
+          versionCode: b.version_code ?? null,
+          releasedAt: null,
+          id: b.id ? String(b.id) : null,
+          size: Number(b.size) || null,
+          channels: [],
+        }
+      : null,
+  };
+}
+
+/* The lighter sibling the app manager also has (QUERY_NAME "DefaultAppsList"):
+   the same set with fewer fields, and no image-size variables. Its persisted
+   query doc_id is not in the APK — only DefaultApps' is — so this refuses until
+   the DefaultAppsList client_doc_id is captured from the persisted-query
+   manifest and filled in here. Everything else about it is ready. */
+const DEFAULT_APPS_LIST_DOC_ID = "";
+
+export async function defaultAppsList(hmdType = "HOLLYWOOD", trigger = "AUTO_UPDATER") {
+  if (!DEFAULT_APPS_LIST_DOC_ID) {
+    throw new Error(
+      "DefaultAppsList is not wired up — its client_doc_id is unknown. Fill in " +
+        "DEFAULT_APPS_LIST_DOC_ID in check.js once you have it from the manifest."
+    );
+  }
+
+  const { token } = loadSettings();
+
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        client_doc_id: DEFAULT_APPS_LIST_DOC_ID,
+        variables: JSON.stringify({
+          hmd: hmdType,
+          node_id: DEFAULT_APPS_STORE_ID,
+          install_trigger: trigger,
+        }),
+      })
+  );
+
+  if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+  const nodes = json.data?.fetch__AppStore?.default_applications ?? [];
+  return nodes.map(defaultAppRow);
+}
+
 /* Maps Android package names to store app IDs. Takes an array, so a whole
    screen's worth resolves in one request. Note this one uses `client_doc_id`,
    not `doc_id`, and it is refused unless the token belongs to a logged-in

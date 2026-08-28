@@ -14,13 +14,15 @@ import {
   downloadURL,
   canDownload,
   searchStore,
+  defaultApps,
+  DEFAULT_APP_TRIGGERS,
   HMD_TYPES,
   parseAppId,
   loadSettings,
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=104";
+} from "./check.js?v=106";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -184,6 +186,7 @@ const el = {
   viewApps: document.getElementById("view-apps"),
   viewMeta: document.getElementById("view-meta"),
   viewOrgs: document.getElementById("view-orgs"),
+  viewDefault: document.getElementById("view-default"),
   viewDevices: document.getElementById("view-devices"),
   viewSettings: document.getElementById("view-settings"),
 
@@ -209,6 +212,15 @@ const el = {
   orgSub: document.getElementById("orgSub"),
   orgCount: document.getElementById("orgCount"),
   orgEmpty: document.getElementById("orgEmpty"),
+  defaultHmd: document.getElementById("defaultHmd"),
+  defaultTrigger: document.getElementById("defaultTrigger"),
+  defaultGo: document.getElementById("defaultGo"),
+  checkDefault: document.getElementById("checkDefault"),
+  defaultQ: document.getElementById("defaultQ"),
+  defaultSort: document.getElementById("defaultSort"),
+  defaultRows: document.getElementById("defaultRows"),
+  defaultCount: document.getElementById("defaultCount"),
+  defaultEmpty: document.getElementById("defaultEmpty"),
 
   settingsForm: document.getElementById("settingsForm"),
   token: document.getElementById("token"),
@@ -290,6 +302,14 @@ let devicesLoading = false;
 let devicesAsked = false;
 let devicesNote = "";
 
+/* The default-apps list for the headset/trigger last fetched. Ordinary store
+   apps, so they render through the same row code as every other tab. Declared
+   up here with the devices state for the same reason. */
+let defaultList = [];
+let defaultLoading = false;
+let defaultAsked = false;
+let defaultNote = "";
+
 /* The keys (store id or package name) of everything the account owns, so the
    search and Meta lists can flag a row without walking the whole library each
    time. Rebuilt from mineList at the top of every render. */
@@ -316,6 +336,7 @@ initViews();
 initSettings();
 initOrgs();
 initDevices();
+initDefault();
 initDirectDownload();
 initColumns();
 /* The headset list has to exist before the defaults can select within it. */
@@ -676,13 +697,14 @@ function applyView() {
   closeStage({ animate: false });
 
   const hash = location.hash.replace("#", "");
-  const view = ["meta", "mine", "devices", "orgs", "settings"].includes(hash) ? hash : "apps";
+  const view = ["meta", "mine", "devices", "orgs", "default", "settings"].includes(hash) ? hash : "apps";
 
   el.viewApps.hidden = view !== "apps";
   el.viewMeta.hidden = view !== "meta";
   el.viewMine.hidden = view !== "mine";
   el.viewDevices.hidden = view !== "devices";
   el.viewOrgs.hidden = view !== "orgs";
+  el.viewDefault.hidden = view !== "default";
   el.viewSettings.hidden = view !== "settings";
 
   /* the limit only governs the apps list, so hide it elsewhere */
@@ -695,7 +717,7 @@ function applyView() {
      would have to be kept on the page to be animated, and it is the arriving
      one the reader is looking for. */
   play(
-    [el.viewApps, el.viewMeta, el.viewMine, el.viewDevices, el.viewOrgs, el.viewSettings].find(
+    [el.viewApps, el.viewMeta, el.viewMine, el.viewDevices, el.viewOrgs, el.viewDefault, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
@@ -746,6 +768,68 @@ function initOrgs() {
   el.checkOrg.addEventListener("click", () =>
     checkList(orgList, el.checkOrg, "Check shown")
   );
+}
+
+/* ---------- default apps ---------- */
+
+/* Filtered by the box and sorted, all on the already-fetched list. */
+function defaultVisible() {
+  const q = el.defaultQ.value.trim().toLowerCase();
+  return sorted(defaultList.filter((a) => matches(a, q)), el.defaultSort.value);
+}
+
+function initDefault() {
+  /* RIFT is the PC store; the default set is asked against the 6DOF store node,
+     so a Rift pick only ever comes back empty. Leave it out here — the store
+     search picker still carries it. */
+  for (const [value, label] of HMD_TYPES) {
+    if (value === "RIFT") continue;
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = `${label} (${value})`;
+    el.defaultHmd.append(opt);
+  }
+  /* Default to the headset picked for store search, so the two tabs agree —
+     unless that is the one headset this picker drops. */
+  if (loadSettings().hmd !== "RIFT") el.defaultHmd.value = loadSettings().hmd;
+
+  for (const [value, label] of DEFAULT_APP_TRIGGERS) {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label;
+    el.defaultTrigger.append(opt);
+  }
+
+  el.defaultGo.addEventListener("click", runDefaultApps);
+  /* The list is fetched once; the filter box and sort work on what is loaded. */
+  el.defaultQ.addEventListener("input", renderAll);
+  el.defaultSort.addEventListener("change", renderAll);
+  el.checkDefault.addEventListener("click", () =>
+    checkList(defaultList, el.checkDefault, "Check shown")
+  );
+}
+
+async function runDefaultApps() {
+  if (defaultLoading) return;
+
+  defaultAsked = true;
+  defaultLoading = true;
+  defaultNote = "";
+  el.defaultGo.disabled = true;
+  el.defaultGo.textContent = "Loading…";
+  renderAll();
+
+  try {
+    defaultList = await defaultApps(el.defaultHmd.value, el.defaultTrigger.value);
+  } catch (err) {
+    defaultList = [];
+    defaultNote = err.message || "Could not load the default apps.";
+  } finally {
+    defaultLoading = false;
+    el.defaultGo.disabled = false;
+    el.defaultGo.textContent = "Get default apps";
+    renderAll();
+  }
 }
 
 async function runOrgApps() {
@@ -1500,6 +1584,26 @@ function renderAll() {
       : orgShown.length === orgList.length
         ? `${orgList.length} app${orgList.length === 1 ? "" : "s"}.`
         : `${orgShown.length} of ${orgList.length} apps.`;
+
+  const defaultShown = defaultVisible();
+  buildRows(el.defaultRows, defaultShown, "default");
+  el.defaultEmpty.hidden = defaultShown.length > 0 || defaultLoading;
+  el.defaultEmpty.textContent = defaultLoading
+    ? ""
+    : defaultNote
+      ? defaultNote
+      : !defaultAsked
+        ? "Pick a headset and trigger, then press Get default apps."
+        : defaultList.length
+          ? "Nothing matches."
+          : "No default apps for that headset and trigger.";
+  el.defaultCount.textContent = defaultLoading
+    ? "Asking the store…"
+    : !defaultAsked || defaultNote
+      ? ""
+      : defaultShown.length === defaultList.length
+        ? `${defaultList.length} app${defaultList.length === 1 ? "" : "s"}.`
+        : `${defaultShown.length} of ${defaultList.length} apps.`;
 
   if (focusId) {
     (focusScope ?? el.rows).querySelector(`tr.app[data-id="${focusId}"]`)?.focus();
@@ -2365,7 +2469,9 @@ function refreshRow(app) {
           ? "mine"
           : tbody === el.orgRows
             ? "orgs"
-            : "main";
+            : tbody === el.defaultRows
+              ? "default"
+              : "main";
     const next = tr.nextElementSibling;
 
     tr.replaceWith(appRow(app, scope));

@@ -526,7 +526,8 @@ body.hide-c-devb  .c-devb { display: none; }
 /* Neither list carries a price: Meta apps have none, and the library query
    reports what you own rather than what it costs. */
 #view-meta .c-price,
-#view-mine .c-price { display: none; }
+#view-mine .c-price,
+#view-default .c-price { display: none; }
 
 /* Some system builds carry 80-character version strings. Left alone they widen
    the column until Status is pushed off the page, so clamp them here; the full
