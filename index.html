@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=104">
+<link rel="stylesheet" href="css/style.css?v=106">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -54,6 +54,7 @@
       <a href="#mine" data-view="mine">Your entitlements</a>
       <a href="#devices" data-view="devices">Your Devices</a>
       <a href="#orgs" data-view="orgs">Organizations</a>
+      <a href="#default" data-view="default">Default apps</a>
       <a href="#settings" data-view="settings">Settings</a>
     </nav>
     <select id="theme" aria-label="Theme"></select>
@@ -310,6 +311,49 @@
     </table>
 
     <p id="orgEmpty" class="empty" hidden></p>
+
+  </section>
+
+  <!-- ---------- default apps ---------- -->
+
+  <section id="view-default" hidden>
+
+    <h2>Default apps</h2>
+    <p class="sub">The apps Meta pre-installs on a headset — the same set the on-device app manager fetches. Pick a headset and a trigger, then open one for its channels and build history.</p>
+
+    <div class="controls">
+      <select id="defaultHmd" aria-label="Headset"></select>
+      <select id="defaultTrigger" aria-label="Install trigger"></select>
+      <button id="defaultGo" type="button">Get default apps</button>
+      <button id="checkDefault" type="button">Check shown</button>
+      <input id="defaultQ" type="search" placeholder="Filter these apps by name or app ID" aria-label="Filter default apps" autocomplete="off" spellcheck="false">
+      <select id="defaultSort" aria-label="Sort by">
+        <option value="az">Name A–Z</option>
+        <option value="za">Name Z–A</option>
+        <option value="deviceAz">Device A–Z</option>
+        <option value="deviceZa">Device Z–A</option>
+      </select>
+    </div>
+
+    <p class="count" id="defaultCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">App</th>
+          <th scope="col" class="c-dev">Device</th>
+          <th scope="col" class="c-chan">Channel</th>
+          <th scope="col" class="c-price">Price</th>
+          <th scope="col" class="c-ver">Version</th>
+          <th scope="col" class="c-build">Build</th>
+          <th scope="col" class="c-date">Date</th>
+          <th scope="col" class="c-devb">Dev build</th>
+        </tr>
+      </thead>
+      <tbody id="defaultRows"></tbody>
+    </table>
+
+    <p id="defaultEmpty" class="empty" hidden></p>
 
   </section>
 
@@ -610,6 +654,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=104"></script>
+<script type="module" src="js/app.js?v=106"></script>
 </body>
 </html>
