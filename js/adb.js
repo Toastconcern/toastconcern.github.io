@@ -118,6 +118,22 @@ export async function pairDevice(address, code, { onStage } = {}) {
   return message;
 }
 
+/**
+ * Put a cabled headset into network mode, and find the address to reach it on.
+ *
+ * The way that works everywhere. Android's pairing screen is the tidier route,
+ * but a headset only has one if its maker surfaced it — Quest ships its own
+ * developer settings and generally does not. This needs the cable once, and
+ * the headset forgets it on reboot.
+ */
+export async function switchToWireless(session) {
+  const { address } = await call(
+    `/tcpip?serial=${encodeURIComponent(session.serial)}`,
+    { method: "POST" }
+  );
+  return address;
+}
+
 /** Reach a headset over the network, then use it. */
 export async function connectWireless(_bridgeUrl, address, { onStage } = {}) {
   const target = String(address).trim();

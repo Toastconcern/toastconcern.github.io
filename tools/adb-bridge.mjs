@@ -28,6 +28,7 @@ import fs from "node:fs/promises";
 const PORT = Number(process.env.PORT) || 8789;
 const ADB = process.env.ADB || "adb";
 
+
 /* A serial is what `adb devices` prints: a USB serial, or host:port when the
    headset was reached over the network. Anything else is refused rather than
    passed on. */
@@ -44,10 +45,18 @@ function adb(args, { timeout = 120000, maxBuffer = 1 << 26 } = {}) {
   return new Promise((resolve, reject) => {
     execFile(ADB, args, { timeout, maxBuffer }, (err, stdout, stderr) => {
       if (err) {
+        const raw = (stderr || stdout || err.message).trim();
+        /* adb names the serial it could not find, which reads like a fault in
+           the request rather than what it is: that headset has gone. It goes
+           when the cable comes out, and the wireless one is a different serial
+           entirely. */
         const why =
           err.code === "ENOENT"
             ? `adb not found — put it on PATH, or set ADB=/full/path/to/adb`
-            : (stderr || stdout || err.message).trim();
+            : /device .*not found/i.test(raw)
+              ? "that headset is no longer connected — if you unplugged it, " +
+                "connect again over wireless"
+              : raw;
         reject(new Error(why));
         return;
       }
@@ -232,6 +241,30 @@ http
           throw new Error(out.trim() || "pairing failed");
         }
         return send(res, 200, { message: out.trim() });
+      }
+
+      if (route === "/tcpip" && req.method === "POST") {
+        const target = needSerial();
+        /* Read the address *before* switching. `adb tcpip` restarts adbd on the
+           headset, which drops this USB connection with it — anything asked
+           afterwards is talking to a socket that has already gone. */
+        let address = null;
+        try {
+          const routes = await adb(["-s", target, "shell", "ip", "route"], {
+            timeout: 15000,
+          });
+          /* Take wlan0's line specifically. p2p0 has a route too, and its
+             address belongs to the headset's own peer-to-peer network, which
+             reaches nothing from here. */
+          const wifi = /[^\r\n]*wlan0[^\r\n]*/.exec(routes)?.[0] ?? routes;
+          const found = (wifi ?? routes).match(/src\s+(\d+\.\d+\.\d+\.\d+)/);
+          if (found) address = `${found[1]}:5555`;
+        } catch {
+          /* The switch is what matters; the address is a convenience. */
+        }
+
+        const out = await adb(["-s", target, "tcpip", "5555"], { timeout: 30000 });
+        return send(res, 200, { message: out.trim(), address });
       }
 
       if (route === "/info") {
