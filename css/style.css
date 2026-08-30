@@ -1134,8 +1134,8 @@ button.dl:disabled { color: #fff; opacity: .55; }
 
 /* Each control's explanation folds away behind a small disclosure, so Settings
    reads as a scannable list rather than a wall of prose. */
-.form details.hint { margin: .3rem 0 0; max-width: none; }
-.form details.hint > summary {
+details.hint { margin: .3rem 0 0; max-width: none; }
+details.hint > summary {
   display: inline-flex;
   align-items: center;
   gap: .35rem;
@@ -1146,24 +1146,40 @@ button.dl:disabled { color: #fff; opacity: .55; }
   list-style: none;
   user-select: none;
 }
-.form details.hint > summary::-webkit-details-marker { display: none; }
-.form details.hint > summary::before {
+details.hint > summary::-webkit-details-marker { display: none; }
+details.hint > summary::before {
   content: "";
   border-left: 4px solid currentColor;
   border-top: 3.5px solid transparent;
   border-bottom: 3.5px solid transparent;
   transition: transform .15s ease;
 }
-.form details.hint[open] > summary::before { transform: rotate(90deg); }
-.form details.hint > summary:hover { color: var(--text); }
-.form details.hint > p {
+details.hint[open] > summary::before { transform: rotate(90deg); }
+details.hint > summary:hover { color: var(--text); }
+
+/* The wireless guide on the ADB tab: a disclosure like the ones in Settings,
+   but holding a numbered walk-through and the controls it ends with, rather
+   than a paragraph of explanation. */
+.adb-wireless { margin: 0 0 1rem; }
+.adb-wireless > summary { font-size: .8125rem; }
+.adb-wireless ol {
+  margin: .5rem 0 .5rem 1.1rem;
+  padding: 0;
+  font-size: .8125rem;
+  color: var(--muted);
+  max-width: 60ch;
+}
+.adb-wireless li { margin-bottom: .4rem; line-height: 1.6; }
+.adb-wireless .controls { margin: .75rem 0; }
+.adb-wireless #adbAddr { flex: 0 1 16rem; }
+details.hint > p {
   margin: .5rem 0 0;
   font-size: .8125rem;
   color: var(--muted);
   max-width: 60ch;
 }
 @media (prefers-reduced-motion: reduce) {
-  .form details.hint > summary::before { transition: none; }
+  details.hint > summary::before { transition: none; }
 }
 
 .form code {

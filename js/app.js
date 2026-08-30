@@ -24,7 +24,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=139";
+} from "./check.js?v=141";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -224,6 +224,9 @@ const el = {
   viewHeadset: document.getElementById("view-adb"),
   adbUsb: document.getElementById("adbUsb"),
   adbAddr: document.getElementById("adbAddr"),
+  adbPairAddr: document.getElementById("adbPairAddr"),
+  adbPairCode: document.getElementById("adbPairCode"),
+  adbPair: document.getElementById("adbPair"),
   adbWireless: document.getElementById("adbWireless"),
   adbDisconnect: document.getElementById("adbDisconnect"),
   adbState: document.getElementById("adbState"),
@@ -916,6 +919,13 @@ function initHeadset() {
     }
   });
   el.adbDisconnect.addEventListener("click", disconnectHeadset);
+  el.adbPair.addEventListener("click", pairHeadset);
+  el.adbPairCode.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      pairHeadset();
+    }
+  });
   el.adbQ.addEventListener("input", renderAll);
   el.adbSort.addEventListener("change", renderAll);
   renderHeadset();
@@ -926,6 +936,33 @@ function adbSay(text, bad = false) {
   el.adbState.classList.toggle("bad", bad);
 }
 
+/* Pairing is not connecting: it leaves a key behind and nothing else. The
+   connect step still has to happen, on the other port the headset shows. */
+async function pairHeadset() {
+  if (adbBusy) return;
+  adbBusy = true;
+  el.adbPair.disabled = true;
+
+  try {
+    const { pairDevice } = await import("./adb.js?v=141");
+    const message = await pairDevice(
+      el.adbPairAddr.value,
+      el.adbPairCode.value,
+      { onStage: adbSay }
+    );
+    adbSay(
+      `${message} Now connect with the address under “IP address & Port”.`
+    );
+    el.adbPairCode.value = "";
+    el.adbAddr.focus();
+  } catch (err) {
+    adbSay(err.message || "Could not pair.", true);
+  } finally {
+    adbBusy = false;
+    el.adbPair.disabled = false;
+  }
+}
+
 async function connectHeadset(how) {
   if (adbBusy || adb) return;
   adbBusy = true;
@@ -934,7 +971,7 @@ async function connectHeadset(how) {
   adbSay(how === "usb" ? "Waiting for a headset to be chosen…" : "Reaching the bridge…");
 
   try {
-    const { connectUsb, connectWireless, deviceInfo } = await import("./adb.js?v=139");
+    const { connectUsb, connectWireless, deviceInfo } = await import("./adb.js?v=141");
     const onStage = (text) => adbSay(text);
     adb = how === "usb"
       ? await connectUsb({ onStage })
@@ -979,7 +1016,7 @@ async function loadHeadsetApps() {
   if (!adb) return;
   el.adbCount.textContent = "Asking the headset what it has installed…";
   try {
-    const { installedApps } = await import("./adb.js?v=139");
+    const { installedApps } = await import("./adb.js?v=141");
     adbInstalled = await installedApps(adb);
 
     /* Anything the library does not cover is asked about once, and remembered
@@ -1229,7 +1266,7 @@ async function installBuild(app, { installBuild: binaryId, version, code }, butt
     if (!res.ok) throw new Error(`the store returned ${res.status}`);
     const blob = await res.blob();
 
-    const { installApk, uninstall, pushObb } = await import("./adb.js?v=139");
+    const { installApk, uninstall, pushObb } = await import("./adb.js?v=141");
 
     if (older) {
       say("Uninstalling…");

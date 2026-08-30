@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=139">
+<link rel="stylesheet" href="css/style.css?v=141">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -337,10 +337,70 @@
 
     <div class="controls">
       <button id="adbUsb" type="button">Find headsets</button>
-      <input id="adbAddr" type="search" placeholder="Headset address for wireless, e.g. 192.168.1.42" aria-label="Headset address" autocomplete="off" spellcheck="false">
-      <button id="adbWireless" type="button">Connect wirelessly</button>
       <button id="adbDisconnect" type="button" hidden>Disconnect</button>
     </div>
+
+    <details class="hint adb-wireless">
+      <summary>Connect over wireless instead</summary>
+
+      <p>
+        Wireless ADB is the same adb, reached over your network rather than a
+        cable. Pair once with the six digits the headset shows, and it remembers
+        this computer from then on — no cable at any point.
+      </p>
+
+      <p class="hint"><strong>Pair — once per computer</strong></p>
+
+      <ol>
+        <li>
+          Developer Mode has to be on for the headset — a switch in the Meta
+          Horizon phone app, under the headset's own settings.
+        </li>
+        <li>
+          In the headset, turn on <strong>Wireless debugging</strong>, then
+          choose <strong>Pair device with pairing code</strong>. It shows an
+          address with a port, and six digits.
+        </li>
+        <li>
+          Put both in here and press <strong>Pair</strong>, while that dialog is
+          still open on the headset — it stops listening the moment it closes,
+          and the port changes every time it is reopened.
+        </li>
+      </ol>
+
+      <div class="controls">
+        <input id="adbPairAddr" type="search" placeholder="192.168.1.42:37891" aria-label="Pairing address and port" autocomplete="off" spellcheck="false">
+        <input id="adbPairCode" type="text" inputmode="numeric" maxlength="6" placeholder="123456" aria-label="Six-digit pairing code" autocomplete="off" spellcheck="false">
+        <button id="adbPair" type="button">Pair</button>
+      </div>
+
+      <p class="hint"><strong>Connect — every time after that</strong></p>
+
+      <ol>
+        <li>
+          Back on the <strong>Wireless debugging</strong> screen, read the
+          address under <strong>IP address &amp; Port</strong>. It is
+          <em>not</em> the port you paired on.
+        </li>
+        <li>
+          Put it here and press <strong>Connect wirelessly</strong>. Both ends
+          have to be on the same network.
+        </li>
+      </ol>
+
+      <div class="controls">
+        <input id="adbAddr" type="search" placeholder="192.168.1.42:41234" aria-label="Headset address" autocomplete="off" spellcheck="false">
+        <button id="adbWireless" type="button">Connect wirelessly</button>
+      </div>
+
+      <p>
+        The connect port changes when wireless debugging is turned off and on
+        again, but the pairing holds. If your headset has no Wireless debugging
+        screen, the older way still works: plug in over USB, press
+        <strong>Find headsets</strong>, run <code>adb tcpip 5555</code>, then
+        connect to the headset's plain Wi-Fi address above.
+      </p>
+    </details>
 
     <div class="controls">
       <input id="adbQ" type="search" placeholder="Filter these apps by name or package" aria-label="Filter installed apps" autocomplete="off" spellcheck="false">
@@ -700,6 +760,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=139"></script>
+<script type="module" src="js/app.js?v=141"></script>
 </body>
 </html>
