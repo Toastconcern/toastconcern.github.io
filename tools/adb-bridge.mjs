@@ -204,6 +204,36 @@ http
         return send(res, 200, { message: out.trim(), devices: await devices() });
       }
 
+      if (route === "/pair" && req.method === "POST") {
+        const addr = url.searchParams.get("addr") ?? "";
+        const code = url.searchParams.get("code") ?? "";
+        if (!ADDRESS.test(addr)) throw new Error("bad address");
+        if (!/^\d{6}$/.test(code)) throw new Error("the pairing code is six digits");
+
+        /* The pairing screen's port is not the one you connect on — it changes
+           every time the dialog is opened, and the headset stops listening the
+           moment it closes. */
+        let out;
+        try {
+          out = await adb(["pair", addr, code], { timeout: 60000 });
+        } catch (err) {
+          /* What adb says when nothing answers on that port is a protocol
+             fault, which explains nothing. The cause is nearly always the
+             dialog having been closed, or its port having moved since. */
+          throw /protocol fault|failed to connect|Connection refused/i.test(err.message)
+            ? new Error(
+                "nothing answered at that address — the pairing dialog has to " +
+                  "still be open on the headset, and its port changes every " +
+                  "time it is reopened"
+              )
+            : err;
+        }
+        if (!/Successfully paired/i.test(out)) {
+          throw new Error(out.trim() || "pairing failed");
+        }
+        return send(res, 200, { message: out.trim() });
+      }
+
       if (route === "/info") {
         return send(res, 200, await info(needSerial()));
       }

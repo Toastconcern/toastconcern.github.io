@@ -94,6 +94,30 @@ export async function connectUsb({ onStage } = {}) {
   return usable(await listDevices());
 }
 
+/**
+ * Pair with a headset that is showing a pairing code.
+ *
+ * Android's own wireless debugging: the headset shows an address, a port and
+ * six digits, and this trades them for a key it will remember. Done once per
+ * computer — after it, connecting needs only the address.
+ *
+ * The port on the pairing dialog is not the port you connect on afterwards.
+ */
+export async function pairDevice(address, code, { onStage } = {}) {
+  const target = String(address).trim();
+  if (!target) throw new Error("enter the address the pairing dialog shows");
+  if (!/^\d{6}$/.test(String(code).trim())) {
+    throw new Error("the pairing code is the six digits on the headset");
+  }
+
+  onStage?.(`Pairing with ${target}…`);
+  const { message } = await call(
+    `/pair?addr=${encodeURIComponent(target)}&code=${encodeURIComponent(String(code).trim())}`,
+    { method: "POST" }
+  );
+  return message;
+}
+
 /** Reach a headset over the network, then use it. */
 export async function connectWireless(_bridgeUrl, address, { onStage } = {}) {
   const target = String(address).trim();
