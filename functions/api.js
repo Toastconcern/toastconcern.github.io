@@ -49,11 +49,22 @@ export async function onRequest({ request }) {
   }
 
   const download = host === "securecdn.oculus.com";
+  const isPost = request.method === "POST";
 
   const upstream = await fetch(target, {
+    method: isPost ? "POST" : "GET",
     headers: download
       ? { Accept: "*/*", "User-Agent": DOWNLOAD_UA }
-      : { Accept: "application/json" },
+      : isPost
+        ? {
+            "Content-Type":
+              request.headers.get("content-type") || "application/x-www-form-urlencoded",
+            Accept: "application/json",
+          }
+        : { Accept: "application/json" },
+    /* Form bodies are tiny, so read the text rather than streaming — simpler,
+       and avoids the duplex-stream requirement. */
+    body: isPost ? await request.text() : undefined,
   });
 
   const headers = new Headers({

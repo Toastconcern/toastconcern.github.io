@@ -69,12 +69,31 @@ http
     }
 
     const download = new URL(target).hostname === "securecdn.oculus.com";
+    const isPost = req.method === "POST";
+
+    /* Read the form body for a POST so it can be handed on. GraphQL requests
+       come this way now — doc_id, variables and token in the body rather than
+       the query string — so DevTools shows them as form fields. */
+    let inBody;
+    if (isPost) {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      inBody = Buffer.concat(chunks);
+    }
 
     try {
       const upstream = await fetch(target, {
+        method: isPost ? "POST" : "GET",
         headers: download
           ? { Accept: "*/*", "User-Agent": DOWNLOAD_UA }
-          : { Accept: "application/json" },
+          : isPost
+            ? {
+                "Content-Type":
+                  req.headers["content-type"] || "application/x-www-form-urlencoded",
+                Accept: "application/json",
+              }
+            : { Accept: "application/json" },
+        body: isPost ? inBody : undefined,
       });
 
       /* Log the path only. The query string carries the access token and this
