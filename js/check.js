@@ -64,8 +64,12 @@ export function loadSettings() {
       searchSort: localStorage.getItem("metadb.searchSort") || "relevance",
       mineSort: localStorage.getItem("metadb.mineSort") || "az",
       buildSort: localStorage.getItem("metadb.buildSort") || "released",
+      /* Which install trigger the Default apps tab starts on. */
+      defaultTrigger: localStorage.getItem("metadb.defaultTrigger") || "AUTO_UPDATER",
       /* On unless explicitly turned off, so it keeps its old behaviour. */
       store: localStorage.getItem("metadb.store") !== "0",
+      /* Developer: log every request to the console. Off by default. */
+      log: localStorage.getItem("metadb.log") === "1",
       /* Column classes the user has switched off. */
       hidden: (localStorage.getItem("metadb.hidden") ?? "")
         .split(",")
@@ -90,6 +94,7 @@ export function loadSettings() {
       searchSort: "relevance",
       mineSort: "az",
       buildSort: "released",
+      defaultTrigger: "AUTO_UPDATER",
       store: true,
       hidden: [],
     };
@@ -126,7 +131,7 @@ export function saveSettings(patch) {
 
 export function clearSettings() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "autoOwned", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "autoOwned", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -155,18 +160,75 @@ function route(url) {
     : relay + encodeURIComponent(url);
 }
 
-async function getJSON(url) {
-  const { relay } = loadSettings();
-  let res;
+/* The target with the access token blanked, for the developer log. The token
+   signs in as you and tends to end up pasted into issues, so it is stripped the
+   same way the relay strips it from its own output. */
+const forLog = (url) => String(url).replace(/(access_token=)[^&]*/i, "$1<token>");
 
+/* The query string with the access token dropped, for the log box: enough to
+   tell requests apart, nothing that signs one. */
+function withoutToken(query) {
+  const p = new URLSearchParams(query);
+  p.delete("access_token");
+  return p.toString();
+}
+
+/* Developer logging emits an event rather than touching the DOM or the console:
+   this file only talks to the network, and the Settings page owns the on-page
+   log box that listens for these. Nothing listens unless the Developer toggle is
+   on, so this is cheap when it is off. */
+function emitLog(detail) {
   try {
-    res = await fetch(route(url), { headers: { Accept: "application/json" } });
+    window.dispatchEvent(new CustomEvent("metadb:log", { detail }));
+  } catch {}
+}
+
+async function getJSON(url) {
+  const { relay, log } = loadSettings();
+  const started = log ? performance.now() : 0;
+
+  /* GraphQL requests go as a form POST rather than a query string: the doc_id,
+     variables and token ride in the request body, so the browser's Network tab
+     lists them as their own form fields instead of one long URL — and the token
+     never appears in a URL at all. The node/fields lookup and the downloads keep
+     their query strings; only the GraphQL endpoint takes a body. Callers build
+     the same URL either way, so nothing above here changed. */
+  const q = url.indexOf("?");
+  const base = q === -1 ? url : url.slice(0, q);
+  const query = q === -1 ? "" : url.slice(q + 1);
+  const post = base === ENDPOINT;
+
+  const target = post ? route(ENDPOINT) : route(url);
+  const init = post
+    ? {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: query,
+      }
+    : { headers: { Accept: "application/json" } };
+
+  /* What the log box shows: the endpoint and every field but the token. */
+  const logUrl = post ? `${ENDPOINT}?${withoutToken(query)}` : forLog(url);
+
+  let res;
+  try {
+    res = await fetch(target, init);
   } catch {
+    if (log) emitLog({ url: logUrl, error: "no reply — relay unreachable or blocked" });
     throw new Error(
       relay
         ? "could not reach the relay — check the URL on the Settings page"
         : "the browser blocked this request; set a relay URL on the Settings page"
     );
+  }
+
+  /* One line per request, emitted here so every path below — a 404, a bad body,
+     a store error, a success — is logged the same way. */
+  if (log) {
+    emitLog({ url: logUrl, status: res.status, ms: Math.round(performance.now() - started) });
   }
 
   /* A static host has no /api, so the built-in relay 404s. Say so once rather
@@ -357,6 +419,81 @@ function parseHistory(json) {
   }));
 
   return { builds, channels, live, newest: builds[0] ?? null, revisions };
+}
+
+/* The full contents of one store submission (a revision), by its id — the
+   developer view behind the Revisions table. Where the revisions list carries
+   only a status and a date, this returns the build the submission shipped and
+   the store listing it set, so a revision can be opened to see what it was, and
+   compared against the one before it. Reads with the same access token the
+   revisions list needs.
+
+   The reply also carries review-only fields — the test-login credentials, the
+   note to the reviewer, a contact email. Those are deliberately not pulled
+   through: this returns the build and the listing, nothing private to review. */
+const SUBMISSION_DOC_ID = "28182136738069293";
+
+export async function submissionDetail(submissionID) {
+  const { token } = loadSettings();
+
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        doc_id: SUBMISSION_DOC_ID,
+        variables: JSON.stringify({ submissionID: String(submissionID) }),
+      })
+  );
+
+  if (json.errors?.length) {
+    const msg = json.errors[0].message ?? "the store refused it";
+    throw new Error(
+      /logged out|unauthorized/i.test(msg)
+        ? `${msg} Viewing a submission needs your own access token, set on the Settings page.`
+        : msg
+    );
+  }
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+  const sub = json.data?.fetch__ApplicationSubmission;
+  if (!sub) throw new Error("no submission in the reply");
+
+  const p = sub.pdp_metadata_with_fallback ?? {};
+  const b = sub.binary_with_fallback ?? sub.binary ?? null;
+  const bool = (v) => (typeof v === "boolean" ? v : null);
+
+  return {
+    id: sub.id ? String(sub.id) : String(submissionID),
+    status: sub.status ? words(sub.status) : null,
+    reviewStatus: sub.review_status ? words(sub.review_status) : null,
+    releaseType: sub.release_type ? words(sub.release_type) : null,
+    releaseStatus: sub.release_status ? words(sub.release_status) : null,
+    publishDate: sub.publish_date ? day(sub.publish_date) : null,
+    autoApproved: bool(sub.was_auto_approved),
+    isInitial: bool(sub.is_initial_release),
+    previousId: sub.previous_revision?.id ? String(sub.previous_revision.id) : null,
+    binary: b
+      ? {
+          id: b.id ? String(b.id) : null,
+          version: b.version ?? null,
+          appMode: b.app_mode ? words(b.app_mode) : null,
+          releaseStatus: b.release_status ? words(b.release_status) : null,
+        }
+      : null,
+    listing: {
+      publisher: p.publisher_name ?? null,
+      website: p.website_url ?? null,
+      category: p.category ? words(p.category) : null,
+      comfort: p.comfort_rating ? words(p.comfort_rating) : null,
+      internet: p.internet_connection ? words(p.internet_connection) : null,
+      playArea: p.play_area ? words(p.play_area) : null,
+      subscription: p.subscription_type ? words(p.subscription_type) : null,
+      earlyAccess: p.early_access_status ? words(p.early_access_status) : null,
+      genres: (p.genres ?? []).filter(Boolean).map(String),
+      languages: (p.supported_in_app_languages ?? []).filter(Boolean).map(String),
+      iarc: p.iarc_cert?.external_id ?? null,
+    },
+  };
 }
 
 export async function fetchHistory(id) {

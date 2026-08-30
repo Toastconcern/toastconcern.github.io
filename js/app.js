@@ -2,6 +2,8 @@ import {
   checkApp,
   lookupApp,
   lookupByPackage,
+  lookupPackages,
+  fetchHistory,
   appDetails,
   storeListing,
   channelObbs,
@@ -22,7 +24,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=106";
+} from "./check.js?v=139";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -173,9 +175,6 @@ const el = {
   hmd: document.getElementById("hmd"),
   sort: document.getElementById("sort"),
   searchGo: document.getElementById("searchGo"),
-  metaQ: document.getElementById("metaQ"),
-  metaSort: document.getElementById("metaSort"),
-  metaChannel: document.getElementById("metaChannel"),
   checkAll: document.getElementById("checkAll"),
   binId: document.getElementById("binId"),
   binGo: document.getElementById("binGo"),
@@ -184,13 +183,13 @@ const el = {
   limitbar: document.querySelector(".limitbar"),
 
   viewApps: document.getElementById("view-apps"),
-  viewMeta: document.getElementById("view-meta"),
   viewOrgs: document.getElementById("view-orgs"),
   viewDefault: document.getElementById("view-default"),
   viewDevices: document.getElementById("view-devices"),
   viewSettings: document.getElementById("view-settings"),
 
   devicesLoad: document.getElementById("devicesLoad"),
+  serialToggle: document.getElementById("serialToggle"),
   devicesQ: document.getElementById("devicesQ"),
   devicesSort: document.getElementById("devicesSort"),
   devicesRows: document.getElementById("devicesRows"),
@@ -207,6 +206,7 @@ const el = {
   orgPlatform: document.getElementById("orgPlatform"),
   orgSort: document.getElementById("orgSort"),
   orgGo: document.getElementById("orgGo"),
+  orgPick: document.getElementById("orgPick"),
   checkOrg: document.getElementById("checkOrg"),
   orgRows: document.getElementById("orgRows"),
   orgSub: document.getElementById("orgSub"),
@@ -221,6 +221,18 @@ const el = {
   defaultRows: document.getElementById("defaultRows"),
   defaultCount: document.getElementById("defaultCount"),
   defaultEmpty: document.getElementById("defaultEmpty"),
+  viewHeadset: document.getElementById("view-adb"),
+  adbUsb: document.getElementById("adbUsb"),
+  adbAddr: document.getElementById("adbAddr"),
+  adbWireless: document.getElementById("adbWireless"),
+  adbDisconnect: document.getElementById("adbDisconnect"),
+  adbState: document.getElementById("adbState"),
+  adbCount: document.getElementById("adbCount"),
+  adbQ: document.getElementById("adbQ"),
+  adbSort: document.getElementById("adbSort"),
+  adbRows: document.getElementById("adbRows"),
+  adbEmpty: document.getElementById("adbEmpty"),
+  adbOut: document.getElementById("adbOut"),
 
   settingsForm: document.getElementById("settingsForm"),
   token: document.getElementById("token"),
@@ -241,18 +253,19 @@ const el = {
   motionSpeed: document.getElementById("motionSpeed"),
   fontSize: document.getElementById("fontSize"),
   store: document.getElementById("store"),
+  log: document.getElementById("log"),
+  logField: document.getElementById("logField"),
+  logBox: document.getElementById("logBox"),
+  logClear: document.getElementById("logClear"),
   cols: document.getElementById("cols"),
   defHmd: document.getElementById("defHmd"),
   defSort: document.getElementById("defSort"),
   defMineSort: document.getElementById("defMineSort"),
   defBuildSort: document.getElementById("defBuildSort"),
+  defTrigger: document.getElementById("defTrigger"),
   useLocal: document.getElementById("useLocal"),
   relayNote: document.getElementById("relayNote"),
 
-  metaRows: document.getElementById("metaRows"),
-  metaSub: document.getElementById("metaSub"),
-  metaEmpty: document.getElementById("metaEmpty"),
-  checkMeta: document.getElementById("checkMeta"),
 
   viewMine: document.getElementById("view-mine"),
   mineRows: document.getElementById("mineRows"),
@@ -286,7 +299,6 @@ const obbChecked = new Set();
 let obbNote = "";
 const open = new Set();
 
-let metaList = [];
 
 /** What the account owns, once it has been asked for. */
 let mineList = [];
@@ -302,6 +314,10 @@ let devicesLoading = false;
 let devicesAsked = false;
 let devicesNote = "";
 
+/* Serials identify a specific headset, so they are masked until asked for. The
+   filter box still searches the real value either way. */
+let showSerials = false;
+
 /* The default-apps list for the headset/trigger last fetched. Ordinary store
    apps, so they render through the same row code as every other tab. Declared
    up here with the devices state for the same reason. */
@@ -309,6 +325,16 @@ let defaultList = [];
 let defaultLoading = false;
 let defaultAsked = false;
 let defaultNote = "";
+
+/* The connected headset, and what it has installed. Declared up here with the
+   rest of the tab state because initHeadset runs during module setup. */
+let adb = null;
+/* What the headset reported, before the store has anything to say about it. The
+   rows are derived from this and the library together, so the list can be
+   fetched before the entitlements arrive and still fill in when they do. */
+let adbInstalled = [];
+let adbApps = [];
+let adbBusy = false;
 
 /* The keys (store id or package name) of everything the account owns, so the
    search and Meta lists can flag a row without walking the whole library each
@@ -337,13 +363,13 @@ initSettings();
 initOrgs();
 initDevices();
 initDefault();
+initHeadset();
 initDirectDownload();
 initColumns();
 /* The headset list has to exist before the defaults can select within it. */
 fillHmdPicker();
 initDefaults();
 initUpdates();
-boot();
 
 /* ---------- new builds ----------
    A page left open on a tab for a week goes on running whatever it loaded that
@@ -697,14 +723,14 @@ function applyView() {
   closeStage({ animate: false });
 
   const hash = location.hash.replace("#", "");
-  const view = ["meta", "mine", "devices", "orgs", "default", "settings"].includes(hash) ? hash : "apps";
+  const view = ["mine", "devices", "orgs", "default", "adb", "settings"].includes(hash) ? hash : "apps";
 
   el.viewApps.hidden = view !== "apps";
-  el.viewMeta.hidden = view !== "meta";
   el.viewMine.hidden = view !== "mine";
   el.viewDevices.hidden = view !== "devices";
   el.viewOrgs.hidden = view !== "orgs";
   el.viewDefault.hidden = view !== "default";
+  el.viewHeadset.hidden = view !== "adb";
   el.viewSettings.hidden = view !== "settings";
 
   /* the limit only governs the apps list, so hide it elsewhere */
@@ -717,7 +743,7 @@ function applyView() {
      would have to be kept on the page to be animated, and it is the arriving
      one the reader is looking for. */
   play(
-    [el.viewApps, el.viewMeta, el.viewMine, el.viewDevices, el.viewOrgs, el.viewDefault, el.viewSettings].find(
+    [el.viewApps, el.viewMine, el.viewDevices, el.viewOrgs, el.viewDefault, el.viewHeadset, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
@@ -751,6 +777,37 @@ function orgVisible() {
   return sorted(list, el.orgSort.value);
 }
 
+async function runOrgApps() {
+  const id = el.orgId.value.trim();
+  if (!/^\d+$/.test(id)) {
+    orgList = [];
+    orgAsked = true;
+    orgNote = "Enter a numeric organization ID.";
+    renderAll();
+    return;
+  }
+  if (orgLoading) return;
+
+  orgAsked = true;
+  orgLoading = true;
+  orgNote = "";
+  el.orgGo.disabled = true;
+  el.orgGo.textContent = "Loading…";
+  renderAll();
+
+  try {
+    orgList = await orgApps(id);
+  } catch (err) {
+    orgList = [];
+    orgNote = err.message || "Could not load the organization's apps.";
+  } finally {
+    orgLoading = false;
+    el.orgGo.disabled = false;
+    el.orgGo.textContent = "List apps";
+    renderAll();
+  }
+}
+
 function initOrgs() {
   el.orgGo.addEventListener("click", runOrgApps);
   el.orgId.addEventListener("keydown", (e) => {
@@ -758,6 +815,15 @@ function initOrgs() {
       e.preventDefault();
       runOrgApps();
     }
+  });
+
+  /* The known-org dropdown fills the box and looks the org up in one choice,
+     then resets so the same one can be picked again. */
+  el.orgPick.addEventListener("change", () => {
+    if (!el.orgPick.value) return;
+    el.orgId.value = el.orgPick.value;
+    el.orgPick.value = "";
+    runOrgApps();
   });
   /* The whole list is fetched once; the platform, the filter box and the sort
      all work on what is already loaded, so they are instant and need no second
@@ -799,6 +865,8 @@ function initDefault() {
     opt.textContent = label;
     el.defaultTrigger.append(opt);
   }
+  /* Starts on whichever trigger Settings names. */
+  el.defaultTrigger.value = loadSettings().defaultTrigger;
 
   el.defaultGo.addEventListener("click", runDefaultApps);
   /* The list is fetched once; the filter box and sort work on what is loaded. */
@@ -832,41 +900,388 @@ async function runDefaultApps() {
   }
 }
 
-async function runOrgApps() {
-  const id = el.orgId.value.trim();
-  if (!/^\d+$/.test(id)) {
-    orgList = [];
-    orgAsked = true;
-    orgNote = "Enter a numeric organization ID.";
-    renderAll();
-    return;
-  }
-  if (orgLoading) return;
+/* ---------- headset (adb) ---------- */
 
-  orgAsked = true;
-  orgLoading = true;
-  orgNote = "";
-  el.orgGo.disabled = true;
-  el.orgGo.textContent = "Loading…";
-  renderAll();
+/* The bridge's address lives in adb.js, which is the only thing that talks to
+   it; this is passed through so the signature keeps reading sensibly. */
+const BRIDGE_URL = null;
+
+function initHeadset() {
+  el.adbUsb.addEventListener("click", () => connectHeadset("usb"));
+  el.adbWireless.addEventListener("click", () => connectHeadset("wireless"));
+  el.adbAddr.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      connectHeadset("wireless");
+    }
+  });
+  el.adbDisconnect.addEventListener("click", disconnectHeadset);
+  el.adbQ.addEventListener("input", renderAll);
+  el.adbSort.addEventListener("change", renderAll);
+  renderHeadset();
+}
+
+function adbSay(text, bad = false) {
+  el.adbState.textContent = text;
+  el.adbState.classList.toggle("bad", bad);
+}
+
+async function connectHeadset(how) {
+  if (adbBusy || adb) return;
+  adbBusy = true;
+  el.adbUsb.disabled = true;
+  el.adbWireless.disabled = true;
+  adbSay(how === "usb" ? "Waiting for a headset to be chosen…" : "Reaching the bridge…");
 
   try {
-    orgList = await orgApps(id);
+    const { connectUsb, connectWireless, deviceInfo } = await import("./adb.js?v=139");
+    const onStage = (text) => adbSay(text);
+    adb = how === "usb"
+      ? await connectUsb({ onStage })
+      : await connectWireless(BRIDGE_URL, el.adbAddr.value, { onStage });
+
+    const info = await deviceInfo(adb);
+    adbSay(
+      `Connected to ${info.model}${info.release ? ` — Android ${info.release}` : ""}.`
+    );
+    el.adbDisconnect.hidden = false;
+    await loadHeadsetApps();
   } catch (err) {
-    orgList = [];
-    orgNote = err.message || "Could not load the organization's apps.";
+    adb = null;
+    /* The picker closing without a choice is not a failure worth shouting
+       about — it is what pressing Cancel does. */
+    const message = /no headset chosen|No device selected/i.test(err.message ?? "")
+      ? "No headset chosen."
+      : err.message || "Could not connect.";
+    adbSay(message, !/No headset chosen/.test(message));
   } finally {
-    orgLoading = false;
-    el.orgGo.disabled = false;
-    el.orgGo.textContent = "List apps";
-    renderAll();
+    adbBusy = false;
+    el.adbUsb.disabled = false;
+    el.adbWireless.disabled = false;
+    renderHeadset();
   }
+}
+
+async function disconnectHeadset() {
+  try {
+    await adb?.close();
+  } catch {}
+  adb = null;
+  adbInstalled = [];
+  adbApps = [];
+  el.adbDisconnect.hidden = true;
+  el.adbOut.replaceChildren();
+  adbSay("Not connected.");
+  renderHeadset();
+}
+
+async function loadHeadsetApps() {
+  if (!adb) return;
+  el.adbCount.textContent = "Asking the headset what it has installed…";
+  try {
+    const { installedApps } = await import("./adb.js?v=139");
+    adbInstalled = await installedApps(adb);
+
+    /* Anything the library does not cover is asked about once, and remembered
+       on the raw entry — so a later pass does not ask again. */
+    const missing = adbInstalled
+      .filter((a) => !ownedByPackage().has(a.packageName) && !a.resolved)
+      .map((a) => a.packageName);
+
+    if (missing.length) {
+      el.adbCount.textContent = `Naming ${missing.length} packages…`;
+      try {
+        const known = await lookupPackages(missing);
+        for (const entry of adbInstalled) {
+          const match = known.get(entry.packageName);
+          if (match) entry.resolved = match;
+        }
+      } catch {
+        /* Without a logged-in token the names do not arrive. Those packages
+           have no store ID either, so they are not listed at all. */
+      }
+    }
+  } catch (err) {
+    adbInstalled = [];
+    adbSay(`Could not list the installed apps: ${err.message}`, true);
+  }
+  resolveHeadsetApps();
+  renderHeadset();
+}
+
+/* The library, keyed by package. Read fresh each time rather than cached: the
+   entitlements often arrive after the headset list, and this is what lets the
+   rows fill in when they do. */
+function ownedByPackage() {
+  return new Map(
+    mineList.filter((a) => a.packageName).map((a) => [a.packageName, a])
+  );
+}
+
+/**
+ * Turn what the headset reported into rows.
+ *
+ * Only apps the store knows are listed. A headset carries plenty that no store
+ * entry exists for — sideloaded builds, system pieces — and there is nothing
+ * this tab can do with one: no build history to offer, nothing to install.
+ */
+function resolveHeadsetApps() {
+  const owned = ownedByPackage();
+
+  adbApps = adbInstalled
+    .map((a) => {
+      const mine = owned.get(a.packageName);
+      const match = a.resolved;
+      const id = mine?.id ?? match?.id ?? null;
+      if (!id) return null;
+
+      return {
+        id,
+        packageName: a.packageName,
+        name: mine?.name || match?.name || a.packageName,
+        platform: mine?.platform ?? match?.platform ?? null,
+        image: mine?.image ?? null,
+        channels: [],
+        /* An entitlement already knows the build the account may install, so
+           the Latest columns are filled before any check runs; a check then
+           replaces it with the live answer. */
+        latest: mine?.latest ?? null,
+        /* In the account's library — what the green edge means everywhere. */
+        inLibrary: Boolean(mine),
+        onHeadset: true,
+        installedVersion: a.version,
+        installedVersionCode: a.versionCode,
+      };
+    })
+    .filter(Boolean);
+}
+
+/* The headset list is not a store listing, so it does not use the store row.
+   What matters here is one comparison — what is on the headset against what the
+   store has — and the columns are only that. Opening a row is the same panel
+   every other tab opens. */
+function adbRow(app) {
+  const key = openKey("adb", app);
+  const latest = results.get(keyOf(app))?.latest ?? app.latest ?? null;
+  const showArt = loadSettings().images;
+
+  const tr = document.createElement("tr");
+  tr.className = "app";
+  tr.dataset.id = keyOf(app);
+  tr.tabIndex = 0;
+  tr.setAttribute("aria-expanded", String(open.has(key)));
+  tr.innerHTML = `
+    <td class="name">${
+      showArt && app.image
+        ? `<img class="art" src="${esc(app.image)}" alt="" loading="lazy">`
+        : ""
+    }${esc(app.name)}</td>
+    <td class="num">${esc(app.installedVersion ?? "—")}</td>
+    <td class="num">${app.installedVersionCode ?? "—"}</td>
+    <td class="num">${esc(latest?.version ?? "—")}</td>
+    <td class="num">${latest?.versionCode ?? "—"}</td>`;
+
+  const toggle = (e) => {
+    open.has(key) ? open.delete(key) : open.add(key);
+    focusId = keyOf(app);
+    focusScope = e.currentTarget.closest("tbody");
+    renderAll();
+  };
+  tr.addEventListener("click", toggle);
+  tr.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggle(e);
+    }
+  });
+  return tr;
+}
+
+/* Behind the store: the headset is on an older build than the latest known. */
+function adbBehind(app) {
+  const latest = results.get(keyOf(app))?.latest ?? app.latest ?? null;
+  return Boolean(
+    app.installedVersionCode &&
+      latest?.versionCode &&
+      app.installedVersionCode < latest.versionCode
+  );
+}
+
+function adbVisible() {
+  const q = el.adbQ.value.trim().toLowerCase();
+  const list = adbApps.filter(
+    (a) =>
+      !q ||
+      a.name.toLowerCase().includes(q) ||
+      a.packageName.toLowerCase().includes(q)
+  );
+
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  switch (el.adbSort.value) {
+    case "za":
+      return [...list].sort((a, b) => -byName(a, b));
+    case "behind":
+      return [...list].sort(
+        (a, b) => Number(adbBehind(b)) - Number(adbBehind(a)) || byName(a, b)
+      );
+    case "installed":
+      return [...list].sort(
+        (a, b) => (b.installedVersionCode ?? 0) - (a.installedVersionCode ?? 0)
+      );
+    default:
+      return [...list].sort(byName);
+  }
+}
+
+function buildAdbRows() {
+  const shown = adbVisible();
+
+  const out = [];
+  for (const app of shown) {
+    out.push(adbRow(app));
+    /* Five columns here, not the store table's eight. */
+    if (open.has(openKey("adb", app))) out.push(detailRow(app, 5));
+  }
+  el.adbRows.replaceChildren(...out);
+
+  el.adbEmpty.hidden = shown.length > 0;
+  el.adbEmpty.textContent = !adb
+    ? "Connect a headset to list what it has installed."
+    : adbApps.length
+      ? "Nothing matches."
+      : adbInstalled.length
+        ? "None of the installed apps are in the store — nothing here to put an older build on."
+        : "Nothing installed that the headset will list.";
+
+  const hidden = adbInstalled.length - adbApps.length;
+  el.adbCount.textContent = adbApps.length
+    ? `${shown.length === adbApps.length ? adbApps.length : `${shown.length} of ${adbApps.length}`} ` +
+      `app${adbApps.length === 1 ? "" : "s"} from the store` +
+      (hidden > 0 ? `, ${hidden} without one hidden` : "") +
+      `. Open one to see every build, and install an older one.`
+    : "";
+}
+
+/* Kept as its own name for the places that mean "the headset list changed". */
+function renderHeadset() {
+  buildAdbRows();
+}
+
+/* Put the build list back where it was. The row is rebuilt from scratch after a
+   refresh, so the element holding the scroll position is a different one by the
+   time this runs — it is found again by the app it belongs to, in the row and
+   in the overlay, whichever is open. */
+function restoreBuildScroll(app, top) {
+  if (!top) return;
+  const row = el.adbRows.querySelector(`tr.app[data-id="${keyOf(app)}"]`);
+  const panels = [row?.nextElementSibling, stageEl()].filter(Boolean);
+  for (const panel of panels) {
+    const scroller = panel.querySelector?.(".versions-out .vscroll");
+    if (scroller) scroller.scrollTop = top;
+  }
+}
+
+/* Put one build on the headset.
+ *
+ * The APK comes from the store through the relay, exactly as the Download
+ * button gets it; adb then installs it. Going backwards needs the uninstall
+ * first — Android will not replace a build with a lower one — and that is
+ * confirmed rather than assumed, because it takes the app's data with it.
+ */
+async function installBuild(app, { installBuild: binaryId, version, code }, button) {
+  if (!adb) {
+    adbSay("Connect a headset first.", true);
+    return;
+  }
+  if (!canDownload()) {
+    adbSay("Downloads need your oc_ac_at account token, set on the Settings page.", true);
+    return;
+  }
+
+  const older =
+    app.installedVersionCode && Number(code) < app.installedVersionCode;
+
+  if (older) {
+    const sure = window.confirm(
+      `Put ${app.name} back to ${version}?\n\n` +
+        `${app.packageName} will be uninstalled first, which deletes its saved ` +
+        `data on the headset. This cannot be undone.`
+    );
+    if (!sure) return;
+  }
+
+  /* Refreshing after the install rebuilds the row, and with it the panel and
+     the whole build table — which would otherwise drop the reader back to the
+     top of a list they had scrolled a long way down. */
+  const scrolledTo =
+    button.closest(".versions-out")?.querySelector(".vscroll")?.scrollTop ?? 0;
+
+  const label = button.textContent;
+  button.disabled = true;
+  const say = (text) => {
+    button.textContent = text;
+    adbSay(`${app.name}: ${text}`);
+  };
+
+  try {
+    say("Downloading…");
+    const res = await fetch(downloadURL(binaryId));
+    if (!res.ok) throw new Error(`the store returned ${res.status}`);
+    const blob = await res.blob();
+
+    const { installApk, uninstall, pushObb } = await import("./adb.js?v=139");
+
+    if (older) {
+      say("Uninstalling…");
+      await uninstall(adb, app.packageName);
+    }
+
+    await installApk(adb, blob, { onProgress: say });
+
+    /* A build with an expansion file is no use without it, and the uninstall
+       above takes the old one with it. The same pairing the build table shows
+       with its OBB link beside the download. */
+    const obb = obbs.get(String(binaryId));
+    if (obb) {
+      say("Downloading the expansion file…");
+      const obbRes = await fetch(downloadURL(obb));
+      if (!obbRes.ok) {
+        throw new Error(
+          `installed, but the expansion file returned ${obbRes.status}`
+        );
+      }
+      await pushObb(adb, app.packageName, code, await obbRes.blob(), {
+        onProgress: say,
+      });
+    }
+
+    adbSay(
+      `${app.name} is now on ${version}${obb ? ", expansion file and all" : ""}.`
+    );
+    await loadHeadsetApps();
+    restoreBuildScroll(app, scrolledTo);
+  } catch (err) {
+    adbSay(`${app.name}: ${err.message}`, true);
+    button.textContent = label;
+    button.disabled = false;
+    syncRelayNote();
+    return;
+  }
+
+  button.textContent = label;
+  button.disabled = false;
+  syncRelayNote();
 }
 
 /* ---------- your devices ---------- */
 
 function initDevices() {
   el.devicesLoad.addEventListener("click", loadDevices);
+  el.serialToggle.addEventListener("click", () => {
+    showSerials = !showSerials;
+    el.serialToggle.textContent = showSerials ? "Hide serials" : "Show serials";
+    renderDevices();
+  });
   el.devicesRows.addEventListener("click", onDevicePTCClick);
   el.devicesQ.addEventListener("input", renderDevices);
   el.devicesSort.addEventListener("change", renderDevices);
@@ -895,6 +1310,13 @@ async function loadDevices() {
   }
 }
 
+/* All but the last character. Enough to see a serial is there and how long it
+   is, without putting the thing itself on screen. */
+function maskSerial(serial) {
+  const s = String(serial ?? "");
+  return s.length > 1 ? "•".repeat(s.length - 1) + s.slice(-1) : s;
+}
+
 function deviceStatus(d) {
   if (!d.wipeStatus || d.wipeStatus === "NONE") return "—";
   if (d.wipeStatus === "PENDING") return "Remote wipe pending";
@@ -917,7 +1339,7 @@ function deviceRowsHtml(list, { testChannel = true } = {}) {
     .map(
       (d) => `<tr>
       <td class="name">${esc(d.model ?? "Unknown device")}</td>
-      <td class="num">${esc(d.serial)}</td>
+      <td class="num">${esc(showSerials ? d.serial : maskSerial(d.serial))}</td>
       <td>${esc(deviceStatus(d))}</td>${
         testChannel
           ? `
@@ -1010,6 +1432,22 @@ function renderDevices() {
 
 /* ---------- settings ---------- */
 
+/* One request, as a line in the log box. Newest at the bottom, capped so a long
+   session cannot grow it without bound, and scrolled to keep the latest in view.
+   The URL arrives with its token already stripped, in check.js. */
+const LOG_MAX = 300;
+function appendLog(d) {
+  const line = document.createElement("div");
+  const bad = Boolean(d.error) || d.status >= 400;
+  line.className = bad ? "logline bad" : "logline";
+  const time = new Date().toLocaleTimeString();
+  const head = d.error ? `✗ ${d.error}` : `${d.status} · ${d.ms}ms`;
+  line.textContent = `${time}  ${head}  ${d.url}`;
+  el.logBox.append(line);
+  while (el.logBox.children.length > LOG_MAX) el.logBox.firstChild.remove();
+  el.logBox.scrollTop = el.logBox.scrollHeight;
+}
+
 function initSettings() {
   const saved = loadSettings();
   /* The built-in token is a default, not something the user typed — leave the
@@ -1091,6 +1529,20 @@ function initSettings() {
     else renderAll();
   });
 
+  /* The request log. The box is only shown while logging is on; it keeps filling
+     in the background either way, since check.js only emits when the setting is
+     on. One listener, attached once. */
+  el.log.checked = saved.log;
+  el.logField.hidden = !saved.log;
+  el.log.addEventListener("change", () => {
+    saveSettings({ log: el.log.checked });
+    el.logField.hidden = !el.log.checked;
+  });
+  el.logClear.addEventListener("click", () => {
+    el.logBox.replaceChildren();
+  });
+  window.addEventListener("metadb:log", (e) => appendLog(e.detail));
+
   el.clearBtn.addEventListener("click", () => {
     clearSettings();
     el.token.value = "";
@@ -1101,6 +1553,9 @@ function initSettings() {
     el.details.checked = false;
     el.devDownloads.checked = false;
     el.autoOwned.checked = false;
+    el.log.checked = false;
+    el.logField.hidden = true;
+    el.logBox.replaceChildren();
     el.store.checked = true;
     for (const box of el.cols.querySelectorAll("input")) box.checked = true;
     applyColumns();
@@ -1129,8 +1584,8 @@ function initSettings() {
     say("Testing…", "");
 
     try {
-      /* Any app with an ID will do; the Meta list is the one always on hand. */
-      const probe = metaList.find((a) => a.id) ?? listing.find((a) => a.id);
+      /* Any app with an ID will do — whatever the search list has on hand. */
+      const probe = listing.find((a) => a.id);
       if (!probe) throw new Error("no app to test with — search for one first");
       const latest = await checkApp(probe);
       syncRelayNote();
@@ -1158,12 +1613,14 @@ function initDefaults() {
     [...el.mineSort.options].map((o) => [o.value, o.textContent])
   );
   fillOptions(el.defBuildSort, BUILD_SORT_LABELS);
+  fillOptions(el.defTrigger, DEFAULT_APP_TRIGGERS);
 
   const pairs = [
     [el.defHmd, "hmd", saved.hmd, el.hmd],
     [el.defSort, "searchSort", saved.searchSort, el.sort],
     [el.defMineSort, "mineSort", saved.mineSort, el.mineSort],
     [el.defBuildSort, "buildSort", saved.buildSort, null],
+    [el.defTrigger, "defaultTrigger", saved.defaultTrigger, el.defaultTrigger],
   ];
 
   for (const [picker, key, value, live] of pairs) {
@@ -1292,16 +1749,6 @@ function fillChannelFilter(select, list) {
 /* ---------- boot ---------- */
 
 async function boot() {
-  /* Meta apps live in their own file; a missing one just empties that screen. */
-  try {
-    const res = await fetch("data/meta-apps.json");
-    if (res.ok) metaList = (await res.json()).apps ?? [];
-  } catch {
-    metaList = [];
-  }
-
-  fillChannelFilter(el.metaChannel, metaList);
-
   el.searchGo.addEventListener("click", runSearch);
   el.q.addEventListener("keydown", (e) => {
     if (e.key === "Enter") runSearch();
@@ -1316,10 +1763,6 @@ async function boot() {
   /* Sorting is local to what is already listed, so it never re-queries. */
   el.sort.addEventListener("change", renderAll);
 
-  el.metaQ.addEventListener("input", renderAll);
-  el.metaSort.addEventListener("change", renderAll);
-  el.metaChannel.addEventListener("change", renderAll);
-
   /* The result count is a preference, so it survives a reload. */
   const savedLimit = loadSettings().limit;
   if (savedLimit && [...el.limit.options].some((o) => o.value === savedLimit)) {
@@ -1333,9 +1776,6 @@ async function boot() {
 
   el.checkAll.addEventListener("click", () =>
     checkList(visible(), el.checkAll, "Check shown")
-  );
-  el.checkMeta.addEventListener("click", () =>
-    checkList(metaApps(), el.checkMeta, "Check shown")
   );
 
   el.mineQ.addEventListener("input", renderAll);
@@ -1404,6 +1844,8 @@ async function loadEntitlements(kind) {
 
   try {
     mineList = await myEntitlements(kind);
+    /* The headset list may already be on screen, named only by package. */
+    if (adbInstalled.length) resolveHeadsetApps();
   } catch (err) {
     mineList = [];
     mineNote = err.message;
@@ -1417,18 +1859,6 @@ async function loadEntitlements(kind) {
   }
 }
 
-/** Apps published by Meta — whatever is in data/meta-apps.json. */
-function metaApps() {
-  const q = el.metaQ.value.trim().toLowerCase();
-  const chan = el.metaChannel.value;
-
-  const list = metaList.filter((a) => {
-    if (chan && !channelNames(a).includes(chan)) return false;
-    return matches(a, q);
-  });
-
-  return sorted(list, el.metaSort.value);
-}
 
 function pageSize() {
   return el.limit.value === "all" ? Infinity : Number(el.limit.value);
@@ -1543,16 +1973,6 @@ function renderAll() {
       : `${list.length} app${list.length === 1 ? "" : "s"}` +
         (listingNote ? ` — ${listingNote}` : "");
 
-  const meta = metaApps();
-  buildRows(el.metaRows, meta, "meta");
-  el.metaEmpty.hidden = meta.length > 0;
-  el.metaEmpty.textContent = metaList.length
-    ? "Nothing matches."
-    : "data/meta-apps.json has no apps in it.";
-  el.metaSub.textContent =
-    meta.length === metaList.length
-      ? `${metaList.length} app${metaList.length === 1 ? "" : "s"} published by Meta.`
-      : `${meta.length} of ${metaList.length} apps published by Meta.`;
 
   const mine = mineApps();
   buildRows(el.mineRows, mine, "mine");
@@ -1604,6 +2024,9 @@ function renderAll() {
       : defaultShown.length === defaultList.length
         ? `${defaultList.length} app${defaultList.length === 1 ? "" : "s"}.`
         : `${defaultShown.length} of ${defaultList.length} apps.`;
+
+  /* Opening a headset row calls this, not renderHeadset, so it redraws here. */
+  buildAdbRows();
 
   if (focusId) {
     (focusScope ?? el.rows).querySelector(`tr.app[data-id="${focusId}"]`)?.focus();
@@ -2009,6 +2432,7 @@ function appPanel(app, { staged = false } = {}) {
     resolveId(app, panel.querySelector(".resolve-out"), e.currentTarget);
   });
 
+
   const infoBtn = panel.querySelector("[data-info]");
   if (infoBtn) {
     const infoOut = panel.querySelector(".info-out");
@@ -2024,22 +2448,38 @@ function appPanel(app, { staged = false } = {}) {
     }
   }
 
+  if (app.onHeadset) {
+    panel.querySelector(".versions-out")?.addEventListener("click", (e) => {
+      const button = e.target.closest("[data-install-build]");
+      if (!button) return;
+      e.stopPropagation();
+      installBuild(app, button.dataset, button);
+    });
+  }
+
   /* Checking an app returns its whole build history, so the list appears on its
      own once a check has run — there is nothing separate to press. */
   if (versionCache.has(app.id)) {
-    drawVersions(panel.querySelector(".versions-out"), versionCache.get(app.id), VERSION_PAGE);
+    drawVersions(
+      panel.querySelector(".versions-out"),
+      versionCache.get(app.id),
+      VERSION_PAGE,
+      undefined,
+      false,
+      app
+    );
   }
 
   return panel;
 }
 
 /** The expanded row under an app: its panel, in a cell wide enough to hold it. */
-function detailRow(app) {
+function detailRow(app, span) {
   const tr = document.createElement("tr");
   tr.className = "detail";
 
   const td = document.createElement("td");
-  td.colSpan = app.owned ? 11 : 8;
+  td.colSpan = span ?? (app.owned ? 11 : 8);
   td.append(appPanel(app));
 
   tr.append(td);
@@ -2283,11 +2723,35 @@ function directDownload() {
  * A build with an expansion file gets a second link: the APK alone will install
  * and then sit there missing its assets, so the pair belongs together.
  */
-function downloadCell(v, offerDev) {
+function downloadCell(v, offerDev, app = null) {
   if (!v.id) return "";
 
   const dev = !v.channels.length;
   if (dev && !offerDev) return "";
+
+  /* On the headset tab the point of a build is to put it there, not to keep a
+     copy — so the same row offers Install. The build already on the headset is
+     named rather than offered again. */
+  if (app?.onHeadset) {
+    if (!canDownload()) {
+      return `<a class="dl dl-off" href="#settings"
+                title="Add your oc_ac_at account token in Settings">Install</a>`;
+    }
+    if (app.installedVersionCode && v.versionCode === app.installedVersionCode) {
+      return `<span class="on-headset" title="This is what the headset is on">On headset</span>`;
+    }
+    const older =
+      app.installedVersionCode && v.versionCode < app.installedVersionCode;
+    return `<button type="button" class="dl${dev ? " dl-dev" : ""}"
+              data-install-build="${esc(v.id)}"
+              data-version="${esc(v.version)}"
+              data-code="${v.versionCode ?? ""}"
+              title="${esc(
+                older
+                  ? `Go back to ${v.version} — uninstalls first, losing this app's data`
+                  : `Install ${v.version}`
+              )}">Install</button>`;
+  }
 
   if (!canDownload()) {
     return `<a class="dl dl-off" href="#settings"
@@ -2318,7 +2782,8 @@ function drawVersions(
   list,
   limit,
   mode = loadSettings().buildSort,
-  keepScroll = false
+  keepScroll = false,
+  app = null
 ) {
   if (!list.length) {
     out.innerHTML = `<p>No builds returned.</p>`;
@@ -2358,12 +2823,19 @@ function drawVersions(
         <tbody>
           ${page
             .map(
-              (v) => `<tr${v.channels.length ? ' class="on-channel"' : ""}>
+              (v) => `<tr class="${[
+                v.channels.length ? "on-channel" : "",
+                app?.onHeadset && v.versionCode === app.installedVersionCode
+                  ? "installed"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}">
                 <td>${esc(v.version)}</td>
                 <td class="bid">${buildId(v)}</td>
                 <td>${v.releasedAt ?? "—"}</td>
                 <td>${v.channels.length ? esc(v.channels.join(", ")) : "—"}</td>
-                <td>${downloadCell(v, offerDev)}</td>
+                <td>${downloadCell(v, offerDev, app)}</td>
               </tr>`
             )
             .join("")}
@@ -2384,14 +2856,14 @@ function drawVersions(
 
   out.querySelector(".more-versions")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    drawVersions(out, list, limit + VERSION_PAGE, mode, true);
+    drawVersions(out, list, limit + VERSION_PAGE, mode, true, app);
   });
 
   out.querySelector(".build-sort")?.addEventListener("change", (e) => {
     e.stopPropagation();
     /* Reordering starts the list again rather than keeping a page count that
        was counted against a different order, so the top is where to be. */
-    drawVersions(out, list, VERSION_PAGE, e.target.value, false);
+    drawVersions(out, list, VERSION_PAGE, e.target.value, false, app);
   });
 }
 
@@ -2463,19 +2935,23 @@ function refreshRow(app) {
        main list, its row read as owned rather than as part of the library. */
     const tbody = tr.closest("tbody");
     const scope =
-      tbody === el.metaRows
-        ? "meta"
+      tbody === el.adbRows
+        ? "adb"
         : tbody === el.mineRows
           ? "mine"
           : tbody === el.orgRows
             ? "orgs"
             : tbody === el.defaultRows
               ? "default"
-              : "main";
+              : tbody === el.adbRows
+                ? "adb"
+                : "main";
     const next = tr.nextElementSibling;
 
-    tr.replaceWith(appRow(app, scope));
-    if (next?.classList.contains("detail")) next.replaceWith(detailRow(app));
+    tr.replaceWith(scope === "adb" ? adbRow(app) : appRow(app, scope));
+    if (next?.classList.contains("detail")) {
+      next.replaceWith(detailRow(app, scope === "adb" ? 5 : undefined));
+    }
   }
 
   /* The overlay holds its own copy of the same panel, so it needs the news. */
@@ -2600,7 +3076,6 @@ async function checkList(list, button, label) {
   if (!list.length) return;
 
   el.checkAll.disabled = true;
-  el.checkMeta.disabled = true;
   el.checkOrg.disabled = true;
 
   /* Mark the ones with no store ID up front rather than counting them. */
@@ -2635,7 +3110,6 @@ async function checkList(list, button, label) {
 
   button.textContent = label;
   el.checkAll.disabled = false;
-  el.checkMeta.disabled = false;
   el.checkOrg.disabled = false;
 }
 
@@ -2644,3 +3118,10 @@ async function checkList(list, button, label) {
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 }
+
+/* Last of all, once every const above exists. boot() reaches `visible`,
+   `LIBRARIES` and other declarations further down this file, so calling it up
+   with the other init functions is a temporal-dead-zone error — it only ever
+   worked because its first statement used to be an await, which let the rest of
+   the module finish evaluating first. */
+boot();

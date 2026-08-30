@@ -631,6 +631,37 @@ tr.detail > td {
 .panel p.ok { color: var(--green); }
 .claim-out:empty { display: none; }
 
+/* The developer request log: a fixed-height scrollable box of monospace lines,
+   readable on a phone without any developer tools. Bad lines (a store error or a
+   network failure) are tinted; the rest sit in the muted body colour. */
+.logbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .35rem;
+}
+.logbox {
+  font-family: var(--mono);
+  font-size: .75rem;
+  line-height: 1.5;
+  color: var(--muted);
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: .5rem .6rem;
+  max-height: 16rem;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+.logbox:empty::before {
+  content: "No requests yet.";
+  color: var(--muted);
+  opacity: .7;
+}
+.logline { white-space: pre; }
+.logline.bad { color: var(--red); }
+
 
 /* Channels and Build history head whole sections, so they sit a step above the
    group titles inside them — same uppercase treatment, a size larger. */
@@ -711,8 +742,16 @@ tr.detail > td {
   gap: .25rem 2.5rem;
   align-items: flex-start;
 }
-.chan-rev .chans-col { flex: 1 1 16rem; min-width: 0; }
-.chan-rev .revisions { flex: 1 1 20rem; min-width: 0; }
+.chan-rev .chans-col { flex: 1 1 14rem; min-width: 0; }
+/* Revisions carries eight columns to the channels table's four, so it takes the
+   larger share of the row wherever both still fit. */
+.chan-rev .revisions { flex: 2 1 34rem; min-width: 0; }
+
+/* Every cell here is a single value: a wrapped "Scheduled" reads as two words
+   and a wrapped date as two dates, so they stay on one line and the box scrolls
+   sideways instead — which is what .vscroll is already for. */
+.revisions .vtable th,
+.revisions .vtable td { white-space: nowrap; }
 
 /* binary manifest */
 
@@ -799,6 +838,12 @@ tr.detail > td {
 }
 
 /* builds that actually shipped on a channel */
+/* The build the headset is actually on, in its build history — the same green
+   the lists use for something the account owns, at the smaller scale these
+   nested tables work at. */
+.vtable tr.installed td { background: color-mix(in srgb, var(--green) 9%, transparent); }
+.vtable tr.installed td:first-child { box-shadow: inset 3px 0 0 var(--green); }
+
 .vtable tr.on-channel td { color: var(--text); font-weight: 500; }
 .vtable tr:not(.on-channel) td { color: var(--muted); }
 
@@ -825,6 +870,39 @@ tr.detail > td {
   white-space: nowrap;
 }
 .dl:hover { background: var(--blue-hi); border-color: var(--blue-hi); }
+
+/* Install is a <button>, Download is an <a>, and the base button rules reach
+   only the first: `min-height: 38px` makes it taller than every other cell, and
+   `button:hover:not(:disabled)` outranks `.dl:hover` on specificity, so it went
+   grey where the link goes blue. Said again here, with the weight to win. */
+button.dl { min-height: 0; padding: .35rem .9rem; line-height: 1.4; }
+button.dl:hover:not(:disabled) {
+  background: var(--blue-hi);
+  border-color: var(--blue-hi);
+}
+button.dl.dl-dev:hover:not(:disabled) {
+  background: var(--warn-hi);
+  border-color: var(--warn-hi);
+}
+/* Mid-install it keeps its colour and dims, rather than turning into the grey
+   disabled button and jumping out of the row. */
+button.dl:disabled { color: #fff; opacity: .55; }
+
+/* The build the headset is already on. Same box as the Install button beside
+   it — same size, same 3px corners as everything else here — but muted and
+   unfilled, so it lines up in the column without looking pressable. */
+.on-headset {
+  display: inline-block;
+  font-size: .8125rem;
+  line-height: 1.4;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: .35rem .9rem;
+  white-space: nowrap;
+}
+
+
 
 /* The expansion file sits in front of its APK, quieter than the button it
    belongs to — it is the other half of a download, not another one. */
@@ -884,7 +962,13 @@ tr.detail > td {
 
 /* The search and filter boxes take whatever the pickers and buttons beside
    them leave, on every list. */
-#q, #metaQ, #mineQ, #orgId, #orgQ { flex: 1 1 14rem; }
+#q, #mineQ, #orgId, #orgQ, #devicesQ, #defaultQ, #adbQ { flex: 1 1 14rem; }
+
+/* The Default apps row also carries two pickers, two buttons and a sort, which
+   together with a 14rem filter is wider than the column — the row wrapped and
+   put Check shown on a line of its own. It starts narrower and still grows into
+   whatever is left. */
+#defaultQ { flex-basis: 8rem; }
 
 /* Organizations never show a price — the org list has none — so the shared row
    renderer's price cell is dropped for that view only. */
@@ -941,7 +1025,16 @@ tr.detail > td {
 /* Two switches per headset, sized like the build table's download button so
    the tables read as one family. Neutral rather than blue: blue is a download
    here, and these are neither. */
-.ptc-cell { white-space: nowrap; }
+/* These tables are table-layout: fixed, so content does not size a column —
+   every width has to be stated or the column gets whatever is left, which is
+   how the PTC column ended up collapsed with its buttons hanging past the right
+   edge and no rule under its heading. Device is left unset and takes the slack;
+   the three after it are each given the room they actually need. */
+#view-devices th:nth-child(n + 2),
+#view-devices td:nth-child(n + 2) { white-space: nowrap; }
+#view-devices th:nth-child(2) { width: 14rem; }
+#view-devices th:nth-child(3) { width: 13rem; }
+.c-ptc { width: 11rem; }
 .ptc-btn {
   font-size: .8125rem;
   padding: .35rem .9rem;
@@ -951,7 +1044,6 @@ tr.detail > td {
 
 .lookup__out:empty,
 .resolve-out:empty { display: none; }
-
 .lookup__out,
 .resolve-out { font-size: .875rem; }
 

@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=106">
+<link rel="stylesheet" href="css/style.css?v=139">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -50,11 +50,11 @@
     <h1>MetaDB</h1>
     <nav class="nav">
       <a href="#apps" data-view="apps">Apps and games</a>
-      <a href="#meta" data-view="meta">Meta apps</a>
-      <a href="#mine" data-view="mine">Your entitlements</a>
-      <a href="#devices" data-view="devices">Your Devices</a>
+      <a href="#mine" data-view="mine">Entitlements</a>
+      <a href="#devices" data-view="devices">Headsets</a>
       <a href="#orgs" data-view="orgs">Organizations</a>
       <a href="#default" data-view="default">Default apps</a>
+      <a href="#adb" data-view="adb">ADB</a>
       <a href="#settings" data-view="settings">Settings</a>
     </nav>
     <select id="theme" aria-label="Theme"></select>
@@ -122,52 +122,11 @@
 
   </section>
 
-  <!-- ---------- meta apps ---------- -->
-
-  <section id="view-meta" hidden>
-
-    <h2>Meta apps</h2>
-    <p class="sub" id="metaSub">Apps published by Meta.</p>
-
-    <div class="controls">
-      <input id="metaQ" type="search" placeholder="Filter this list by name, package or app ID" aria-label="Filter Meta apps" autocomplete="off" spellcheck="false">
-      <select id="metaChannel" aria-label="Filter by channel">
-        <option value="">All channels</option>
-      </select>
-      <select id="metaSort" aria-label="Sort by">
-        <option value="az">Name A–Z</option>
-        <option value="za">Name Z–A</option>
-        <option value="newest">Newest build</option>
-        <option value="oldest">Oldest build</option>
-      </select>
-      <button id="checkMeta" type="button">Check shown</button>
-    </div>
-
-    <table>
-      <thead>
-                <tr>
-          <th scope="col">App</th>
-          <th scope="col" class="c-dev">Device</th>
-          <th scope="col" class="c-chan">Channel</th>
-          <th scope="col" class="c-price">Price</th>
-          <th scope="col" class="c-ver">Version</th>
-          <th scope="col" class="c-build">Build</th>
-          <th scope="col" class="c-date">Date</th>
-          <th scope="col" class="c-devb">Dev build</th>
-        </tr>
-      </thead>
-      <tbody id="metaRows"></tbody>
-    </table>
-
-    <p id="metaEmpty" class="empty" hidden>data/meta-apps.json has no apps in it.</p>
-
-  </section>
-
   <!-- ---------- your entitlements ---------- -->
 
   <section id="view-mine" hidden>
 
-    <h2>Your entitlements</h2>
+    <h2>Entitlements</h2>
     <p class="sub" id="mineSub">Apps and games this account owns.</p>
 
     <div class="controls">
@@ -215,7 +174,7 @@
 
   <section id="view-devices" hidden>
 
-    <h2>Your Devices</h2>
+    <h2>Headsets</h2>
     <p class="sub" id="devicesSub">Headsets registered to this account. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
@@ -225,6 +184,7 @@
         <option value="modelZa">Device type Z–A</option>
       </select>
       <button id="devicesLoad" type="button">Get devices</button>
+      <button id="serialToggle" type="button">Show serials</button>
     </div>
 
     <p class="count" id="devicesCount"></p>
@@ -235,7 +195,7 @@
           <th scope="col">Device</th>
           <th scope="col">Serial</th>
           <th scope="col">Status</th>
-          <th scope="col">Test channel</th>
+          <th scope="col" class="c-ptc">PTC</th>
         </tr>
       </thead>
       <tbody id="devicesRows"></tbody>
@@ -271,6 +231,17 @@
 
     <div class="controls">
       <input id="orgId" type="search" placeholder="Organization ID (numbers only)" aria-label="Organization ID" autocomplete="off" spellcheck="false">
+      <select id="orgPick" aria-label="Known organizations">
+        <option value="">Known orgs</option>
+        <option value="1011039328937179">1011039328937179</option>
+        <option value="775786805876174">775786805876174</option>
+        <option value="272488351010326">272488351010326</option>
+        <option value="740331470365933">740331470365933</option>
+        <option value="296533151482039">296533151482039</option>
+        <option value="948450666262957">948450666262957</option>
+        <option value="418995286230469">418995286230469</option>
+        <option value="221514644894706">221514644894706</option>
+      </select>
       <button id="orgGo" type="button">List apps</button>
       <button id="checkOrg" type="button">Check shown</button>
     </div>
@@ -325,7 +296,6 @@
       <select id="defaultHmd" aria-label="Headset"></select>
       <select id="defaultTrigger" aria-label="Install trigger"></select>
       <button id="defaultGo" type="button">Get default apps</button>
-      <button id="checkDefault" type="button">Check shown</button>
       <input id="defaultQ" type="search" placeholder="Filter these apps by name or app ID" aria-label="Filter default apps" autocomplete="off" spellcheck="false">
       <select id="defaultSort" aria-label="Sort by">
         <option value="az">Name A–Z</option>
@@ -333,6 +303,7 @@
         <option value="deviceAz">Device A–Z</option>
         <option value="deviceZa">Device Z–A</option>
       </select>
+      <button id="checkDefault" type="button">Check shown</button>
     </div>
 
     <p class="count" id="defaultCount"></p>
@@ -354,6 +325,53 @@
     </table>
 
     <p id="defaultEmpty" class="empty" hidden></p>
+
+  </section>
+
+  <!-- ---------- headset (adb) ---------- -->
+
+  <section id="view-adb" hidden>
+
+    <h2>ADB</h2>
+    <p class="sub">Put an app already on your headset back onto an older build. This drives the <code>adb</code> already on your machine, through <code>node tools/adb-bridge.mjs</code> — so the headset trusts it already and there is no second debugging prompt. Plug in over USB and press Find headsets, or give an address to reach one over the network.</p>
+
+    <div class="controls">
+      <button id="adbUsb" type="button">Find headsets</button>
+      <input id="adbAddr" type="search" placeholder="Headset address for wireless, e.g. 192.168.1.42" aria-label="Headset address" autocomplete="off" spellcheck="false">
+      <button id="adbWireless" type="button">Connect wirelessly</button>
+      <button id="adbDisconnect" type="button" hidden>Disconnect</button>
+    </div>
+
+    <div class="controls">
+      <input id="adbQ" type="search" placeholder="Filter these apps by name or package" aria-label="Filter installed apps" autocomplete="off" spellcheck="false">
+      <select id="adbSort" aria-label="Sort by">
+        <option value="az">Name A–Z</option>
+        <option value="za">Name Z–A</option>
+        <option value="behind">Out of date first</option>
+        <option value="installed">Installed build, newest</option>
+      </select>
+    </div>
+
+    <p class="hint" id="adbState" role="status">Not connected.</p>
+
+    <p class="count" id="adbCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">App</th>
+          <th scope="col">Installed</th>
+          <th scope="col">Build</th>
+          <th scope="col">Latest</th>
+          <th scope="col">Build</th>
+        </tr>
+      </thead>
+      <tbody id="adbRows"></tbody>
+    </table>
+
+    <p id="adbEmpty" class="empty" hidden></p>
+
+    <div id="adbOut"></div>
 
   </section>
 
@@ -416,6 +434,7 @@
           <label>Search order <select id="defSort"></select></label>
           <label>Entitlements order <select id="defMineSort"></select></label>
           <label>Build history order <select id="defBuildSort"></select></label>
+          <label>Default apps trigger <select id="defTrigger"></select></label>
         </div>
         <details class="hint">
           <summary>What this does</summary>
@@ -568,7 +587,7 @@
           <summary>What this does</summary>
           <p>
             Fetches your Quest library as soon as the page opens — the same list
-            the <strong>Your entitlements</strong> tab shows — so search results
+            the <strong>Entitlements</strong> tab shows — so search results
             and the Meta apps list can flag anything already on your account with
             a green tint down the left edge. Off by default, since it spends a
             request on load and needs your own access token to return anything.
@@ -600,6 +619,33 @@
             </select>
           </label>
         </div>
+      </div>
+
+      <h3 class="form__group">Developer</h3>
+
+      <div class="field field--toggle">
+        <label class="check">
+          <input id="log" type="checkbox">
+          Log requests
+        </label>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Off by default. With it on, every store request shows up in the box
+            below — no developer tools needed, so it works on a phone too. Each
+            line is the status and time that came back and the endpoint it went to.
+            The access token is stripped from the logged URL, the same way the
+            relay keeps it out of its own output, since it signs in as you.
+          </p>
+        </details>
+      </div>
+
+      <div class="field" id="logField" hidden>
+        <div class="logbar">
+          <span class="field__label">Request log</span>
+          <button type="button" id="logClear" class="linkbtn">Clear</button>
+        </div>
+        <div id="logBox" class="logbox" role="log" aria-live="polite" tabindex="0"></div>
       </div>
 
       <h3 class="form__group">The relay</h3>
@@ -654,6 +700,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=106"></script>
+<script type="module" src="js/app.js?v=139"></script>
 </body>
 </html>
