@@ -24,7 +24,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=141";
+} from "./check.js?v=147";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -227,6 +227,7 @@ const el = {
   adbPairAddr: document.getElementById("adbPairAddr"),
   adbPairCode: document.getElementById("adbPairCode"),
   adbPair: document.getElementById("adbPair"),
+  adbTcpip: document.getElementById("adbTcpip"),
   adbWireless: document.getElementById("adbWireless"),
   adbDisconnect: document.getElementById("adbDisconnect"),
   adbState: document.getElementById("adbState"),
@@ -920,6 +921,7 @@ function initHeadset() {
   });
   el.adbDisconnect.addEventListener("click", disconnectHeadset);
   el.adbPair.addEventListener("click", pairHeadset);
+  el.adbTcpip.addEventListener("click", switchHeadsetToWireless);
   el.adbPairCode.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -936,6 +938,53 @@ function adbSay(text, bad = false) {
   el.adbState.classList.toggle("bad", bad);
 }
 
+/* Switch the cabled headset to network mode and prefill where to reach it. The
+   headset has to be connected over the cable first — this is a command sent to
+   it, not a way of finding one. */
+async function switchHeadsetToWireless() {
+  if (!adb) {
+    adbSay("Plug the headset in and press Find headsets first.", true);
+    return;
+  }
+  el.adbTcpip.disabled = true;
+  adbSay("Switching the headset to wireless…");
+
+  try {
+    const { switchToWireless, connectWireless, deviceInfo } = await import(
+      "./adb.js?v=147"
+    );
+    const address = await switchToWireless(adb);
+
+    if (!address) {
+      adbSay(
+        "Switched to wireless, but its address could not be read — find it " +
+          "under Settings → Wi-Fi on the headset, then use Connect wirelessly."
+      );
+      el.adbTcpip.disabled = false;
+      return;
+    }
+
+    el.adbAddr.value = address;
+
+    /* Take the wireless connection now, while the cable is still in. The
+       session was pointing at the USB serial, and that serial stops existing
+       the moment the cable comes out — carrying on with it is what produced
+       "device not found" on everything afterwards. */
+    adbSay(`Connecting to ${address}…`);
+    adb = await connectWireless(null, address);
+    const info = await deviceInfo(adb);
+    adbSay(
+      `Connected to ${info.model} over wireless at ${address}. ` +
+        `You can unplug the cable now.`
+    );
+    await loadHeadsetApps();
+  } catch (err) {
+    adbSay(err.message || "Could not switch to wireless.", true);
+  }
+
+  el.adbTcpip.disabled = false;
+}
+
 /* Pairing is not connecting: it leaves a key behind and nothing else. The
    connect step still has to happen, on the other port the headset shows. */
 async function pairHeadset() {
@@ -944,7 +993,7 @@ async function pairHeadset() {
   el.adbPair.disabled = true;
 
   try {
-    const { pairDevice } = await import("./adb.js?v=141");
+    const { pairDevice } = await import("./adb.js?v=147");
     const message = await pairDevice(
       el.adbPairAddr.value,
       el.adbPairCode.value,
@@ -971,7 +1020,7 @@ async function connectHeadset(how) {
   adbSay(how === "usb" ? "Waiting for a headset to be chosen…" : "Reaching the bridge…");
 
   try {
-    const { connectUsb, connectWireless, deviceInfo } = await import("./adb.js?v=141");
+    const { connectUsb, connectWireless, deviceInfo } = await import("./adb.js?v=147");
     const onStage = (text) => adbSay(text);
     adb = how === "usb"
       ? await connectUsb({ onStage })
@@ -1016,7 +1065,7 @@ async function loadHeadsetApps() {
   if (!adb) return;
   el.adbCount.textContent = "Asking the headset what it has installed…";
   try {
-    const { installedApps } = await import("./adb.js?v=141");
+    const { installedApps } = await import("./adb.js?v=147");
     adbInstalled = await installedApps(adb);
 
     /* Anything the library does not cover is asked about once, and remembered
@@ -1266,7 +1315,7 @@ async function installBuild(app, { installBuild: binaryId, version, code }, butt
     if (!res.ok) throw new Error(`the store returned ${res.status}`);
     const blob = await res.blob();
 
-    const { installApk, uninstall, pushObb } = await import("./adb.js?v=141");
+    const { installApk, uninstall, pushObb } = await import("./adb.js?v=147");
 
     if (older) {
       say("Uninstalling…");

@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=141">
+<link rel="stylesheet" href="css/style.css?v=147">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -333,10 +333,11 @@
   <section id="view-adb" hidden>
 
     <h2>ADB</h2>
-    <p class="sub">Put an app already on your headset back onto an older build. This drives the <code>adb</code> already on your machine, through <code>node tools/adb-bridge.mjs</code> — so the headset trusts it already and there is no second debugging prompt. Plug in over USB and press Find headsets, or give an address to reach one over the network.</p>
+    <p class="sub">Put an app already on your headset back onto an older build. This drives the <code>adb</code> already on your machine, through <code>node tools/adb-bridge.mjs</code> — so the headset trusts it already and there is no second debugging prompt. Plug in over USB and press Connect, or give an address to reach one over the network.</p>
 
     <div class="controls">
-      <button id="adbUsb" type="button">Find headsets</button>
+      <button id="adbUsb" type="button">Connect</button>
+      <button id="adbTcpip" type="button">Switch to wireless</button>
       <button id="adbDisconnect" type="button" hidden>Disconnect</button>
     </div>
 
@@ -395,12 +396,10 @@
 
       <p>
         The connect port changes when wireless debugging is turned off and on
-        again, but the pairing holds. If your headset has no Wireless debugging
-        screen, the older way still works: plug in over USB, press
-        <strong>Find headsets</strong>, run <code>adb tcpip 5555</code>, then
-        connect to the headset's plain Wi-Fi address above.
+        again, but the pairing holds.
       </p>
-    </details>
+
+</details>
 
     <div class="controls">
       <input id="adbQ" type="search" placeholder="Filter these apps by name or package" aria-label="Filter installed apps" autocomplete="off" spellcheck="false">
@@ -430,6 +429,8 @@
     </table>
 
     <p id="adbEmpty" class="empty" hidden></p>
+
+
 
     <div id="adbOut"></div>
 
@@ -760,6 +761,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=141"></script>
+<script type="module" src="js/app.js?v=147"></script>
 </body>
 </html>

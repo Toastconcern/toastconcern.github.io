@@ -1172,6 +1172,7 @@ details.hint > summary:hover { color: var(--text); }
 .adb-wireless li { margin-bottom: .4rem; line-height: 1.6; }
 .adb-wireless .controls { margin: .75rem 0; }
 .adb-wireless #adbAddr { flex: 0 1 16rem; }
+
 details.hint > p {
   margin: .5rem 0 0;
   font-size: .8125rem;
