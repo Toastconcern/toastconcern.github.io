@@ -15,6 +15,9 @@ import {
   setDevicePTC,
   downloadURL,
   canDownload,
+  riftMetadata,
+  riftManifestBytes,
+  riftSegmentBytes,
   searchStore,
   defaultApps,
   DEFAULT_APP_TRIGGERS,
@@ -24,7 +27,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=147";
+} from "./check.js?v=149";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -951,7 +954,7 @@ async function switchHeadsetToWireless() {
 
   try {
     const { switchToWireless, connectWireless, deviceInfo } = await import(
-      "./adb.js?v=147"
+      "./adb.js?v=149"
     );
     const address = await switchToWireless(adb);
 
@@ -993,7 +996,7 @@ async function pairHeadset() {
   el.adbPair.disabled = true;
 
   try {
-    const { pairDevice } = await import("./adb.js?v=147");
+    const { pairDevice } = await import("./adb.js?v=149");
     const message = await pairDevice(
       el.adbPairAddr.value,
       el.adbPairCode.value,
@@ -1020,7 +1023,7 @@ async function connectHeadset(how) {
   adbSay(how === "usb" ? "Waiting for a headset to be chosen…" : "Reaching the bridge…");
 
   try {
-    const { connectUsb, connectWireless, deviceInfo } = await import("./adb.js?v=147");
+    const { connectUsb, connectWireless, deviceInfo } = await import("./adb.js?v=149");
     const onStage = (text) => adbSay(text);
     adb = how === "usb"
       ? await connectUsb({ onStage })
@@ -1065,7 +1068,7 @@ async function loadHeadsetApps() {
   if (!adb) return;
   el.adbCount.textContent = "Asking the headset what it has installed…";
   try {
-    const { installedApps } = await import("./adb.js?v=147");
+    const { installedApps } = await import("./adb.js?v=149");
     adbInstalled = await installedApps(adb);
 
     /* Anything the library does not cover is asked about once, and remembered
@@ -1315,7 +1318,7 @@ async function installBuild(app, { installBuild: binaryId, version, code }, butt
     if (!res.ok) throw new Error(`the store returned ${res.status}`);
     const blob = await res.blob();
 
-    const { installApk, uninstall, pushObb } = await import("./adb.js?v=147");
+    const { installApk, uninstall, pushObb } = await import("./adb.js?v=149");
 
     if (older) {
       say("Uninstalling…");
@@ -1420,11 +1423,47 @@ function sortDevices(list, mode) {
    altogether rather than showing a control that cannot work — which is why
    this drops the whole cell, not just the buttons inside it. The shared table
    is three columns wide as a result, and its header matches. */
+/* A headset's picture, matched from its device type first — the codename is
+   stable where the display name is not — and its model name as a fallback. The
+   Xbox edition of the 3S shares the 3S codename, so that one is split out by
+   name. Anything unrecognised (a Go, a new headset) simply shows no picture. */
+const DEVICE_IMAGES = {
+  OCULUS_MONTEREY: "img/Quest1.png",
+  OCULUS_HOLLYWOOD: "img/Quest2.png",
+  OCULUS_SEACLIFF: "img/QuestPro.png",
+  OCULUS_EUREKA: "img/Quest3.webp",
+  OCULUS_PANTHER: "img/Quest3S.png",
+};
+function deviceImage(d) {
+  const type = (d.deviceType ?? "").toUpperCase();
+  const model = (d.model ?? "").toLowerCase();
+  const xbox = /xbox/.test(model);
+
+  if (DEVICE_IMAGES[type]) {
+    return type === "OCULUS_PANTHER" && xbox ? "img/Quest3SXbox.png" : DEVICE_IMAGES[type];
+  }
+  /* No codename match — read it off the model name. 3S before 3, so "3s" does
+     not get caught by the "3" test. */
+  if (xbox) return "img/Quest3SXbox.png";
+  if (/quest\s*3s/.test(model)) return "img/Quest3S.png";
+  if (/quest\s*3/.test(model)) return "img/Quest3.webp";
+  if (/quest\s*pro/.test(model)) return "img/QuestPro.png";
+  if (/quest\s*2/.test(model)) return "img/Quest2.png";
+  /* Only the bare "Quest" is the original — a Go or a future headset that fell
+     through every check above gets no picture rather than the wrong one. */
+  if (/^(meta |oculus )?quest$/.test(model.trim())) return "img/Quest1.png";
+  return null;
+}
+
 function deviceRowsHtml(list, { testChannel = true } = {}) {
   return list
     .map(
       (d) => `<tr>
-      <td class="name">${esc(d.model ?? "Unknown device")}</td>
+      <td class="name">${
+        deviceImage(d)
+          ? `<img class="art" src="${esc(deviceImage(d))}" alt="" loading="lazy">`
+          : ""
+      }${esc(d.model ?? "Unknown device")}</td>
       <td class="num">${esc(showSerials ? d.serial : maskSerial(d.serial))}</td>
       <td>${esc(deviceStatus(d))}</td>${
         testChannel
@@ -2543,6 +2582,17 @@ function appPanel(app, { staged = false } = {}) {
     });
   }
 
+  /* Rift builds carry their download in JS rather than a plain link, so the
+     store panels need a handler too — Quest APKs stay ordinary anchors. */
+  if (isRift(app)) {
+    panel.querySelector(".versions-out")?.addEventListener("click", (e) => {
+      const button = e.target.closest("[data-rift-build]");
+      if (!button) return;
+      e.stopPropagation();
+      downloadRiftBuild(app, button.dataset, button);
+    });
+  }
+
   /* Checking an app returns its whole build history, so the list appears on its
      own once a check has run — there is nothing separate to press. */
   if (versionCache.has(app.id)) {
@@ -2809,6 +2859,148 @@ function directDownload() {
  * A build with an expansion file gets a second link: the APK alone will install
  * and then sit there missing its assets, so the pair belongs together.
  */
+/** A Rift (PC) app, whose builds come down as segments rather than one file. */
+function isRift(app) {
+  return app?.platform === "PC" || app?.platform === "RIFT";
+}
+
+/* fflate is vendored so the site stays self-contained; loaded on first use so
+   a page that never touches a Rift download never pays for it. */
+let _fflate;
+async function loadFflate() {
+  if (!_fflate) _fflate = await import("./vendor/fflate.module.js?v=149");
+  return _fflate;
+}
+
+/**
+ * Download a Rift build and hand it back as a .zip.
+ *
+ * The store gives a manifest and a segment base; the build is a tree of files,
+ * each cut into fixed-size, content-addressed, zlib-compressed segments. This
+ * fetches the manifest, then every file's segments in order, inflates them,
+ * stitches each file whole and streams it into a zip. The whole archive is held
+ * in memory before the browser saves it, so a very large build (tens of GB) can
+ * outrun a tab — that is the trade for a single .zip and no folder picker.
+ *
+ * The button is the status line: it names each phase and re-enables when done,
+ * per the build-row button convention. Errors land in its title.
+ */
+async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) {
+  if (!canDownload()) {
+    location.hash = "#settings";
+    return;
+  }
+
+  const label = button.textContent;
+  button.disabled = true;
+  const say = (t) => {
+    button.textContent = t;
+    button.title = `${app.name}: ${t}`;
+  };
+
+  try {
+    say("Finding build…");
+    const { manifestUri, segmentsBaseUri, platform } = await riftMetadata(binaryId);
+    if (platform === "ANDROID") {
+      throw new Error("this is a Quest build, not a Rift one");
+    }
+    if (!manifestUri || !segmentsBaseUri) {
+      throw new Error("no PC manifest for this build");
+    }
+
+    const f = await loadFflate();
+
+    say("Fetching manifest…");
+    const manifestZip = await riftManifestBytes(manifestUri);
+    let manifestText;
+    try {
+      const entries = f.unzipSync(manifestZip, {
+        filter: (e) => e.name === "manifest.json" || e.name.endsWith("/manifest.json"),
+      });
+      const key = Object.keys(entries)[0];
+      if (!key) throw new Error("no manifest.json in the archive");
+      manifestText = new TextDecoder().decode(entries[key]);
+    } catch {
+      /* Fallbacks in case the manifest is not a zip on some builds. */
+      try {
+        manifestText = new TextDecoder().decode(f.gunzipSync(manifestZip));
+      } catch {
+        manifestText = new TextDecoder().decode(manifestZip);
+      }
+    }
+
+    const manifest = JSON.parse(manifestText);
+    const files = manifest.files || {};
+    const names = Object.keys(files);
+    if (!names.length) throw new Error("the manifest listed no files");
+    const totalBytes = names.reduce((sum, n) => sum + (files[n].size || 0), 0) || 1;
+
+    const chunks = [];
+    const zip = new f.Zip((err, data) => {
+      if (data) chunks.push(data);
+    });
+
+    const inflate = (raw) => {
+      try {
+        return f.unzlibSync(raw);
+      } catch {
+        try {
+          return f.gunzipSync(raw);
+        } catch {
+          return f.inflateSync(raw);
+        }
+      }
+    };
+
+    let doneBytes = 0;
+    for (const name of names) {
+      const file = files[name];
+      const buf = new Uint8Array(file.size);
+      let offset = 0;
+      for (const seg of file.segments) {
+        const sha = Array.isArray(seg) ? seg[1] : seg.sha256 ?? seg;
+        const raw = await riftSegmentBytes(segmentsBaseUri, sha);
+        buf.set(inflate(raw), offset);
+        offset += file.segmentSize;
+      }
+      const entry = new f.ZipPassThrough(name);
+      zip.add(entry);
+      entry.push(buf, true);
+      doneBytes += file.size;
+      say(`Assembling… ${Math.round((doneBytes / totalBytes) * 100)}%`);
+    }
+    zip.end();
+
+    say("Packaging…");
+    const blob = new Blob(chunks, { type: "application/zip" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const safe = (app.name || "rift-build").replace(/[^\w.-]+/g, "_");
+    a.download = `${safe}_${version || binaryId}.zip`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+
+    button.textContent = "Downloaded";
+    button.title = `${app.name}: saved ${names.length} files as ${a.download}`;
+  } catch (err) {
+    button.textContent = "Failed";
+    button.title = `${app.name}: ${err.message}`;
+  } finally {
+    button.disabled = false;
+    setTimeout(() => {
+      if (
+        button.isConnected &&
+        (button.textContent === "Downloaded" || button.textContent === "Failed")
+      ) {
+        button.textContent = label;
+      }
+    }, 6000);
+  }
+}
+
 function downloadCell(v, offerDev, app = null) {
   if (!v.id) return "";
 
@@ -2837,6 +3029,23 @@ function downloadCell(v, offerDev, app = null) {
                   ? `Go back to ${v.version} — uninstalls first, losing this app's data`
                   : `Install ${v.version}`
               )}">Install</button>`;
+  }
+
+  /* Rift/PC builds are not a single file — the button assembles them from
+     segments into a .zip in the browser, so it is a real control, not a link. */
+  if (isRift(app)) {
+    if (!canDownload()) {
+      return `<a class="dl dl-off" href="#settings"
+                title="Add your oc_ac_at account token in Settings">Download</a>`;
+    }
+    return `<button type="button" class="dl${dev ? " dl-dev" : ""}"
+              data-rift-build="${esc(v.id)}"
+              data-version="${esc(v.version)}"
+              title="${esc(
+                dev
+                  ? `${v.version} — never released to a channel; assembled from PC segments as a .zip`
+                  : `Download ${v.version} — assembled from PC segments into a .zip`
+              )}">Download</button>`;
   }
 
   if (!canDownload()) {

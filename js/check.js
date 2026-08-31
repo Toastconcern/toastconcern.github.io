@@ -19,6 +19,7 @@ const NODE = "https://graph.oculus.com";
 /* Every binary ever uploaded for an app, not just what a channel points at.
    Beat Saber alone returns nearly three thousand. */
 const HISTORY_DOC_ID = "2885322071572384";
+const RIFT_META_DOC_ID = "24830095600010314";
 
 /** Works for public store data. Replace it on the Settings page if you have your own. */
 export const DEFAULT_TOKEN = "OC|1317831034909742|";
@@ -1593,6 +1594,79 @@ export function downloadURL(binaryId) {
 }
 
 /** Whether a download can be attempted at all. */
+/* Rift (PC) builds do not download as one file the way a Quest APK does. The
+   store hands back a manifest and a segment base; the build is hundreds of
+   content-addressed, zlib-compressed segments that get inflated and stitched
+   into a tree of files. These three functions are the network half of that —
+   the metadata lookup, the manifest fetch and one segment fetch — and app.js
+   does the reassembly. Read out of ovr-platform-util's DownloadRiftBuild path.
+
+   The metadata query is signed with the www token like every other query; the
+   two CDN fetches are signed with the account token, the same one downloadURL
+   uses, because the store still checks entitlement on the bytes. */
+
+/** Resolve a binary id to its PC manifest: where the manifest and segments live. */
+export async function riftMetadata(binaryId) {
+  const { token } = loadSettings();
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        doc_id: RIFT_META_DOC_ID,
+        variables: JSON.stringify({ binary_id: String(binaryId) }),
+      })
+  );
+  if (json.errors?.length) {
+    const msg = json.errors[0].message ?? "query refused";
+    throw new Error(
+      /logged out|unauthorized/i.test(msg)
+        ? `${msg} A Rift download needs a logged-in account token, set on the Settings page.`
+        : msg
+    );
+  }
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+  /* The query aliases the node as `metadata`, but the reply shape has shifted
+     before; pull the three fields out wherever they sit rather than trusting a
+     fixed path. */
+  let manifest_uri, segments_base_uri, platform;
+  (function walk(n) {
+    if (!n || typeof n !== "object") return;
+    if (n.manifest_uri) manifest_uri = n.manifest_uri;
+    if (n.segments_base_uri) segments_base_uri = n.segments_base_uri;
+    if (n.platform && platform == null) platform = n.platform;
+    for (const k in n) walk(n[k]);
+  })(json);
+
+  return { manifestUri: manifest_uri, segmentsBaseUri: segments_base_uri, platform };
+}
+
+/* Append the account token to a signed CDN url that already has a query string. */
+function withAcToken(url) {
+  const { acToken } = loadSettings();
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}access_token=${encodeURIComponent(acToken)}`;
+}
+
+/** The manifest for a Rift build — a zip whose one entry is manifest.json. */
+export async function riftManifestBytes(manifestUri) {
+  const res = await fetch(route(withAcToken(manifestUri)));
+  if (res.status >= 400 && res.status < 500) {
+    throw new Error("not entitled to download this build");
+  }
+  if (!res.ok) throw new Error(`the manifest returned ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+/** One build segment, still compressed — the caller inflates it. */
+export async function riftSegmentBytes(segmentsBaseUri, sha256) {
+  const res = await fetch(
+    route(`${withAcToken(segmentsBaseUri)}&segment_sha256=${encodeURIComponent(sha256)}`)
+  );
+  if (!res.ok) throw new Error(`a segment returned ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
 export const canDownload = () => Boolean(loadSettings().acToken);
 
 /** Pull an app ID out of a bare ID or a store URL. */
