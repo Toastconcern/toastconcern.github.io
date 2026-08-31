@@ -982,9 +982,22 @@ button.dl:disabled { color: #fff; opacity: .55; }
 #view-devices th:nth-child(1), #view-devices td:nth-child(1) { width: 45%; }
 #view-devices th:nth-child(2), #view-devices td:nth-child(2) { width: 30%; }
 #view-devices th:nth-child(3), #view-devices td:nth-child(3) { width: 25%; }
-/* Center each cell vertically in its row (the headset icon is taller than the
-   text, so the default baseline made the serial sit low). */
+/* Center each cell vertically in its row. */
 #view-devices td { vertical-align: middle; }
+
+/* The headset picture sits inline with its name, centred on it. The shared
+   .art nudges itself down with vertical-align for the taller app rows; here the
+   cell is already vertically centred, so the image just centres too — which
+   keeps the row at the image's height with no blank space, and (unlike making
+   the cell a flexbox) leaves it a real table-cell so the fixed column widths
+   still apply. */
+#view-devices td.name .art {
+  vertical-align: middle;
+  /* The headset renders are transparent, so the shared art fill would show as a
+     grey box behind them, and cover would crop them — neither is wanted here. */
+  background: none;
+  object-fit: contain;
+}
 
 /* store lookup */
 
