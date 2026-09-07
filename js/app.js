@@ -27,7 +27,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=149";
+} from "./check.js?v=150";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -285,6 +285,7 @@ const el = {
 
   theme: document.getElementById("theme"),
   navLinks: document.querySelectorAll(".nav a"),
+  navGroups: document.querySelectorAll(".navgroup"),
 };
 
 /** id -> { state, latest, error } */
@@ -365,6 +366,7 @@ initTheme();
 initFontSize();
 initMotion();
 initStage();
+initNav();
 initViews();
 initSettings();
 initOrgs();
@@ -718,6 +720,44 @@ function initStage() {
 
 /* ---------- views ---------- */
 
+/* The nav menus. Click to open, click anywhere else — or Escape, or picking a
+   screen — to close. Only one is open at a time, so opening one shuts the other. */
+function initNav() {
+  const close = (g) => {
+    g.querySelector(".navmenu").hidden = true;
+    g.querySelector(".navtop").setAttribute("aria-expanded", "false");
+  };
+  const closeAll = () => {
+    for (const g of el.navGroups) close(g);
+  };
+
+  for (const g of el.navGroups) {
+    const top = g.querySelector(".navtop");
+    const menu = g.querySelector(".navmenu");
+
+    top.addEventListener("click", () => {
+      const open = menu.hidden;
+      closeAll();
+      if (open) {
+        menu.hidden = false;
+        top.setAttribute("aria-expanded", "true");
+      }
+    });
+
+    /* The link changes the hash, applyView takes it from there. */
+    menu.addEventListener("click", (e) => {
+      if (e.target.closest("a")) closeAll();
+    });
+  }
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".navgroup")) closeAll();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeAll();
+  });
+}
+
 function initViews() {
   window.addEventListener("hashchange", applyView);
   applyView();
@@ -744,6 +784,10 @@ function applyView() {
   el.limitbar.hidden = view !== "apps";
 
   for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);
+  /* A menu is marked as the current one when the screen on show is one of its own. */
+  for (const g of el.navGroups) {
+    g.querySelector(".navtop").classList.toggle("on", !!g.querySelector("a.on"));
+  }
   window.scrollTo(0, 0);
 
   /* The screen that just arrived, not the one that left: a leaving screen

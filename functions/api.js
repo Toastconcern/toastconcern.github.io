@@ -20,7 +20,7 @@ const ALLOWED = /^(graph|securecdn)\.oculus\.com$/;
    through here rather than going straight to the CDN. */
 const DOWNLOAD_UA =
   "Dalvik/2.1.0 (Linux; U; Android 14; Quest 3 Build/UP1A.231005.007.A1) " +
-  "[FBAN/OculusOCMS;FBAV/1046.0.0.121.1350;FBCR/null;FBDV/Quest 3;FBHV/204;" +
+  "[FBAN/OculusOCMS;FBAV/1048.0.0.0.870;FBCR/null;FBDV/Quest 3;FBHV/204;" +
   "FBLC/en_US;FBSV/14;FBSBT/user;FBBD/oculus;FBBV/582512031;" +
   "FBCA/arm64-v8a:armeabi-v7a:armeabi;FBMF/Oculus;FBPN/com.oculus.ocms;" +
   "FBDW/null;FBVM/null;]";
