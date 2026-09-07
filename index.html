@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=150">
+<link rel="stylesheet" href="css/style.css?v=153">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -66,6 +66,7 @@
         <div class="navmenu" hidden>
           <a href="#devices" data-view="devices">Headsets</a>
           <a href="#adb" data-view="adb">ADB</a>
+          <a href="#companion" data-view="companion">CompanionServer</a>
         </div>
       </div>
       <a href="#settings" data-view="settings">Settings</a>
@@ -449,6 +450,35 @@
 
   </section>
 
+  <!-- ---------- companion server (Web Bluetooth) ---------- -->
+
+  <section id="view-companion" hidden>
+
+    <h2>CompanionServer</h2>
+    <p class="sub">Talk to a headset's on-device CompanionServer straight from this page over Bluetooth — the same service the Meta phone app drives, with the browser standing in for the phone. Pairs with a libsodium key exchange; claimed headsets need their device secret to do anything beyond a few status reads. Nothing here goes through Meta's servers. Chrome or Edge, on desktop or Android.</p>
+
+    <p id="companionUnsupported" class="empty" hidden>This browser has no Web Bluetooth. Use Chrome or Edge on desktop or Android.</p>
+
+    <div class="controls">
+      <select id="companionVersion" aria-label="CompanionServer version">
+        <option value="latest">Latest</option>
+        <option value="v50">v50</option>
+      </select>
+      <input id="companionSecret" type="password" placeholder="Device secret (64 hex chars) — optional for status" aria-label="Device secret" autocomplete="off" spellcheck="false" maxlength="64">
+      <button id="companionFetchSecret" type="button">Fetch secret</button>
+      <select id="companionSecretPick" aria-label="Pick a headset's secret" hidden></select>
+      <button id="companionConnect" type="button">Connect</button>
+      <button id="companionDisconnect" type="button" hidden>Disconnect</button>
+      <button id="companionAuth" type="button" hidden>Authenticate</button>
+    </div>
+
+    <p class="hint" id="companionState" role="status">Not connected.</p>
+
+    <div id="companionTabs" class="companion-tabs" hidden></div>
+    <div id="companionPanels" hidden></div>
+
+  </section>
+
   <!-- ---------- settings ---------- -->
 
   <section id="view-settings" hidden>
@@ -774,6 +804,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=150"></script>
+<script type="module" src="js/app.js?v=153"></script>
 </body>
 </html>
