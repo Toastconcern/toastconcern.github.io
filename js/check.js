@@ -1669,6 +1669,25 @@ export async function riftSegmentBytes(segmentsBaseUri, sha256) {
 
 export const canDownload = () => Boolean(loadSettings().acToken);
 
+/* ---------- CompanionServer device secret ----------
+   The account holds a per-headset "device secret" — the 32-byte key the
+   on-device CompanionServer authenticates a pairing against. This persisted
+   query returns the viewer's headsets with their secrets, so the CompanionServer
+   tab can fill the secret field rather than making the reader dig it out. Needs
+   the account's own oc_www_at; the built-in public token owns no devices. */
+const DEVICE_SECRET_DOC_ID = "7400628006644133";
+
+export async function deviceSecrets() {
+  const { token } = loadSettings();
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({ access_token: token, doc_id: DEVICE_SECRET_DOC_ID })
+  );
+  if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  return json.data ?? {};
+}
+
 /** Pull an app ID out of a bare ID or a store URL. */
 export function parseAppId(input) {
   const text = String(input).trim();

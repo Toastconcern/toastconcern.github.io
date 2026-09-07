@@ -1344,3 +1344,107 @@ details.hint > p {
   .navmenu a { font-size: .8125rem; padding: .8rem .7rem; }
   #theme { padding: .4rem .6rem; }
 }
+
+/* ---------- CompanionServer (Web Bluetooth) ---------- */
+
+#companionState[data-kind="ok"]   { color: var(--green); }
+#companionState[data-kind="warn"] { color: var(--red); }
+
+.companion-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem;
+  margin: .25rem 0 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.companion-tab {
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  background: transparent;
+  color: var(--muted);
+  margin-bottom: -1px;
+}
+.companion-tab.on {
+  color: var(--text);
+  background: var(--panel);
+  border-color: var(--border);
+}
+.companion-tab:hover:not(.on) { background: var(--hover); }
+
+.companion-group {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  padding: .75rem .9rem;
+  margin-bottom: .75rem;
+}
+.companion-group > h3 {
+  margin: 0 0 .6rem;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.companion-cmd { margin: .35rem 0; }
+.companion-cmd.is-primary { padding-bottom: .5rem; margin-bottom: .5rem; border-bottom: 1px dashed var(--line); }
+
+.companion-cmd-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end; /* inputs and the button share a bottom line */
+  gap: .4rem .6rem;
+}
+/* Fixed-width title column so every row's inputs start at the same x. */
+.companion-cmd-title {
+  flex: 0 0 13rem;
+  align-self: center;
+  font-weight: 600;
+  font-size: .875rem;
+}
+
+.companion-field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: .15rem;
+  font-size: .75rem;
+  color: var(--muted);
+}
+.companion-field.is-check {
+  flex-direction: row;
+  align-items: center;
+  gap: .35rem;
+  color: var(--text);
+  font-size: .8125rem;
+  padding-bottom: .4rem; /* sit on the same baseline as the inputs */
+}
+.companion-field.is-check input { min-height: 0; }
+/* Consistent input width so the columns line up across rows. */
+.companion-field input:not([type="checkbox"]),
+.companion-field select { width: 15ch; min-width: 0; }
+
+/* Push the action button to the right edge so every row's button lines up. */
+.companion-cmd-form > button[type="submit"] { margin-left: auto; }
+
+@media (max-width: 640px) {
+  /* On narrow screens stack the title and let the button sit inline. */
+  .companion-cmd-title { flex-basis: 100%; align-self: flex-start; }
+  .companion-cmd-form > button[type="submit"] { margin-left: 0; }
+}
+
+.companion-result {
+  margin: .45rem 0 0;
+  padding: .5rem .6rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: .75rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+.companion-result[data-kind="err"] { color: var(--red); }

@@ -1,0 +1,1698 @@
+// Quest CompanionServer wire protocol, reverse-engineered from
+// com.oculus.companion.server. Used by js/companion.js to talk to a headset
+// over Web Bluetooth. The @@ comment annotations drive the generated UI
+// (tab / group / title / request / response / priority / confirm / primary / ui).
+// Source: github.com/ptrpaws/quest-ble-client. MetaDB is not affiliated with Meta.
+
+// reverse engineered from com.oculus.companion.server.protocol
+
+syntax = "proto2";
+
+package quest;
+option java_package = "com.quest.companionclient";
+option java_outer_classname = "Proto";
+option optimize_for = CODE_SIZE;
+
+message Request {
+  optional int32 version = 1;
+  optional Method method = 2;
+  optional int32 seq = 3;
+  optional bytes body = 4;
+  optional string device_address = 5;
+  optional int64 connection_session = 6;
+}
+
+message Response {
+  optional int32 seq = 1;
+  optional ResponseCode code = 2;
+  optional bytes body = 3;
+}
+
+message BlePairingKey {
+  optional sint32 key = 1;
+}
+
+message ErrorDetails {
+  optional ErrorCode code = 1;
+  optional string debug_details = 2;
+  optional string localized_user_facing_description = 3;
+  optional BlePairingKey ble_pairing_key = 4;
+  optional int32 code_v2 = 5;
+}
+
+enum Method {
+  UNKNOWN = 99999;
+  PING = 0;
+  // @@request: HelloRequest
+  // @@response: HelloResponse
+  HELLO = 1;
+  // @@request: AuthenticateRequest
+  AUTHENTICATE = 2;
+  // @@tab: "NETWORK"
+  // @@group: "WI-FI STATUS & STATE"
+  // @@priority: 1
+  // @@title: "Scan Networks"
+  // @@response: WifiScanResponse
+  WIFI_SCAN = 1001;
+  // @@request: WifiConnectRequest
+  // @@tab: "NETWORK"
+  // @@group: "CONNECT TO NETWORK"
+  // @@priority: 2
+  // @@title: "Connect to Wi-Fi Network"
+  // @@buttonLabel: "Connect"
+  // @@primary
+  WIFI_CONNECT = 1002;
+  // @@tab: "NETWORK"
+  // @@group: "WI-FI STATUS & STATE"
+  // @@priority: 1
+  // @@title: "Get Status"
+  // @@response: WifiStatusResponse
+  WIFI_STATUS = 1003;
+  // @@request: WifiForgetRequest
+  // @@tab: "NETWORK"
+  // @@group: "RECONNECT / FORGET"
+  // @@priority: 3
+  // @@title: "Forget Wi-Fi Network"
+  // @@buttonLabel: "Forget"
+  // @@confirm: "ARE YOU SURE YOU WANT TO FORGET THIS WI-FI NETWORK?"
+  // @@primary
+  WIFI_FORGET = 1004;
+  // @@tab: "NETWORK"
+  // @@group: "WI-FI STATUS & STATE"
+  // @@priority: 1
+  // @@title: "Enable Wi-Fi"
+  WIFI_ENABLE = 1005;
+  // @@tab: "NETWORK"
+  // @@group: "WI-FI STATUS & STATE"
+  // @@priority: 1
+  // @@title: "Disable Wi-Fi"
+  WIFI_DISABLE = 1006;
+  // @@request: WifiReconnectRequest
+  // @@tab: "NETWORK"
+  // @@group: "RECONNECT / FORGET"
+  // @@priority: 3
+  // @@title: "Reconnect"
+  WIFI_RECONNECT = 1007;
+  OCULUS_LOGIN_DEPRECATED = 2001;
+  // @@tab: "SECURITY"
+  // @@group: "ACCOUNT TOKENS"
+  // @@priority: 4
+  // @@title: "Oculus Logout"
+  OCULUS_LOGOUT = 2002;
+  // @@request: OculusSetUserSecretRequest
+  // @@tab: "SECURITY"
+  // @@group: "NUX ACTIONS"
+  // @@priority: 6
+  // @@title: "Set User Secret Key"
+  // @@confirm: "SEND CURRENT DEVICE SECRET TO HEADSET AS NEW USER SECRET KEY? (USED AFTER FACTORY RESET). CONTINUE?"
+  OCULUS_SET_USER_SECRET = 2003;
+  // @@request: OculusSetAccessTokenRequest
+  OCULUS_SET_ACCESS_TOKEN = 2004;
+  // @@request: OculusSecondaryAccountLoginRequest
+  OCULUS_SECONDARY_ACCOUNT_LOGIN = 2005;
+  OCULUS_INSERT_LINKED_ACCOUNT_DEPRECATED = 2101;
+  // @@tab: "SECURITY"
+  // @@group: "SECONDARY USER MANAGEMENT"
+  // @@priority: 5
+  // @@title: "Add Secondary User"
+  OCULUS_SECONDARY_USER_ADD = 2201;
+  // @@request: OculusSecondaryUserRemoveRequest
+  // @@tab: "SECURITY"
+  // @@group: "SECONDARY USER MANAGEMENT"
+  // @@priority: 5
+  // @@title: "Remove Secondary User"
+  // @@buttonLabel: "Remove"
+  // @@confirm: "ARE YOU SURE YOU WANT TO REMOVE THIS SECONDARY USER?"
+  // @@primary
+  OCULUS_SECONDARY_USER_REMOVE = 2202;
+  // @@tab: "SECURITY"
+  // @@group: "SECONDARY USER MANAGEMENT"
+  // @@priority: 5
+  // @@title: "Get Device Code"
+  // @@response: OculusSecondaryUserGetDeviceCoderesponse
+  OCULUS_SECONDARY_USER_GET_DEVICE_CODE = 2203;
+  // @@request: MetaSetAccessTokenRequest
+  META_SET_ACCESS_TOKEN = 2301;
+  // @@request: CombinedSetAccessTokenRequest
+  // @@tab: "SECURITY"
+  // @@group: "ACCOUNT TOKENS"
+  // @@priority: 4
+  // @@title: "Set Combined Token"
+  // @@primary
+  META_SET_ACCESS_TOKEN_COMBINED = 2302;
+  // @@request: MetaSecondaryAccountLoginRequest
+  META_SECONDARY_ACCOUNT_LOGIN = 2401;
+  // @@request: ControllerScanRequest
+  // @@response: ControllerScanResponse
+  CONTROLLER_SCAN = 3001;
+  // @@request: ControllerPairRequest
+  CONTROLLER_PAIR = 3002;
+  // @@request: ControllerStatusRequest
+  // @@tab: "CONTROL"
+  // @@group: "CONTROLLER STATUS"
+  // @@priority: 5
+  // @@title: "Get Controller Status"
+  // @@primary
+  // @@response: ControllerStatusResponse
+  CONTROLLER_STATUS = 3003;
+  // @@request: ControllerUnpairRequest
+  // @@tab: "CONTROL"
+  // @@group: "UNPAIR CONTROLLER"
+  // @@priority: 10
+  // @@title: "Unpair Controller"
+  // @@confirm: "ARE YOU SURE YOU WANT TO UNPAIR THIS CONTROLLER?"
+  // @@primary
+  CONTROLLER_UNPAIR = 3004;
+  // @@request: ControllerSetHandednessRequest
+  // @@tab: "CONTROL"
+  // @@group: "CONTROLLER SETTINGS"
+  // @@priority: 6
+  // @@title: "Set Handedness"
+  // @@primary
+  CONTROLLER_SET_HANDEDNESS = 3005;
+  // @@request: ControllerScanAndPairRequest
+  // @@tab: "CONTROL"
+  // @@group: "SCAN & PAIR (OCULUS)"
+  // @@priority: 9
+  // @@title: "Scan & Pair"
+  // @@primary
+  CONTROLLER_SCAN_AND_PAIR = 3006;
+  // @@request: ControllerVerifyConnectableRequest
+  // @@tab: "CONTROL"
+  // @@group: "CONTROLLER STATUS"
+  // @@priority: 5
+  // @@title: "Verify Connectable"
+  CONTROLLER_VERIFY_CONNECTABLE = 3007;
+  // @@request: VerifyMultipleControllersConnectableRequest
+  // @@response: VerifyMultipleControllersConnectableResponse
+  VERIFY_MULTIPLE_CONTROLLERS_CONNECTABLE = 3008;
+  // @@request: ControllerCheckForUpdateRequest
+  // @@tab: "CONTROL"
+  // @@group: "CONTROLLER SETTINGS"
+  // @@priority: 6
+  // @@title: "Check for Update"
+  CONTROLLER_CHECK_FOR_UPDATE = 3009;
+  // @@request: PinSetRequest
+  // @@tab: "SECURITY"
+  // @@group: "SET / CHANGE PIN"
+  // @@priority: 3
+  // @@title: "Set/Change PIN"
+  // @@primary
+  PIN_SET = 4001;
+  // @@tab: "SECURITY"
+  // @@group: "SET / CHANGE PIN"
+  // @@priority: 3
+  // @@title: "Get PIN Status"
+  // @@response: PinStatusResponse
+  PIN_STATUS = 4002;
+  // @@tab: "SECURITY"
+  // @@group: "LOCK / RESET"
+  // @@priority: 2
+  // @@title: "Lock Device"
+  PIN_LOCK = 4003;
+  // @@request: PinUnlockRequest
+  // @@tab: "SECURITY"
+  // @@group: "UNLOCK / VERIFY"
+  // @@priority: 1
+  // @@title: "Unlock"
+  // @@response: PinUnlockResponse
+  PIN_UNLOCK = 4004;
+  // @@request: PinVerifyRequest
+  // @@tab: "SECURITY"
+  // @@group: "UNLOCK / VERIFY"
+  // @@priority: 1
+  // @@title: "Verify PIN"
+  // @@primary
+  // @@response: PinVerifyResponse
+  PIN_VERIFY = 4005;
+  // @@tab: "SECURITY"
+  // @@group: "LOCK / RESET"
+  // @@priority: 2
+  // @@title: "Reset PIN"
+  // @@confirm: "ARE YOU SURE YOU WANT TO RESET THE PIN?"
+  PIN_RESET = 4006;
+  // @@tab: "SECURITY"
+  // @@group: "LOCK / RESET"
+  // @@priority: 2
+  // @@title: "Get Re-auth Status"
+  // @@response: PinReauthStatusResponse
+  PIN_REAUTH_STATUS = 4007;
+  // @@request: WipeDataRequest
+  // @@tab: "SYSTEM"
+  // @@group: "FACTORY RESET"
+  // @@priority: 6
+  // @@title: "Factory Reset (Wipe Data)"
+  // @@confirm: "ARE YOU ABSOLUTELY SURE YOU WANT TO FACTORY RESET THIS DEVICE? THIS CANNOT BE UNDONE."
+  // @@primary
+  WIPE_DATA = 5001;
+  // @@request: OtaCheckAvailabilityRequest
+  // @@tab: "DEVELOPER"
+  // @@group: "UPDATE ACTIONS"
+  // @@priority: 6
+  // @@title: "Check Availability"
+  // @@response: OtaCheckAvailabilityResponse
+  OTA_CHECK_AVAILABILITY = 5002;
+  // @@request: OtaManualUpdateRequest
+  // @@tab: "DEVELOPER"
+  // @@group: "UPDATE ACTIONS"
+  // @@priority: 6
+  // @@title: "Manual Update"
+  OTA_MANUAL_UPDATE = 5003;
+  // @@tab: "DEVELOPER"
+  // @@group: "UPDATE ACTIONS"
+  // @@priority: 6
+  // @@title: "Reboot for Upgrade"
+  // @@confirm: "ARE YOU SURE YOU WANT TO REBOOT FOR UPGRADE?"
+  REBOOT_UPGRADE = 5004;
+  // @@tab: "DEVELOPER"
+  // @@group: "UPDATE ACTIONS"
+  // @@priority: 6
+  // @@title: "Get Updater Status"
+  // @@response: GetOtaStatusResponse
+  GET_OTA_STATUS = 5005;
+  // @@request: DevModeRequest
+  // @@tab: "DEVELOPER"
+  // @@group: "DEVELOPER FEATURES"
+  // @@priority: 1
+  // @@title: "Enable Developer Mode"
+  DEV_MODE_SET = 6001;
+  // @@tab: "DEVELOPER"
+  // @@group: "DEVELOPER FEATURES"
+  // @@priority: 1
+  // @@title: "Get Dev Mode Status"
+  // @@response: DevModeResponse
+  DEV_MODE_STATUS = 6002;
+  // @@request: MtpModeRequest
+  // @@tab: "DEVELOPER"
+  // @@group: "MTP (FILE TRANSFER)"
+  // @@priority: 4
+  // @@title: "MTP Mode"
+  // @@ui: "toggle"
+  MTP_MODE_SET = 6003;
+  // @@tab: "DEVELOPER"
+  // @@group: "MTP (FILE TRANSFER)"
+  // @@priority: 4
+  // @@title: "Get MTP Status"
+  // @@response: MtpModeResponse
+  MTP_MODE_STATUS = 6004;
+  // @@request: AdbModeRequest
+  // @@tab: "DEVELOPER"
+  // @@group: "ADB (USB)"
+  // @@priority: 2
+  // @@title: "ADB Mode"
+  // @@ui: "toggle"
+  ADB_MODE_SET = 6005;
+  // @@tab: "DEVELOPER"
+  // @@group: "ADB (USB)"
+  // @@priority: 2
+  // @@title: "Get ADB Status"
+  // @@response: AdbModeResponse
+  ADB_MODE_STATUS = 6006;
+  // @@request: OtaEnabledRequest
+  // @@tab: "DEVELOPER"
+  // @@group: "OTA (OVER-THE-AIR UPDATES)"
+  // @@priority: 5
+  // @@title: "OTA Updates"
+  // @@ui: "toggle"
+  OTA_ENABLED_SET = 6007;
+  // @@tab: "DEVELOPER"
+  // @@group: "OTA (OVER-THE-AIR UPDATES)"
+  // @@priority: 5
+  // @@title: "Get OTA Status"
+  // @@response: OtaEnabledResponse
+  OTA_ENABLED_STATUS = 6008;
+  // @@request: CrashReportsEnabledRequest
+  // @@tab: "SYSTEM"
+  // @@group: "CRASH REPORTS"
+  // @@priority: 4
+  // @@title: "Crash Reporting"
+  // @@ui: "toggle"
+  CRASH_REPORTS_ENABLED_SET = 6009;
+  // @@tab: "SYSTEM"
+  // @@group: "CRASH REPORTS"
+  // @@priority: 4
+  // @@title: "Get Crash Report Status"
+  // @@response: CrashReportsEnabledResponse
+  CRASH_REPORTS_ENABLED_STATUS = 6010;
+  // @@request: AutowakeRequest
+  // @@tab: "SYSTEM"
+  // @@group: "SYSTEM SETTINGS (POWER/MISC)"
+  // @@priority: 1
+  // @@title: "Autowake"
+  // @@ui: "toggle"
+  AUTOWAKE_SET = 6011;
+  // @@tab: "SYSTEM"
+  // @@group: "SYSTEM SETTINGS (POWER/MISC)"
+  // @@priority: 1
+  // @@title: "Get Autowake Status"
+  // @@response: AutowakeResponse
+  AUTOWAKE_STATUS = 6012;
+  // @@request: AutosleepTimeRequest
+  // @@tab: "SYSTEM"
+  // @@group: "SYSTEM SETTINGS (POWER/MISC)"
+  // @@priority: 1
+  // @@title: "Set Autosleep"
+  // @@primary
+  AUTOSLEEP_TIME_SET = 6013;
+  // @@tab: "SYSTEM"
+  // @@group: "SYSTEM SETTINGS (POWER/MISC)"
+  // @@priority: 1
+  // @@title: "Get Autosleep Status"
+  // @@response: AutosleepTimeResponse
+  AUTOSLEEP_TIME_STATUS = 6014;
+  // @@request: NameSetRequest
+  // @@tab: "CONTROL"
+  // @@group: "DEVICE CONFIGURATION"
+  // @@priority: 7
+  // @@title: "Set Device Name"
+  // @@buttonLabel: "Set Name"
+  // @@primary
+  NAME_SET = 6015;
+  // @@request: LineFrequencyRequest
+  // @@tab: "SYSTEM"
+  // @@group: "MISC & ADVANCED"
+  // @@priority: 2
+  // @@title: "Set Line Frequency"
+  // @@primary
+  LINE_FREQUENCY_SET = 6016;
+  // @@tab: "SYSTEM"
+  // @@group: "MISC & ADVANCED"
+  // @@priority: 2
+  // @@title: "Get Line Frequency Status"
+  // @@response: LineFrequencyResponse
+  LINE_FREQUENCY_STATUS = 6017;
+  // @@tab: "DEVELOPER"
+  // @@group: "ADB OVER TCP (WI-FI)"
+  // @@priority: 3
+  // @@title: "Start Server"
+  // @@response: StartWirelessPairingServerResponse
+  START_WIRELESS_PAIRING_SERVER = 6018;
+  // @@tab: "DEVELOPER"
+  // @@group: "ADB OVER TCP (WI-FI)"
+  // @@priority: 3
+  // @@title: "Get Info"
+  // @@response: StartWirelessPairingServerResponse
+  GET_WIRELESS_PAIRING_DETAILS = 6019;
+  // @@tab: "CONTROL"
+  // @@group: "GENERAL CONTROL & INFO"
+  // @@priority: 1
+  // @@title: "Reboot Device"
+  // @@confirm: "ARE YOU SURE YOU WANT TO REBOOT THE QUEST DEVICE?"
+  REBOOT_DEVICE = 6020;
+  // @@request: AppLaunchRequest
+  // @@tab: "CONTROL"
+  // @@group: "APPLICATION CONTROL"
+  // @@priority: 2
+  // @@title: "Launch App"
+  // @@primary
+  // @@response: AppLaunchResponse
+  APP_LAUNCH = 7001;
+  // @@tab: "CONTROL"
+  // @@group: "APPLICATION CONTROL"
+  // @@priority: 2
+  // @@title: "Handle Remote Ops"
+  APP_HANDLE_REMOTE_OPERATIONS = 7002;
+  // @@tab: "CONTROL"
+  // @@group: "GENERAL CONTROL & INFO"
+  // @@priority: 1
+  // @@title: "Get HMD Status"
+  // @@response: HmdStatusResponse
+  HMD_STATUS = 8001;
+  // @@tab: "CONTROL"
+  // @@group: "GENERAL CONTROL & INFO"
+  // @@priority: 1
+  // @@title: "Get HMD Version"
+  // @@response: HmdVersionResponse
+  HMD_VERSION = 8002;
+  // @@tab: "CONTROL"
+  // @@group: "GENERAL CONTROL & INFO"
+  // @@priority: 1
+  // @@title: "Get HMD Capabilities"
+  // @@response: HmdCapabilitiesResponse
+  HMD_CAPABILITIES = 8003;
+  // @@tab: "CONTROL"
+  // @@group: "GENERAL CONTROL & INFO"
+  // @@priority: 1
+  // @@title: "Get Ext. Battery Status"
+  // @@response: HmdExternalBatteryStatusResponse
+  HMD_EXTERNAL_BATTERY_STATUS = 8004;
+  // @@request: LocaleSet
+  // @@tab: "SYSTEM"
+  // @@group: "MISC & ADVANCED"
+  // @@priority: 2
+  // @@title: "Set Locale"
+  // @@primary
+  LOCALE_SET = 9001;
+  // @@request: TimeSet
+  // @@tab: "CONTROL"
+  // @@group: "DEVICE CONFIGURATION"
+  // @@priority: 7
+  // @@title: "Set System Time"
+  TIME_SET = 9002;
+  // @@request: HealthAndSafetyWarningRequest
+  HEALTH_AND_SAFETY_WARNING_SET = 9101;
+  // @@tab: "SECURITY"
+  // @@group: "NUX ACTIONS"
+  // @@priority: 6
+  // @@title: "Mark NUX Completed"
+  NUX_COMPLETED = 9201;
+  // @@request: MirrorRequest
+  // @@tab: "CONTROL"
+  // @@group: "SCREEN MIRRORING"
+  // @@priority: 3
+  // @@title: "Start/Stop Mirroring"
+  // @@primary
+  // @@response: MirrorResponse
+  MIRROR_REQUEST = 10001;
+  // @@request: ManagedModeSet
+  // @@tab: "DEVELOPER"
+  // @@group: "MANAGED MODE & AUTO PROVISIONING"
+  // @@priority: 8
+  // @@title: "Set Managed Mode"
+  // @@primary
+  MANAGED_MODE_SET = 11001;
+  // @@tab: "DEVELOPER"
+  // @@group: "MANAGED MODE & AUTO PROVISIONING"
+  // @@priority: 8
+  // @@title: "Get Managed Mode Status"
+  // @@response: ManagedModeResponse
+  MANAGED_MODE_STATUS = 11002;
+  // @@request: TextSend
+  // @@tab: "CONTROL"
+  // @@group: "TEXT INPUT"
+  // @@priority: 4
+  // @@title: "Send Text to Field"
+  // @@buttonLabel: "Send Text"
+  // @@primary
+  TEXT_SEND = 12001;
+  // @@request: CloudSyncSignalSend
+  // @@tab: "NETWORK"
+  // @@group: "CLOUD SYNCHRONIZATION"
+  // @@priority: 5
+  // @@title: "Send Cloud Sync Signal"
+  CLOUD_SYNC_SIGNAL_SEND = 12002;
+  // @@request: CloudMediaOneTimeSync
+  // @@tab: "NETWORK"
+  // @@group: "CLOUD SYNCHRONIZATION"
+  // @@priority: 5
+  // @@title: "One-Time Media Sync"
+  CLOUD_MEDIA_ONE_TIME_SYNC = 12003;
+  // @@tab: "NETWORK"
+  // @@group: "CASTING CONTROL"
+  // @@priority: 4
+  // @@title: "Discover Devices"
+  // @@response: DiscoverCastingDevicesResponse
+  DISCOVER_CASTING_DEVICES = 13001;
+  // @@request: StartCastingRequest
+  // @@tab: "NETWORK"
+  // @@group: "CASTING CONTROL"
+  // @@priority: 4
+  // @@title: "Start Casting"
+  // @@primary
+  // @@response: StartCastingResponse
+  START_CASTING = 13002;
+  // @@tab: "NETWORK"
+  // @@group: "CASTING CONTROL"
+  // @@priority: 4
+  // @@title: "Stop Casting"
+  STOP_CASTING = 13003;
+  // @@tab: "NETWORK"
+  // @@group: "CASTING CONTROL"
+  // @@priority: 4
+  // @@title: "Get Casting Status"
+  // @@response: CastingStatusResponse
+  CASTING_STATUS = 13004;
+  // @@tab: "NETWORK"
+  // @@group: "CASTING CONTROL"
+  // @@priority: 4
+  // @@title: "Get Dialog Status"
+  // @@response: CastingDialogStatusResponse
+  CASTING_DIALOG_STATUS = 13005;
+  // @@tab: "SECURITY"
+  // @@group: "NUX ACTIONS"
+  // @@priority: 6
+  // @@title: "Skip High-Pri Apps"
+  SKIP_HIGH_PRI_APPS_DOWNLOAD = 14001;
+  // @@request: SkipNuxAndLoginRequest
+  // @@tab: "SECURITY"
+  // @@group: "RETAIL SKIP NUX"
+  // @@priority: 7
+  // @@title: "Retail Skip NUX"
+  // @@primary
+  // @@response: SkipNuxAndLoginResponse
+  RETAIL_SKIP_FIRST_TIME_NUX = 14002;
+  // @@request: ResetGuardian
+  // @@tab: "CONTROL"
+  // @@group: "GENERAL CONTROL & INFO"
+  // @@priority: 1
+  // @@title: "Reset Guardian"
+  RESET_GUARDIAN = 15001;
+  // @@request: ResetHeadsetView
+  // @@tab: "CONTROL"
+  // @@group: "GENERAL CONTROL & INFO"
+  // @@priority: 1
+  // @@title: "Reset View"
+  RESET_HEADSET_VIEW = 15002;
+  // @@tab: "DEVELOPER"
+  // @@group: "DEVELOPMENT LICENSE"
+  // @@priority: 7
+  // @@title: "Get Details"
+  // @@response: DevelopmentLicenseDetailsResponse
+  DEVELOPMENT_LICENSE_DETAILS = 16001;
+  // @@tab: "DEVELOPER"
+  // @@group: "DEVELOPMENT LICENSE"
+  // @@priority: 7
+  // @@title: "Refresh"
+  // @@response: DevelopmentLicenseRefreshResponse
+  DEVELOPMENT_LICENSE_REFRESH = 16002;
+  // @@request: PhoneNotificationRequest
+  // @@tab: "CONTROL"
+  // @@group: "PHONE NOTIFICATIONS"
+  // @@priority: 8
+  // @@title: "Set Phone Notification Settings"
+  // @@buttonLabel: "Set Settings"
+  // @@primary
+  PHONE_NOTIFICATION_SET = 17001;
+  // @@tab: "CONTROL"
+  // @@group: "PHONE NOTIFICATIONS"
+  // @@priority: 8
+  // @@title: "Get Status"
+  // @@response: PhoneNotificationResponse
+  PHONE_NOTIFICATION_STATUS = 17002;
+  // @@request: InputEventSend
+  INPUT_EVENT_SEND = 19001;
+  // @@request: TogglePassthrough
+  // @@tab: "CONTROL"
+  // @@group: "GENERAL CONTROL & INFO"
+  // @@priority: 1
+  // @@title: "Toggle Passthrough"
+  TOGGLE_PASSTHROUGH = 20001;
+  // @@request: ChangeBatteryLedTempRequest
+  // @@tab: "CONTROL"
+  // @@group: "TEMPORARY LED CONTROL"
+  // @@priority: 11
+  // @@title: "Set Temporary LED"
+  // @@primary
+  CHANGE_BATTERY_LED_TEMPORARILY = 20002;
+  // @@tab: "SYSTEM"
+  // @@group: "MANAGED DEVICE"
+  // @@priority: 5
+  // @@title: "Get Managed Device Status"
+  // @@response: ManagedDeviceStatusResponse
+  MANAGED_DEVICE_STATUS = 22001;
+  // @@request: FontSizeRequest
+  // @@tab: "SYSTEM"
+  // @@group: "ACCESSIBILITY SETTINGS"
+  // @@priority: 3
+  // @@title: "Set Font Size"
+  // @@primary
+  AX_FONT_SIZE_REQUEST = 23001;
+  // @@response: FontSizeResponse
+  AX_FONT_SIZE_RESPONSE = 23002;
+  // @@request: ColorCorrectionEnabledRequest
+  AX_COLOR_CORRECTION_ENABLED_REQUEST = 23003;
+  // @@response: ColorCorrectionEnabledResponse
+  AX_COLOR_CORRECTION_ENABLED_RESPONSE = 23004;
+  // @@request: ColorCorrectionValueRequest
+  AX_COLOR_CORRECTION_VALUE_REQUEST = 23005;
+  // @@response: ColorCorrectionValueResponse
+  AX_COLOR_CORRECTION_VALUE_RESPONSE = 23006;
+  // @@request: DisplayContrastRequest
+  AX_DISPLAY_CONTRAST_REQUEST = 23007;
+  // @@response: DisplayContrastResponse
+  AX_DISPLAY_CONTRAST_RESPONSE = 23008;
+  // @@request: ControllerVibrationRequest
+  AX_CONTROLLER_VIBRATION_REQUEST = 23009;
+  // @@response: ControllerVibrationResponse
+  AX_CONTROLLER_VIBRATION_RESPONSE = 23010;
+  // @@request: SwitchOculusMenuButtonRequest
+  AX_SWITCH_OCULUS_MENU_BUTTON_REQUEST = 23011;
+  // @@response: SwitchOculusMenuButtonResponse
+  AX_SWITCH_OCULUS_MENU_BUTTON_RESPONSE = 23012;
+  // @@request: BoostHeightRequest
+  AX_BOOST_HEIGHT_REQUEST = 23013;
+  // @@response: BoostHeightResponse
+  AX_BOOST_HEIGHT_RESPONSE = 23014;
+  // @@request: MonoAudioRequest
+  AX_MONO_AUDIO_REQUEST = 22015;
+  // @@response: MonoAudioResponse
+  AX_MONO_AUDIO_RESPONSE = 22016;
+  // @@request: AudioBalanceRequest
+  AX_AUDIO_BALANCE_REQUEST = 22017;
+  // @@response: AudioBalanceResponse
+  AX_AUDIO_BALANCE_RESPONSE = 22018;
+  // @@request: AxGetEnabledSettingsByCategoryRequest
+  // @@response: AxGetEnabledSettingsByCategoryResponse
+  AX_GET_ENABLED_SETTINGS_BY_CATEGORY = 22019;
+  // @@request: AxUpdateSettingValueRequest
+  AX_UPDATE_SETTING = 22020;
+  // @@request: ManagedAutoProvisioningStartRequest
+  // @@tab: "DEVELOPER"
+  // @@group: "MANAGED AUTO PROVISIONING"
+  // @@priority: 9
+  // @@title: "Start Auto Provisioning"
+  // @@primary
+  MANAGED_AUTO_PROVISIONING_START = 24001;
+  // @@tab: "DEVELOPER"
+  // @@group: "MANAGED AUTO PROVISIONING"
+  // @@priority: 9
+  // @@title: "Get MAP Status"
+  // @@response: ManagedAutoProvisioningStatusResponse
+  MANAGED_AUTO_PROVISIONING_STATUS = 24002;
+  // @@tab: "DEVELOPER"
+  // @@group: "MANAGED AUTO PROVISIONING"
+  // @@priority: 9
+  // @@title: "Get MAP Apps Status"
+  // @@response: ManagedAutoProvisioningAppsStatusResponse
+  MANAGED_AUTO_PROVISIONING_APPS_STATUS = 24003;
+  // @@request: ManagedAutoProvisioningFinishRequest
+  // @@tab: "DEVELOPER"
+  // @@group: "FINISH PROVISIONING"
+  // @@priority: 10
+  // @@title: "Finish MAP"
+  // @@primary
+  MANAGED_AUTO_PROVISIONING_FINISH = 24004;
+  // @@request: LocationSignal
+  LOCATION_SIGNAL = 24005;
+  // @@response: SecondaryUserSupportedMethodsResponse
+  SECONDARY_USER_SUPPORTED_METHODS_RESPONSE = 25000;
+}
+
+enum ResponseCode {
+  SUCCESS = 0;
+  FAIL = 1;
+  FAIL_RETRY = 2;
+}
+
+enum ErrorCode {
+  UNKNOWN_ERROR = 0;
+  BAD_REQUEST = 1;
+  UNSUPPORTED_METHOD = 2;
+  BATTERY_TOO_LOW = 3;
+  BAD_ARGUEMENT = 4; // typo from java code
+  AUTHENTICATION_FAILURE = 5;
+  TIMED_OUT = 6;
+  ALREADY_IN_PROGRESS = 7;
+  USER_PIN_REQUIRED = 8;
+  INTERNAL_ERROR = 9;
+  WIFI_NO_NETWORK = 11;
+  WIFI_INVALID_AUTH = 12;
+  BAD_ACCESS_TOKEN = 13;
+  DEVICE_WIFI_ERROR = 14;
+  DEVICE_BLE_ERROR = 15;
+  WIFI_NO_INTERNET = 16;
+  WIFI_AUTH_TIMEOUT = 17;
+  WIFI_IP_CONFIG_FAIL = 18;
+  OPERATION_NOT_ALLOWED = 19;
+  BAD_PERIPHERAL_DEVICE = 30;
+  BAD_PERIPHERAL_ADDRESS = 31;
+  BLE_PAIRING_KEY_REQUIRED = 32;
+  BAD_LOCK_PIN = 401;
+  PIN_LOCK_NOT_SET = 402;
+  TOO_MANY_PIN_TRIES = 403;
+  APP_LAUNCH_ERROR = 501;
+  APP_NOT_INSTALLED = 502;
+  CONTROLLER_PAIR_FAILED = 601;
+  CONTROLLER_PAIR_REQUIRED = 602;
+  CONTROLLER_INTERNAL_ERROR = 603;
+  CONTROLLER_BLOCKED_BY_UPDATE = 604;
+  DEVELOPMENT_LICENSE_DOES_NOT_EXIST = 701;
+  GK_CHECK_FAILED = 801;
+  WRONG_USER_LOGGED_IN = 901;
+  MULTI_USER_DISABLED = 902;
+  CANNOT_ADD_MORE_USERS = 903;
+  CANNOT_REMOVE_PRIMARY = 904;
+  DEVICE_CODE_NOT_AVAILABLE = 905;
+  ONLY_SECONDARY_LOGIN_ALLOWED = 1001;
+  INVALID_LOGIN_CREDENTIALS = 1002;
+  NO_LINKED_OCULUS_ACCOUNT = 1003;
+  TWO_FACTOR_LOGIN_REQUIRED = 1004;
+  ACCOUNT_ALREADY_ON_DEVICE = 1005;
+  SECONDARY_USER_LOGGED_IN = 1006;
+  NOT_MANAGED_AUTO_PROVISIONING_DEVICE = 1100;
+  NUX_IS_ALREADY_COMPLETED = 1101;
+  DEVICE_NOT_SUPPORTED = 1102;
+  CASTING_BROADCAST_RECEIVER_ISSUE = 1201;
+  ERROR_CODE_INTERRUPTED_EXCEPTION = 1202;
+  OTA_STATUS_ASSET_NOT_INITIALIZED = 1300;
+}
+
+enum WifiAuthentication {
+  NONE = 1;
+  EAP = 2;
+  WPA = 3;
+  WEP = 4;
+}
+
+enum ReachabilityStatus {
+  OK = 1;
+  OCULUS_SERVER_UNREACHABLE = 2;
+  INTERNET_UNREACHABLE = 3;
+  ROUTER_UNREACHABLE = 4;
+}
+
+enum SkipNuxType {
+  DEFAULT = 0;
+  RETAIL = 1;
+}
+
+enum ControllerState {
+  NOT_PAIRED = 1;
+  PAIRED_BUT_INACTIVE = 2;
+  PAIRED_AND_ACTIVE = 3;
+}
+
+enum ControllerHandedness {
+  UNSPECIFIED = 0;
+  LEFT = 1;
+  RIGHT = 2;
+}
+
+enum ControllerType {
+  PRIMARY = 0;
+  SECONDARY = 1;
+  THIRD_PARTY = 2;
+  NOHAND = 3;
+}
+
+enum ControllerModel {
+  LCON = 0;
+  JEDI = 1;
+  STARLET = 2;
+  RUBY = 3;
+  COULEE = 4;
+  RUBYSE = 5;
+}
+
+enum VerifySuccessReason {
+  CONNECTED = 0;
+  UPDATING = 1;
+  UPDATE_PENDING = 2;
+  RECENTLY_CONNECTED = 3;
+}
+
+enum CredentialLockMethod {
+  PATTERN = 0;
+  PASSWORD = 1;
+  PIN = 2;
+}
+
+enum PhoneNotificationConnectionStatus {
+  PHONE_CONNECTED = 0;
+  PHONE_DISCONNECTED_OKAY = 1;
+  PHONE_DISCONNECTED_BOND_FAILED = 2;
+}
+
+enum NuxStatus {
+  NEW_DEVICE = 0;
+  APP_NUX_COMPLETE = 1;
+  SAFEMODE = 2;
+  DAY0_OTA_READY = 3;
+  DAY0_NO_OTA = 4;
+  WAITING_FOR_REBOOT = 5;
+  REBOOTING = 6;
+  NOTIFY_ENDPOINT = 7;
+  NUX_COMPLETE = 8;
+  WAITING_FOR_HIGH_PRI_APPS_DOWNLOAD = 9;
+}
+
+enum HeadsetState {
+  HEADSET_MOUNTED = 0;
+  HEADSET_UNMOUNTED = 1;
+  STANDBY = 2;
+  STARTING = 3;
+  STOPPED = 4;
+  WAITING_FOR_SLEEP_MSG = 5;
+}
+
+enum ProvisionType {
+  UNPROVISIONED = 0;
+  PROTOTYPE_PROVISIONED = 1;
+  FACTORY_PROVISIONED = 2;
+  UNKNOWN_PROVISIONING = 3;
+}
+
+enum MirrorSignalingTransportType {
+  GRAPH_QL_POLLING = 0;
+  CLIENT_SYNC = 1;
+  RSYS = 2;
+}
+
+enum InputEventType {
+  UNKNOWN_EVENT = 0;
+  MOUSE_BUTTON_PRESS = 1;
+  MOUSE_BUTTON_RELEASE = 2;
+  MOUSE_MOVE = 3;
+  SCROLL_WHEEL = 4;
+  KEY_DOWN = 5;
+  KEY_UP = 6;
+}
+
+enum MouseButton {
+  UNKNOWN_MOUSE_BUTTON = 0;
+  LEFT_MOUSE_BUTTON = 1;
+  RIGHT_MOUSE_BUTTON = 2;
+  MIDDLE_MOUSE_BUTTON = 3;
+}
+
+enum ModifierFlags {
+  META_ALT_ON = 2;
+  META_ALT_LEFT_ON = 16;
+  META_ALT_RIGHT_ON = 32;
+  META_SHIFT_ON = 1;
+  META_SHIFT_LEFT_ON = 64;
+  META_SHIFT_RIGHT_ON = 128;
+  META_SYM_ON = 4;
+  META_FUNCTION_ON = 8;
+  META_CTRL_ON = 4096;
+  META_CTRL_LEFT_ON = 8192;
+  META_CTRL_RIGHT_ON = 16384;
+  META_META_ON = 65536;
+  META_META_LEFT_ON = 131072;
+  META_META_RIGHT_ON = 262144;
+  META_CAPS_LOCK_ON = 1048576;
+  META_NUM_LOCK_ON = 2097152;
+  META_SCROLL_LOCK_ON = 4194304;
+}
+
+enum AxComponentType {
+  DROPDOWN = 0;
+  FLOW = 1;
+  SLIDER = 2;
+  SUBPAGE = 3;
+  TOGGLE = 4;
+}
+
+enum AxSettingCategory {
+  VISION = 0;
+  MOBILITY = 1;
+  HEARING = 2;
+}
+
+enum AxSettingValueType {
+  BOOLEAN = 0;
+  INTEGER = 1;
+  FLOAT = 2;
+}
+
+message HelloRequest {
+  optional bytes client_public_key = 1;
+  optional bytes client_challenge = 2;
+  optional bytes known_cert_fingerprint = 3;
+  optional string app_id = 4;
+  optional string app_version = 5;
+}
+
+message HelloSignedData {
+  optional bytes server_public_key = 1;
+  optional bytes authentication_challenge = 2;
+  optional bool device_needs_to_be_unlocked = 3;
+  optional bool is_device_managed = 4;
+}
+
+message HelloResponse {
+  optional bytes signed_data = 1;
+  optional bytes signature = 2;
+  optional bytes server_certificate = 3;
+}
+
+message AuthenticateRequest {
+  optional bytes signed_authentication_challenge = 1;
+}
+
+message WifiNetwork {
+  optional string ssid = 1;
+  repeated WifiAuthentication auth = 2 [packed = true];
+  optional int32 signal_level = 3;
+}
+
+message WifiScanResponse {
+  repeated WifiNetwork networks = 1;
+  optional string device_mac_address = 2;
+}
+
+message WifiConnectRequest {
+  optional string ssid = 1;
+  optional string password = 2;
+  optional WifiAuthentication auth = 3;
+  optional bool hidden = 4;
+  optional string username = 5;
+}
+
+message WifiReconnectRequest {
+  optional string ssid = 1;
+}
+
+message WifiStatusResponse {
+  optional bool enabled = 1;
+  optional WifiNetwork network = 2;
+  optional ReachabilityStatus reachability = 3;
+  repeated WifiNetwork known_networks = 4;
+}
+
+message WifiForgetRequest {
+  optional WifiNetwork network = 1;
+}
+
+message CastDevice {
+  enum Type {
+    UNKNOWN = 0;
+    MIRACAST = 1;
+    CHROMECAST = 2;
+  }
+  enum Status {
+    FOUND = 0;
+    CONNECTING_TO_PEER = 1;
+    CONNECTION_INITIATED = 2;
+    CONNECTION_SUCCESS = 3;
+    STARTING_SESSION = 4;
+    CASTING = 5;
+    DISCONNECTING = 6;
+    INVALID = 7;
+  }
+  optional string name = 1;
+  optional string id = 2;
+  optional Type type = 3;
+  optional Status status = 4;
+}
+
+message DiscoverCastingDevicesResponse {
+  repeated CastDevice device = 1;
+}
+
+message CastingStatusResponse {
+  optional CastDevice device = 1;
+}
+
+message StartCastingRequest {
+  optional string device_id = 1;
+  optional bool show_dialog = 2;
+}
+
+message StartCastingResponse {
+  optional int32 result_code = 1;
+}
+
+message CastingDialogStatusResponse {
+  optional string serial_number = 1;
+  optional string session_id = 2;
+}
+
+message OculusLoginRequest {
+  optional string access_token = 1;
+  optional bytes user_secret_key = 2;
+}
+
+message OculusSetUserSecretRequest {
+  optional bytes user_secret_key = 1;
+}
+
+message OculusSetAccessTokenRequest {
+  optional string access_token = 1;
+  optional string user_id = 2;
+}
+
+message OculusSecondaryAccountLoginRequest {
+  optional string email = 1;
+  optional string password = 2;
+  optional bool skip_nux = 3;
+}
+
+message MetaSetAccessTokenRequest {
+  optional string access_token = 1;
+  optional string user_id = 2;
+}
+
+message CombinedSetAccessTokenRequest {
+  optional string access_token_meta = 1;
+  optional string access_token_horizon_profile = 2;
+  optional string user_id = 3;
+  optional string user_id_meta = 4;
+  optional bool salsa_account = 5;
+  optional int32 salsa_status = 6;
+}
+
+message MetaSecondaryAccountLoginRequest {
+  optional string access_token_meta = 1;
+  optional string access_token_horizon_profile = 2;
+  optional string user_id = 3;
+  optional string user_id_meta = 4;
+}
+
+message OculusSecondaryUserRemoveRequest {
+  optional int32 user_id = 1;
+}
+
+message OculusSecondaryUserGetDeviceCoderesponse {
+  optional string device_code = 1;
+}
+
+message Controller {
+  optional string id = 1;
+  optional string display_name = 2;
+  optional ControllerState state = 3;
+  optional uint32 battery_level = 4;
+  optional ControllerType type = 5;
+  optional int32 rssi = 7;
+  optional string firmware_version = 8;
+  optional ControllerModel model = 9;
+}
+
+message ControllerDetectionState {
+  optional ControllerType type = 1;
+  optional ErrorCode error_code = 2;
+  optional VerifySuccessReason success_reason = 3;
+}
+
+message ControllerScanRequest {
+  repeated ControllerType types = 1 [packed = true];
+}
+
+message ControllerScanResponse {
+  repeated Controller controllers = 1;
+}
+
+message ControllerPairRequest {
+  optional Controller controller = 1;
+  optional bool reuse_last_request = 2;
+}
+
+message ControllerStatusRequest {
+  optional int32 timeout_ms = 1;
+}
+
+message ControllerStatusResponse {
+  repeated Controller paired_controllers = 1;
+  optional ControllerHandedness handedness = 2;
+}
+
+message ControllerUnpairRequest {
+  optional Controller controller = 1;
+}
+
+message ControllerSetHandednessRequest {
+  optional ControllerHandedness handedness = 1;
+}
+
+message ControllerScanAndPairRequest {
+  optional ControllerType type = 1;
+  optional int32 timeout_ms = 2;
+  optional int64 addr = 3;
+  optional ControllerModel model = 4;
+}
+
+message ControllerVerifyConnectableRequest {
+  optional ControllerType type = 1;
+  optional int32 timeout_ms = 2;
+  optional int32 recent_connection_time_limit_s = 3;
+}
+
+message VerifyMultipleControllersConnectableRequest {
+  repeated ControllerType types = 1 [packed = true];
+  optional int32 timeout_ms = 2;
+  optional int32 recent_connection_time_limit_s = 3;
+}
+
+message VerifyMultipleControllersConnectableResponse {
+  repeated ControllerDetectionState states = 1;
+}
+
+message ControllerCheckForUpdateRequest {
+  optional Controller controller = 1;
+}
+
+message PinSetRequest {
+  optional string new_pin = 1;
+  optional string old_pin = 2;
+  optional CredentialLockMethod method = 3;
+}
+
+message PinStatusResponse {
+  optional bool pin_is_set = 1;
+  optional bool device_is_locked = 2;
+  optional CredentialLockMethod method = 3;
+}
+
+message PinUnlockRequest {
+  optional string pin = 1;
+}
+
+message PinUnlockResponse {
+  optional bool correct = 1;
+  optional uint32 cooldown_timeout = 2;
+}
+
+message PinVerifyRequest {
+  optional string pin = 1;
+  optional string session_id = 2;
+}
+
+message PinVerifyResponse {
+  optional bool correct = 1;
+  optional uint32 cooldown_seconds = 2;
+  optional uint32 tries_left = 3;
+}
+
+message PinReauthStatusResponse {
+  optional bool reauth_session_active = 1;
+  optional string reauth_session_id = 2;
+  optional string reauth_title = 3;
+  optional string reauth_description = 4;
+}
+
+message WipeDataRequest {
+  optional string pin = 1;
+}
+
+message OtaCheckAvailabilityRequest {
+  optional bool full_ota = 1;
+}
+
+message OtaCheckAvailabilityResponse {
+  optional string debug_message = 1;
+}
+
+message OtaManualUpdateRequest {
+  optional bool full_ota = 1;
+}
+
+message GetOtaStatusResponse {
+  enum OtaStatus {
+    UNKNOWN = 0;
+    NOT_STARTED = 1;
+    UPDATE_IN_PROGRESS = 2;
+    VERIFYING_UPDATE = 3;
+    FINALIZING_UPDATE = 4;
+    READY_TO_REBOOT = 5;
+    ERROR = 6;
+  }
+  enum OtaStatusErrorCode {
+    WIFI_DISABLED = 0;
+    NOT_ALLOWED_BY_SYSTEM = 1;
+    DISABLED_BY_USER = 2;
+    DEVICE_NOT_CONFIGURED_FOR_AB_UPDATES = 3;
+    ERROR_APPLYING_UPDATE = 4;
+  }
+  optional OtaStatus ota_status = 1;
+  optional float ota_update_percent = 2;
+  optional OtaStatusErrorCode error_code = 3;
+  optional int32 internal_error_code = 4;
+  optional string error_message = 5;
+}
+
+message DevModeRequest {
+  optional uint32 mode = 1;
+}
+
+message DevModeResponse {
+  optional uint32 status = 1;
+}
+
+message AdbModeRequest {
+  optional bool enable = 1;
+}
+
+message AdbModeResponse {
+  optional bool status = 1;
+}
+
+message MtpModeRequest {
+  optional bool enable = 1;
+}
+
+message MtpModeResponse {
+  optional bool status = 1;
+}
+
+message OtaEnabledRequest {
+  optional bool enable = 1;
+}
+
+message OtaEnabledResponse {
+  optional bool enabled = 1;
+}
+
+message CrashReportsEnabledRequest {
+  optional bool enable = 1;
+}
+
+message CrashReportsEnabledResponse {
+  optional bool enabled = 1;
+}
+
+message AutowakeRequest {
+  optional bool enable = 1 [default = false];
+}
+
+message AutowakeResponse {
+  optional bool enabled = 1;
+}
+
+message AutosleepTimeRequest {
+  optional int32 interval = 1;
+}
+
+message AutosleepTimeResponse {
+  optional int32 interval = 1;
+}
+
+message AppLaunchRequest {
+  optional string app_id = 1;
+  optional string package_name = 2;
+  optional string launch_parameters_json = 3;
+}
+
+message AppLaunchResponse {
+  optional string error_message = 1;
+}
+
+message NameSetRequest {
+  optional string name = 1;
+}
+
+message LineFrequencyRequest {
+  optional int32 line_frequency = 1;
+}
+
+message LineFrequencyResponse {
+  optional int32 line_frequency = 1;
+}
+
+message PhoneNotificationRequest {
+  optional bool enable = 1;
+  optional bool allow_all_apps = 2;
+  optional string app_filters = 3;
+}
+
+message PhoneNotificationResponse {
+  optional bool enabled = 1;
+  optional bool allow_all_apps = 2;
+  optional string app_filters = 3;
+  optional PhoneNotificationConnectionStatus connection_status = 4;
+}
+
+message HmdStatusResponse {
+  optional uint32 battery_level = 1;
+  optional bool charger_connected = 2;
+  optional bool fast_charger_connected = 3;
+  optional bool charging = 4;
+  optional bool wifi_enabled = 11;
+  optional bool wifi_configured = 12;
+  optional bool wifi_connected = 13;
+  optional bool wifi_oculus_reachable = 14;
+  optional string wifi_ip_address = 15;
+  optional string wifi_device_name = 16;
+  optional bool controller_primary_configured = 21;
+  optional bool controller_primary_connected = 22;
+  optional bool controller_secondary_configured = 23;
+  optional bool controller_secondary_connected = 24;
+  optional bool controller_other_configured = 25;
+  optional bool controller_other_connected = 26;
+  optional uint32 controller_primary_battery_level = 27;
+  optional uint32 controller_secondary_battery_level = 28;
+  optional bool ota_available = 31;
+  optional bool ota_ready = 32;
+  optional uint32 hmd_update_percentage_complete = 33;
+  optional bool pin_configured = 41;
+  optional bool pin_locked = 42;
+  optional bool horizon_logged_in = 51;
+  optional bool horizon_logged_in_meta = 52;
+  optional bool developer_mode = 61;
+  optional bool adb_enabled = 62;
+  optional bool system_software_locked = 63;
+  optional bool hsw_completed = 71;
+  optional bool nux_completed = 72;
+  optional NuxStatus nux_status = 73;
+  optional HeadsetState headset_state = 81;
+  optional ProvisionType provision_type = 91;
+  optional string provisioned_serial = 92;
+  optional string device_id = 93;
+  optional bool controller_nohand_configured = 101;
+  optional bool controller_nohand_connected = 102;
+  optional uint32 controller_nohand_battery_level = 103;
+}
+
+message HmdVersionResponse {
+  optional string board = 1;
+  optional string bootloader = 2;
+  optional string brand = 3;
+  optional string device = 4;
+  optional string display = 5;
+  optional string fingerprint = 6;
+  optional string hardware = 7;
+  optional string host = 8;
+  optional string id = 9;
+  optional string manufacturer = 10;
+  optional string model = 11;
+  optional string product = 12;
+  optional string serial = 13;
+  optional string tags = 14;
+  optional uint64 time = 15;
+  optional string type = 16;
+  optional string user = 17;
+  optional string version_base_os = 31;
+  optional string version_codename = 32;
+  optional string version_incremental = 33;
+  optional string version_release = 34;
+  optional string version_security_patch = 35;
+}
+
+message HmdExternalBatteryStatusResponse {
+  enum ChargingStatus {
+    UNKNOWN = 0;
+    CHARGING = 1;
+    NOT_CHARGING = 2;
+  }
+  optional bool is_charger_plugged = 1;
+  optional int64 battery_level = 2;
+  optional int64 combined_battery_level = 3;
+  optional ChargingStatus charging_status = 4;
+}
+
+message DevelopmentLicenseDetailsResponse {
+  optional int64 expiry_time_s = 1;
+  optional int64 issued_time_s = 2;
+  optional bool revoked = 3;
+}
+
+message DevelopmentLicenseRefreshResponse {
+  // empty message
+}
+
+message HmdCapabilitiesResponse {
+  optional bool chromecast_available = 1;
+  optional bool multi_user_available = 11;
+  optional int32 manual_ota_version = 12;
+  optional bool chromecast_native_receiver_available = 13;
+  optional bool tour_guide_v2_available = 14;
+}
+
+message LocaleSet {
+  optional string language = 1;
+  optional string country = 2;
+}
+
+message TimeSet {
+  optional int64 time_ms = 1;
+  optional string timezone = 2;
+}
+
+message HealthAndSafetyWarningRequest {
+  optional bool hsw_opt_out = 1;
+}
+
+message SystemUnlockRequest {
+  optional string token = 1;
+}
+
+message MirrorRequest {
+  optional bool start = 1;
+  optional bool show_dialog = 2;
+  optional bool use_www_signaling = 3;
+  repeated MirrorSignalingTransportType supported_signaling_transports = 4 [packed = true];
+  optional string session_id = 5;
+  optional float display_aspect_ratio = 6;
+  optional bool enable_ble_improvements = 7;
+  optional string additional_params = 8;
+}
+
+message MirrorResponse {
+  optional bool running = 1;
+  optional string hostname = 2;
+  optional string ip_address = 3;
+  optional string port = 4;
+  optional string uri = 5;
+  repeated MirrorSignalingTransportType supported_signaling_transports = 6 [packed = true];
+  optional string session_id = 7;
+}
+
+message ManagedModeSet {
+  optional int32 level = 1;
+}
+
+message ManagedModeResponse {
+  optional int32 level = 1;
+}
+
+message TextSend {
+  optional string text = 1;
+}
+
+message InputEventSend {
+  optional InputEventType event_type = 1;
+  optional MouseButton mouse_button = 2;
+  optional uint32 key_code = 3;
+  optional uint32 modifier_flags = 4;
+  optional uint32 key_repeat_count = 5;
+  optional uint32 click_count = 6;
+  optional float delta_x = 7;
+  optional float delta_y = 8;
+  optional int64 timestamp = 9;
+}
+
+message ResetGuardian {
+  // empty message
+}
+
+message ResetHeadsetView {
+  // empty message
+}
+
+message TogglePassthrough {
+  // empty message
+}
+
+message ChangeBatteryLedTempRequest {
+  optional uint32 alpha_value = 1;
+  optional uint32 red_value = 2;
+  optional uint32 green_value = 3;
+  optional uint32 blue_value = 4;
+  optional bool blink_light = 5;
+  optional uint32 blink_duration_in_ms = 6;
+}
+
+message SkipNuxAndLoginRequest {
+  optional string email = 1;
+  optional string password = 2;
+  optional bool disable_guardian = 3;
+  optional bool get_status = 4;
+  optional bool do_not_disturb = 5;
+  optional SkipNuxType skip_nux_type = 6;
+  optional bool reboot = 7;
+}
+
+message SkipNuxAndLoginResponse {
+  optional int32 status = 1;
+}
+
+message ManagedAutoProvisioningStartRequest {
+  optional string enrollment_token = 1;
+  optional bool install_mdm = 2;
+  optional bool pause_guardian = 3;
+  optional bool shared_mode_wait = 4;
+  optional bool skip_ota = 5;
+  optional bool launch_nux_directly = 6;
+}
+
+message ManagedAutoProvisioningStatusResponse {
+  enum ManagedAutoProvisioningStatusState {
+    NOT_AVAILABLE = 1;
+    NOT_STARTED = 2;
+    ENROLLMENT_IN_PROGRESS = 3;
+    MDM_INSTALL_IN_PROGRESS = 4;
+    SUCCESS = 5;
+    ERROR = 6;
+  }
+  enum ManagedAutoProvisioningMdmInstallState {
+    STATE_NOT_AVAILABLE = 1;
+    ENROLLMENT_CONFIG_FETCH_SUCCESS = 2;
+    ENROLLMENT_CONFIG_FETCH_ERROR = 3;
+    REQUIRED_APPS_START = 4;
+    REQUIRED_APPS_RETRYING = 5;
+    REQUIRED_APPS_SUCCESS = 6;
+    REQUIRED_APPS_ERROR = 7;
+    PROVISIONING_STARTED = 8;
+    PROVISIONING_DONE = 9;
+    PROVISIONING_ERROR = 10;
+    FINALIZATION_COMPLETED = 11;
+  }
+  enum ManagedAutoProvisioningStatusErrorCode {
+    UNKNOWN = 1;
+    OTA_AVAILABLE = 2;
+    WWW_ERROR = 3;
+  }
+  optional ManagedAutoProvisioningStatusState state = 1;
+  optional ManagedAutoProvisioningStatusErrorCode error_code = 2;
+  optional uint32 www_error_code = 3;
+  optional ManagedAutoProvisioningMdmInstallState mdm_install_state = 4;
+  optional int32 sensor_lock_state = 5;
+}
+
+message ManagedAutoProvisioningAppInstallStatus {
+  enum ManagedAutoProvisioningAppStatus {
+    UNSUPPORTED = 1;
+    UNKNOWN = 2;
+    ENTITLED = 3;
+    INCOMPATIBLE = 4;
+    DOWNLOAD_QUEUED = 5;
+    DOWNLOADING = 6;
+    INSTALLING = 7;
+    INSTALLED = 8;
+    UNINSTALLING = 9;
+  }
+  optional string id = 1;
+  optional ManagedAutoProvisioningAppStatus status = 2;
+  optional uint64 download_size_bytes = 3;
+  optional uint64 downloaded_size_bytes = 4;
+  optional string display_name = 5;
+  optional uint64 version_code = 6;
+  optional string version_name = 7;
+}
+
+message ManagedAutoProvisioningAppsStatusResponse {
+  repeated ManagedAutoProvisioningAppInstallStatus apps = 1;
+}
+
+message ManagedAutoProvisioningFinishRequest {
+  enum ManagedAutoProvisioningFinishAction {
+    REBOOT = 1;
+    SHUTDOWN = 2;
+    NOOP = 3;
+  }
+  optional ManagedAutoProvisioningFinishAction action = 1;
+  optional bool unpause_guardian = 2;
+}
+
+message AudioBalanceRequest {
+  optional sint32 audio_balance = 1;
+}
+
+message AudioBalanceResponse {
+  optional sint32 audio_balance = 1;
+}
+
+message BoostHeightRequest {
+  optional bool boost_height = 1;
+}
+
+message BoostHeightResponse {
+  optional bool boost_height = 1;
+}
+
+message ColorCorrectionEnabledRequest {
+  optional bool color_correction_enabled = 1;
+}
+
+message ColorCorrectionEnabledResponse {
+  optional bool color_correction_enabled = 1;
+}
+
+message ColorCorrectionValueRequest {
+  optional int32 color_correction_value = 1;
+}
+
+message ColorCorrectionValueResponse {
+  optional int32 color_correction_value = 1;
+}
+
+message ControllerVibrationRequest {
+  optional sint32 controller_vibration = 1;
+}
+
+message ControllerVibrationResponse {
+  optional sint32 controller_vibration = 1;
+}
+
+message DisplayContrastRequest {
+  optional sint32 display_contrast = 1;
+}
+
+message DisplayContrastResponse {
+  optional sint32 display_contrast = 1;
+}
+
+message FontSizeRequest {
+  optional int32 font = 1;
+}
+
+message FontSizeResponse {
+  optional int32 font = 1;
+}
+
+message MonoAudioRequest {
+  optional sint32 mono_audio = 1;
+}
+
+message MonoAudioResponse {
+  optional sint32 mono_audio = 1;
+}
+
+message SwitchOculusMenuButtonRequest {
+  optional bool enabled = 1;
+}
+
+message SwitchOculusMenuButtonResponse {
+  optional bool enabled = 1;
+}
+
+message AxComponentConfig {
+  optional AxComponentType component_type = 1;
+  optional string title = 2;
+  optional string subtitle = 3;
+}
+
+message AxSettingValue {
+  optional AxSettingValueType value_type = 1;
+  optional bool boolean_value = 2;
+  optional int32 int_value = 3;
+  optional float float_value = 4;
+}
+
+message AxSettingDefinition {
+  optional string name = 1;
+  optional AxComponentConfig component_config = 2;
+  optional AxSettingValue value = 3;
+}
+
+message AxGetEnabledSettingsByCategoryRequest {
+  optional AxSettingCategory category = 1;
+}
+
+message AxGetEnabledSettingsByCategoryResponse {
+  repeated AxSettingDefinition settings = 1;
+}
+
+message AxUpdateSettingValueRequest {
+  optional string setting_name = 1;
+  optional AxSettingValue value = 2;
+}
+
+message LocationSignal {
+  optional float latitude = 1;
+  optional float longitude = 2;
+  optional float location_accuracy = 3;
+  optional float mag_declination = 4;
+}
+
+message SecondaryUserSupportedMethodsResponse {
+  repeated Method supported_method = 1 [packed = true];
+}
+
+message StartWirelessPairingServerResponse {
+  optional string ip = 1;
+  optional int32 pairing_port = 2;
+  optional string pairing_code = 3;
+  optional int32 connection_port = 4;
+}
+
+message CloudSyncSignalSend {
+  optional bool signal = 1;
+}
+
+message CloudMediaOneTimeSync {
+  // empty message
+}
+
+message ManagedDeviceStatusResponse {
+  optional bool is_device_managed = 1;
+}

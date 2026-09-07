@@ -27,7 +27,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=150";
+} from "./check.js?v=153";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -225,6 +225,7 @@ const el = {
   defaultCount: document.getElementById("defaultCount"),
   defaultEmpty: document.getElementById("defaultEmpty"),
   viewHeadset: document.getElementById("view-adb"),
+  viewCompanion: document.getElementById("view-companion"),
   adbUsb: document.getElementById("adbUsb"),
   adbAddr: document.getElementById("adbAddr"),
   adbPairAddr: document.getElementById("adbPairAddr"),
@@ -770,7 +771,7 @@ function applyView() {
   closeStage({ animate: false });
 
   const hash = location.hash.replace("#", "");
-  const view = ["mine", "devices", "orgs", "default", "adb", "settings"].includes(hash) ? hash : "apps";
+  const view = ["mine", "devices", "orgs", "default", "adb", "companion", "settings"].includes(hash) ? hash : "apps";
 
   el.viewApps.hidden = view !== "apps";
   el.viewMine.hidden = view !== "mine";
@@ -778,7 +779,16 @@ function applyView() {
   el.viewOrgs.hidden = view !== "orgs";
   el.viewDefault.hidden = view !== "default";
   el.viewHeadset.hidden = view !== "adb";
+  el.viewCompanion.hidden = view !== "companion";
   el.viewSettings.hidden = view !== "settings";
+
+  /* CompanionServer pulls in libsodium and protobufjs, so it only wakes up the
+     first time its tab is opened — not on every page load. */
+  if (view === "companion") {
+    import("./companion.js?v=153")
+      .then((m) => m.initCompanion(el.viewCompanion))
+      .catch((e) => console.error("companion init failed", e));
+  }
 
   /* the limit only governs the apps list, so hide it elsewhere */
   el.limitbar.hidden = view !== "apps";
@@ -794,7 +804,7 @@ function applyView() {
      would have to be kept on the page to be animated, and it is the arriving
      one the reader is looking for. */
   play(
-    [el.viewApps, el.viewMine, el.viewDevices, el.viewOrgs, el.viewDefault, el.viewHeadset, el.viewSettings].find(
+    [el.viewApps, el.viewMine, el.viewDevices, el.viewOrgs, el.viewDefault, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
