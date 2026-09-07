@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=149">
+<link rel="stylesheet" href="css/style.css?v=150">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -49,12 +49,25 @@
   <div class="bar">
     <h1>MetaDB</h1>
     <nav class="nav">
-      <a href="#apps" data-view="apps">Apps and games</a>
-      <a href="#mine" data-view="mine">Entitlements</a>
-      <a href="#devices" data-view="devices">Headsets</a>
-      <a href="#orgs" data-view="orgs">Organizations</a>
-      <a href="#default" data-view="default">Default apps</a>
-      <a href="#adb" data-view="adb">ADB</a>
+      <!-- The screens that list store apps sit under one menu; the two that talk
+           to a headset sit under another. A group is marked "on" when the screen
+           being shown is one of its own. -->
+      <div class="navgroup">
+        <button class="navtop" type="button" aria-expanded="false">Apps</button>
+        <div class="navmenu" hidden>
+          <a href="#apps" data-view="apps">Apps and games</a>
+          <a href="#default" data-view="default">Default apps</a>
+          <a href="#mine" data-view="mine">Entitlements</a>
+          <a href="#orgs" data-view="orgs">Organizations</a>
+        </div>
+      </div>
+      <div class="navgroup">
+        <button class="navtop" type="button" aria-expanded="false">Headsets</button>
+        <div class="navmenu" hidden>
+          <a href="#devices" data-view="devices">Headsets</a>
+          <a href="#adb" data-view="adb">ADB</a>
+        </div>
+      </div>
       <a href="#settings" data-view="settings">Settings</a>
     </nav>
     <select id="theme" aria-label="Theme"></select>
@@ -761,6 +774,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=149"></script>
+<script type="module" src="js/app.js?v=150"></script>
 </body>
 </html>

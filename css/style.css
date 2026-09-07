@@ -310,6 +310,61 @@ body {
 }
 .nav a:hover { color: var(--text); text-decoration: underline; }
 
+/* nav menus */
+
+.navgroup { position: relative; display: flex; }
+
+/* Reads as a nav link, not a control: the arrow is the only thing marking it
+   as one that opens. */
+.navtop {
+  background: none;
+  border: 0;
+  padding: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  color: var(--muted);
+  font: inherit;
+  font-size: .875rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.navtop:hover { background: none; color: var(--text); text-decoration: underline; }
+.navtop.on { color: var(--text); font-weight: 600; }
+.navtop::after {
+  content: "";
+  width: .3rem;
+  height: .3rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-.1em) rotate(45deg);
+}
+.navtop[aria-expanded="true"]::after { transform: translateY(.05em) rotate(225deg); }
+
+.navmenu {
+  position: absolute;
+  top: calc(100% + .5rem);
+  left: -.6rem;
+  z-index: 6;
+  min-width: 11rem;
+  display: flex;
+  flex-direction: column;
+  padding: .3rem;
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+/* display:flex above would otherwise beat the hidden attribute */
+.navmenu[hidden] { display: none; }
+.navmenu a {
+  padding: .4rem .6rem;
+  border-radius: 4px;
+  font-size: .875rem;
+}
+.navmenu a:hover { background: var(--hover); text-decoration: none; }
+.navmenu a.on { background: var(--hover); }
+
 .wrap {
   max-width: 64rem;
   margin: 0 auto;
@@ -1283,5 +1338,9 @@ details.hint > p {
   .bar { padding: .5rem .75rem; gap: .6rem; }
   .nav { gap: .6rem; }
   .nav a { font-size: .8125rem; }
+  .navtop { font-size: .8125rem; }
+  .navmenu { left: -.4rem; min-width: 9.5rem; }
+  /* roomier rows so a fingertip has 44px to land on */
+  .navmenu a { font-size: .8125rem; padding: .8rem .7rem; }
   #theme { padding: .4rem .6rem; }
 }
