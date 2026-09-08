@@ -8,7 +8,8 @@ import {
   storeListing,
   channelObbs,
   claimOffer,
-  appOffer,
+  appPage,
+  mergeMedia,
   myEntitlements,
   accountDevices,
   orgApps,
@@ -27,7 +28,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=153";
+} from "./check.js?v=154";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -294,6 +295,10 @@ const results = new Map();
 
 /** id -> the store's own listing, filled in by a check. */
 const listings = new Map();
+
+/* App ID -> the artwork on its store page, once it has been asked for. Filled
+   in by a check that fetched the offer, or by Show more images itself. */
+const media = new Map();
 
 /* Binary ID -> its OBB's binary ID, gathered per release channel when the
    setting is on. Binary IDs are unique store-wide, so one map serves every
@@ -660,6 +665,9 @@ function openStage(app) {
 function closeStage({ animate = true } = {}) {
   if (!stagedApp) return;
 
+  /* The pictures are the panel's own second sheet, so they leave with it. */
+  closeGallery({ animate });
+
   stagedApp = null;
   const stage = stageEl();
 
@@ -683,6 +691,113 @@ function refreshStage() {
   const at = stage.scrollTop;
   stage.replaceChildren(appPanel(stagedApp, { staged: true }));
   stage.scrollTop = at;
+}
+
+/* ---------- the app's pictures ---------- */
+
+const galleryEl = () => document.querySelector(".gallery");
+
+/**
+ * A second sheet over the first: every picture the store page holds for one app.
+ *
+ * It covers the expanded panel rather than replacing it, so closing this one
+ * puts the reader back where they were — the app they were already reading,
+ * scrolled where they left it.
+ */
+function openGallery(app, shots) {
+  closeGallery({ animate: false });
+
+  const gallery = document.createElement("div");
+  gallery.className = "gallery";
+  gallery.innerHTML = `
+    <button type="button" class="stage-btn" data-close>Close</button>
+    <h3 class="stage-title">${esc(app.name)} — images</h3>
+    <div class="shots">
+      ${shots
+        .map((shot) => {
+          /* Never bigger than the store rendered it: a 64px launcher icon
+             stretched across the column is a worse picture than a 64px icon. */
+          const cap = shot.width ? ` style="max-width:${shot.width}px"` : "";
+
+          return `<figure class="shot">
+            ${
+              shot.kind === "video"
+                ? `<video controls preload="none" playsinline${cap}
+                     src="${esc(shot.uri)}"
+                     ${shot.poster ? `poster="${esc(shot.poster)}"` : ""}></video>`
+                : `<a href="${esc(shot.uri)}" target="_blank" rel="noopener">
+                     <img src="${esc(shot.uri)}" alt="${esc(shot.label)}"
+                          loading="lazy"${cap}>
+                   </a>`
+            }
+            <figcaption>${esc(shot.label)}</figcaption>
+          </figure>`;
+        })
+        .join("")}
+    </div>`;
+
+  gallery
+    .querySelector("[data-close]")
+    .addEventListener("click", () => closeGallery());
+
+  document.body.append(gallery);
+  play(gallery, "stage-in");
+}
+
+/** Take the pictures away again. The panel underneath was never touched. */
+function closeGallery({ animate = true } = {}) {
+  const gallery = galleryEl();
+  if (!gallery) return;
+
+  if (!animate || !animates()) return gallery.remove();
+
+  play(gallery, "stage-out", { keep: true });
+  setTimeout(() => gallery.remove(), speed());
+}
+
+/**
+ * Show everything the store page has for this app.
+ *
+ * The artwork arrives with the offer, so a checked app already has it and this
+ * opens straight away; anything else fetches the same page query once and keeps
+ * it. Nothing is fetched from Meta's CDN with app art turned off, which is why
+ * the button is only there when it is on.
+ */
+async function showImages(app, button, out) {
+  /* An app from the library arrived with its own artwork — the icon and the
+     home-screen layers, which the store page does not carry — so both lots are
+     shown together, with anything they have in common kept once. The store
+     page leads: those are the big pictures, and the library's are the small
+     ones a headset draws its own shelf with. */
+  const show = (page) => {
+    const shots = mergeMedia(page, app.media);
+    if (shots.length) openGallery(app, shots);
+    else out.innerHTML = `<p>The store has no artwork for this app.</p>`;
+  };
+
+  if (media.has(app.id)) {
+    show(media.get(app.id));
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent = "Loading images…";
+  out.innerHTML = "";
+
+  try {
+    const page = await appPage(app.id, el.hmd.value);
+    media.set(app.id, page.media);
+    show(page.media);
+  } catch (err) {
+    /* A library app came with artwork of its own, so a store page that refuses
+       — an unpublished app, a Rift title, a token that may not read it — is a
+       note beside the pictures rather than instead of them. */
+    out.innerHTML = `<p class="warn">No store page: ${esc(err.message)}</p>`;
+    if (app.media?.length) show([]);
+  }
+
+  button.disabled = false;
+  button.textContent = "Show more images";
 }
 
 /**
@@ -714,8 +829,12 @@ function initStage() {
   probe.remove();
 
 
+  /* One sheet at a time, topmost first: Escape over the pictures puts the
+     reader back on the panel they opened them from, not on the list. */
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeStage();
+    if (e.key !== "Escape") return;
+    if (galleryEl()) closeGallery();
+    else closeStage();
   });
 }
 
@@ -785,7 +904,7 @@ function applyView() {
   /* CompanionServer pulls in libsodium and protobufjs, so it only wakes up the
      first time its tab is opened — not on every page load. */
   if (view === "companion") {
-    import("./companion.js?v=153")
+    import("./companion.js?v=154")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -2563,9 +2682,19 @@ function appPanel(app, { staged = false } = {}) {
     <div class="panel__side">
       ${
         /* Cover art is cover art wherever it appears: with app art turned off,
-           no image is fetched from Meta's CDN here either. */
-        staged && app.image && opts.images
-          ? `<img class="panel__art" src="${esc(app.image)}" alt="">`
+           no image is fetched from Meta's CDN here either — and the rest of the
+           store's pictures are not offered, since fetching them is the whole
+           point of the button. */
+        staged && opts.images && (app.image || app.id)
+          ? `<div class="artbox">
+               ${app.image ? `<img class="panel__art" src="${esc(app.image)}" alt="">` : ""}
+               ${
+                 app.id
+                   ? `<button type="button" data-images="1">Show more images</button>
+                      <div class="images-out"></div>`
+                   : ""
+               }
+             </div>`
           : ""
       }
       ${note(found)}
@@ -2599,6 +2728,11 @@ function appPanel(app, { staged = false } = {}) {
   panel.querySelector("[data-check]")?.addEventListener("click", (e) => {
     e.stopPropagation();
     checkOne(app);
+  });
+
+  panel.querySelector("[data-images]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    showImages(app, e.currentTarget, panel.querySelector(".images-out"));
   });
 
   panel.querySelector("[data-claim]")?.addEventListener("click", (e) => {
@@ -3328,17 +3462,22 @@ async function checkOne(app, { listing: wantListing = true } = {}) {
      search — Meta apps and an organization's apps carry no offer of their own,
      so this is what lets their free ones show a Get-entitlement button. */
   const wantOffer = wantListing && !app.offerId;
-  const [history, store, offer] = await Promise.allSettled([
+  const [history, store, page] = await Promise.allSettled([
     checkApp(app),
     wantListing ? storeListing(app.id, el.hmd.value) : Promise.resolve(null),
-    wantOffer ? appOffer(app.id, el.hmd.value) : Promise.resolve(null),
+    wantOffer ? appPage(app.id, el.hmd.value) : Promise.resolve(null),
   ]);
 
   /* An offer found this way fills the app in, so the panel condition (free with
-     an offer) can light the button and the claim has something to run against. */
-  if (offer.status === "fulfilled" && offer.value) {
-    app.offerId = offer.value.offerId;
-    app.free = offer.value.free;
+     an offer) can light the button and the claim has something to run against.
+     The same reply carries the app's artwork, so Show more images has it ready
+     without a request of its own. */
+  if (page.status === "fulfilled" && page.value) {
+    if (page.value.offer) {
+      app.offerId = page.value.offer.offerId;
+      app.free = page.value.offer.free;
+    }
+    media.set(app.id, page.value.media);
   }
 
   /* Only record an outcome when one was asked for, so a sweep does not wipe a
