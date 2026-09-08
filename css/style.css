@@ -238,7 +238,8 @@
   from { opacity: 0; transform: scale(.994); }
   to   { opacity: 1; transform: none; }
 }
-.stage.stage-in { animation: stage-in var(--speed) ease-out; }
+.stage.stage-in,
+.gallery.stage-in { animation: stage-in var(--speed) ease-out; }
 
 @keyframes stage-out {
   from { opacity: 1; transform: none; }
@@ -246,13 +247,16 @@
 }
 /* The one that does hold its last frame: the panel has to stay faded out until
    the row underneath is rebuilt a moment later, and it is leaving anyway. */
-.stage.stage-out { animation: stage-out var(--speed) ease-in forwards; }
+.stage.stage-out,
+.gallery.stage-out { animation: stage-out var(--speed) ease-in forwards; }
 
 /* Asked for plainly by the reader's own system, so it wins over the setting. */
 @media (prefers-reduced-motion: reduce) {
   .view-in,
   .stage.stage-in,
-  .stage.stage-out { animation: none; }
+  .stage.stage-out,
+  .gallery.stage-in,
+  .gallery.stage-out { animation: none; }
 }
 
 /* Keep the scrollbar's space reserved whether or not there is one. Settings is
@@ -480,8 +484,10 @@ tbody tr.app > td.name { font-weight: 600; font-size: .9375rem; }
 }
 
 /* The overlay: a window-sized sheet of its own, holding a second copy of the
-   app's panel. The row it came from is untouched underneath. */
-.stage {
+   app's panel. The row it came from is untouched underneath. The pictures
+   sheet is the same thing again, one layer up. */
+.stage,
+.gallery {
   position: fixed;
   top: 0;
   bottom: 0;
@@ -515,7 +521,8 @@ tbody tr.app > td.name { font-weight: 600; font-size: .9375rem; }
 /* Fixed, so it stays in the corner while the sheet scrolls under it. */
 .stage .stage-btn { position: fixed; top: 1.4rem; right: 2rem; z-index: 61; }
 
-.stage .stage-title {
+.stage .stage-title,
+.gallery .stage-title {
   grid-area: title;
   font-size: 1.375rem;
   font-weight: 600;
@@ -523,6 +530,8 @@ tbody tr.app > td.name { font-weight: 600; font-size: .9375rem; }
   letter-spacing: 0;
   color: var(--text);
   margin: 0 0 .5rem;
+  /* Clear of the Close button sitting fixed in the corner. */
+  padding-right: 6rem;
 }
 
 .stage .panel__side { grid-area: side; }
@@ -536,6 +545,60 @@ tbody tr.app > td.name { font-weight: 600; font-size: .9375rem; }
   border-radius: 6px;
   background: var(--panel);
   margin-bottom: 1.1rem;
+}
+
+/* The cover and the way to the rest of the app's pictures, as one block: the
+   button is the width of the art it sits under, so it reads as belonging to it
+   rather than to the facts below. */
+.artbox { margin-bottom: 1.1rem; }
+.artbox .panel__art { margin-bottom: .6rem; }
+.artbox > button { width: 100%; }
+.artbox .images-out { margin-top: .5rem; }
+.artbox .images-out p { margin: 0; }
+
+/* The second sheet: one app's store artwork, above the panel it was opened
+   from. Everything else about it is the sheet rule above. */
+.gallery {
+  z-index: 62;
+  padding: 1.5rem 2rem 3rem;
+}
+
+.gallery .stage-btn {
+  position: fixed;
+  top: 1.4rem;
+  right: 2rem;
+  z-index: 63;
+}
+
+/* Wide enough that a screenshot is worth looking at, and as many across as the
+   window allows — one on a phone, four on a desktop. */
+.shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr));
+  gap: 1.4rem;
+  /* Each row is as tall as its own pictures: a landscape screenshot next to a
+     launcher icon should not leave the icon floating in a screenshot's worth of
+     space. */
+  align-items: start;
+  margin-top: 1rem;
+}
+
+.shot { margin: 0; min-width: 0; }
+.shot a { display: block; }
+
+.shot img,
+.shot video {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.shot figcaption {
+  margin-top: .4rem;
+  font-size: .8125rem;
+  color: var(--muted);
 }
 
 /* The side column is one column wide, so the facts stop trying to sit side by
@@ -561,6 +624,17 @@ html.staged { overflow: hidden; }
     grid-template-areas: "title" "side" "main";
   }
   .panel__art { max-width: 16rem; }
+  .artbox { max-width: 16rem; }
+}
+
+/* The sheets keep their edges off the window on a phone, and the Close button
+   comes in with them. */
+@media (max-width: 520px) {
+  .stage .panel,
+  .gallery { padding: 1.25rem 1rem 2.5rem; }
+
+  .stage .stage-btn,
+  .gallery .stage-btn { top: 1.1rem; right: 1rem; }
 }
 
 /* Columns switched off in settings. Kept to a single class each so nothing here

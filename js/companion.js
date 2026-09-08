@@ -25,7 +25,7 @@
  * MetaDB is not affiliated with Meta.
  */
 
-import { deviceSecrets } from "./check.js?v=153";
+import { deviceSecrets } from "./check.js?v=154";
 
 /* ---------- constants ---------- */
 
@@ -40,7 +40,7 @@ const HELLO_APP_VERSION = "5.8.0";
    CompanionServer versionCode 29 (Quest OS v50). The wire format is identical —
    v50 just supports fewer methods, so it gets a proto with the newer methods
    trimmed out, which is what narrows its command list. */
-const PROTO_VERSION = "153";
+const PROTO_VERSION = "154";
 const PROTO_FILES = {
   latest: "../data/companion.proto",
   v50: "../data/companion-v50.proto",

@@ -829,16 +829,89 @@ export async function storeListing(id, hmdType = loadSettings().hmd) {
 
 /* The app-page (above-the-fold) query. It carries the buy button, which is the
    only place an app's claimable offer and its price live — the store listing and
-   the build history have neither. */
+   the build history have neither. It also answers with every piece of artwork
+   the store shows above the description: the hero, the screenshot carousel, the
+   poster and the trailer. */
 const OFFER_DOC_ID = "27653348084360166";
 
+/* dst-jpg_q92_s1440x1440_tt6 — the size the store rendered the file at. It is
+   also the largest it is worth showing: past that the CDN is scaling a picture
+   up, and so are we. */
+const mediaSize = (uri) => Number(/_s(\d+)x/.exec(uri)?.[1] ?? 0);
+
 /**
- * One app's current offer: its ID and whether it costs nothing. Returns null
- * when the store shows no offer (unpublished, region-locked, or system apps that
- * cannot be claimed). Used to light up the Get-entitlement button on apps that
- * did not arrive from a search — Meta apps and an organization's apps.
+ * A collector for one app's artwork.
+ *
+ * Each entry is `{ label, uri, kind, width }`, `kind` being "image" or "video"
+ * — the trailer is an mp4, `poster` is the still to show before it plays, and
+ * everything else is a picture.
+ *
+ * The store names the same file more than once: on the app page the poster and
+ * the trailer's still are one image, and every picture comes with a 144px
+ * thumbnail copy of itself; the library sends its own copies of art the app
+ * page has too. The CDN path is the file and everything after the `?` is the
+ * size it was asked for, so each file is kept once, at the largest size any
+ * reply asked for, under the first name it was given.
  */
-export async function appOffer(id, hmdType = loadSettings().hmd) {
+function mediaSet() {
+  const found = new Map();
+
+  return {
+    add(label, uri, extra = {}) {
+      if (!uri) return;
+
+      const path = uri.split("?")[0];
+      const seen = found.get(path);
+
+      if (!seen) found.set(path, { label, uri, kind: "image", ...extra });
+      else if (mediaSize(uri) > mediaSize(seen.uri)) seen.uri = uri;
+    },
+    list() {
+      return [...found.values()].map((m) => ({ ...m, width: mediaSize(m.uri) || null }));
+    },
+  };
+}
+
+/**
+ * Put two lots of artwork together — what the library sent with the app, and
+ * what its store page holds — as one list with nothing in it twice.
+ */
+export function mergeMedia(...lists) {
+  const set = mediaSet();
+  for (const list of lists) {
+    for (const m of list ?? []) set.add(m.label, m.uri, m);
+  }
+  return set.list();
+}
+
+/** The artwork on an app's store page, in the order the page shows it. */
+function pageMedia(app) {
+  const set = mediaSet();
+
+  set.add("Hero", app.hero_image?.uri);
+  (app.screenshots ?? []).forEach((shot, i) =>
+    set.add(`Screenshot ${i + 1}`, shot?.uri)
+  );
+  set.add("Poster", app.mobilePoster?.thumbnail?.uri);
+  set.add("Trailer still", app.trailer?.thumbnail?.uri);
+  set.add("Trailer", app.trailer?.uri, {
+    kind: "video",
+    poster: app.trailer?.thumbnail?.uri ?? null,
+  });
+
+  return set.list();
+}
+
+/**
+ * One app's store page: its current offer, and its artwork.
+ *
+ * `offer` is null when the store shows none (unpublished, region-locked, or
+ * system apps that cannot be claimed) — its ID and whether it costs nothing are
+ * what light up the Get-entitlement button on apps that did not arrive from a
+ * search. `media` is whatever artwork the page carries, and stands on its own:
+ * an app with no offer still has pictures.
+ */
+export async function appPage(id, hmdType = loadSettings().hmd) {
   const { token } = loadSettings();
 
   const json = await getJSON(
@@ -853,12 +926,19 @@ export async function appOffer(id, hmdType = loadSettings().hmd) {
   if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
   if (json.error) throw new Error(json.error.message ?? "request rejected");
 
-  const offer = json?.data?.app_store_item?.current_offer;
-  if (!offer?.id) return null;
+  const app = json?.data?.app_store_item;
+  if (!app) throw new Error("no app in the reply");
+
+  const offer = app.current_offer;
 
   return {
-    offerId: String(offer.id),
-    free: offer.price?.offset_amount === "0",
+    offer: offer?.id
+      ? {
+          offerId: String(offer.id),
+          free: offer.price?.offset_amount === "0",
+        }
+      : null,
+    media: pageMedia(app),
   };
 }
 
@@ -1172,6 +1252,27 @@ const ENTITLEMENTS_VARIABLES = {
 const ENTITLEMENT_PAGES = 10;
 
 /**
+ * The artwork a library entitlement carries with it.
+ *
+ * The headset draws its own library from these: the launcher icon, the two
+ * layers it is composed from on the home screen, and the landscape and square
+ * art. They come at the sizes the query asks for, which are small — the page
+ * shows them at the size they arrive rather than blowing them up.
+ */
+function libraryMedia(app) {
+  const set = mediaSet();
+
+  set.add("Cover", app.cover_square_image?.uri);
+  set.add("Landscape", app.medium_landscape_image?.uri ?? app.cover_landscape_image?.uri);
+  set.add("Thumbnail", app.thumbnail?.uri);
+  set.add("Icon", app.icon_image?.uri);
+  set.add("Icon background", app.icon_background_image?.uri);
+  set.add("Icon foreground", app.icon_foreground_image?.uri);
+
+  return set.list();
+}
+
+/**
  * One entitlement edge as a row.
  *
  * The edge's own `id` is the entitlement ("<user>:<app>"), not the app — the
@@ -1207,6 +1308,10 @@ function entitlementApp(node, platform) {
       app.icon_image?.uri ??
       app.cover_landscape_image?.uri ??
       null,
+    /* The rest of what the library sent — the launcher icon and its two layers,
+       the landscape art, the square cover. Small: the sizes the query asks for
+       are the ones a headset draws its library with. */
+    media: libraryMedia(app),
     lastUsed: node.last_used || null,
     latest: binary
       ? {
