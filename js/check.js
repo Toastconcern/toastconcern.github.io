@@ -136,6 +136,10 @@ export function clearSettings() {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
+
+  /* Reset means reset: the remembered device secrets go with the tokens, even
+     though they live in a cookie rather than in localStorage. */
+  clearSecrets();
 }
 
 /* The site's own relay, when it is hosted somewhere that can run one. Being a
@@ -148,6 +152,108 @@ let builtInMissing = false;
 
 /** True once the built-in relay has turned out not to exist on this host. */
 export const needsRelay = () => builtInMissing && !loadSettings().relay;
+
+/* ---------- remembered device secrets ---------- */
+
+/**
+ * The headset secrets the CompanionServer tab has been given, kept in a cookie
+ * so a reload does not send the reader back to Fetch secret.
+ *
+ * A cookie rather than localStorage because that is what was asked for, and it
+ * is worth being plain about the difference: a cookie is attached to every
+ * request the browser makes to this origin, so the secret is sent to whoever
+ * serves the page — GitHub, for the published site — on each page load and each
+ * script and stylesheet fetch. `SameSite=Strict` keeps it off cross-site
+ * requests and `Secure` keeps it off plain HTTP, but neither stops that. It is
+ * the one thing here that leaves the browser without being asked to; the
+ * tokens, kept in localStorage, never do.
+ *
+ * Stored as JSON: `[{ label, hex }]`, newest first.
+ */
+const SECRET_COOKIE = "metadb.secrets";
+
+/* A year, which is as long as a browser will usually keep one anyway. */
+const SECRET_MAX_AGE = 60 * 60 * 24 * 365;
+
+/* Browsers drop a cookie over about 4KB whole, name and attributes included, so
+   the list is trimmed to fit rather than written and lost. A secret is 64 hex
+   characters, so this is a lot of headsets. */
+const SECRET_COOKIE_MAX = 3800;
+
+function readCookie(name) {
+  try {
+    for (const part of document.cookie.split(";")) {
+      const at = part.indexOf("=");
+      if (at === -1) continue;
+      if (part.slice(0, at).trim() !== name) continue;
+      return decodeURIComponent(part.slice(at + 1));
+    }
+  } catch {}
+  return "";
+}
+
+function writeCookie(name, value, maxAge) {
+  try {
+    const bits = [
+      `${name}=${encodeURIComponent(value)}`,
+      "path=/",
+      `max-age=${maxAge}`,
+      "SameSite=Strict",
+    ];
+    /* Only meaningful on https, and setting it on http would throw the cookie
+       away silently — local development runs on plain http. */
+    if (location.protocol === "https:") bits.push("Secure");
+    document.cookie = bits.join("; ");
+  } catch {}
+}
+
+/** The remembered secrets, or an empty list. Never throws. */
+export function loadSecrets() {
+  try {
+    const raw = readCookie(SECRET_COOKIE);
+    if (!raw) return [];
+
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+
+    return list
+      .filter((s) => typeof s?.hex === "string" && /^[0-9a-f]{64}$/i.test(s.hex))
+      .map((s) => ({ label: typeof s.label === "string" ? s.label : "", hex: s.hex }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Remember these secrets, newest first, keeping any already stored behind them.
+ *
+ * Keyed by the secret itself, so fetching the same headset twice does not file
+ * it twice, and a headset that has been renamed keeps the newer name.
+ */
+export function saveSecrets(found) {
+  const merged = [];
+  const seen = new Set();
+
+  for (const s of [...(found ?? []), ...loadSecrets()]) {
+    if (!s?.hex || seen.has(s.hex)) continue;
+    seen.add(s.hex);
+    merged.push({ label: s.label ?? "", hex: s.hex });
+  }
+
+  /* Drop the oldest until it fits, so a long list loses its tail rather than
+     the whole cookie. */
+  while (merged.length && encodeURIComponent(JSON.stringify(merged)).length > SECRET_COOKIE_MAX) {
+    merged.pop();
+  }
+
+  writeCookie(SECRET_COOKIE, JSON.stringify(merged), SECRET_MAX_AGE);
+  return merged;
+}
+
+/** Forget them. Same attributes as the write, or the browser keeps the old one. */
+export function clearSecrets() {
+  writeCookie(SECRET_COOKIE, "", 0);
+}
 
 /**
  * Put a URL through a relay. A relay set in Settings wins; otherwise the site's
@@ -625,6 +731,7 @@ function extractApps(json, fallbackPlatform = null) {
           ? new Date(app.release_date * 1000).toISOString().slice(0, 10)
           : null,
         image: app.cover_square_image?.uri ?? null,
+        media: nodeMedia(app),
       });
     }
   }
@@ -840,6 +947,21 @@ const OFFER_DOC_ID = "27653348084360166";
 const mediaSize = (uri) => Number(/_s(\d+)x/.exec(uri)?.[1] ?? 0);
 
 /**
+ * What makes two URLs the same picture.
+ *
+ * For the store's CDN it is the path: everything after the `?` is the size it
+ * was rendered at and the signature for it. The home screen's tile art is the
+ * exception — every one of those assets is the same `asset_manager` path and
+ * the file is named by `ab_entry` — so that rides along when it is there, or
+ * the whole set would collapse into one picture.
+ */
+function mediaKey(uri) {
+  const [path, query = ""] = uri.split("?");
+  const entry = new URLSearchParams(query).get("ab_entry");
+  return entry ? `${path}?${entry}` : path;
+}
+
+/**
  * A collector for one app's artwork.
  *
  * Each entry is `{ label, uri, kind, width }`, `kind` being "image" or "video"
@@ -849,9 +971,9 @@ const mediaSize = (uri) => Number(/_s(\d+)x/.exec(uri)?.[1] ?? 0);
  * The store names the same file more than once: on the app page the poster and
  * the trailer's still are one image, and every picture comes with a 144px
  * thumbnail copy of itself; the library sends its own copies of art the app
- * page has too. The CDN path is the file and everything after the `?` is the
- * size it was asked for, so each file is kept once, at the largest size any
- * reply asked for, under the first name it was given.
+ * page has too. So each file is kept once — `mediaKey` decides what "same
+ * file" means — at the largest size any reply asked for, under the first name
+ * it was given.
  */
 function mediaSet() {
   const found = new Map();
@@ -860,14 +982,19 @@ function mediaSet() {
     add(label, uri, extra = {}) {
       if (!uri) return;
 
-      const path = uri.split("?")[0];
-      const seen = found.get(path);
+      const key = mediaKey(uri);
+      const seen = found.get(key);
 
-      if (!seen) found.set(path, { label, uri, kind: "image", ...extra });
+      if (!seen) found.set(key, { label, uri, kind: "image", ...extra });
       else if (mediaSize(uri) > mediaSize(seen.uri)) seen.uri = uri;
     },
     list() {
-      return [...found.values()].map((m) => ({ ...m, width: mediaSize(m.uri) || null }));
+      /* A width the caller knows for itself wins — the CDN spells the size out
+         in the store's own URLs, but not in every one. */
+      return [...found.values()].map((m) => ({
+        ...m,
+        width: m.width ?? (mediaSize(m.uri) || null),
+      }));
     },
   };
 }
@@ -881,6 +1008,126 @@ export function mergeMedia(...lists) {
   for (const list of lists) {
     for (const m of list ?? []) set.add(m.label, m.uri, m);
   }
+  return set.list();
+}
+
+/* Every piece of artwork the store hangs off an app node, in the order worth
+   showing them, with what to call each one.
+
+   These are the same images a headset draws its own library with. Its app
+   manager files them by number rather than name — 1 icon, 2 landscape,
+   3 square, 5 icon background, 6 icon foreground, 7 small landscape — and the
+   Navigator picks a tile in the order square, icon, landscape, which is the
+   order they are listed in here. */
+const IMAGE_FIELDS = {
+  cover_square_image: "Cover",
+  square_image: "Cover",
+  cover_landscape_image: "Landscape",
+  landscape_image: "Landscape",
+  medium_landscape_image: "Landscape (medium)",
+  small_landscape_image: "Landscape (small)",
+  hero_image: "Hero",
+  thumbnail: "Thumbnail",
+  icon_image: "Icon",
+  vr_icon_image: "Icon (VR)",
+  icon_foreground_image: "Icon foreground",
+  icon_background_image: "Icon background",
+  logo_image: "Logo",
+};
+
+/**
+ * The artwork on one app node, whichever query it arrived from.
+ *
+ * The named fields come first, in the order above. Anything else on the node
+ * that looks like a picture — a field with "image" or "thumbnail" in its name
+ * holding a `uri` — follows under its own name, so a field the store adds later
+ * still shows up rather than being silently dropped.
+ *
+ * Which of these a reply actually carries depends on the query: each asks for
+ * the sizes it wants and gets only those. An app with none simply has no art.
+ */
+function nodeMedia(node) {
+  if (!node || typeof node !== "object") return [];
+
+  const set = mediaSet();
+
+  for (const [field, label] of Object.entries(IMAGE_FIELDS)) {
+    set.add(label, node[field]?.uri);
+  }
+
+  for (const [field, value] of Object.entries(node)) {
+    if (field in IMAGE_FIELDS) continue;
+    if (!/image|thumbnail|photo|poster|cover/i.test(field)) continue;
+    if (typeof value?.uri === "string") set.add(words(field), value.uri);
+  }
+
+  return set.list();
+}
+
+/* ---------- the home screen's layered tile art ---------- */
+
+/* The background plate and foreground icon a headset composes its shelf tiles
+   from. The store publishes neither: they are a table inside the Navigator
+   panel app, one CDN entry token per asset, and this repo carries a copy — see
+   the readme at the top of the file. Served straight from the CDN with no token
+   and no relay, so this is the one fetch here that goes nowhere near the store.
+
+   Busted in step with the rest: this module was itself imported as
+   `check.js?v=NN`, so the same NN is read back off its own URL rather than
+   being another number to remember to bump. */
+const SPATIAL_FILE = new URL(
+  `../data/spatial-icons.json${new URL(import.meta.url).search}`,
+  import.meta.url
+);
+
+/* One fetch per page load, shared by every app that asks. The failed case is
+   cached too — a missing file should not be re-fetched once per app. */
+let spatialTable = null;
+
+async function spatialAssets() {
+  if (!spatialTable) {
+    spatialTable = fetch(SPATIAL_FILE)
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null);
+  }
+  return spatialTable;
+}
+
+/* rlds is the theme before Aura, aura the current one; an app with a single
+   pair uses it under either. The labels say which, since a gallery can hold
+   both sets at once. */
+const SPATIAL_THEMES = {
+  both: ["Tile background", "Tile foreground"],
+  rlds: ["Tile background (RLDS)", "Tile foreground (RLDS)"],
+  aura: ["Tile background (Aura)", "Tile foreground (Aura)"],
+};
+
+/**
+ * The layered tile art for one package, or an empty list.
+ *
+ * Each pair is `[background, foreground]` — the plate and the icon that sits on
+ * it. Small PNGs with alpha, and not all the same size (150 and 180 px both
+ * turn up), so they are marked to render at whatever size the file is rather
+ * than being given a width here.
+ */
+export async function spatialIcons(packageName) {
+  if (!packageName) return [];
+
+  const table = await spatialAssets();
+  const themes = table?.apps?.[packageName];
+  if (!themes) return [];
+
+  const set = mediaSet();
+
+  for (const [theme, entries] of Object.entries(themes)) {
+    const labels = SPATIAL_THEMES[theme];
+    if (!labels) continue;
+
+    entries.forEach((entry, i) => {
+      if (entry) set.add(labels[i], `${table.base}${entry}`, { natural: true });
+    });
+  }
+
   return set.list();
 }
 
@@ -1053,6 +1300,9 @@ function defaultAppRow(n) {
     packageName: n.package_name ?? null,
     platform: n.platform ?? null,
     image: n.cover_square_image?.uri ?? n.icon_image?.uri ?? null,
+    /* This query asks for icon, landscape and square art by size, so a default
+       app arrives with more than the one picture the row shows. */
+    media: nodeMedia(n),
     category: n.category ?? null,
     price: null,
     offerId: null,
@@ -1252,27 +1502,6 @@ const ENTITLEMENTS_VARIABLES = {
 const ENTITLEMENT_PAGES = 10;
 
 /**
- * The artwork a library entitlement carries with it.
- *
- * The headset draws its own library from these: the launcher icon, the two
- * layers it is composed from on the home screen, and the landscape and square
- * art. They come at the sizes the query asks for, which are small — the page
- * shows them at the size they arrive rather than blowing them up.
- */
-function libraryMedia(app) {
-  const set = mediaSet();
-
-  set.add("Cover", app.cover_square_image?.uri);
-  set.add("Landscape", app.medium_landscape_image?.uri ?? app.cover_landscape_image?.uri);
-  set.add("Thumbnail", app.thumbnail?.uri);
-  set.add("Icon", app.icon_image?.uri);
-  set.add("Icon background", app.icon_background_image?.uri);
-  set.add("Icon foreground", app.icon_foreground_image?.uri);
-
-  return set.list();
-}
-
-/**
  * One entitlement edge as a row.
  *
  * The edge's own `id` is the entitlement ("<user>:<app>"), not the app — the
@@ -1310,8 +1539,8 @@ function entitlementApp(node, platform) {
       null,
     /* The rest of what the library sent — the launcher icon and its two layers,
        the landscape art, the square cover. Small: the sizes the query asks for
-       are the ones a headset draws its library with. */
-    media: libraryMedia(app),
+       are the ones a headset draws its own library with. */
+    media: nodeMedia(app),
     lastUsed: node.last_used || null,
     latest: binary
       ? {
@@ -1615,6 +1844,7 @@ export async function orgApps(orgID) {
         free: false,
         releasedAt: null,
         image: n.cover_landscape_image?.uri ?? null,
+        media: nodeMedia(n),
       });
     }
 
