@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=154">
+<link rel="stylesheet" href="css/style.css?v=155">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -455,7 +455,7 @@
   <section id="view-companion" hidden>
 
     <h2>CompanionServer</h2>
-    <p class="sub">Talk to a headset's on-device CompanionServer straight from this page over Bluetooth — the same service the Meta phone app drives, with the browser standing in for the phone. Pairs with a libsodium key exchange; claimed headsets need their device secret to do anything beyond a few status reads. Nothing here goes through Meta's servers. Chrome or Edge, on desktop or Android.</p>
+    <p class="sub">Talk to a headset's on-device CompanionServer straight from this page over Bluetooth — the same service the Meta phone app drives, with the browser standing in for the phone. Pairs with a libsodium key exchange; claimed headsets need their device secret to do anything beyond a few status reads. Nothing here goes through Meta's servers. Chrome or Edge, on desktop or Android. A secret you fetch or authenticate with is kept in a cookie so it is here next time — unlike the tokens in Settings, a cookie is sent to whoever serves this page on every request. Forget secret takes it back.</p>
 
     <p id="companionUnsupported" class="empty" hidden>This browser has no Web Bluetooth. Use Chrome or Edge on desktop or Android.</p>
 
@@ -466,6 +466,7 @@
       </select>
       <input id="companionSecret" type="password" placeholder="Device secret (64 hex chars) — optional for status" aria-label="Device secret" autocomplete="off" spellcheck="false" maxlength="64">
       <button id="companionFetchSecret" type="button">Fetch secret</button>
+      <button id="companionForgetSecret" type="button" disabled>Forget secret</button>
       <select id="companionSecretPick" aria-label="Pick a headset's secret" hidden></select>
       <button id="companionConnect" type="button">Connect</button>
       <button id="companionDisconnect" type="button" hidden>Disconnect</button>
@@ -804,6 +805,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=154"></script>
+<script type="module" src="js/app.js?v=155"></script>
 </body>
 </html>

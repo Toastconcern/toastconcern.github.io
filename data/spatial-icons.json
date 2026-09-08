@@ -1,0 +1,291 @@
+{
+  "_readme": [
+    "Every image the Quest Navigator panel app (com.oculus.panelapp.library) pulls",
+    "off Meta's CDN, read out of version 1046.0.0.217.430. The store API publishes",
+    "none of it: each asset is an entry token compiled into the app, fetched from",
+    "base + token with no token of your own and no relay.",
+    "",
+    "apps — the layered tile art the home screen composes a shelf tile from, one",
+    "pair per theme as [background, foreground]. rlds is the theme before Aura,",
+    "aura the current one; \"both\" is a single pair used under either. The app",
+    "holds two sets and picks with a boolean, so there is no third.",
+    "",
+    "extras — everything in the same tables that no package claims: three tile",
+    "pairs the app no longer references (named by their field in X.2d7), the home",
+    "world thumbnails from X.1IW, and the system bar's long-press animation from",
+    "X.1IY, which is a 3 MB GIF.",
+    "",
+    "84 tile assets, 6 home world images, 1 animation. Sizes vary (150 and 180 px",
+    "squares, and the worlds come as WebP served as octet-stream), so the page",
+    "shows each at whatever size the file turns out to be."
+  ],
+  "base": "https://scontent.xx.fbcdn.net/mci_ab/uap/asset_manager/?ab_b=e&ab_page=ras&ab_entry=",
+  "apps": {
+    "com.oculus.browser": {
+      "rlds": [
+        "AQAC7YUJYIJk",
+        "AQADCHGgfwYw"
+      ],
+      "aura": [
+        "AQAFh1t03Uby",
+        "AQAD3NfKHnsS"
+      ]
+    },
+    "calculator": {
+      "rlds": [
+        "AQAEgqm-xc-2",
+        "AQAExAsadkn1"
+      ],
+      "aura": [
+        "AQAF0Sh5IXa6",
+        "AQAQW7qHIQMD"
+      ]
+    },
+    "com.oculus.panelapp.calendar": {
+      "rlds": [
+        "AQADA_hfX8J4",
+        "AQAEJNR5ncLR"
+      ],
+      "aura": [
+        "AQAE6AV1GmnU",
+        "AQADr23Vi-1X"
+      ]
+    },
+    "com.oculus.metacam": {
+      "rlds": [
+        "AQAGX2dswyp1",
+        "AQBcq3Pvqqds"
+      ],
+      "aura": [
+        "AQAGNaxau5Pp",
+        "AQALBWMPeO4A"
+      ]
+    },
+    "share_system_app": {
+      "rlds": [
+        "AQAGX2dswyp1",
+        "AQBcq3Pvqqds"
+      ],
+      "aura": [
+        "AQAGNaxau5Pp",
+        "AQALBWMPeO4A"
+      ]
+    },
+    "messenger_system_app": {
+      "rlds": [
+        "AQAFGuHZoCNH",
+        "AQAO6rQrMo-c"
+      ],
+      "aura": [
+        "AQAE1G6v6T41",
+        "AQAIxguIErFj"
+      ]
+    },
+    "clock": {
+      "rlds": [
+        "AQAH-3h32sba",
+        "AQAEsSqnqw0K"
+      ],
+      "aura": [
+        "AQAEX-rYHVzW",
+        "AQAKxQjJDEcx"
+      ]
+    },
+    "events_system_app": {
+      "both": [
+        "AQAC-7SQX6LN",
+        "AQAFm7wXqMy1"
+      ]
+    },
+    "com.oculus.facebook": {
+      "rlds": [
+        "AQAGnH5sXYbE",
+        "AQAEnHFxqcpK"
+      ],
+      "aura": [
+        "AQAJtasxCbMb",
+        "AQAJZwL6mt6E"
+      ]
+    },
+    "file_manager": {
+      "rlds": [
+        "AQAEgweKSe6c",
+        "AQAH6271q0rO"
+      ],
+      "aura": [
+        "AQADrfJiqUf7",
+        "AQAE35LeffvC"
+      ]
+    },
+    "com.meta.curio.toybox": {
+      "both": [
+        "AQAF19nc1sCB",
+        "AQAE_0pZhiHC"
+      ]
+    },
+    "com.oculus.helpcenter": {
+      "rlds": [
+        "AQAEtVLqP6Qj",
+        "AQADCFAtfkE2"
+      ],
+      "aura": [
+        "AQAH-TGALBOU",
+        "AQAObI13DMjl"
+      ]
+    },
+    "com.oculus.hzosgallery": {
+      "rlds": [
+        "AQAFyeo47kc8",
+        "AQAEIHVHFeqj"
+      ],
+      "aura": [
+        "AQAErBgfp6BJ",
+        "AQAExr2Jrhii"
+      ]
+    },
+    "com.oculus.igvr": {
+      "rlds": [
+        "AQAJQX5N8s_z",
+        "AQAGsuNi1B1c"
+      ],
+      "aura": [
+        "AQALAuFEemUE",
+        "AQADtBcz7YGs"
+      ]
+    },
+    "com.meta.curio.ruler": {
+      "both": [
+        "AQAD_JTD_S8K",
+        "AQAGu1fQrode"
+      ]
+    },
+    "com.facebook.orca": {
+      "both": [
+        "AQAC2-F37UiN",
+        "AQAC7s8vJk43"
+      ]
+    },
+    "com.oculus.socialplatform": {
+      "both": [
+        "AQAEPaSf2iUP",
+        "AQAE1JwId7XA"
+      ]
+    },
+    "com.oculus.remotedesktop": {
+      "rlds": [
+        "AQADHq19YfWo",
+        "AQAB9AEo5DEn"
+      ],
+      "aura": [
+        "AQADygMO1ihm",
+        "AQAFex8GtF6P"
+      ]
+    },
+    "settings_system_app": {
+      "rlds": [
+        "AQAH7fM5qwGQ",
+        "AQAFd4IFO5rT"
+      ],
+      "aura": [
+        "AQAGBTqqYP4q",
+        "AQAElHY7KavK"
+      ]
+    },
+    "com.oculus.store": {
+      "rlds": [
+        "AQAFjEHGVlIT",
+        "AQAPGVSLelZd"
+      ],
+      "aura": [
+        "AQADsTJQNK_I",
+        "AQAFhQaxAnO2"
+      ]
+    },
+    "com.facebook.arvr.quillplayer": {
+      "both": [
+        "AQAFP-A3iS4w",
+        "AQAHQCT48zAM"
+      ]
+    },
+    "com.oculus.thvr": {
+      "aura": [
+        "AQADQS8RadwP",
+        "AQAEys7rI5dh"
+      ]
+    },
+    "com.oculus.tv": {
+      "rlds": [
+        "AQAC610i7DEZ",
+        "AQADDfUO-jOA"
+      ],
+      "aura": [
+        "AQADpKoVll-y",
+        "AQAQ7y-IffO-"
+      ]
+    },
+    "com.whatsapp": {
+      "rlds": [
+        "AQADLeaw3f6R",
+        "AQBYI-ibVNXY"
+      ],
+      "aura": [
+        "AQAGWDxgoUQt",
+        "AQAP33xFLD-M"
+      ]
+    }
+  },
+  "extras": [
+    {
+      "label": "Unclaimed tile background (A0Q)",
+      "entry": "AQAESD3p6bWf"
+    },
+    {
+      "label": "Unclaimed tile foreground (A0R)",
+      "entry": "AQADCtseJ_4D"
+    },
+    {
+      "label": "Unclaimed art (A0g)",
+      "entry": "AQAC-5ZVHSuU"
+    },
+    {
+      "label": "Unclaimed art (A0h)",
+      "entry": "AQADBPsy6XR5"
+    },
+    {
+      "label": "Unclaimed tile background (A0s)",
+      "entry": "AQATCQRWkgWT"
+    },
+    {
+      "label": "Unclaimed tile foreground (A0t)",
+      "entry": "AQAEHlLTzCSU"
+    },
+    {
+      "label": "Home world (A00)",
+      "entry": "AQANZJvWxK7v"
+    },
+    {
+      "label": "Home world (A01)",
+      "entry": "AQAETMpcMmf3"
+    },
+    {
+      "label": "Home world (A02)",
+      "entry": "AQAER5lAV17_"
+    },
+    {
+      "label": "Home world (A03)",
+      "entry": "AQAFnzbARLwN"
+    },
+    {
+      "label": "Home world (A04)",
+      "entry": "AQAFg11ZCcns"
+    },
+    {
+      "label": "Home world (A05)",
+      "entry": "AQAGtDVSZJF0"
+    },
+    {
+      "label": "Long-press education animation",
+      "entry": "AQAD7RpV1hSw"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import {
   claimOffer,
   appPage,
   mergeMedia,
+  spatialIcons,
   myEntitlements,
   accountDevices,
   orgApps,
@@ -28,7 +29,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=154";
+} from "./check.js?v=155";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -698,47 +699,84 @@ function refreshStage() {
 const galleryEl = () => document.querySelector(".gallery");
 
 /**
+ * One picture, drawn the same in the sheet over a panel and in the art tab.
+ *
+ * Never bigger than the store rendered it: a 64px launcher icon stretched
+ * across the column is a worse picture than a 64px icon. The tile art carries
+ * no size in its URL and is not all one size, so it is simply left at whatever
+ * the file turns out to be.
+ */
+function shotFigure(shot) {
+  const cap = shot.natural
+    ? ` style="width:auto"`
+    : shot.width
+      ? ` style="max-width:${shot.width}px"`
+      : "";
+
+  return `<figure class="shot">
+    ${
+      shot.kind === "video"
+        ? `<video controls preload="none" playsinline${cap}
+             src="${esc(shot.uri)}"
+             ${shot.poster ? `poster="${esc(shot.poster)}"` : ""}></video>`
+        : `<a href="${esc(shot.uri)}" target="_blank" rel="noopener">
+             <img src="${esc(shot.uri)}" alt="${esc(shot.label)}"
+                  loading="lazy"${cap}>
+           </a>`
+    }
+    <figcaption>${esc(shot.label)}</figcaption>
+  </figure>`;
+}
+
+/**
+ * Meta's CDN drops the odd request when a dozen arrive at once. A picture that
+ * does not arrive says so in its own frame, rather than leaving the browser's
+ * broken-image icon standing in the grid.
+ *
+ * On the container and captured, since `error` from an image does not bubble.
+ */
+function watchShots(node) {
+  node.addEventListener(
+    "error",
+    (e) => {
+      const img = e.target.closest?.(".shot img");
+      if (!img) return;
+
+      const gone = document.createElement("div");
+      gone.className = "shot-gone";
+      gone.textContent = "didn’t load";
+      img.replaceWith(gone);
+    },
+    true
+  );
+}
+
+/**
  * A second sheet over the first: every picture the store page holds for one app.
  *
  * It covers the expanded panel rather than replacing it, so closing this one
  * puts the reader back where they were — the app they were already reading,
  * scrolled where they left it.
  */
-function openGallery(app, shots) {
+function openGallery(app, shots, heading = `${app.name} — images`) {
   closeGallery({ animate: false });
 
   const gallery = document.createElement("div");
   gallery.className = "gallery";
   gallery.innerHTML = `
     <button type="button" class="stage-btn" data-close>Close</button>
-    <h3 class="stage-title">${esc(app.name)} — images</h3>
-    <div class="shots">
-      ${shots
-        .map((shot) => {
-          /* Never bigger than the store rendered it: a 64px launcher icon
-             stretched across the column is a worse picture than a 64px icon. */
-          const cap = shot.width ? ` style="max-width:${shot.width}px"` : "";
-
-          return `<figure class="shot">
-            ${
-              shot.kind === "video"
-                ? `<video controls preload="none" playsinline${cap}
-                     src="${esc(shot.uri)}"
-                     ${shot.poster ? `poster="${esc(shot.poster)}"` : ""}></video>`
-                : `<a href="${esc(shot.uri)}" target="_blank" rel="noopener">
-                     <img src="${esc(shot.uri)}" alt="${esc(shot.label)}"
-                          loading="lazy"${cap}>
-                   </a>`
-            }
-            <figcaption>${esc(shot.label)}</figcaption>
-          </figure>`;
-        })
-        .join("")}
-    </div>`;
+    <h3 class="stage-title">${esc(heading)}</h3>
+    <div class="shots">${shots.map(shotFigure).join("")}</div>`;
 
   gallery
     .querySelector("[data-close]")
     .addEventListener("click", () => closeGallery());
+
+  watchShots(gallery);
+
+  /* Opened over a panel the lock is already on; opened from a tab — the whole
+     table at once — it has to take it itself, or the list scrolls underneath. */
+  document.documentElement.classList.add("staged");
 
   document.body.append(gallery);
   play(gallery, "stage-in");
@@ -749,10 +787,17 @@ function closeGallery({ animate = true } = {}) {
   const gallery = galleryEl();
   if (!gallery) return;
 
-  if (!animate || !animates()) return gallery.remove();
+  const done = () => {
+    gallery.remove();
+    /* The panel underneath, if there is one, still wants the page held still —
+       it takes the lock off itself when it goes. */
+    if (!stagedApp) document.documentElement.classList.remove("staged");
+  };
+
+  if (!animate || !animates()) return done();
 
   play(gallery, "stage-out", { keep: true });
-  setTimeout(() => gallery.remove(), speed());
+  setTimeout(done, speed());
 }
 
 /**
@@ -764,36 +809,41 @@ function closeGallery({ animate = true } = {}) {
  * the button is only there when it is on.
  */
 async function showImages(app, button, out) {
-  /* An app from the library arrived with its own artwork — the icon and the
-     home-screen layers, which the store page does not carry — so both lots are
-     shown together, with anything they have in common kept once. The store
-     page leads: those are the big pictures, and the library's are the small
-     ones a headset draws its own shelf with. */
-  const show = (page) => {
-    const shots = mergeMedia(page, app.media);
+  /* Three places art comes from, shown as one set with anything they have in
+     common kept once:
+
+       the store page — the big pictures, so they lead;
+       the list the app arrived in — the library and the default-apps query both
+         send their own icons and covers, which the page does not carry;
+       this repo — the layered tile art a headset composes its shelf from, which
+         the store does not publish at all.  */
+  const show = (page, tiles) => {
+    const shots = mergeMedia(page, app.media, tiles);
     if (shots.length) openGallery(app, shots);
     else out.innerHTML = `<p>The store has no artwork for this app.</p>`;
   };
-
-  if (media.has(app.id)) {
-    show(media.get(app.id));
-    return;
-  }
 
   button.disabled = true;
   button.textContent = "Loading images…";
   out.innerHTML = "";
 
-  try {
-    const page = await appPage(app.id, el.hmd.value);
-    media.set(app.id, page.media);
-    show(page.media);
-  } catch (err) {
-    /* A library app came with artwork of its own, so a store page that refuses
-       — an unpublished app, a Rift title, a token that may not read it — is a
-       note beside the pictures rather than instead of them. */
-    out.innerHTML = `<p class="warn">No store page: ${esc(err.message)}</p>`;
-    if (app.media?.length) show([]);
+  /* Off the same table for every app, so this is one fetch a session. */
+  const tiles = await spatialIcons(app.packageName).catch(() => []);
+
+  if (media.has(app.id)) {
+    show(media.get(app.id), tiles);
+  } else {
+    try {
+      const page = await appPage(app.id, el.hmd.value);
+      media.set(app.id, page.media);
+      show(page.media, tiles);
+    } catch (err) {
+      /* An app that came with artwork of its own still has pictures to show, so
+         a store page that refuses — an unpublished app, a Rift title, a token
+         that may not read it — is a note beside them rather than instead. */
+      out.innerHTML = `<p class="warn">No store page: ${esc(err.message)}</p>`;
+      if (app.media?.length || tiles.length) show([], tiles);
+    }
   }
 
   button.disabled = false;
@@ -901,10 +951,8 @@ function applyView() {
   el.viewCompanion.hidden = view !== "companion";
   el.viewSettings.hidden = view !== "settings";
 
-  /* CompanionServer pulls in libsodium and protobufjs, so it only wakes up the
-     first time its tab is opened — not on every page load. */
   if (view === "companion") {
-    import("./companion.js?v=154")
+    import("./companion.js?v=155")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -1055,6 +1103,7 @@ function initDefault() {
   el.checkDefault.addEventListener("click", () =>
     checkList(defaultList, el.checkDefault, "Check shown")
   );
+
 }
 
 async function runDefaultApps() {

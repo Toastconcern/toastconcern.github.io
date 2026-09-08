@@ -590,9 +590,24 @@ tbody tr.app > td.name { font-weight: 600; font-size: .9375rem; }
 .shot video {
   display: block;
   width: 100%;
+  max-width: 100%;
   height: auto;
   border-radius: 6px;
   background: var(--panel);
+}
+
+/* Where a picture should have been. Sized like the small art it usually is, so
+   the row does not open up a screenshot-sized hole for it. */
+.shot-gone {
+  display: grid;
+  place-items: center;
+  width: 180px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: .8125rem;
 }
 
 .shot figcaption {

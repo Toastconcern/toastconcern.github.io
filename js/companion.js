@@ -25,7 +25,7 @@
  * MetaDB is not affiliated with Meta.
  */
 
-import { deviceSecrets } from "./check.js?v=154";
+import { deviceSecrets, loadSecrets, saveSecrets, clearSecrets } from "./check.js?v=155";
 
 /* ---------- constants ---------- */
 
@@ -40,7 +40,7 @@ const HELLO_APP_VERSION = "5.8.0";
    CompanionServer versionCode 29 (Quest OS v50). The wire format is identical —
    v50 just supports fewer methods, so it gets a proto with the newer methods
    trimmed out, which is what narrows its command list. */
-const PROTO_VERSION = "154";
+const PROTO_VERSION = "155";
 const PROTO_FILES = {
   latest: "../data/companion.proto",
   v50: "../data/companion-v50.proto",
@@ -766,6 +766,7 @@ export async function initCompanion(section) {
     version: section.querySelector("#companionVersion"),
     secret: section.querySelector("#companionSecret"),
     fetchSecret: section.querySelector("#companionFetchSecret"),
+    forgetSecret: section.querySelector("#companionForgetSecret"),
     secretPick: section.querySelector("#companionSecretPick"),
     connect: section.querySelector("#companionConnect"),
     disconnect: section.querySelector("#companionDisconnect"),
@@ -800,6 +801,50 @@ export async function initCompanion(section) {
 
   el.disconnect.addEventListener("click", () => client.disconnect());
 
+  /* One headset fills the box; several fill the picker instead, so the reader
+     says which. Both the account query and what was remembered from last time
+     land here, so they arrive the same way. */
+  const offerSecrets = (found, remembered = false) => {
+    if (found.length === 1) {
+      el.secret.value = found[0].hex;
+      el.secretPick.hidden = true;
+      const who = esc(found[0].label || "your headset");
+      setState(
+        remembered
+          ? `Not connected — using the secret remembered for ${who}.`
+          : `Filled the secret for ${who}.`,
+        remembered ? "" : "ok"
+      );
+      return;
+    }
+
+    el.secretPick.innerHTML = '<option value="">Pick a headset…</option>';
+    for (const f of found) {
+      const o = document.createElement("option");
+      o.value = f.hex;
+      o.textContent = f.label || f.hex.slice(0, 8) + "…";
+      el.secretPick.appendChild(o);
+    }
+    el.secretPick.hidden = false;
+    setState(
+      remembered
+        ? `Not connected — ${found.length} remembered headsets, pick one to fill its secret.`
+        : `Found ${found.length} headsets — pick one to fill its secret.`,
+      remembered ? "" : "ok"
+    );
+  };
+
+  /* Nothing to forget until something has been kept. */
+  const syncForget = () => {
+    el.forgetSecret.disabled = !loadSecrets().length;
+  };
+
+  /* Keep a secret for next time, and let the Forget button light up for it. */
+  const remember = (found) => {
+    saveSecrets(found);
+    syncForget();
+  };
+
   /* Pull the device secret straight from the signed-in account rather than
      making the reader find it by hand. */
   el.fetchSecret.addEventListener("click", async () => {
@@ -813,27 +858,25 @@ export async function initCompanion(section) {
         el.secretPick.hidden = true;
         return;
       }
-      if (found.length === 1) {
-        el.secret.value = found[0].hex;
-        el.secretPick.hidden = true;
-        setState(`Filled the secret for ${esc(found[0].label || "your headset")}.`, "ok");
-      } else {
-        el.secretPick.innerHTML = '<option value="">Pick a headset…</option>';
-        for (const f of found) {
-          const o = document.createElement("option");
-          o.value = f.hex;
-          o.textContent = f.label || f.hex.slice(0, 8) + "…";
-          el.secretPick.appendChild(o);
-        }
-        el.secretPick.hidden = false;
-        setState(`Found ${found.length} headsets — pick one to fill its secret.`, "ok");
-      }
+      remember(found);
+      offerSecrets(found);
     } catch (e) {
       setState(e.message || "could not fetch the device secret", "warn");
     } finally {
       el.fetchSecret.disabled = false;
       el.fetchSecret.textContent = was;
     }
+  });
+
+  /* The cookie is the one thing here that outlives the page, so there is a
+     button that takes it back. */
+  el.forgetSecret.addEventListener("click", () => {
+    clearSecrets();
+    el.secret.value = "";
+    el.secretPick.innerHTML = "";
+    el.secretPick.hidden = true;
+    syncForget();
+    setState("Forgot the remembered secrets. Fetch secret gets them again.", "ok");
   });
 
   el.secretPick.addEventListener("change", () => {
@@ -851,12 +894,23 @@ export async function initCompanion(section) {
     el.auth.disabled = true;
     try {
       await client.authenticate();
+      /* It just proved itself against a real headset, so a secret typed by hand
+         is kept the same way a fetched one is — under the headset's Bluetooth
+         name, which is what the reader will recognise it by. */
+      remember([{ label: client.deviceName || "", hex: el.secret.value.trim().toLowerCase() }]);
     } catch (e) {
       setState(e.message, "warn");
     } finally {
       el.auth.disabled = false;
     }
   });
+
+  /* What was kept last time, so opening the tab does not mean fetching again.
+     The box is only filled when it is empty, so anything typed this session
+     wins over the cookie. */
+  const kept = loadSecrets();
+  syncForget();
+  if (kept.length && !el.secret.value.trim()) offerSecrets(kept, true);
 
   client.onState = (s, info) => {
     const ready = s === State.READY;
