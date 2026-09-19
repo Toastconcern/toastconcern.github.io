@@ -1537,3 +1537,113 @@ details.hint > p {
   overflow-x: auto;
 }
 .companion-result[data-kind="err"] { color: var(--red); }
+
+/* A field the form has no use for right now — the security type decides whether
+   a password or a username is a real question. Needed because .companion-field
+   sets display, which beats the [hidden] the UA stylesheet gives it. */
+.companion-field[hidden] { display: none; }
+
+/* ---------- the Wi-Fi picker ----------
+   Scan, then Join: a list of what the headset can actually see, so the name and
+   the security type are never typed. The row is a row, not a control — the one
+   thing to press in it is an ordinary button, same as everywhere else here. */
+
+.wifi { margin-bottom: 1rem; }
+
+.wifi-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem .75rem;
+}
+.wifi-note {
+  flex: 1 1 18rem;
+  margin: 0;
+  font-size: .75rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.wifi-note[data-kind="err"] { color: var(--red); }
+
+.wifi-list {
+  margin: .6rem 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+}
+.wifi-net + .wifi-net { border-top: 1px solid var(--line); }
+
+.wifi-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .25rem .6rem;
+  padding: .45rem .6rem;
+}
+.wifi-ssid {
+  flex: 1 1 8rem;
+  min-width: 0;
+  font-size: .875rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wifi-tags {
+  margin-left: auto;
+  font-size: .6875rem;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.wifi-row > button { flex: none; }
+
+/* Four bars, filled to strength. The headset reports RSSI, so a network with no
+   reading at all — one that is only remembered — shows an empty meter. */
+.wifi-sig {
+  display: inline-flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 2px;
+  width: 14px;
+  height: 13px;
+}
+.wifi-sig i { flex: 1 1 0; background: var(--border); border-radius: 1px; }
+.wifi-sig i:nth-child(1) { height: 30%; }
+.wifi-sig i:nth-child(2) { height: 53%; }
+.wifi-sig i:nth-child(3) { height: 76%; }
+.wifi-sig i:nth-child(4) { height: 100%; }
+.wifi-sig[data-level="1"] i:nth-child(-n+1),
+.wifi-sig[data-level="2"] i:nth-child(-n+2),
+.wifi-sig[data-level="3"] i:nth-child(-n+3),
+.wifi-sig[data-level="4"] i:nth-child(-n+4) { background: var(--text); }
+
+/* Only ever open under the one row that needs a password. */
+.wifi-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: .4rem .6rem;
+  padding: 0 .6rem .65rem 1.5rem;
+}
+.wifi-form .companion-field input { width: 17ch; }
+.wifi-form .wifi-note { flex: 1 1 100%; }
+
+.wifi-out[data-kind="ok"] { color: var(--green); }
+
+@media (max-width: 640px) {
+  /* Name and action first; the tags drop to their own line under them. */
+  .wifi-tags {
+    order: 4;
+    flex: 1 1 100%;
+    margin-left: 1.25rem;
+    white-space: normal;
+  }
+  .wifi-row > button { order: 3; margin-left: auto; }
+  .wifi-form { padding-left: .6rem; }
+  .wifi-form .companion-field { flex: 1 1 100%; }
+  .wifi-form .companion-field input { width: 100%; }
+}

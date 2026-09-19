@@ -1,25 +1,19 @@
 {
   "_readme": [
-    "Every image the Quest Navigator panel app (com.oculus.panelapp.library) pulls",
-    "off Meta's CDN, read out of version 1046.0.0.217.430. The store API publishes",
-    "none of it: each asset is an entry token compiled into the app, fetched from",
-    "base + token with no token of your own and no relay.",
-    "",
-    "apps — the layered tile art the home screen composes a shelf tile from, one",
-    "pair per theme as [background, foreground]. rlds is the theme before Aura,",
-    "aura the current one; \"both\" is a single pair used under either. The app",
-    "holds two sets and picks with a boolean, so there is no third.",
-    "",
-    "extras — everything in the same tables that no package claims: three tile",
-    "pairs the app no longer references (named by their field in X.2d7), the home",
-    "world thumbnails from X.1IW, and the system bar's long-press animation from",
-    "X.1IY, which is a 3 MB GIF.",
-    "",
-    "84 tile assets, 6 home world images, 1 animation. Sizes vary (150 and 180 px",
-    "squares, and the worlds come as WebP served as octet-stream), so the page",
-    "shows each at whatever size the file turns out to be."
+    "The layered tile art the Quest home screen draws its system apps with: a",
+    "background plate and a foreground icon, composed on the shelf rather than",
+    "shipped as one picture. The store API does not publish these — they are a",
+    "table inside the Navigator panel app (com.oculus.panelapp.library), which",
+    "holds one CDN entry token per asset and hands the pair to its tile.",
+    "Two sets exist: rlds is the older theme, aura the current one. An app with",
+    "only \"both\" has a single pair used under either theme.",
+    "Each pair is [background, foreground]. The URL is base + the entry token;",
+    "they need no token and no relay, and come back as 180x180 PNGs with alpha.",
+    "Read out of the Navigator at version 1046.0.0.217.430; 78 of the 84 assets",
+    "in that table are claimed by a package, the other six by nothing."
   ],
   "base": "https://scontent.xx.fbcdn.net/mci_ab/uap/asset_manager/?ab_b=e&ab_page=ras&ab_entry=",
+  "size": 180,
   "apps": {
     "com.oculus.browser": {
       "rlds": [
@@ -233,59 +227,5 @@
         "AQAP33xFLD-M"
       ]
     }
-  },
-  "extras": [
-    {
-      "label": "Unclaimed tile background (A0Q)",
-      "entry": "AQAESD3p6bWf"
-    },
-    {
-      "label": "Unclaimed tile foreground (A0R)",
-      "entry": "AQADCtseJ_4D"
-    },
-    {
-      "label": "Unclaimed art (A0g)",
-      "entry": "AQAC-5ZVHSuU"
-    },
-    {
-      "label": "Unclaimed art (A0h)",
-      "entry": "AQADBPsy6XR5"
-    },
-    {
-      "label": "Unclaimed tile background (A0s)",
-      "entry": "AQATCQRWkgWT"
-    },
-    {
-      "label": "Unclaimed tile foreground (A0t)",
-      "entry": "AQAEHlLTzCSU"
-    },
-    {
-      "label": "Home world (A00)",
-      "entry": "AQANZJvWxK7v"
-    },
-    {
-      "label": "Home world (A01)",
-      "entry": "AQAETMpcMmf3"
-    },
-    {
-      "label": "Home world (A02)",
-      "entry": "AQAER5lAV17_"
-    },
-    {
-      "label": "Home world (A03)",
-      "entry": "AQAFnzbARLwN"
-    },
-    {
-      "label": "Home world (A04)",
-      "entry": "AQAFg11ZCcns"
-    },
-    {
-      "label": "Home world (A05)",
-      "entry": "AQAGtDVSZJF0"
-    },
-    {
-      "label": "Long-press education animation",
-      "entry": "AQAD7RpV1hSw"
-    }
-  ]
+  }
 }

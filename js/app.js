@@ -29,7 +29,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=155";
+} from "./check.js?v=157";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -952,7 +952,7 @@ function applyView() {
   el.viewSettings.hidden = view !== "settings";
 
   if (view === "companion") {
-    import("./companion.js?v=155")
+    import("./companion.js?v=157")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
