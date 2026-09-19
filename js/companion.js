@@ -25,7 +25,7 @@
  * MetaDB is not affiliated with Meta.
  */
 
-import { deviceSecrets, loadSecrets, saveSecrets, clearSecrets } from "./check.js?v=155";
+import { deviceSecrets, loadSecrets, saveSecrets, clearSecrets } from "./check.js?v=157";
 
 /* ---------- constants ---------- */
 
@@ -40,7 +40,7 @@ const HELLO_APP_VERSION = "5.8.0";
    CompanionServer versionCode 29 (Quest OS v50). The wire format is identical —
    v50 just supports fewer methods, so it gets a proto with the newer methods
    trimmed out, which is what narrows its command list. */
-const PROTO_VERSION = "155";
+const PROTO_VERSION = "157";
 const PROTO_FILES = {
   latest: "../data/companion.proto",
   v50: "../data/companion-v50.proto",
@@ -51,6 +51,19 @@ const SODIUM_URL = "https://cdn.jsdelivr.net/npm/libsodium-wrappers-sumo@0.7.15/
 const PROTOBUF_URL = "https://cdn.jsdelivr.net/npm/protobufjs@7.5.4/+esm";
 
 const REQUEST_TIMEOUT = 20000;
+
+/* A few methods block on the headset for far longer than a reply normally takes,
+   and 20 seconds gives up on work that is still going. The numbers come from the
+   server itself: WifiModule.enableWifi() spins for up to 45s waiting for the radio,
+   setNewWifiConf() then waits up to another 45s for the supplicant, and
+   CompanionService.provisionWifi() spends 10s more proving it can reach
+   graph.oculus.com before it answers at all. */
+const METHOD_TIMEOUT = {
+  WIFI_CONNECT: 120000,
+  WIFI_RECONNECT: 70000,
+  WIFI_SCAN: 70000,
+  WIFI_ENABLE: 60000,
+};
 
 /* ---------- lazy dependency load ---------- */
 
@@ -185,9 +198,13 @@ function paramForField(field) {
   if (["int32", "uint32", "sint32", "int64", "uint64", "float", "double"].includes(t)) {
     return { name, type: "number" };
   }
-  if (field.resolvedType && field.resolvedType.constructor.name === "Enum") {
-    return { name, type: "enum", values: field.resolvedType.values };
-  }
+  /* protobufjs arrives minified from the CDN, so an Enum's constructor.name is
+     whatever the minifier renamed the class to — never "Enum". Tell the two
+     apart by shape instead: an Enum carries values and no fields. Getting this
+     wrong dropped every enum field into the raw hex/JSON box below, which is
+     why picking a Wi-Fi security type meant typing WPA into it by hand. */
+  const rt = field.resolvedType;
+  if (rt && rt.values && !rt.fields) return { name, type: "enum", values: rt.values };
   // bytes or a nested message — needs a hand-written payload
   return { name, type: "raw", custom: true };
 }
@@ -265,9 +282,61 @@ function buildFeatures(methods, type) {
 
 function customPayloads(client) {
   return {
+    /* The typed-in half of joining a network. The generated form put the
+       security enum on screen as a bare list of protocol names defaulting to
+       NONE, which is the one value that quietly breaks the request — see the
+       Wi-Fi section below for what the headset does with it. */
+    WIFI_CONNECT: {
+      title: "Type in a network",
+      buttonLabel: "Connect",
+      params: [
+        { name: "ssid", type: "text", label: "Network name" },
+        {
+          name: "auth",
+          type: "choice",
+          label: "Security",
+          default: "WPA",
+          values: [
+            ["WPA", "WPA / WPA2"],
+            ["NONE", "Open — no password"],
+            ["WEP", "WEP"],
+            ["EAP", "Enterprise (PEAP)"],
+          ],
+        },
+        { name: "username", type: "text", label: "Username" },
+        { name: "password", type: "password", label: "Password" },
+        { name: "hidden", type: "checkbox", label: "Hidden network" },
+      ],
+      onForm: (inputs) => {
+        const sync = () => {
+          const auth = inputs.auth.input.value;
+          showField(inputs.password, auth !== "NONE");
+          showField(inputs.username, auth === "EAP");
+        };
+        inputs.auth.input.addEventListener("change", sync);
+        sync();
+      },
+      build: (f) => {
+        const ssid = (f.ssid || "").trim();
+        if (!ssid) throw new Error("Enter the network name.");
+        const auth = f.auth || "WPA";
+        const problem = passwordProblem(auth, f.password);
+        if (problem) throw new Error(problem);
+        const req = { ssid, auth: WIFI_AUTH[auth], hidden: !!f.hidden };
+        if (auth !== "NONE") req.password = f.password;
+        if (auth === "EAP") req.username = (f.username || "").trim();
+        return req;
+      },
+    },
     WIFI_FORGET: {
-      params: [{ name: "ssid", type: "text", label: "SSID to forget" }],
+      params: [{ name: "ssid", type: "text", label: "SSID to forget", suggest: "known" }],
       build: (f) => (f.ssid ? { network: { ssid: f.ssid } } : null),
+    },
+    /* Rejoining something the headset already holds the password for. Nothing
+       to type but the name, and the names it knows come from the last status. */
+    WIFI_RECONNECT: {
+      params: [{ name: "ssid", type: "text", label: "SSID", suggest: "known" }],
+      build: (f) => (f.ssid ? { ssid: f.ssid } : null),
     },
     CONTROLLER_UNPAIR: {
       params: [{ name: "id", type: "text", label: "Address or ID to unpair" }],
@@ -327,6 +396,458 @@ const extraCommands = {
     },
   ],
 };
+
+/* ---------- Wi-Fi ----------
+   Joining a network by hand is the part of this panel that fails, and it fails
+   misleadingly. CompanionServer takes the security field at its word:
+   WifiModule.setNewWifiConf builds the headset's WifiConfiguration straight from
+   it, so an open-security guess against a WPA access point is configured as an
+   open network, the access point refuses the association, and what comes back up
+   the wire is WIFI_NO_NETWORK — "no network" for a network standing right there.
+   The picker below asks the headset what it can see and fills the name and the
+   security type in from that answer, leaving only the password to type. */
+
+const WIFI_AUTH = { NONE: 1, EAP: 2, WPA: 3, WEP: 4 };
+
+const AUTH_LABEL = { NONE: "open", WEP: "WEP", WPA: "WPA", EAP: "enterprise" };
+
+const AUTH_RULE = {
+  WPA: "A WPA password is 8 to 63 characters.",
+  WEP: "A WEP key is 5 or 13 characters, or 10 or 26 hex digits.",
+  EAP: "PEAP — the username and password the network issued you.",
+  NONE: "",
+};
+
+/* A scan result lists every security an access point advertises, and the server
+   fills that list by substring match on the capabilities string — so a
+   WPA-Enterprise AP comes back as both EAP and WPA. EAP has to win: it is the
+   one that needs a username, and the headset configures it a different way. */
+function strongestAuth(list) {
+  const names = (list || []).map(String);
+  for (const a of ["EAP", "WPA", "WEP"]) if (names.includes(a)) return a;
+  return "NONE";
+}
+
+/* The headset sends the raw RSSI, so these are Android's own four-bar cuts. */
+function signalBars(rssi) {
+  if (typeof rssi !== "number") return 0;
+  if (rssi >= -55) return 4;
+  if (rssi >= -66) return 3;
+  if (rssi >= -77) return 2;
+  if (rssi >= -88) return 1;
+  return 0;
+}
+
+/* WifiModule.validatePassword, checked on this side too. A length the headset
+   will reject costs a round trip and comes back as BAD_ARGUEMENT; saying it
+   before the send is both faster and clearer. */
+function passwordProblem(auth, password) {
+  const p = password || "";
+  if (auth === "WPA") return p.length >= 8 && p.length <= 63 ? null : AUTH_RULE.WPA;
+  if (auth === "WEP") {
+    if (p.length === 5 || p.length === 13) return /^[\x20-\x7e]*$/.test(p) ? null : "A 5- or 13-character WEP key has to be ASCII.";
+    if (p.length === 10 || p.length === 26) return /^[0-9a-fA-F]+$/.test(p) ? null : "A 10- or 26-character WEP key has to be hex digits.";
+    return AUTH_RULE.WEP;
+  }
+  if (auth === "EAP") return p ? null : "An enterprise network needs a password.";
+  return null;
+}
+
+/* What each Wi-Fi failure actually means, read off the handler that sends it.
+   Two are easy to misread on their own: WIFI_NO_NETWORK is what a failed
+   association returns even when the name was right, and WIFI_NO_INTERNET is not
+   a failure to join at all. */
+const WIFI_HINTS = {
+  WIFI_NO_NETWORK:
+    "The headset wrote the network down and then never associated with it. Usually that is the security type: it configures the connection from exactly what it was sent, so WPA sent as open — or the other way round — gets refused by the access point and reported as no network. Scan and press Join instead of typing, since the scan carries the right type. If it is not in the scan the headset genuinely cannot see it: check it is 2.4 or 5GHz rather than 6, that it is in range, and tick Hidden network if it does not broadcast its name.",
+  WIFI_INVALID_AUTH: "The access point rejected the password.",
+  WIFI_AUTH_TIMEOUT: "Authentication started and then stopped getting answers. Worth trying again.",
+  WIFI_IP_CONFIG_FAIL: "The headset joined the network but never got an address — the router's DHCP did not answer.",
+  WIFI_NO_INTERNET:
+    "Not really a failure: the headset joined the network. It just could not reach Meta's servers over it within ten seconds, which is also what a captive portal waiting for someone to sign in looks like.",
+  DEVICE_WIFI_ERROR: "The headset's Wi-Fi did not come up. Enable Wi-Fi, give it a few seconds, and try again.",
+  BAD_ARGUEMENT: "The password does not fit the security type.",
+  AUTHENTICATION_FAILURE: "A claimed headset wants its device secret before it will change anything. Fill the secret in above and authenticate.",
+};
+
+function wifiHint(res) {
+  const code = (res && ((res.error && res.error.code) || res.codeName)) || "";
+  return WIFI_HINTS[code] || null;
+}
+
+/* The plain-words line, then the code and the server's own debug string under
+   it — the panel explains what came back without hiding it. */
+function failureText(res) {
+  const code = (res.error && res.error.code) || res.codeName || res.code;
+  const detail = res.error && res.error.debug_details ? code + " — " + res.error.debug_details : String(code);
+  const hint = wifiHint(res);
+  return (hint ? hint + "\n\n" : "") + detail;
+}
+
+/* What the last status read said the headset knows about, kept so the Reconnect
+   and Forget rows can offer those names instead of asking for them. */
+function rememberWifi(client, status) {
+  if (!status) return;
+  client.wifi = {
+    known: (status.known_networks || []).map((n) => n && n.ssid).filter(Boolean),
+    current: (status.network && status.network.ssid) || null,
+  };
+}
+
+let datalistSeq = 0;
+function attachKnown(input, client) {
+  const list = document.createElement("datalist");
+  list.id = "wifi-known-" + ++datalistSeq;
+  input.setAttribute("list", list.id);
+  const fill = () => {
+    list.innerHTML = "";
+    for (const ssid of (client.wifi && client.wifi.known) || []) {
+      const o = document.createElement("option");
+      o.value = ssid;
+      list.appendChild(o);
+    }
+  };
+  input.addEventListener("focus", fill);
+  fill();
+  return list;
+}
+
+/* A .companion-field whose input can be put away — the security type decides
+   whether a password or a username is a real question. */
+function showField(entry, on) {
+  if (!entry || !entry.input) return;
+  const wrap = entry.input.closest(".companion-field");
+  if (wrap) wrap.hidden = !on;
+}
+
+function labelledInput(label, type) {
+  const wrap = document.createElement("label");
+  wrap.className = "companion-field";
+  const cap = document.createElement("span");
+  cap.textContent = label;
+  const input = document.createElement("input");
+  input.type = type;
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  wrap.append(cap, input);
+  return { wrap, input };
+}
+
+/* Scan, then Join. The point is that nothing here is typed except the password:
+   the name and the security type come from the headset's own scan, which is the
+   only place they are reliably right. */
+function wifiPicker(client) {
+  const wrap = document.createElement("div");
+  wrap.className = "wifi";
+
+  const bar = document.createElement("div");
+  bar.className = "wifi-bar";
+  const scanBtn = document.createElement("button");
+  scanBtn.type = "button";
+  scanBtn.textContent = "Scan for networks";
+  const note = document.createElement("p");
+  note.className = "wifi-note";
+  note.textContent =
+    "Ask the headset what it can see, then press Join. A network that does not broadcast its name will not appear — type that one in below and tick Hidden network.";
+  bar.append(scanBtn, note);
+
+  const list = document.createElement("ul");
+  list.className = "wifi-list";
+  list.hidden = true;
+
+  const out = document.createElement("pre");
+  out.className = "companion-result wifi-out";
+  out.hidden = true;
+
+  wrap.append(bar, list, out);
+
+  let lastScan = [];
+
+  function say(text, kind) {
+    out.hidden = false;
+    out.dataset.kind = kind || "";
+    out.textContent = text;
+  }
+
+  scanBtn.addEventListener("click", scan);
+
+  async function scan() {
+    scanBtn.disabled = true;
+    scanBtn.textContent = "Scanning…";
+    note.dataset.kind = "";
+    note.textContent = "Scanning. The headset switches its Wi-Fi on first if it is off, so give this a few seconds.";
+    out.hidden = true;
+    try {
+      const status = await readStatus();
+      const res = await client.execute("WIFI_SCAN", null);
+      if (res.code !== 0) {
+        say(failureText(res), "err");
+        render([], status);
+        return;
+      }
+      lastScan = (res.decoded && res.decoded.networks) || [];
+      render(lastScan, status);
+      note.textContent = lastScan.length
+        ? "Press Join on the one you want. A network the headset has joined before does not ask for the password again."
+        : "The headset saw nothing. If its Wi-Fi was off it is on now — scan again in a few seconds.";
+    } catch (e) {
+      say(e.message || "the scan failed", "err");
+    } finally {
+      scanBtn.disabled = false;
+      scanBtn.textContent = "Scan again";
+    }
+  }
+
+  /* Status is what marks a network as saved or current, and a saved network is
+     the one that can be rejoined without a password. It is a nice-to-have
+     though, so a headset that refuses it still gets a list. */
+  async function readStatus() {
+    try {
+      const res = await client.execute("WIFI_STATUS", null);
+      if (res.code !== 0) return null;
+      rememberWifi(client, res.decoded);
+      return res.decoded || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function render(networks, status) {
+    list.innerHTML = "";
+    list.hidden = false;
+
+    const known = new Set(((status && status.known_networks) || []).map((n) => n && n.ssid).filter(Boolean));
+    const current = (status && status.network && status.network.ssid) || null;
+
+    const seen = new Set();
+    const rows = [];
+    for (const n of networks) {
+      if (!n.ssid || seen.has(n.ssid)) continue;
+      seen.add(n.ssid);
+      rows.push({
+        ssid: n.ssid,
+        auth: strongestAuth(n.auth),
+        rssi: typeof n.signal_level === "number" ? n.signal_level : null,
+      });
+    }
+    // The headset sorts its scan weakest first. Nobody reads a list that way.
+    rows.sort((a, b) => (b.rssi == null ? -999 : b.rssi) - (a.rssi == null ? -999 : a.rssi));
+    // Saved networks the scan missed still take a Reconnect.
+    for (const ssid of known) if (!seen.has(ssid)) rows.push({ ssid, auth: null, rssi: null });
+
+    // A false bool is dropped on decode, so an absent flag is an off radio.
+    const radioOff = status && !status.enabled;
+    if (radioOff) list.appendChild(radioOffRow());
+    for (const r of rows) list.appendChild(netRow(r, known.has(r.ssid), r.ssid === current));
+    if (!rows.length && !radioOff) list.appendChild(emptyRow());
+  }
+
+  function emptyRow() {
+    const li = document.createElement("li");
+    li.className = "wifi-net";
+    const p = document.createElement("p");
+    p.className = "wifi-row wifi-note";
+    p.textContent = "Nothing in range.";
+    li.appendChild(p);
+    return li;
+  }
+
+  function radioOffRow() {
+    const li = document.createElement("li");
+    li.className = "wifi-net";
+    const row = document.createElement("div");
+    row.className = "wifi-row";
+    const name = document.createElement("span");
+    name.className = "wifi-ssid";
+    name.textContent = "Wi-Fi is off on the headset";
+    const tags = document.createElement("span");
+    tags.className = "wifi-tags";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "Turn it on";
+    btn.addEventListener("click", async () => {
+      const res = await run(btn, "Turning on…", () => client.execute("WIFI_ENABLE", null));
+      if (!res) return;
+      if (res.code !== 0) say(failureText(res), "err");
+      else await scan();
+    });
+    row.append(name, tags, btn);
+    li.appendChild(row);
+    return li;
+  }
+
+  function netRow(net, saved, isCurrent) {
+    const li = document.createElement("li");
+    li.className = "wifi-net";
+
+    const row = document.createElement("div");
+    row.className = "wifi-row";
+
+    const sig = document.createElement("span");
+    sig.className = "wifi-sig";
+    sig.dataset.level = String(signalBars(net.rssi));
+    sig.setAttribute("aria-hidden", "true");
+    for (let i = 0; i < 4; i++) sig.appendChild(document.createElement("i"));
+
+    const name = document.createElement("span");
+    name.className = "wifi-ssid";
+    name.textContent = net.ssid;
+
+    const tags = document.createElement("span");
+    tags.className = "wifi-tags";
+    const parts = [];
+    if (isCurrent) parts.push("connected");
+    else if (saved) parts.push("saved");
+    parts.push(net.auth ? AUTH_LABEL[net.auth] : "not in range");
+    if (net.rssi != null) parts.push(net.rssi + " dBm");
+    tags.textContent = parts.join(" · ");
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = isCurrent ? "Rejoin" : saved ? "Reconnect" : "Join";
+
+    row.append(sig, name, tags, btn);
+    li.appendChild(row);
+
+    let form = null;
+    const openForm = (message) => {
+      if (!form) {
+        form = joinForm(net, (payload, submitBtn) => runConnect(payload, net.ssid, submitBtn));
+        li.appendChild(form);
+      }
+      form.hidden = false;
+      if (message) {
+        const n = form.querySelector(".wifi-note");
+        n.dataset.kind = "err";
+        n.textContent = message;
+      }
+      const first = form.querySelector("input");
+      if (first) first.focus();
+    };
+
+    btn.addEventListener("click", async () => {
+      /* Saved means the headset already holds the password, so the shortest
+         true path is a reconnect. If that does not take, the password form
+         appears — which is the only moment anyone needs to see it. */
+      if (saved || isCurrent) {
+        const res = await run(btn, "Reconnecting…", () => client.execute("WIFI_RECONNECT", { ssid: net.ssid }));
+        if (!res) return;
+        if (res.code === 0) {
+          say("Reconnected to " + net.ssid + ".", "ok");
+          refresh();
+          return;
+        }
+        say(failureText(res), "err");
+        if (net.auth && net.auth !== "NONE") openForm("That did not take. Enter the password for " + net.ssid + ".");
+        return;
+      }
+      if (net.auth === "NONE") {
+        await runConnect({ ssid: net.ssid, auth: WIFI_AUTH.NONE, hidden: false }, net.ssid, btn);
+        return;
+      }
+      openForm();
+    });
+
+    return li;
+  }
+
+  function joinForm(net, submit) {
+    const auth = net.auth || "WPA";
+    const form = document.createElement("form");
+    form.className = "wifi-form";
+
+    let username = null;
+    if (auth === "EAP") {
+      username = labelledInput("Username", "text");
+      form.appendChild(username.wrap);
+    }
+    const password = labelledInput("Password", "password");
+    form.appendChild(password.wrap);
+
+    const reveal = document.createElement("button");
+    reveal.type = "button";
+    reveal.className = "ptc-btn";
+    reveal.textContent = "Show";
+    reveal.addEventListener("click", () => {
+      const hidden = password.input.type === "password";
+      password.input.type = hidden ? "text" : "password";
+      reveal.textContent = hidden ? "Hide" : "Show";
+    });
+    form.appendChild(reveal);
+
+    const go = document.createElement("button");
+    go.type = "submit";
+    go.textContent = "Join";
+    form.appendChild(go);
+
+    const rule = document.createElement("p");
+    rule.className = "wifi-note";
+    rule.textContent = AUTH_RULE[auth] || "";
+    form.appendChild(rule);
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const problem = passwordProblem(auth, password.input.value);
+      if (problem) {
+        rule.dataset.kind = "err";
+        rule.textContent = problem;
+        return;
+      }
+      rule.dataset.kind = "";
+      rule.textContent = AUTH_RULE[auth] || "";
+      const payload = { ssid: net.ssid, auth: WIFI_AUTH[auth], password: password.input.value, hidden: false };
+      if (username) payload.username = username.input.value.trim();
+      submit(payload, go);
+    });
+
+    return form;
+  }
+
+  /* Every button in here disables itself and says what it is doing, because the
+     headset can sit on a join for the best part of a minute. */
+  async function run(btn, busyLabel, fn) {
+    const was = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = busyLabel;
+    try {
+      return await fn();
+    } catch (e) {
+      say(e.message || "the request failed", "err");
+      return null;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = was;
+    }
+  }
+
+  async function runConnect(payload, ssid, btn) {
+    say("Asking the headset to join " + ssid + ". This can take up to a minute: it waits for the access point, then checks it can reach Meta's servers.", "");
+    const res = await run(btn, "Joining…", () => client.execute("WIFI_CONNECT", payload));
+    if (!res) return null;
+    if (res.code === 0) {
+      say("Connected to " + ssid + ".", "ok");
+      refresh();
+      return res;
+    }
+    const code = (res.error && res.error.code) || res.codeName;
+    if (code === "WIFI_NO_INTERNET") {
+      say("Joined " + ssid + ". " + WIFI_HINTS.WIFI_NO_INTERNET, "");
+      refresh();
+      return res;
+    }
+    say(failureText(res), "err");
+    return res;
+  }
+
+  /* After a join the saved and connected tags are stale, so re-read status and
+     redraw from the scan already in hand rather than scanning again. */
+  async function refresh() {
+    const status = await readStatus();
+    render(lastScan, status);
+  }
+
+  return wrap;
+}
 
 /* ---------- crypto box (libsodium crypto_box_easy) ---------- */
 
@@ -399,6 +920,7 @@ class CompanionClient {
     this._secret = null; // Uint8Array(32)
     this.onState = null;
     this.onLog = null;
+    this.wifi = { known: [], current: null }; // last WIFI_STATUS, for the SSID suggestions
     this.authRequired = false;
     this.variant = "latest"; // which protocol variant to load (latest | v50)
   }
@@ -619,7 +1141,7 @@ class CompanionClient {
       await this.cmdChar.writeValueWithResponse(c);
     }
 
-    const raw = await this.#poll(REQUEST_TIMEOUT);
+    const raw = await this.#poll(METHOD_TIMEOUT[methodName] || REQUEST_TIMEOUT);
     let plain = raw;
     if (encrypted) plain = this.session.box.decrypt(raw);
 
@@ -635,9 +1157,14 @@ class CompanionClient {
 
   /** Read the command characteristic until a full framed message arrives. */
   async #poll(timeout) {
-    const deadline = Date.now() + timeout;
+    const started = Date.now();
+    const deadline = started + timeout;
     let buf = new Uint8Array(0);
     let expected = 0;
+    /* A quick command answers in a few reads, so poll tightly at first; a Wi-Fi
+       join can hold the line for a minute, and reading every 25ms for that long
+       is a lot of BLE traffic for nothing. */
+    const idle = () => sleep(Date.now() - started > 3000 ? 250 : 25);
     while (Date.now() < deadline) {
       let view;
       try {
@@ -648,7 +1175,7 @@ class CompanionClient {
       const value = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
       if (value.length < 2) {
         // 0xFF terminator or an empty read — nothing queued yet.
-        await sleep(25);
+        await idle();
         continue;
       }
       const header = (value[0] << 8) | value[1];
@@ -953,18 +1480,33 @@ export async function initCompanion(section) {
     const patches = customPayloads(client);
     const features = withExtras(deps.features);
 
-    features.forEach((feature, i) => {
+    /* Each tab is one entry: a label and a function that fills its panel. The
+       Setup tab is assembled by hand and leads; the rest come straight from the
+       schema's own @@tab grouping. */
+    const sections = [];
+    const setup = buildSetupSection(patches);
+    if (setup) sections.push(setup);
+    for (const feature of features) {
+      sections.push({
+        label: titleCase(feature.tab),
+        fill: (panel) => {
+          for (const group of feature.groups) panel.appendChild(renderGroup(group, patches));
+        },
+      });
+    }
+
+    sections.forEach((section, i) => {
       const tabBtn = document.createElement("button");
       tabBtn.type = "button";
       tabBtn.className = "companion-tab";
-      tabBtn.textContent = titleCase(feature.tab);
+      tabBtn.textContent = section.label;
       tabBtn.addEventListener("click", () => selectTab(i));
       el.tabs.appendChild(tabBtn);
 
       const panel = document.createElement("div");
       panel.className = "companion-panel";
       panel.hidden = i !== 0;
-      for (const group of feature.groups) panel.appendChild(renderGroup(group, patches));
+      section.fill(panel);
       el.panels.appendChild(panel);
     });
 
@@ -984,14 +1526,70 @@ export async function initCompanion(section) {
     selectTab(0);
   }
 
+  /* A consolidated first-run tab: the few things you do once when setting a
+     headset up, pulled out of the tabs they normally live in — connect to Wi-Fi,
+     push the device secret after a factory reset, set the combined account token,
+     and skip the in-headset first-time setup. Every row is the same command the
+     schema already defines, found by method name so this works whatever proto
+     variant is loaded; a variant missing one just drops that row (and if it has
+     none of them, there is no Setup tab). Nothing here is new protocol. */
+  function buildSetupSection(patches) {
+    const findCmd = (methodName) => {
+      for (const f of deps.features)
+        for (const g of f.groups) {
+          if (g.primary && g.primary.methodName === methodName) return g.primary;
+          const hit = g.secondary.find((c) => c.methodName === methodName);
+          if (hit) return hit;
+        }
+      return null;
+    };
+    const findGroup = (methodName) => {
+      for (const f of deps.features)
+        for (const g of f.groups) {
+          if (g.primary && g.primary.methodName === methodName) return g;
+          if (g.secondary.some((c) => c.methodName === methodName)) return g;
+        }
+      return null;
+    };
+    // renderGroup grows the Wi-Fi picker from any group holding WIFI_CONNECT, so
+    // the network step is just that group rendered here too.
+    const wifiGroup = deps.methods.some((m) => m.name === "WIFI_CONNECT") ? findGroup("WIFI_CONNECT") : null;
+    const secret = findCmd("OCULUS_SET_USER_SECRET");
+    const combined = findCmd("META_SET_ACCESS_TOKEN_COMBINED");
+    const nux = findCmd("NUX_COMPLETED");
+
+    if (!wifiGroup && !secret && !combined && !nux) return null;
+
+    // One command under a heading of our choosing, as a normal (non-primary) row.
+    const solo = (title, cmd) => renderGroup({ title, primary: null, secondary: [cmd] }, patches);
+    // A shallow retitle so a row can read the way this tab frames it, without
+    // touching the shared command object.
+    const retitled = (cmd, title) => ({ ...cmd, title });
+
+    return {
+      label: "Setup",
+      fill: (panel) => {
+        if (secret) panel.appendChild(solo("DEVICE SECRET", retitled(secret, "Set device secret on the headset")));
+        if (combined) panel.appendChild(solo("COMBINED ACCOUNT TOKEN", combined));
+        if (nux) panel.appendChild(solo("SKIP FIRST-TIME SETUP", retitled(nux, "Skip NUX (mark completed)")));
+        if (wifiGroup) panel.appendChild(renderGroup(wifiGroup, patches));
+      },
+    };
+  }
+
   function renderGroup(group, patches) {
     const wrap = document.createElement("section");
     wrap.className = "companion-group";
     const h = document.createElement("h3");
     h.textContent = group.title;
     wrap.appendChild(h);
-    if (group.primary) wrap.appendChild(renderCommand(group.primary, patches, true));
-    for (const c of group.secondary) wrap.appendChild(renderCommand(c, patches, false));
+    const cmds = [];
+    if (group.primary) cmds.push([group.primary, true]);
+    for (const c of group.secondary) cmds.push([c, false]);
+    /* Whichever group the schema puts WIFI_CONNECT in, the picker leads it and
+       the typed-in row sits underneath as the fallback. */
+    if (cmds.some(([c]) => c.methodName === "WIFI_CONNECT")) wrap.appendChild(wifiPicker(client));
+    for (const [c, primary] of cmds) wrap.appendChild(renderCommand(c, patches, primary));
     return wrap;
   }
 
@@ -1017,6 +1615,7 @@ export async function initCompanion(section) {
       const field = renderField(cmd, p, inputs);
       if (field) form.appendChild(field);
     }
+    if (patch && patch.onForm) patch.onForm(inputs);
 
     const btn = document.createElement("button");
     btn.type = "submit";
@@ -1032,19 +1631,20 @@ export async function initCompanion(section) {
       if (cmd.confirm && !confirm(cmd.confirm)) return;
 
       let payload;
-      if (cmd.fixed) payload = cmd.fixed;
-      else if (patch && patch.build) {
-        payload = patch.build(readForm(params, inputs));
-        if (payload === null) return; // cancelled / invalid
-      } else if (cmd.custom) {
-        try {
+      try {
+        if (cmd.fixed) payload = cmd.fixed;
+        else if (patch && patch.build) {
+          payload = patch.build(readForm(params, inputs));
+          if (payload === null) return; // cancelled / invalid
+        } else if (cmd.custom) {
           payload = readForm(params, inputs, true);
-        } catch (err) {
-          showResult(out, { code: -1, error: { message: err.message } }, true);
-          return;
+        } else {
+          payload = params.length ? readForm(params, inputs) : null;
         }
-      } else {
-        payload = params.length ? readForm(params, inputs) : null;
+      } catch (err) {
+        // A payload that will not build says why here rather than on the wire.
+        showResult(out, { code: -1, error: { message: err.message } }, true);
+        return;
       }
 
       btn.disabled = true;
@@ -1052,6 +1652,7 @@ export async function initCompanion(section) {
       btn.textContent = "…";
       try {
         const res = await client.execute(cmd.methodName, payload);
+        if (cmd.methodName === "WIFI_STATUS" && res.code === 0) rememberWifi(client, res.decoded);
         showResult(out, res, false);
       } catch (err) {
         showResult(out, { code: -1, error: { message: err.message } }, true);
@@ -1083,15 +1684,27 @@ export async function initCompanion(section) {
       for (const [name, val] of Object.entries(p.values)) {
         const o = document.createElement("option");
         o.value = String(val);
-        o.textContent = name;
+        o.textContent = labelFor(name.toLowerCase());
         input.appendChild(o);
       }
+    } else if (p.type === "choice") {
+      // A hand-written list: the value the request wants, said the way a reader
+      // would say it.
+      input = document.createElement("select");
+      for (const [val, text] of p.values) {
+        const o = document.createElement("option");
+        o.value = val;
+        o.textContent = text;
+        input.appendChild(o);
+      }
+      if (p.default) input.value = p.default;
     } else {
       input = document.createElement("input");
       input.type = p.type === "password" ? "password" : p.type === "number" ? "number" : "text";
       if (p.type === "raw") input.placeholder = "hex or JSON";
       input.autocomplete = "off";
       input.spellcheck = false;
+      if (p.suggest === "known") wrap.appendChild(attachKnown(input, client));
     }
     inputs[p.name] = { input, type: p.type };
     if (p.type === "checkbox") {
@@ -1137,6 +1750,8 @@ export async function initCompanion(section) {
     } else {
       let msg = "Failed: " + (res.codeName || res.code);
       if (res.error) msg += "\n" + JSON.stringify(res.error, null, 2);
+      const hint = wifiHint(res);
+      if (hint) msg += "\n\n" + hint;
       out.textContent = msg;
     }
   }

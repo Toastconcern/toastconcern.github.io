@@ -25,7 +25,7 @@ import http from "node:http";
 import { Readable } from "node:stream";
 
 const PORT = Number(process.env.PORT) || 8788;
-const ALLOWED = /^https:\/\/(graph|www|securecdn)\.oculus\.com\//;
+const ALLOWED = /^https:\/\/(graph|www|securecdn(-[a-z0-9-]+)?)\.oculus\.com\//;
 
 /* What the Oculus companion app on a Quest 3 sends when it pulls a binary. */
 const DOWNLOAD_UA =
@@ -68,7 +68,7 @@ http
       );
     }
 
-    const download = new URL(target).hostname === "securecdn.oculus.com";
+    const download = new URL(target).hostname.startsWith("securecdn");
     const isPost = req.method === "POST";
 
     /* Read the form body for a POST so it can be handed on. GraphQL requests

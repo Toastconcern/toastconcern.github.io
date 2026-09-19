@@ -12,7 +12,7 @@
 
 /* Only these hosts are forwarded. Without the check this is an open proxy that
    anyone who finds the address can fetch arbitrary sites through. */
-const ALLOWED = /^(graph|securecdn)\.oculus\.com$/;
+const ALLOWED = /^(graph|securecdn(-[a-z0-9-]+)?)\.oculus\.com$/;
 
 /* Binary downloads are asked for by a headset, so they are answered as one.
    This is what the Oculus companion app on a Quest 3 sends. `User-Agent` is a
@@ -48,7 +48,7 @@ export async function onRequest({ request }) {
     return new Response("host not allowed", { status: 403 });
   }
 
-  const download = host === "securecdn.oculus.com";
+  const download = host.startsWith("securecdn");
   const isPost = request.method === "POST";
 
   const upstream = await fetch(target, {
