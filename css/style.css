@@ -1174,6 +1174,8 @@ button.dl:disabled { color: #fff; opacity: .55; }
    keeps the row's rhythm without competing for the eye: the search box above
    still opens the section. */
 .controls-sub { margin-top: -.25rem; }
+/* display: flex above would otherwise outrank the hidden attribute. */
+.controls[hidden] { display: none; }
 .controls-sub input { flex: 1 1 20rem; }
 
 /* A rejected binary ID is the one hint that is a verdict rather than a note. */
@@ -1646,4 +1648,99 @@ details.hint > p {
   .wifi-form { padding-left: .6rem; }
   .wifi-form .companion-field { flex: 1 1 100%; }
   .wifi-form .companion-field input { width: 100%; }
+}
+
+/* ---------- guided tour ----------
+   A ring around the control being described, with the rest of the page dimmed
+   by the ring's own shadow, and a card beside it built from the same parts as
+   every other panel here. The ring takes the focus colour rather than the blue,
+   which stays reserved for the build-row Download. */
+
+.tour-ring {
+  position: fixed;
+  z-index: 20;
+  border: 2px solid var(--link);
+  border-radius: 4px;
+  box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--bg) 70%, transparent);
+  pointer-events: none;
+}
+/* Nothing to point at: no ring, but keep the page dimmed behind the card. */
+.tour-ring--none {
+  inset: 0;
+  width: auto !important;
+  height: auto !important;
+  border: 0;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+}
+.tour-ring.tour-move {
+  transition: top var(--speed) ease-out, left var(--speed) ease-out,
+    width var(--speed) ease-out, height var(--speed) ease-out;
+}
+
+.tour-card {
+  position: fixed;
+  z-index: 21;
+  width: min(22rem, calc(100vw - 32px));
+  padding: 1rem 1.1rem .9rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+}
+.tour-count {
+  margin: 0 0 .35rem;
+  font-family: var(--mono);
+  font-size: .75rem;
+  color: var(--muted);
+}
+.tour-title {
+  margin: 0 0 .4rem;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.tour-body {
+  margin: 0;
+  font-size: .875rem;
+  line-height: 1.6;
+}
+.tour-actions {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-top: 1rem;
+}
+.tour-gap { margin-right: auto; }
+.tour-actions button { min-height: 44px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-ring.tour-move { transition: none; }
+}
+
+/* ---------- big screens ----------
+   Below 1280px nothing here applies. Above it the lists get the room: the
+   page widens in two steps, the clamps that keep a phone row on screen relax,
+   and a build history shows more before it scrolls. Prose stays at a reading
+   measure however wide the window is, and Settings keeps its form width. */
+
+@media (min-width: 1280px) {
+  .bar,
+  .wrap {
+    max-width: 80rem;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+  .sub { max-width: 75ch; }
+  .name { min-width: 14rem; }
+  .clip { max-width: 20rem; }
+  .dev-ahead { max-width: 14rem; }
+  .vscroll { max-height: min(36rem, 60vh); }
+  .vscroll.short { max-height: 14rem; }
+}
+
+@media (min-width: 1760px) {
+  .bar,
+  .wrap { max-width: 96rem; }
+  .clip { max-width: 26rem; }
 }

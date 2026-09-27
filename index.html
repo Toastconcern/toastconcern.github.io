@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=157">
+<link rel="stylesheet" href="css/style.css?v=159">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -108,7 +108,7 @@
       <button id="checkAll" type="button">Check shown</button>
     </div>
 
-    <div class="controls controls-sub">
+    <div class="controls controls-sub" id="binRow" hidden>
       <input id="binId" type="search" inputmode="numeric" placeholder="Binary ID, from a build's ID (build) column" aria-label="Binary ID to download" autocomplete="off" spellcheck="false">
       <button id="binGo" type="button">Download APK</button>
     </div>
@@ -598,6 +598,22 @@
 
       <div class="field field--toggle">
         <label class="check">
+          <input id="binDownload" type="checkbox">
+          Show download by binary ID
+        </label>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Adds a box under the search on Apps and games that downloads one
+            build straight from its binary ID — the long number in a build
+            history's ID (build) column. Off by default, since the Download
+            buttons in a build history already cover every build you can see.
+          </p>
+        </details>
+      </div>
+
+      <div class="field field--toggle">
+        <label class="check">
           <input id="wide" type="checkbox" checked>
           Large display mode
         </label>
@@ -788,7 +804,7 @@
 
   </section>
 
-  <p class="foot">Data comes from the Meta store. Not affiliated with Meta.</p>
+  <p class="foot">Data comes from the Meta store. Not affiliated with Meta. <button type="button" id="tourAgain" class="linkbtn">Take the tour</button></p>
 
 </div>
 
@@ -805,6 +821,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=157"></script>
+<script type="module" src="js/app.js?v=159"></script>
 </body>
 </html>
