@@ -49,6 +49,10 @@ export function loadSettings() {
       images: localStorage.getItem("metadb.images") === "1",
       details: localStorage.getItem("metadb.details") === "1",
       devDownloads: localStorage.getItem("metadb.devDownloads") === "1",
+      /* Off by default: the box on Apps and games that downloads by binary ID. */
+      binDownload: localStorage.getItem("metadb.binDownload") === "1",
+      /* Set once the guided tour has been finished or skipped. */
+      tourDone: localStorage.getItem("metadb.tourDone") === "1",
       /* On unless turned off: a build with an OBB is no use without it. */
       obb: localStorage.getItem("metadb.obb") !== "0",
       /* Off by default: fetch the library on load and tint apps you own. */
@@ -84,6 +88,8 @@ export function loadSettings() {
       images: false,
       details: false,
       devDownloads: false,
+      binDownload: false,
+      tourDone: false,
       obb: true,
       autoOwned: false,
       wide: true,
@@ -132,7 +138,7 @@ export function saveSettings(patch) {
 
 export function clearSettings() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "obb", "autoOwned", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}

@@ -29,7 +29,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=157";
+} from "./check.js?v=159";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -184,6 +184,9 @@ const el = {
   binId: document.getElementById("binId"),
   binGo: document.getElementById("binGo"),
   binNote: document.getElementById("binNote"),
+  binRow: document.getElementById("binRow"),
+  binDownload: document.getElementById("binDownload"),
+  tourAgain: document.getElementById("tourAgain"),
   limit: document.getElementById("limit"),
   limitbar: document.querySelector(".limitbar"),
 
@@ -369,6 +372,10 @@ let listing = [];
 let listingNote = "";
 let searching = false;
 
+/* The guided tour in progress, if any. Up here for the same TDZ reason:
+   applyView asks about it while the module is still evaluating. */
+let tour = null;
+
 initTheme();
 initFontSize();
 initMotion();
@@ -381,6 +388,7 @@ initDevices();
 initDefault();
 initHeadset();
 initDirectDownload();
+initTour();
 initColumns();
 /* The headset list has to exist before the defaults can select within it. */
 fillHmdPicker();
@@ -952,7 +960,7 @@ function applyView() {
   el.viewSettings.hidden = view !== "settings";
 
   if (view === "companion") {
-    import("./companion.js?v=157")
+    import("./companion.js?v=159")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -976,6 +984,11 @@ function applyView() {
     ),
     "view-in"
   );
+
+  /* The tour points at the Apps and games screen, so it waits for it — and
+     leaving that screen mid-tour ends it. */
+  if (view === "apps") maybeTour();
+  else endTour();
 }
 
 /* ---------- organizations ---------- */
@@ -1845,6 +1858,7 @@ function initSettings() {
     [el.images, "images"],
     [el.details, "details"],
     [el.devDownloads, "devDownloads"],
+    [el.binDownload, "binDownload"],
     [el.obb, "obb"],
     [el.wide, "wide"],
     [el.motion, "motion"],
@@ -1855,9 +1869,11 @@ function initSettings() {
       /* Switching the mode off while a panel is filling the window would
          otherwise leave it there with no way back. */
       if (key === "wide" && !node.checked) closeStage();
+      if (key === "binDownload") syncBinRow();
       renderAll();
     });
   }
+  syncBinRow();
 
   /* This one defaults to on, so it stores "0"/"1" rather than a boolean —
      removing the key on false would read back as the default. */
@@ -1900,6 +1916,8 @@ function initSettings() {
     el.details.checked = false;
     el.devDownloads.checked = false;
     el.autoOwned.checked = false;
+    el.binDownload.checked = false;
+    syncBinRow();
     el.log.checked = false;
     el.logField.hidden = true;
     el.logBox.replaceChildren();
@@ -3662,3 +3680,225 @@ function esc(s) {
    worked because its first statement used to be an await, which let the rest of
    the module finish evaluating first. */
 boot();
+
+/* ---------- download by binary ID ---------- */
+
+/* The box is a side door most people never need, so it only appears when
+   switched on in Settings. Hiding it takes any note it left with it. */
+function syncBinRow() {
+  const on = loadSettings().binDownload;
+  el.binRow.hidden = !on;
+  if (!on) el.binNote.hidden = true;
+}
+
+/* ---------- guided tour ----------
+   Runs once, the first time the Apps and games screen is shown, and again
+   whenever Take the tour in the footer is pressed. It points at the real
+   controls rather than describing them from a distance: a ring around each
+   one, the rest of the page dimmed, and a card beside it. Skip, Done or
+   Escape all count as finished. */
+
+function tourSteps() {
+  return [
+    {
+      target: ".topbar h1",
+      title: "What this is",
+      body:
+        "MetaDB reads the Meta Quest store live: every release channel and every build an app " +
+        "has had, including the ones that never shipped. Nothing is stored — each list is " +
+        "fetched when you ask for it. Not affiliated with Meta.",
+    },
+    {
+      target: '.nav a[data-view="settings"]',
+      title: "Start with a token",
+      body:
+        "Search and most lists need your own access token: sign in at secure.oculus.com and " +
+        "copy the oc_www_at cookie into Settings. Downloads also want oc_ac_at. Without one, " +
+        "a built-in token reads public LIVE builds and nothing else.",
+    },
+    {
+      target: "#q",
+      title: "Search the store",
+      body:
+        "Type an app name, or paste an app ID, a meta.com store link or an Android package " +
+        "name. It works out which one it is.",
+    },
+    {
+      target: "#view-apps table",
+      title: "Open an app",
+      body:
+        "Click a result, then press Check this app. It pulls the release channels and the " +
+        "full build history in one go, and builds that reached a channel get a Download button.",
+    },
+    {
+      target: ".nav",
+      title: "The other lists",
+      body:
+        "Apps also holds the default apps, what your account owns, and an organization's apps. " +
+        "Headsets has the ones on your account, plus ADB and CompanionServer.",
+    },
+  ];
+}
+
+function initTour() {
+  el.tourAgain.addEventListener("click", () => {
+    if (location.hash && location.hash !== "#apps") {
+      /* applyView runs on the hash change; start once the screen is in. */
+      location.hash = "#apps";
+      setTimeout(startTour, speed() + 50);
+    } else {
+      startTour();
+    }
+  });
+}
+
+/** First visit only. */
+function maybeTour() {
+  if (tour || loadSettings().tourDone) return;
+  /* Let the screen finish arriving so the ring lands where things end up. */
+  setTimeout(() => {
+    if (!tour && !loadSettings().tourDone && !el.viewApps.hidden) startTour();
+  }, speed() + 50);
+}
+
+function startTour() {
+  if (tour) return;
+
+  const ring = document.createElement("div");
+  ring.className = "tour-ring";
+  ring.setAttribute("aria-hidden", "true");
+
+  const card = document.createElement("div");
+  card.className = "tour-card";
+  card.setAttribute("role", "dialog");
+  card.setAttribute("aria-labelledby", "tourTitle");
+  card.setAttribute("aria-describedby", "tourBody");
+  card.innerHTML = `
+    <p class="tour-count"></p>
+    <h3 id="tourTitle" class="tour-title"></h3>
+    <p id="tourBody" class="tour-body"></p>
+    <div class="tour-actions">
+      <button type="button" data-tour="skip">Skip</button>
+      <span class="tour-gap"></span>
+      <button type="button" data-tour="back">Back</button>
+      <button type="button" data-tour="next">Next</button>
+    </div>`;
+
+  document.body.append(ring, card);
+
+  /* Scroll and resize already arrive at most once a frame. */
+  const onMove = () => placeTour();
+  const onKey = (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      endTour();
+    }
+  };
+
+  tour = {
+    steps: tourSteps(),
+    index: 0,
+    ring,
+    card,
+    onMove,
+    onKey,
+    returnFocus: document.activeElement,
+  };
+
+  card.addEventListener("click", (e) => {
+    const action = e.target.closest("[data-tour]")?.dataset.tour;
+    if (action === "skip") endTour();
+    else if (action === "back") showStep(tour.index - 1);
+    else if (action === "next") {
+      if (tour.index === tour.steps.length - 1) endTour();
+      else showStep(tour.index + 1);
+    }
+  });
+  window.addEventListener("resize", onMove);
+  window.addEventListener("scroll", onMove, { passive: true });
+  document.addEventListener("keydown", onKey, true);
+
+  showStep(0);
+  /* Moving between steps may glide; the first placement should not. */
+  if (animates()) requestAnimationFrame(() => tour?.ring.classList.add("tour-move"));
+}
+
+function showStep(index) {
+  const { steps, card } = tour;
+  tour.index = Math.max(0, Math.min(index, steps.length - 1));
+  const step = steps[tour.index];
+  const last = tour.index === steps.length - 1;
+
+  card.querySelector(".tour-count").textContent = `${tour.index + 1} of ${steps.length}`;
+  card.querySelector(".tour-title").textContent = step.title;
+  card.querySelector(".tour-body").textContent = step.body;
+  card.querySelector('[data-tour="back"]').disabled = tour.index === 0;
+  card.querySelector('[data-tour="next"]').textContent = last ? "Done" : "Next";
+  /* Skip means nothing on the last step, where Done already ends it. */
+  card.querySelector('[data-tour="skip"]').hidden = last;
+
+  const target = document.querySelector(step.target);
+  if (target && target.getClientRects().length) {
+    target.scrollIntoView({ block: "center", behavior: animates() ? "smooth" : "auto" });
+  }
+  placeTour();
+  card.querySelector('[data-tour="next"]').focus({ preventScroll: true });
+}
+
+/* Everything is position: fixed, so it is placed from the viewport rect and
+   re-placed on scroll and resize. The card goes under its target when there is
+   room, over it when there is not, and is kept 16px off every edge. */
+function placeTour() {
+  if (!tour) return;
+  const { ring, card, steps, index } = tour;
+  const target = document.querySelector(steps[index].target);
+  const gutter = 16;
+  const gap = 12;
+  const pad = 6;
+
+  const cardW = card.offsetWidth;
+  const cardH = card.offsetHeight;
+
+  if (!target || !target.getClientRects().length) {
+    /* Nothing to point at on this screen width — the card stands alone in the
+       middle, and the whole page stays dimmed. */
+    ring.classList.add("tour-ring--none");
+    card.style.left = `${Math.max(gutter, (innerWidth - cardW) / 2)}px`;
+    card.style.top = `${Math.max(gutter, (innerHeight - cardH) / 2)}px`;
+    return;
+  }
+  ring.classList.remove("tour-ring--none");
+
+  const r = target.getBoundingClientRect();
+  ring.style.top = `${r.top - pad}px`;
+  ring.style.left = `${r.left - pad}px`;
+  ring.style.width = `${r.width + pad * 2}px`;
+  ring.style.height = `${r.height + pad * 2}px`;
+
+  let top = r.bottom + pad + gap;
+  if (top + cardH > innerHeight - gutter) top = r.top - pad - gap - cardH;
+  top = Math.max(gutter, Math.min(top, innerHeight - gutter - cardH));
+
+  const left = Math.max(gutter, Math.min(r.left, innerWidth - gutter - cardW));
+
+  card.style.top = `${top}px`;
+  card.style.left = `${left}px`;
+}
+
+/** Ends the tour, however it ended, and remembers that it has been seen. */
+function endTour() {
+  if (!tour) return;
+  const { ring, card, onMove, onKey, returnFocus } = tour;
+  tour = null;
+
+  window.removeEventListener("resize", onMove);
+  window.removeEventListener("scroll", onMove);
+  document.removeEventListener("keydown", onKey, true);
+  ring.remove();
+  card.remove();
+
+  try {
+    saveSettings({ tourDone: true });
+  } catch {}
+  if (returnFocus && document.contains(returnFocus)) returnFocus.focus({ preventScroll: true });
+}
