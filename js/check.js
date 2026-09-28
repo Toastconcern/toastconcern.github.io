@@ -2286,6 +2286,28 @@ export async function setDevicePTC(serial, enabled) {
   return Object.values(json.data ?? {})[0] ?? {};
 }
 
+/* The read beside that switch: whether a headset may join the test channel,
+   and whether it is on it. */
+const DEVICE_PTC_STATUS_DOC_ID = "7735473863144745";
+
+/** { allowed, enabled } for one headset serial. */
+export async function devicePTCStatus(serial) {
+  const { token } = loadSettings();
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        doc_id: DEVICE_PTC_STATUS_DOC_ID,
+        variables: JSON.stringify({ device_serial: String(serial) }),
+      })
+  );
+  const err = accountError(json, "Test channel status");
+  if (err) throw err;
+  const s = json.data?.public_test_channel_status;
+  if (!s) throw new Error("the store gave no test channel status");
+  return { allowed: Boolean(s.is_allowed), enabled: Boolean(s.is_enabled) };
+}
+
 /* One release channel: the binaries on it and the app's recent uploads, each
    with the ID of its OBB expansion file where there is one. Nothing else here
    reports OBBs — not the build history, not the manifest — and it costs a
