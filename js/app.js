@@ -12,6 +12,22 @@ import {
   mergeMedia,
   spatialIcons,
   myEntitlements,
+  myReleaseChannels,
+  headsetPlaytime,
+  cloudBackups,
+  savedWorlds,
+  ownedIaps,
+  binaryDetails,
+  worldDetails,
+  lookupWorld,
+  parseWorldId,
+  worldShelf,
+  WORLD_SHELVES,
+  searchPeople,
+  publishedWorlds,
+  worldFlags,
+  horizonPlus,
+  recentPresence,
   accountDevices,
   orgApps,
   setDevicePTC,
@@ -29,7 +45,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=159";
+} from "./check.js?v=193";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -204,6 +220,7 @@ const el = {
   devicesSub: document.getElementById("devicesSub"),
   devicesCount: document.getElementById("devicesCount"),
   devicesEmpty: document.getElementById("devicesEmpty"),
+  devicesPresence: document.getElementById("devicesPresence"),
   ptcOut: document.getElementById("ptcOut"),
   sharedSection: document.getElementById("sharedSection"),
   sharedRows: document.getElementById("sharedRows"),
@@ -229,6 +246,15 @@ const el = {
   defaultRows: document.getElementById("defaultRows"),
   defaultCount: document.getElementById("defaultCount"),
   defaultEmpty: document.getElementById("defaultEmpty"),
+  viewPlus: document.getElementById("view-plus"),
+  plusGo: document.getElementById("plusGo"),
+  checkPlus: document.getElementById("checkPlus"),
+  plusQ: document.getElementById("plusQ"),
+  plusPick: document.getElementById("plusPick"),
+  plusSort: document.getElementById("plusSort"),
+  plusRows: document.getElementById("plusRows"),
+  plusCount: document.getElementById("plusCount"),
+  plusEmpty: document.getElementById("plusEmpty"),
   viewHeadset: document.getElementById("view-adb"),
   viewCompanion: document.getElementById("view-companion"),
   adbUsb: document.getElementById("adbUsb"),
@@ -261,6 +287,9 @@ const el = {
   devDownloads: document.getElementById("devDownloads"),
   obb: document.getElementById("obb"),
   autoOwned: document.getElementById("autoOwned"),
+  autoDlc: document.getElementById("autoDlc"),
+  autoPlaytime: document.getElementById("autoPlaytime"),
+  autoBackups: document.getElementById("autoBackups"),
   wide: document.getElementById("wide"),
   motion: document.getElementById("motion"),
   motionSpeed: document.getElementById("motionSpeed"),
@@ -286,12 +315,32 @@ const el = {
   mineEmpty: document.getElementById("mineEmpty"),
   mineQ: document.getElementById("mineQ"),
   mineSort: document.getElementById("mineSort"),
-  mineLoad: document.getElementById("mineLoad"),
-  minePC: document.getElementById("minePC"),
+
+  viewWorlds: document.getElementById("view-worlds"),
+  worldQ: document.getElementById("worldQ"),
+  worldLookup: document.getElementById("worldLookup"),
+  worldLookupGo: document.getElementById("worldLookupGo"),
+  worldLookupNote: document.getElementById("worldLookupNote"),
+  worldSort: document.getElementById("worldSort"),
+  worldLoad: document.getElementById("worldLoad"),
+  worldMore: document.getElementById("worldMore"),
+  worldTabs: document.getElementById("worldTabs"),
+  worldShelf: document.getElementById("worldShelf"),
+  worldShelfGo: document.getElementById("worldShelfGo"),
+  creatorQ: document.getElementById("creatorQ"),
+  creatorFind: document.getElementById("creatorFind"),
+  creatorPick: document.getElementById("creatorPick"),
+  creatorGo: document.getElementById("creatorGo"),
+  creatorNote: document.getElementById("creatorNote"),
+  worldCount: document.getElementById("worldCount"),
+  worldRows: document.getElementById("worldRows"),
+  worldEmpty: document.getElementById("worldEmpty"),
 
   theme: document.getElementById("theme"),
-  navLinks: document.querySelectorAll(".nav a"),
+  navLinks: document.querySelectorAll(".nav a[data-view]"),
   navGroups: document.querySelectorAll(".navgroup"),
+
+  libButtons: document.querySelectorAll("#view-mine [data-lib]"),
 };
 
 /** id -> { state, latest, error } */
@@ -331,6 +380,10 @@ let deviceList = [];
 let devicesLoading = false;
 let devicesAsked = false;
 let devicesNote = "";
+/* The headset fetch in flight, so anything else that needs the list while it
+   is loading — playtime and backups can start together — waits for the same
+   one rather than reading an empty list. */
+let devicesPromise = null;
 
 /* Serials identify a specific headset, so they are masked until asked for. The
    filter box still searches the real value either way. */
@@ -343,6 +396,13 @@ let defaultList = [];
 let defaultLoading = false;
 let defaultAsked = false;
 let defaultNote = "";
+
+/* The Horizon+ games, fetched whole by their button and then filtered and
+   sorted in place, like the default apps. */
+const plusState = { rows: [], asked: false, loading: false, note: "" };
+
+/* When the account was last active in VR, fetched alongside Get devices. */
+const presenceState = { data: null, note: "" };
 
 /* The connected headset, and what it has installed. Declared up here with the
    rest of the tab state because initHeadset runs during module setup. */
@@ -359,13 +419,69 @@ let adbBusy = false;
    time. Rebuilt from mineList at the top of every render. */
 let ownedKeys = new Set();
 
-/** Which library is on screen — "quest" or "pc". */
+/** Which library is on screen — "quest", "pc" or "expired". */
 let mineKind = "quest";
+
+/* App ID -> { current, channels } from the account's release-channel query,
+   filled in by a single Check this app (never by a sweep). */
+const myChannels = new Map();
+
+/* The account's playtime and cloud backups, for the Entitlement tab of an
+   opened app. Each keeps what it last fetched, whether it has been asked,
+   whether it is waiting, why it failed if it did, and the fetch in flight so a
+   second ask joins it. Declared up here for the same TDZ reason as the devices
+   state. */
+const playState = { rows: [], asked: false, loading: false, note: "", promise: null };
+const backupState = { rows: [], asked: false, loading: false, note: "", promise: null };
+
+/* The in-app purchases the account owns, by app ID, for the DLC section of an
+   opened entitlement. One library-wide fetch, the first time a panel wants it. */
+const iapState = { rows: [], byApp: new Map(), asked: false, loading: false, note: "", promise: null };
+
+/* Columns in the entitlements list: the store's eight, its own three, and DLC. */
+const ROW_SPAN = { mine: 12 };
+
+/* What an opened app's panel remembers between renders: the library-name
+   fetch in flight, and which tab each panel was left on. */
+const layoutState = {
+  names: null,
+  panelTabs: new Map(),
+  /* App IDs whose release channels the Entitlement tab has asked for, and why
+     the store refused, when it did. */
+  channelAsked: new Set(),
+  channelErrors: new Map(),
+};
+
+/* One build's details (AppBinaryCombinedQuery), by "appId:versionCode", so a
+   build opened twice asks once. */
+const buildInfo = new Map();
+
+/* Worlds: which rows are open, world ID -> { loading, data, note }, and the
+   worlds looked up by ID this visit, newest first. */
+const worldOpen = new Set();
+const worldInfo = new Map();
+let worldLookups = [];
+/* World ID -> { beta, streamable }, or "loading", asked for when a world opens. */
+const worldFlagInfo = new Map();
+
+const worldState = { rows: [], count: 0, asked: false, loading: false, note: "" };
+/* The Worlds screen's paged lists — Top worlds and Creator — each with the
+   cursor for its next page and how to fetch it, and which tab is on. */
+const shelfState = { rows: [], cursor: null, label: "", fetchPage: null, asked: false, loading: false, note: "" };
+const creatorState = { rows: [], cursor: null, label: "", fetchPage: null, asked: false, loading: false, note: "" };
+let worldTab = "top";
+
+/* App ID -> the Quest library's record, so the Entitlement tab can say whether
+   the account owns an app. Fetched once. */
+let libraryNames = null;
 
 /* The app whose panel is filling the window, if any. Declared up here with the
    rest of the state because applyView runs before the module finishes
    evaluating, and reaching a later `let` from there is a TDZ error. */
 let stagedApp = null;
+/* Which list the staged app was opened from, so its panel opens on the same
+   tab it would in the row. */
+let stagedScope = null;
 
 /** What the Apps and games table is currently showing. */
 let listing = [];
@@ -381,11 +497,14 @@ initFontSize();
 initMotion();
 initStage();
 initNav();
+initSearchBar();
 initViews();
 initSettings();
 initOrgs();
 initDevices();
+initAccountTabs();
 initDefault();
+initPlus();
 initHeadset();
 initDirectDownload();
 initTour();
@@ -649,16 +768,17 @@ const stageEl = () => document.querySelector(".stage");
  * came from is left exactly as it was, still holding its own. Nothing empties
  * itself as this opens, so there is nothing to see flicker underneath.
  */
-function openStage(app) {
+function openStage(app, scope = null) {
   closeStage({ animate: false });
 
   stagedApp = app;
+  stagedScope = scope;
   /* Nothing behind it should scroll while it is covering the page. */
   document.documentElement.classList.add("staged");
 
   const stage = document.createElement("div");
   stage.className = "stage";
-  stage.append(appPanel(app, { staged: true }));
+  stage.append(appPanel(app, { staged: true, scope }));
   document.body.append(stage);
 
   play(stage, "stage-in");
@@ -678,6 +798,7 @@ function closeStage({ animate = true } = {}) {
   closeGallery({ animate });
 
   stagedApp = null;
+  stagedScope = null;
   const stage = stageEl();
 
   const done = () => {
@@ -698,7 +819,9 @@ function refreshStage() {
 
   /* Keep the reader where they were in a list that may be hundreds long. */
   const at = stage.scrollTop;
-  stage.replaceChildren(appPanel(stagedApp, { staged: true }));
+  const inner = saveScrolls(stage);
+  stage.replaceChildren(appPanel(stagedApp, { staged: true, scope: stagedScope }));
+  restoreScrolls(stage, inner);
   stage.scrollTop = at;
 }
 
@@ -865,9 +988,9 @@ async function showImages(app, button, out) {
  * same markup either way, so the only thing that changes is which arrangement
  * it is built into — and a check that redraws the row mid-view keeps it.
  */
-function toggleStage(app) {
+function toggleStage(app, scope = null) {
   if (isStaged(app)) closeStage();
-  else openStage(app);
+  else openStage(app, scope);
 }
 
 function initStage() {
@@ -948,19 +1071,21 @@ function applyView() {
   closeStage({ animate: false });
 
   const hash = location.hash.replace("#", "");
-  const view = ["mine", "devices", "orgs", "default", "adb", "companion", "settings"].includes(hash) ? hash : "apps";
+  const view = ["mine", "devices", "worlds", "orgs", "default", "plus", "adb", "companion", "settings"].includes(hash) ? hash : "apps";
 
   el.viewApps.hidden = view !== "apps";
   el.viewMine.hidden = view !== "mine";
   el.viewDevices.hidden = view !== "devices";
+  el.viewWorlds.hidden = view !== "worlds";
   el.viewOrgs.hidden = view !== "orgs";
   el.viewDefault.hidden = view !== "default";
+  el.viewPlus.hidden = view !== "plus";
   el.viewHeadset.hidden = view !== "adb";
   el.viewCompanion.hidden = view !== "companion";
   el.viewSettings.hidden = view !== "settings";
 
   if (view === "companion") {
-    import("./companion.js?v=159")
+    import("./companion.js?v=193")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -979,7 +1104,7 @@ function applyView() {
      would have to be kept on the page to be animated, and it is the arriving
      one the reader is looking for. */
   play(
-    [el.viewApps, el.viewMine, el.viewDevices, el.viewOrgs, el.viewDefault, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
+    [el.viewApps, el.viewMine, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
@@ -1139,6 +1264,50 @@ async function runDefaultApps() {
     el.defaultGo.disabled = false;
     el.defaultGo.textContent = "Get default apps";
     renderAll();
+  }
+}
+
+/* ---------- horizon+ ---------- */
+
+/* Narrowed to monthly or catalog, filtered by the box and sorted — all on the
+   already-fetched list. */
+function plusVisible() {
+  const q = el.plusQ.value.trim().toLowerCase();
+  const pick = el.plusPick.value;
+  return sorted(
+    plusState.rows.filter((a) => (!pick || a.plus === pick) && matches(a, q)),
+    el.plusSort.value
+  );
+}
+
+function initPlus() {
+  el.plusGo.addEventListener("click", runHorizonPlus);
+  el.plusQ.addEventListener("input", renderAll);
+  el.plusPick.addEventListener("change", renderAll);
+  el.plusSort.addEventListener("change", renderAll);
+  el.checkPlus.addEventListener("click", () =>
+    checkList(plusVisible(), el.checkPlus, "Check shown")
+  );
+}
+
+async function runHorizonPlus() {
+  if (plusState.loading) return;
+  Object.assign(plusState, { asked: true, loading: true, note: "" });
+  el.plusGo.disabled = true;
+  el.plusGo.textContent = "Loading…";
+  renderAll();
+
+  try {
+    plusState.rows = await horizonPlus();
+  } catch (err) {
+    plusState.rows = [];
+    plusState.note = err.message || "Could not load the Horizon+ games.";
+  } finally {
+    plusState.loading = false;
+    el.plusGo.disabled = false;
+    el.plusGo.textContent = "Get Horizon+ games";
+    renderAll();
+    syncRelayNote();
   }
 }
 
@@ -1600,7 +1769,12 @@ async function installBuild(app, { installBuild: binaryId, version, code }, butt
 /* ---------- your devices ---------- */
 
 function initDevices() {
-  el.devicesLoad.addEventListener("click", loadDevices);
+  /* Get devices also asks when the account was last active — one more request,
+     and only on this button, not when playtime or backups want the headsets. */
+  el.devicesLoad.addEventListener("click", () => {
+    loadDevices();
+    loadPresence();
+  });
   el.serialToggle.addEventListener("click", () => {
     showSerials = !showSerials;
     el.serialToggle.textContent = showSerials ? "Hide serials" : "Show serials";
@@ -1612,8 +1786,13 @@ function initDevices() {
   renderDevices();
 }
 
-async function loadDevices() {
-  if (devicesLoading) return;
+function loadDevices() {
+  if (devicesLoading) return devicesPromise;
+  devicesPromise = fetchDevices();
+  return devicesPromise;
+}
+
+async function fetchDevices() {
   devicesAsked = true;
   devicesLoading = true;
   devicesNote = "";
@@ -1632,6 +1811,27 @@ async function loadDevices() {
     el.devicesLoad.textContent = "Get devices";
     renderDevices();
   }
+}
+
+async function loadPresence() {
+  try {
+    presenceState.data = await recentPresence();
+    presenceState.note = "";
+  } catch (err) {
+    presenceState.data = null;
+    presenceState.note = err.message || "Could not read when this account was last active.";
+  }
+  renderDevices();
+}
+
+/* When the account was last in VR, and where, as one line under the count. */
+function presenceLine() {
+  if (presenceState.note) return `Last active: ${presenceState.note}`;
+  const p = presenceState.data;
+  if (!p?.lastActive) return "";
+  const when = new Date(p.lastActive * 1000).toISOString().slice(0, 16).replace("T", " ");
+  const where = p.app ?? (p.destination ? words(p.destination) : null);
+  return `${p.current ? "Active now" : "Last active"} — ${when} UTC${where ? `, in ${where}` : ""}.`;
 }
 
 /* All but the last character. Enough to see a serial is there and how long it
@@ -1780,6 +1980,9 @@ function renderDevices() {
       : owned.length === ownedAll.length
         ? `${ownedAll.length} device${ownedAll.length === 1 ? "" : "s"}.`
         : `${owned.length} of ${ownedAll.length} devices.`;
+  const presence = devicesLoading ? "" : presenceLine();
+  el.devicesPresence.textContent = presence;
+  el.devicesPresence.hidden = !presence;
 
   /* Shared — its own section, shown only when the account has shared devices. */
   el.sharedSection.hidden = !devicesAsked || devicesLoading || sharedAll.length === 0;
@@ -1892,6 +2095,21 @@ function initSettings() {
     else renderAll();
   });
 
+  /* The account lists an Entitlement tab shows, fetched on start rather than on
+     a Get button. Switching one on fetches it there and then, if it has not
+     been already; switching it off leaves what is loaded alone. */
+  for (const [node, key, load, state] of [
+    [el.autoDlc, "autoDlc", () => loadIaps(), iapState],
+    [el.autoPlaytime, "autoPlaytime", () => loadPlaytime(), playState],
+    [el.autoBackups, "autoBackups", () => loadBackups(), backupState],
+  ]) {
+    node.checked = saved[key];
+    node.addEventListener("change", () => {
+      saveSettings({ [key]: node.checked });
+      if (node.checked && !state.asked) load();
+    });
+  }
+
   /* The request log. The box is only shown while logging is on; it keeps filling
      in the background either way, since check.js only emits when the setting is
      on. One listener, attached once. */
@@ -1916,6 +2134,9 @@ function initSettings() {
     el.details.checked = false;
     el.devDownloads.checked = false;
     el.autoOwned.checked = false;
+    el.autoDlc.checked = false;
+    el.autoPlaytime.checked = false;
+    el.autoBackups.checked = false;
     el.binDownload.checked = false;
     syncBinRow();
     el.log.checked = false;
@@ -2145,14 +2366,22 @@ async function boot() {
 
   el.mineQ.addEventListener("input", renderAll);
   el.mineSort.addEventListener("change", renderAll);
-  el.mineLoad.addEventListener("click", () => loadEntitlements("quest"));
-  el.minePC.addEventListener("click", () => loadEntitlements("pc"));
+  /* One button per library: Quest, PC and expired. */
+  for (const b of el.libButtons) {
+    b.addEventListener("click", () => loadEntitlements(b.dataset.lib));
+  }
 
   runSearch();
 
   /* With the setting on, pull the library in the background so the tint is
      ready by the time a search returns. Its own errors stay on the mine tab. */
   if (loadSettings().autoOwned) loadEntitlements("quest");
+
+  /* The same for the account lists behind an app's Entitlement tab. */
+  const auto = loadSettings();
+  if (auto.autoDlc) loadIaps();
+  if (auto.autoPlaytime) loadPlaytime();
+  if (auto.autoBackups) loadBackups();
 }
 
 /** Headset picker, showing the store's codename next to each name. */
@@ -2176,10 +2405,27 @@ function mineApps() {
   );
 }
 
-/* The two libraries, each with its own query and its own button. */
+/* The libraries, each with its own query, and the words the status line uses
+   for it. */
 const LIBRARIES = {
-  quest: { label: "Quest", button: () => el.mineLoad },
-  pc: { label: "PC", button: () => el.minePC },
+  quest: {
+    label: "Quest",
+    asking: "Asking the store what this account owns on Quest…",
+    none: "This account owns nothing on Quest that the store will list.",
+    noun: "Quest entitlement",
+  },
+  pc: {
+    label: "PC",
+    asking: "Asking the store what this account owns on PC…",
+    none: "This account owns nothing on PC that the store will list.",
+    noun: "PC entitlement",
+  },
+  expired: {
+    label: "expired",
+    asking: "Asking the store what this account used to own…",
+    none: "Nothing on this account has expired.",
+    noun: "expired entitlement",
+  },
 };
 
 /**
@@ -2195,16 +2441,16 @@ const LIBRARIES = {
 async function loadEntitlements(kind) {
   if (mineLoading) return;
 
-  const library = LIBRARIES[kind];
-  const button = library.button();
-
   mineAsked = true;
   mineKind = kind;
   mineLoading = true;
   mineNote = "";
-  el.mineLoad.disabled = true;
-  el.minePC.disabled = true;
-  button.textContent = "Asking…";
+  /* Only one library loads at a time, so all three wait; the pressed one says so. */
+  const labels = new Map([...el.libButtons].map((b) => [b, b.textContent]));
+  for (const b of el.libButtons) {
+    b.disabled = true;
+    if (b.dataset.lib === kind) b.textContent = "Asking…";
+  }
   renderAll();
 
   try {
@@ -2216,9 +2462,10 @@ async function loadEntitlements(kind) {
     mineNote = err.message;
   } finally {
     mineLoading = false;
-    el.mineLoad.disabled = false;
-    el.minePC.disabled = false;
-    button.textContent = `Get ${library.label} entitlements`;
+    for (const [b, label] of labels) {
+      b.disabled = false;
+      b.textContent = label;
+    }
     syncRelayNote();
     renderAll();
   }
@@ -2307,17 +2554,58 @@ let focusScope = null;
 const openKey = (scope, app) => `${scope}:${keyOf(app)}`;
 
 function buildRows(tbody, list, scope) {
+  /* An opened row is rebuilt too, so remember where each of its tables was
+     scrolled to and put them back — otherwise pressing one Get button on the
+     Entitlement tab sends the DLC or build list above it back to the top. */
+  const scrolled = new Map();
+  for (const d of tbody.querySelectorAll(":scope > tr.detail")) {
+    const id = d.previousElementSibling?.dataset.id;
+    if (id) scrolled.set(id, saveScrolls(d));
+  }
+
   const out = [];
   for (const app of list) {
     out.push(appRow(app, scope));
-    if (open.has(openKey(scope, app))) out.push(detailRow(app));
+    if (open.has(openKey(scope, app))) out.push(detailRow(app, undefined, scope));
   }
   tbody.replaceChildren(...out);
+
+  for (const d of tbody.querySelectorAll(":scope > tr.detail")) {
+    const saved = scrolled.get(d.previousElementSibling?.dataset.id);
+    if (saved) restoreScrolls(d, saved);
+  }
+}
+
+/* Each scrolling table in a panel, named by the tab it sits in and the heading
+   above it — the name survives a rebuild where the element does not. */
+function scrollKeys(root) {
+  const seen = new Map();
+  return [...root.querySelectorAll(".vscroll")].map((v) => {
+    let h = v.previousElementSibling;
+    while (h && h.tagName !== "H3") h = h.previousElementSibling;
+    const base = `${v.closest("[data-pane]")?.dataset.pane ?? ""}|${h?.textContent ?? ""}`;
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    return [`${base}|${n}`, v];
+  });
+}
+
+function saveScrolls(root) {
+  const out = new Map();
+  for (const [key, v] of scrollKeys(root)) if (v.scrollTop) out.set(key, v.scrollTop);
+  return out;
+}
+
+function restoreScrolls(root, saved) {
+  for (const [key, v] of scrollKeys(root)) if (saved.has(key)) v.scrollTop = saved.get(key);
 }
 
 function renderAll() {
   /* Only tint when the setting is on and there is a library to match against. */
-  ownedKeys = loadSettings().autoOwned ? new Set(mineList.map(keyOf)) : new Set();
+  ownedKeys =
+    loadSettings().autoOwned && mineKind !== "expired"
+      ? new Set(mineList.map(keyOf))
+      : new Set();
 
   const list = visible();
 
@@ -2341,14 +2629,15 @@ function renderAll() {
 
   const mine = mineApps();
   buildRows(el.mineRows, mine, "mine");
+
   el.mineSub.textContent = mineStatus(mine.length);
   el.mineSub.classList.toggle("warn", Boolean(mineNote));
   el.mineEmpty.hidden = mine.length > 0 || mineLoading || Boolean(mineNote);
   el.mineEmpty.textContent = !mineAsked
-    ? "Press one of the buttons above to list what this account owns."
+    ? "Press Get Quest, Get PC or Get expired entitlements to list what this account owns."
     : mineList.length
       ? "Nothing matches."
-      : `This account owns nothing on ${LIBRARIES[mineKind].label} that the store will list.`;
+      : LIBRARIES[mineKind].none;
 
   const orgShown = orgVisible();
   buildRows(el.orgRows, orgShown, "orgs");
@@ -2390,6 +2679,26 @@ function renderAll() {
         ? `${defaultList.length} app${defaultList.length === 1 ? "" : "s"}.`
         : `${defaultShown.length} of ${defaultList.length} apps.`;
 
+  const plusShown = plusVisible();
+  const plusAll = plusState.rows;
+  buildRows(el.plusRows, plusShown, "plus");
+  el.plusEmpty.hidden = plusShown.length > 0 || plusState.loading;
+  el.plusEmpty.textContent = plusState.note
+    ? plusState.note
+    : !plusState.asked
+      ? "Press Get Horizon+ games to list what the subscription offers right now."
+      : plusAll.length
+        ? "Nothing matches."
+        : "The store lists no Horizon+ games for this account.";
+  const monthly = plusAll.filter((a) => a.plus === "monthly").length;
+  const claimed = plusAll.filter((a) => a.claimed).length;
+  el.plusCount.textContent = plusState.loading
+    ? "Asking the store…"
+    : !plusAll.length
+      ? ""
+      : `${plusShown.length === plusAll.length ? plural(plusAll.length, "game") : `${plusShown.length} of ${plusAll.length} games`}` +
+        ` — ${monthly} this month, ${plusAll.length - monthly} in the catalog; ${claimed} on this account.`;
+
   /* Opening a headset row calls this, not renderHeadset, so it redraws here. */
   buildAdbRows();
 
@@ -2403,7 +2712,7 @@ function renderAll() {
 /** The line under the Your entitlements heading: progress, refusal, or count. */
 function mineStatus(shown) {
   if (mineLoading) {
-    return `Asking the store what this account owns on ${LIBRARIES[mineKind].label}…`;
+    return LIBRARIES[mineKind].asking;
   }
   if (mineNote) return mineNote;
   if (!mineAsked) {
@@ -2413,7 +2722,7 @@ function mineStatus(shown) {
     );
   }
   const total = mineList.length;
-  const word = `${LIBRARIES[mineKind].label} entitlement${total === 1 ? "" : "s"}`;
+  const word = `${LIBRARIES[mineKind].noun}${total === 1 ? "" : "s"}`;
   return shown === total
     ? `${total} ${word}.`
     : `${shown} of ${total} ${word}.`;
@@ -2509,7 +2818,18 @@ function ownedCells(app) {
   return `
     <td class="num c-used">${played}</td>
     <td class="c-state">${esc(app.state ? words(app.state) : "—")}</td>
-    <td class="c-grant">${esc(grantLabel(app.grant))}</td>`;
+    <td class="c-grant">${esc(grantLabel(app.grant))}</td>
+    <td class="num c-dlc">${esc(dlcCount(app))}</td>`;
+}
+
+/* The DLC column: how many purchases the account owns inside the app. */
+function dlcCount(app) {
+  if (mineKind !== "quest" || app.platform === "PC") return "—";
+  /* Blank until Get DLC has been pressed in an opened app; nothing is fetched
+     for the column on its own. */
+  if (!iapState.asked) return "";
+  if (iapState.loading) return "…";
+  return String(iapState.byApp.get(app.id)?.length || "—");
 }
 
 /**
@@ -2556,7 +2876,7 @@ function devCell(app) {
  * overlay, so opening the big view takes nothing away from what is underneath
  * — which is what stopped it flickering as the row emptied itself.
  */
-function appPanel(app, { staged = false } = {}) {
+function appPanel(app, { staged = false, scope = null } = {}) {
   const found = results.get(keyOf(app));
   const list = found?.latest?.channels?.length
     ? found.latest.channels
@@ -2650,28 +2970,42 @@ function appPanel(app, { staged = false } = {}) {
 
   const opts = loadSettings();
 
+  const storeLink =
+    app.id && opts.store
+      ? `<a href="https://www.meta.com/experiences/${app.id}/" target="_blank"
+           rel="noopener">Open in store</a>`
+      : "";
+
   const actions = app.id
     ? `<button type="button" data-check="1">Check this app</button>${
-        opts.details
-          ? `<button type="button" data-info="1">More app info</button>`
+        /* Binary info reads Android builds only; a Rift app has nothing to show. */
+        opts.details && app.platform !== "PC"
+          ? `<button type="button" data-info="1">Latest Binary Info</button>`
           : ""
       }${
         /* Shown on every free app that carries an offer. The store refuses a
            claim on anything priced, so the button only appears where it can
-           actually succeed. */
-        app.free && app.offerId
+           actually succeed — and not on the Entitlements screen, where every
+           app is one the account already has. */
+        app.free && app.offerId && scope !== "mine"
           ? `<button type="button" data-claim="1">Get entitlement</button>`
           : ""
-      }${
-        opts.store
-          ? `<a href="https://www.meta.com/experiences/${app.id}/" target="_blank"
-               rel="noopener">Open in store</a>`
-          : ""
-      }`
+      }${storeLink}`
     : `<button type="button" data-resolve="1">Find store ID</button>`;
 
+  /* The channel this account is on, when a single check asked. Named by the
+     account's own channel list, which can include one the history never
+     shows (a private beta with no build of its own yet). */
+  const mineCh = app.id ? myChannels.get(app.id) : null;
+  const onChannel = mineCh?.current
+    ? mineCh.channels.find((c) => c.id === mineCh.current)?.name ?? null
+    : null;
+  const onLine = onChannel
+    ? `<p class="hint">This account is on <strong>${esc(onChannel)}</strong>.</p>`
+    : "";
+
   const channelTable = list.length
-    ? `<h3>Channels</h3>
+    ? `<h3>Channels</h3>${onLine}
        <div class="vscroll short">
          <table class="vtable plain">
            <thead>
@@ -2737,6 +3071,45 @@ function appPanel(app, { staged = false } = {}) {
   /* Two halves either way. Stacked they read as one panel, as they always did;
      in the overlay they become the two columns — what the app is on the left,
      what the store holds for it on the right. */
+  /* The panel's parts, grouped into Store, Builds and Entitlement tabs. Every
+     app opens on Store, and comes back on whichever tab it was left on. */
+  const tabKey = `${staged ? "stage" : scope}:${keyOf(app)}`;
+  const tab = layoutState.panelTabs.get(tabKey) ?? "store";
+  if (tab === "mine") setTimeout(() => wantYourCopy());
+
+  const storeFacts = `${factGroups(groups)}${
+    listed?.error ? `<p class="warn">No store listing: ${esc(listed.error)}</p>` : ""
+  }`;
+  const channelBlock = revisionTable
+    ? `<div class="chan-rev"><div class="chans-col">${channelTable}</div>${revisionTable}</div>`
+    : channelTable;
+  const pane = (name) => `data-pane="${name}"${tab === name ? "" : " hidden"}`;
+  const tabButton = (name, label) =>
+    `<button type="button" class="companion-tab${tab === name ? " on" : ""}" data-panel-tab="${name}"
+       role="tab" aria-selected="${tab === name}">${label}</button>`;
+
+  /* The app's actions — check, manifest, claim, store link — sit under the
+     tabs and serve Store and Builds alike. The Entitlement tab is about the
+     account, not the app, so they step aside there. */
+  const sharedActions = `<div data-app-actions${tab === "mine" ? " hidden" : ""}>
+         ${actions ? `<div class="actions">${actions}</div>` : ""}
+         <div class="claim-out"></div>
+         <div class="resolve-out"></div>
+         <div class="info-out"></div>
+       </div>`;
+
+  const main = `<div class="companion-tabs panel-tabs" role="tablist" aria-label="${esc(app.name)}">
+         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${tabButton("mine", "Entitlement")}
+       </div>
+       ${sharedActions}
+       <div ${pane("store")}>${storeFacts || "<p>Not checked yet — the listing arrives with Check this app.</p>"}</div>
+       <div ${pane("builds")}>${channelBlock}<div class="versions-out"></div></div>
+       <div ${pane("mine")}>${yourCopy(app)}</div>`;
+
+  /* Which tab is showing, for the stylesheet: Latest Binary Info belongs to
+     the Builds tab and steps aside on Store. */
+  panel.dataset.tab = tab;
+
   panel.innerHTML = `
     ${
       opts.wide
@@ -2765,36 +3138,49 @@ function appPanel(app, { staged = false } = {}) {
           : ""
       }
       ${note(found)}
-      ${factGroups(groups)}
-      ${
-        listed?.error
-          ? `<p class="warn">No store listing: ${esc(listed.error)}</p>`
-          : ""
-      }
     </div>
     <div class="panel__main">
-      ${
-        /* With revisions to show they sit as a second table to the right of the
-           channels; without, the channels stand alone exactly as before. */
-        revisionTable
-          ? `<div class="chan-rev"><div class="chans-col">${channelTable}</div>${revisionTable}</div>`
-          : channelTable
-      }
-      <div class="actions">${actions}</div>
-      <div class="claim-out"></div>
-      <div class="resolve-out"></div>
-      <div class="info-out"></div>
-      <div class="versions-out"></div>
+      ${main}
     </div>`;
+
+  /* Switching tabs shows the other pane in place; the choice is kept so the
+     panel comes back on it after a redraw. */
+  for (const b of panel.querySelectorAll("[data-panel-tab]")) {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const name = b.dataset.panelTab;
+      layoutState.panelTabs.set(tabKey, name);
+      for (const x of panel.querySelectorAll("[data-panel-tab]")) {
+        const on = x === b;
+        x.classList.toggle("on", on);
+        x.setAttribute("aria-selected", String(on));
+      }
+      for (const p of panel.querySelectorAll("[data-pane]")) p.hidden = p.dataset.pane !== name;
+      panel.dataset.tab = name;
+      const shared = panel.querySelector("[data-app-actions]");
+      if (shared) shared.hidden = name === "mine";
+      if (name === "mine") wantYourCopy();
+    });
+  }
+
+  /* The Entitlement tab's Get buttons. */
+  for (const b of panel.querySelectorAll("[data-load]")) {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      b.disabled = true;
+      b.textContent = "Loading…";
+      loadForApp(app, b.dataset.load);
+    });
+  }
 
   panel.querySelector("[data-stage]")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    toggleStage(app);
+    toggleStage(app, scope);
   });
 
   panel.querySelector("[data-check]")?.addEventListener("click", (e) => {
     e.stopPropagation();
-    checkOne(app);
+    checkOne(app, { channel: true });
   });
 
   panel.querySelector("[data-images]")?.addEventListener("click", (e) => {
@@ -2865,13 +3251,13 @@ function appPanel(app, { staged = false } = {}) {
 }
 
 /** The expanded row under an app: its panel, in a cell wide enough to hold it. */
-function detailRow(app, span) {
+function detailRow(app, span, scope = null) {
   const tr = document.createElement("tr");
   tr.className = "detail";
 
   const td = document.createElement("td");
-  td.colSpan = span ?? (app.owned ? 11 : 8);
-  td.append(appPanel(app));
+  td.colSpan = span ?? ROW_SPAN[scope] ?? (app.owned ? 11 : 8);
+  td.append(appPanel(app, { scope }));
 
   tr.append(td);
   return tr;
@@ -2883,7 +3269,7 @@ const infoCache = new Map();
 const infoOpen = new Set();
 
 function syncInfoButton(button, app) {
-  button.textContent = infoOpen.has(app.id) ? "Hide app info" : "More app info";
+  button.textContent = infoOpen.has(app.id) ? "Hide Binary Info" : "Latest Binary Info";
 }
 
 /** Second press puts it away; the manifest is only ever fetched once. */
@@ -2964,9 +3350,9 @@ function factGroups(groups) {
     .join("")}</div>`;
 }
 
-function drawAppInfo(out, info) {
+function drawAppInfo(out, info, title = "Binary manifest") {
   out.innerHTML = `
-    <h3>Binary manifest</h3>
+    <h3>${esc(title)}</h3>
     ${factGroups([
       [
         "Binary",
@@ -2982,6 +3368,7 @@ function drawAppInfo(out, info) {
         [
           ["Download", mb(info.size)],
           ["Space needed", mb(info.requiredSpace)],
+          ["OBB", mb(info.obbSize)],
         ],
       ],
       [
@@ -3385,7 +3772,12 @@ function drawVersions(
                 <td class="bid">${buildId(v)}</td>
                 <td>${v.releasedAt ?? "—"}</td>
                 <td>${v.channels.length ? esc(v.channels.join(", ")) : "—"}</td>
-                <td>${downloadCell(v, offerDev, app)}</td>
+                <td>${
+                  app?.id && app.platform !== "PC" && v.versionCode != null
+                    ? `<button type="button" class="build-btn" data-build="${esc(v.versionCode)}"
+                         data-build-version="${esc(v.version)}" aria-expanded="false">Details</button>`
+                    : ""
+                }${downloadCell(v, offerDev, app)}</td>
               </tr>`
             )
             .join("")}
@@ -3404,6 +3796,15 @@ function drawVersions(
   const scroller = out.querySelector(".vscroll");
   if (scroller && wasAt) scroller.scrollTop = wasAt;
 
+  /* Details on a build opens that build's own record under its row. The table
+     is rebuilt on every draw, so the listener goes on this one's body. */
+  out.querySelector("tbody")?.addEventListener("click", (e) => {
+    const button = e.target.closest("[data-build]");
+    if (!button || !app?.id) return;
+    e.stopPropagation();
+    toggleBuildDetails(app, button);
+  });
+
   out.querySelector(".more-versions")?.addEventListener("click", (e) => {
     e.stopPropagation();
     drawVersions(out, list, limit + VERSION_PAGE, mode, true, app);
@@ -3415,6 +3816,53 @@ function drawVersions(
        was counted against a different order, so the top is where to be. */
     drawVersions(out, list, VERSION_PAGE, e.target.value, false, app);
   });
+}
+
+/**
+ * Open or close one build's details under its row in the build history.
+ *
+ * AppBinaryCombinedQuery describes one exact build by version code — size,
+ * space, SDK, OBB, hashes, permissions — where Latest Binary Info only ever
+ * describes the latest. Asked once per build and kept.
+ */
+async function toggleBuildDetails(app, button) {
+  const row = button.closest("tr");
+  const open = row.nextElementSibling?.classList.contains("build-detail");
+  if (open) {
+    row.nextElementSibling.remove();
+    button.setAttribute("aria-expanded", "false");
+    return;
+  }
+
+  const code = button.dataset.build;
+  const key = `${app.id}:${code}`;
+  const detail = document.createElement("tr");
+  detail.className = "build-detail";
+  detail.innerHTML = `<td colspan="${row.children.length}"><div class="panel build-out"></div></td>`;
+  row.after(detail);
+  button.setAttribute("aria-expanded", "true");
+  const out = detail.querySelector(".build-out");
+  const title = `Build ${button.dataset.buildVersion} (${code})`;
+
+  if (buildInfo.has(key)) {
+    drawAppInfo(out, buildInfo.get(key), title);
+    return;
+  }
+
+  out.innerHTML = "<p>Asking the store about this build…</p>";
+  button.disabled = true;
+  button.textContent = "Loading…";
+  try {
+    const info = await binaryDetails(app.id, code);
+    buildInfo.set(key, info);
+    drawAppInfo(out, info, title);
+  } catch (err) {
+    out.innerHTML = `<p class="warn">Could not load this build: ${esc(err.message)}</p>`;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Details";
+    syncRelayNote();
+  }
 }
 
 /**
@@ -3493,14 +3941,14 @@ function refreshRow(app) {
             ? "orgs"
             : tbody === el.defaultRows
               ? "default"
-              : tbody === el.adbRows
-                ? "adb"
+              : tbody === el.plusRows
+                ? "plus"
                 : "main";
     const next = tr.nextElementSibling;
 
     tr.replaceWith(scope === "adb" ? adbRow(app) : appRow(app, scope));
     if (next?.classList.contains("detail")) {
-      next.replaceWith(detailRow(app, scope === "adb" ? 5 : undefined));
+      next.replaceWith(detailRow(app, scope === "adb" ? 5 : undefined, scope));
     }
   }
 
@@ -3508,7 +3956,7 @@ function refreshRow(app) {
   if (isStaged(app)) refreshStage();
 }
 
-async function checkOne(app, { listing: wantListing = true } = {}) {
+async function checkOne(app, { listing: wantListing = true, channel = false } = {}) {
   const key = keyOf(app);
 
   if (!app.id) {
@@ -3529,11 +3977,17 @@ async function checkOne(app, { listing: wantListing = true } = {}) {
      search — Meta apps and an organization's apps carry no offer of their own,
      so this is what lets their free ones show a Get-entitlement button. */
   const wantOffer = wantListing && !app.offerId;
-  const [history, store, page] = await Promise.allSettled([
+  const [history, store, page, mine] = await Promise.allSettled([
     checkApp(app),
     wantListing ? storeListing(app.id, el.hmd.value) : Promise.resolve(null),
     wantOffer ? appPage(app.id, el.hmd.value) : Promise.resolve(null),
+    /* Which channel this account is on. Only Check this app asks — Check
+       shown runs this same function, and one more request per app in a sweep
+       is not worth a line of text. */
+    channel ? myReleaseChannels(app.id) : Promise.resolve(null),
   ]);
+
+  if (mine.status === "fulfilled" && mine.value) myChannels.set(app.id, mine.value);
 
   /* An offer found this way fills the app in, so the panel condition (free with
      an offer) can light the button and the claim has something to run against.
@@ -3698,6 +4152,12 @@ function syncBinRow() {
    one, the rest of the page dimmed, and a card beside it. Skip, Done or
    Escape all count as finished. */
 
+/* The first match that is actually on screen: each layout has its own
+   navigation, and the ones not in use are there but hidden. */
+function tourTarget(selector) {
+  return [...document.querySelectorAll(selector)].find((e) => e.getClientRects().length) ?? null;
+}
+
 function tourSteps() {
   return [
     {
@@ -3732,10 +4192,10 @@ function tourSteps() {
     },
     {
       target: ".nav",
-      title: "The other lists",
+      title: "The other screens",
       body:
-        "Apps also holds the default apps, what your account owns, and an organization's apps. " +
-        "Headsets has the ones on your account, plus ADB and CompanionServer.",
+        "Apps also holds the default apps, Horizon+, Horizon worlds and an organization's apps. " +
+        "User has your headsets and what you own. Headsets has ADB and CompanionServer.",
     },
   ];
 }
@@ -3837,7 +4297,7 @@ function showStep(index) {
   /* Skip means nothing on the last step, where Done already ends it. */
   card.querySelector('[data-tour="skip"]').hidden = last;
 
-  const target = document.querySelector(step.target);
+  const target = tourTarget(step.target);
   if (target && target.getClientRects().length) {
     target.scrollIntoView({ block: "center", behavior: animates() ? "smooth" : "auto" });
   }
@@ -3851,7 +4311,7 @@ function showStep(index) {
 function placeTour() {
   if (!tour) return;
   const { ring, card, steps, index } = tour;
-  const target = document.querySelector(steps[index].target);
+  const target = tourTarget(steps[index].target);
   const gutter = 16;
   const gap = 12;
   const pad = 6;
@@ -3901,4 +4361,730 @@ function endTour() {
     saveSettings({ tourDone: true });
   } catch {}
   if (returnFocus && document.contains(returnFocus)) returnFocus.focus({ preventScroll: true });
+}
+
+/* ---------- the account: saved worlds, and what the Entitlement tab reads ----------
+   Saved worlds is its own screen, built like Headsets: nothing is fetched
+   until its button is pressed, and the filter and sort work on what came back.
+   Playtime and cloud backups have no screen: an opened app's Entitlement tab
+   fetches them, when asked, for every headset at once. */
+
+function initAccountTabs() {
+  el.worldLoad.addEventListener("click", loadWorlds);
+  for (const [value, label] of WORLD_SHELVES) el.worldShelf.append(new Option(label, value));
+  el.worldShelfGo.addEventListener("click", loadShelf);
+  el.worldMore.addEventListener("click", () => browseMore(pagedWorlds()));
+  el.worldTabs.addEventListener("click", (e) => {
+    const tab = e.target.closest("[data-world-tab]");
+    if (tab) setWorldTab(tab.dataset.worldTab);
+  });
+  el.creatorFind.addEventListener("click", findCreator);
+  el.creatorQ.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") findCreator();
+  });
+  el.creatorQ.addEventListener("input", () => setCreatorNote(""));
+  el.creatorGo.addEventListener("click", loadCreatorWorlds);
+  el.worldQ.addEventListener("input", renderWorlds);
+  el.worldSort.addEventListener("change", renderWorlds);
+  el.worldLookupGo.addEventListener("click", lookUpWorld);
+  el.worldLookup.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") lookUpWorld();
+  });
+  el.worldLookup.addEventListener("input", () => setWorldNote(""));
+  /* A world row opens to its details, like an app row. */
+  el.worldRows.addEventListener("click", (e) => {
+    if (e.target.closest("tr.detail")) return;
+    const row = e.target.closest("tr[data-world]");
+    if (row) toggleWorld(row.dataset.world);
+  });
+  el.worldRows.addEventListener("keydown", (e) => {
+    const row = e.target.closest?.("tr[data-world]");
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      toggleWorld(row.dataset.world);
+    }
+  });
+  renderWorlds();
+}
+
+/** The headsets this account owns, fetching the list if it has not been yet. */
+async function ownedHeadsets() {
+  /* Also while a fetch is still out: the list is empty until it lands. */
+  if (!devicesAsked || devicesNote || devicesLoading) await loadDevices();
+  if (devicesNote) throw new Error(devicesNote);
+  return deviceList.filter((d) => d.ownership !== "shared" && d.serial);
+}
+
+/* Whether the account owns an app comes from the Quest library, read once —
+   the Entitlements screen's copy when that is the Quest library, otherwise a
+   fetch of its own that leaves the screen alone. */
+function appNames() {
+  if (libraryNames) return Promise.resolve(libraryNames);
+  /* Several lists can ask at once; they share the one fetch. */
+  layoutState.names ??= (async () => {
+    let list = mineKind === "quest" && mineList.length ? mineList : null;
+    if (!list) {
+      try {
+        list = await myEntitlements("quest");
+      } catch {
+        list = [];
+      }
+    }
+    libraryNames = new Map(list.map((a) => [a.id, a]));
+    layoutState.names = null;
+    return libraryNames;
+  })();
+  return layoutState.names;
+}
+
+/* A headset by its model, with the serial masked the way Headsets masks it —
+   or in full once Show serials has been pressed there. */
+function headsetLabel(serial) {
+  const d = deviceList.find((x) => x.serial === serial);
+  const model = d?.model ?? "Unknown headset";
+  return `${model} (${showSerials ? serial : maskSerial(serial)})`;
+}
+
+function textMatch(q, ...fields) {
+  return !q || fields.some((f) => String(f ?? "").toLowerCase().includes(q));
+}
+
+/** Seconds as hours and minutes. */
+function playLength(seconds) {
+  const mins = Math.round(seconds / 60);
+  if (mins < 1) return seconds > 0 ? "under a minute" : "none";
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h ? `${h} h ${String(m).padStart(2, "0")} min` : `${m} min`;
+}
+
+/** Seconds since the epoch as a date, the way the rest of the site writes them. */
+function isoDay(seconds) {
+  return seconds ? new Date(seconds * 1000).toISOString().slice(0, 10) : "—";
+}
+
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+/* One fetch at a time per list: a second Get pressed on another app while the
+   first is out joins it rather than starting another. */
+function loadPlaytime() {
+  playState.promise ??= fetchPlaytime().finally(() => (playState.promise = null));
+  return playState.promise;
+}
+
+function loadBackups() {
+  backupState.promise ??= fetchBackups().finally(() => (backupState.promise = null));
+  return backupState.promise;
+}
+
+/* Redraws every opened panel, in the lists and in the overlay. */
+function renderAccountTabs() {
+  renderAll();
+  refreshStage();
+}
+
+/* One request per headset. A headset the store refuses is skipped and
+   counted, not fatal: the others' numbers are still worth having. */
+async function fetchPlaytime() {
+  Object.assign(playState, { asked: true, loading: true, note: "" });
+  renderAccountTabs();
+
+  const rows = [];
+  let failed = 0;
+  let serials = [];
+  try {
+    serials = (await ownedHeadsets()).map((d) => d.serial);
+    await appNames();
+    for (const serial of serials) {
+      try {
+        for (const r of await headsetPlaytime(serial)) rows.push({ ...r, serial });
+      } catch (err) {
+        failed++;
+        if (failed === serials.length) throw err;
+      }
+    }
+    if (failed) playState.note = `${plural(failed, "headset")} could not be read.`;
+  } catch (err) {
+    playState.note = err.message || "Could not load playtime.";
+  } finally {
+    playState.rows = rows;
+    playState.loading = false;
+    renderAccountTabs();
+    syncRelayNote();
+  }
+}
+
+/* One request covers every headset: the query takes a list of serials. */
+async function fetchBackups() {
+  Object.assign(backupState, { asked: true, loading: true, note: "" });
+  renderAccountTabs();
+
+  let rows = [];
+  try {
+    const serials = (await ownedHeadsets()).map((d) => d.serial);
+    await appNames();
+    rows = serials.length ? await cloudBackups(serials) : [];
+  } catch (err) {
+    backupState.note = err.message || "Could not load cloud backups.";
+  } finally {
+    backupState.rows = rows;
+    backupState.loading = false;
+    renderAccountTabs();
+    syncRelayNote();
+  }
+}
+
+/* The key a playtime or backup record belongs under — the same one keyOf gives
+   the app it is about, so a record finds its app without a lookup table. */
+function recordKey(r) {
+  return r.appId ?? r.packageName ?? "?";
+}
+
+/**
+ * One table in an opened app, in the same form as its Channels: a heading, a
+ * line saying what it adds up to, and the rows. Or that it is waiting, that
+ * the store refused, or that there is nothing — in that order.
+ */
+function accountTable({ title, state, what, none, rows, summary, head, cells, load }) {
+  let body;
+  /* With `load`, nothing is fetched until its button is pressed, and the
+     button says it is working while it is. */
+  if (load && !state.asked) body = `<button type="button" data-load="${load.key}">${load.label}</button>`;
+  else if (load && state.loading) body = `<button type="button" disabled>Loading…</button>`;
+  else if (state.loading || !state.asked) body = `<p>Asking the store for ${what}…</p>`;
+  else if (state.note && !state.rows.length) body = `<p class="warn">${esc(state.note)}</p>`;
+  else if (!rows.length) body = `<p>${none ?? `No ${what} for this app.`}</p>`;
+  else
+    body = `<p class="hint">${summary}</p>
+      <div class="vscroll short">
+        <table class="vtable plain">
+          <thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
+          <tbody>${rows.map((r) => `<tr>${cells(r)}</tr>`).join("")}</tbody>
+        </table>
+      </div>`;
+  return `${title ? `<h3>${title}</h3>` : ""}${body}`;
+}
+
+/**
+ * One app's playtime ("play") or cloud backups ("backup") as a table, for its
+ * Entitlement tab. With `load`, nothing is fetched until its button is pressed.
+ */
+function accountSections(app, scope, { load = false } = {}) {
+  const key = keyOf(app);
+
+  if (scope === "backup") {
+    const backs = backupState.rows
+      .filter((r) => recordKey(r) === key)
+      .sort((a, b) => (b.backedUpAt ?? 0) - (a.backedUpAt ?? 0));
+    const size = backs.reduce((sum, r) => sum + r.size, 0);
+    return accountTable({
+      title: "Cloud backups",
+      state: backupState,
+      what: "cloud backups",
+      rows: backs,
+      load: load ? { key: "backup", label: "Get cloud backups" } : null,
+      summary: `${plural(backs.length, "backup")}, ${esc(mb(size) ?? "0 MB")} in all, the latest ${esc(
+        isoDay(backs[0]?.backedUpAt)
+      )}.`,
+      head: ["Headset", "Type", "Size", "Backed up"],
+      cells: (r) =>
+        `<td>${esc(r.serial ? headsetLabel(r.serial) : "—")}</td>` +
+        `<td>${esc(r.type ? words(r.type) : "—")}</td>` +
+        `<td>${esc(mb(r.size) ?? "—")}</td>` +
+        `<td>${esc(isoDay(r.backedUpAt))}</td>`,
+    });
+  }
+
+  const plays = playState.rows
+    .filter((r) => recordKey(r) === key)
+    .sort((a, b) => b.seconds - a.seconds);
+  const played = plays.reduce((sum, r) => sum + r.seconds, 0);
+  return accountTable({
+    title: "Playtime by headset",
+    state: playState,
+    what: "playtime in the last 28 days",
+    rows: plays,
+    load: load ? { key: "play", label: "Get playtime" } : null,
+    summary: played
+      ? `${esc(playLength(played))} in the last 28 days, on ${plural(plays.length, "headset")}.`
+      : `On ${plural(plays.length, "headset")}, but not played in the last 28 days.`,
+    head: ["Headset", "Played, 28 days"],
+    cells: (r) => `<td>${esc(headsetLabel(r.serial))}</td><td>${esc(playLength(r.seconds))}</td>`,
+  });
+}
+
+/* ---------- DLC you own ---------- */
+
+function loadIaps() {
+  iapState.promise ??= fetchIaps().finally(() => (iapState.promise = null));
+  return iapState.promise;
+}
+
+async function fetchIaps() {
+  Object.assign(iapState, { asked: true, loading: true, note: "" });
+  try {
+    iapState.byApp = await ownedIaps();
+    iapState.rows = [...iapState.byApp.values()].flat();
+  } catch (err) {
+    iapState.byApp = new Map();
+    iapState.rows = [];
+    iapState.note = err.message || "Could not load DLC.";
+  } finally {
+    iapState.loading = false;
+    renderAll();
+    refreshStage();
+    syncRelayNote();
+  }
+}
+
+/** The DLC you own in one app, once the account's purchases have been asked for. */
+function dlcTable(app) {
+  const items = [...(iapState.byApp.get(app.id) ?? [])].sort(
+    (a, b) => (b.grantedAt ?? 0) - (a.grantedAt ?? 0)
+  );
+  return accountTable({
+    title: "DLC you own",
+    state: iapState,
+    what: "DLC you own",
+    rows: items,
+    /* Fetched only when asked, like playtime and backups: one request covers
+       every app, so a press here fills the DLC in everywhere. */
+    load: { key: "dlc", label: "Get DLC" },
+    summary: `${plural(items.length, "item")} on this account.`,
+    head: ["Item", "Type", "Granted", "Expires", "State"],
+    cells: (r) =>
+      `<td>${esc(r.name)}</td>` +
+      `<td>${esc(r.type ? words(r.type) : "—")}</td>` +
+      `<td>${esc(isoDay(r.grantedAt))}</td>` +
+      `<td>${esc(r.expiresAt ? isoDay(r.expiresAt) : "Never")}</td>` +
+      `<td>${esc(r.state ? words(r.state) : "—")}</td>`,
+  });
+}
+
+/* ---------- saved worlds ---------- */
+
+async function loadWorlds() {
+  if (worldState.loading) return;
+  Object.assign(worldState, { asked: true, loading: true, note: "" });
+  el.worldLoad.disabled = true;
+  el.worldLoad.textContent = "Loading…";
+  renderWorlds();
+
+  try {
+    const { count, worlds } = await savedWorlds();
+    worldState.rows = worlds;
+    worldState.count = count;
+  } catch (err) {
+    worldState.rows = [];
+    worldState.count = 0;
+    worldState.note = err.message || "Could not load saved worlds.";
+  } finally {
+    worldState.loading = false;
+    el.worldLoad.disabled = false;
+    el.worldLoad.textContent = "Get saved worlds";
+    renderWorlds();
+    syncRelayNote();
+  }
+}
+
+/* ---------- worlds: four tabs, each with its own list ----------
+   Top worlds and Creator are paged lists — fetched a page at a time, with
+   Load more asking for the next. Look up collects worlds found by ID, Saved is
+   the account's saved worlds. The table shows the list of the tab that is on. */
+
+function setWorldTab(tab) {
+  worldTab = tab;
+  for (const b of el.worldTabs.querySelectorAll("[data-world-tab]")) {
+    const on = b.dataset.worldTab === tab;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", String(on));
+  }
+  for (const p of el.viewWorlds.querySelectorAll("[data-world-pane]")) {
+    p.hidden = p.dataset.worldPane !== tab;
+  }
+  renderWorlds();
+}
+
+/** The paged list behind the tab that is on, if it has one. */
+function pagedWorlds() {
+  return worldTab === "top" ? shelfState : worldTab === "creator" ? creatorState : null;
+}
+
+/** Start a paged list: `fetchPage(cursor)` resolves to { worlds, cursor }. */
+async function browseWorlds(state, label, fetchPage, button) {
+  if (state.loading) return;
+  Object.assign(state, { rows: [], cursor: null, label, fetchPage, asked: true, note: "" });
+  await browseMore(state, button);
+}
+
+async function browseMore(state, button = el.worldMore) {
+  if (!state || state.loading || !state.fetchPage) return;
+  const label = button.textContent;
+  state.loading = true;
+  button.disabled = true;
+  button.textContent = "Loading…";
+  renderWorlds();
+  try {
+    const page = await state.fetchPage(state.cursor);
+    const have = new Set(state.rows.map((w) => w.id));
+    state.rows.push(...page.worlds.filter((w) => !have.has(w.id)));
+    state.cursor = page.cursor;
+  } catch (err) {
+    state.note = err.message || "Could not load these worlds.";
+  } finally {
+    state.loading = false;
+    button.disabled = false;
+    button.textContent = label;
+    renderWorlds();
+    syncRelayNote();
+  }
+}
+
+function loadShelf() {
+  const [source, name] = WORLD_SHELVES.find(([s]) => s === el.worldShelf.value) ?? WORLD_SHELVES[0];
+  browseWorlds(shelfState, name, (cursor) => worldShelf(source, cursor), el.worldShelfGo);
+}
+
+function setCreatorNote(text, bad = false) {
+  el.creatorNote.textContent = text;
+  el.creatorNote.classList.toggle("bad", bad);
+  el.creatorNote.hidden = !text;
+}
+
+/* Find creator lists the matching accounts; Get their worlds lists the
+   picked one's published worlds. */
+async function findCreator() {
+  const text = el.creatorQ.value.trim();
+  if (!text) {
+    setCreatorNote("Type a username or name first.", true);
+    return;
+  }
+  el.creatorFind.disabled = true;
+  el.creatorFind.textContent = "Searching…";
+  setCreatorNote("");
+  try {
+    const people = await searchPeople(text);
+    el.creatorPick.replaceChildren(
+      ...people.map(
+        (p) =>
+          new Option(
+            p.alias ? `@${p.alias}${p.name && p.name !== p.alias ? ` — ${p.name}` : ""}` : p.name || p.id,
+            p.id
+          )
+      )
+    );
+    el.creatorPick.hidden = el.creatorGo.hidden = !people.length;
+    if (!people.length) setCreatorNote(`No one matches "${text}".`, true);
+  } catch (err) {
+    setCreatorNote(err.message || "Could not search people.", true);
+  } finally {
+    el.creatorFind.disabled = false;
+    el.creatorFind.textContent = "Find creator";
+    syncRelayNote();
+  }
+}
+
+function loadCreatorWorlds() {
+  const opt = el.creatorPick.selectedOptions[0];
+  if (!opt) return;
+  const who = opt.textContent.split(" — ")[0];
+  browseWorlds(creatorState, `By ${who}`, (cursor) => publishedWorlds(opt.value, cursor), el.creatorGo);
+}
+
+/* Function declarations, not consts: renderWorlds first runs during module
+   setup, before a const down here would be initialised. */
+function worldSorter(mode) {
+  const most = (key) => (a, b) => (b[key] ?? -1) - (a[key] ?? -1);
+  if (mode === "visits" || mode === "online" || mode === "likes") return most(mode);
+  if (mode === "az") return (a, b) => a.name.localeCompare(b.name);
+  if (mode === "za") return (a, b) => b.name.localeCompare(a.name);
+  return null;
+}
+
+function bigNumber(n) {
+  return n == null ? "—" : Number(n).toLocaleString();
+}
+
+/** Every world any tab holds, for finding one by ID wherever it came from. */
+function anyWorld(id) {
+  return [...worldLookups, ...shelfState.rows, ...creatorState.rows, ...worldState.rows].find((w) => w.id === id);
+}
+
+function renderWorlds() {
+  const q = el.worldQ.value.trim().toLowerCase();
+  const sort = worldSorter(el.worldSort.value);
+  const paged = pagedWorlds();
+  const all =
+    worldTab === "lookup" ? worldLookups : worldTab === "saved" ? worldState.rows : paged.rows;
+  const shown = all.filter((w) => textMatch(q, w.name, w.id));
+  const rows = sort ? shown.sort(sort) : shown;
+
+  const art = loadSettings().images;
+  /* The rows are rebuilt from scratch — when a world's details land, say — so
+     a focused row gets its focus back afterwards. */
+  const focused = document.activeElement?.closest?.("#worldRows tr[data-world]")?.dataset.world;
+  el.worldRows.innerHTML = rows
+    .map(
+      (w) => `<tr class="app" tabindex="0" data-world="${esc(w.id)}" aria-expanded="${worldOpen.has(w.id)}">
+      <td class="name">${
+        art && w.image ? `<img class="art" src="${esc(w.image)}" alt="" loading="lazy">` : ""
+      }${esc(w.name)}</td>
+      <td class="num">${esc(w.id)}</td>
+      <td class="num">${bigNumber(w.visits)}</td>
+      <td class="num">${bigNumber(w.online)}</td>
+      <td class="num">${bigNumber(w.likes)}</td>
+    </tr>${worldOpen.has(w.id) ? worldDetail(w) : ""}`
+    )
+    .join("");
+  if (focused) el.worldRows.querySelector(`tr[data-world="${CSS.escape(focused)}"]`)?.focus();
+
+  /* What the tab that is on says when its list is empty, and its count. */
+  const state = worldTab === "saved" ? worldState : paged;
+  const loading = state?.loading ?? false;
+  const asked = worldTab === "lookup" ? worldLookups.length > 0 : state.asked;
+  const prompt = {
+    top: "Pick a list and press Get worlds.",
+    creator: "Find a creator by username or name, pick them, then press Get their worlds.",
+    lookup: "Paste a world ID or a horizon.meta.com world link and press Look up world.",
+    saved: "Press Get saved worlds to list the worlds this account has saved.",
+  }[worldTab];
+  el.worldEmpty.hidden = rows.length > 0 || loading;
+  el.worldEmpty.textContent = !asked
+    ? prompt
+    : all.length
+      ? "Nothing matches."
+      : state?.note || (worldTab === "saved" ? "This account has no saved worlds." : "No worlds here.");
+
+  let line = "";
+  if (all.length) {
+    const noun = worldTab === "saved" ? "saved world" : "world";
+    const counted = rows.length === all.length ? plural(all.length, noun) : `${rows.length} of ${plural(all.length, noun)}`;
+    line = `${paged ? `${paged.label}: ` : ""}${counted}${paged?.cursor ? ", more to load" : ""}.`;
+    if (worldTab === "saved" && worldState.count > all.length) line += ` The store reports ${worldState.count}.`;
+    if (state?.note && paged) line += ` ${state.note}`;
+  }
+  el.worldCount.textContent = loading ? "Asking the store…" : line;
+
+  el.worldMore.hidden = !paged?.cursor || paged.loading;
+}
+
+/* ---------- the search box in the bar ----------
+   It is always there, whatever screen is showing. Enter runs the search where
+   it is and brings the results up if they are not already on screen. */
+
+function initSearchBar() {
+  el.q.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !["", "#apps"].includes(location.hash)) location.hash = "#apps";
+  });
+}
+
+/* ---------- an app's Entitlement tab ---------- */
+
+/** Ownership, release channel, DLC, playtime and backups for one app, from the account's side. */
+function yourCopy(app) {
+  if (!app.id) return "<p>No store ID, so nothing on the account can be matched to it.</p>";
+  const own = libraryNames?.get(app.id);
+  const ownLine = !libraryNames
+    ? "<p>Asking the store what this account owns…</p>"
+    : own
+      ? `<p class="hint">In your Quest library — ${esc(own.state ? words(own.state) : "owned")}, from ${esc(
+          grantLabel(own.grant)
+        )}${own.lastUsed ? `, last played ${esc(isoDay(own.lastUsed))}` : ""}.</p>`
+      : `<p class="hint">Not in your Quest library.</p>`;
+
+  return `<h3>Ownership</h3>${ownLine}${channelSection(app)}${
+    app.platform === "PC" ? "" : dlcTable(app)
+  }${accountSections(app, "play", { load: true })}${accountSections(app, "backup", { load: true })}`;
+}
+
+/* ReleaseChannelsQuery, from the account's side: the channel this account is on
+   for the app, and every channel it can see — public ones, and any private
+   beta it has been let into. */
+function channelSection(app) {
+  const mine = myChannels.get(app.id);
+  const failed = layoutState.channelErrors.get(app.id);
+  let body;
+  if (failed) body = `<p class="warn">${esc(failed)}</p>`;
+  else if (!mine && layoutState.channelAsked.has(app.id)) body = `<button type="button" disabled>Loading…</button>`;
+  else if (!mine) body = `<button type="button" data-load="channels">Get release channels</button>`;
+  else if (mine.none) body = "<p>Needs your own access token, set in Settings.</p>";
+  else if (!mine.channels.length) body = "<p>The store lists no release channels for this account.</p>";
+  else {
+    const on = mine.channels.find((c) => c.id === mine.current);
+    body = `<p class="hint">${
+      on ? `This account is on <strong>${esc(on.name)}</strong>.` : "This account is on none of them."
+    } ${plural(mine.channels.length, "channel")} it can see.</p>
+      <div class="vscroll short">
+        <table class="vtable plain">
+          <thead><tr><th>Channel</th><th>Version</th><th>Build</th><th>Open to</th><th></th></tr></thead>
+          <tbody>${mine.channels
+            .map(
+              (c) => `<tr>
+                <td>${esc(c.name)}</td>
+                <td>${esc(c.version ?? "—")}</td>
+                <td>${c.versionCode ?? "—"}</td>
+                <td>${c.public ? "Everyone" : "Invited"}</td>
+                <td>${c.id === mine.current ? "You're on this" : ""}</td>
+              </tr>`
+            )
+            .join("")}</tbody>
+        </table>
+      </div>`;
+  }
+  return `<h3>Release channels</h3>${body}`;
+}
+
+/* The Entitlement tab reads one thing on its own when first opened — whether
+   the account owns the app, one request. The rest wait for their buttons:
+   release channels, DLC, playtime (one request per headset) and cloud
+   backups. */
+function wantYourCopy() {
+  if (!libraryNames) appNames().then(() => renderAccountTabs());
+}
+
+/** A Get button on the Entitlement tab: fetch that one list. */
+function loadForApp(app, what) {
+  if (what === "dlc") return loadIaps();
+  if (what === "play") return loadPlaytime();
+  if (what === "backup") return loadBackups();
+  if (what === "channels" && app?.id && !layoutState.channelAsked.has(app.id)) {
+    layoutState.channelAsked.add(app.id);
+    layoutState.channelErrors.delete(app.id);
+    renderAccountTabs();
+    myReleaseChannels(app.id)
+      .then((found) => myChannels.set(app.id, found ?? { none: true, current: null, channels: [] }))
+      .catch((err) => layoutState.channelErrors.set(app.id, err.message || "Could not load release channels."))
+      .finally(() => renderAccountTabs());
+  }
+}
+
+/* ---------- a saved world's details ---------- */
+
+function toggleWorld(id) {
+  if (worldOpen.has(id)) worldOpen.delete(id);
+  else {
+    worldOpen.add(id);
+    if (!worldInfo.has(id)) loadWorld(id);
+    loadWorldFlags(id);
+  }
+  renderWorlds();
+  el.worldRows.querySelector(`tr[data-world="${CSS.escape(id)}"]`)?.focus();
+}
+
+async function loadWorld(id) {
+  const world = anyWorld(id);
+  if (!world) return;
+  worldInfo.set(id, { loading: true, data: null, note: "" });
+  try {
+    worldInfo.set(id, { loading: false, data: await worldDetails(world), note: "" });
+  } catch (err) {
+    worldInfo.set(id, { loading: false, data: null, note: err.message || "Could not load this world." });
+  } finally {
+    renderWorlds();
+    syncRelayNote();
+  }
+}
+
+/* Beta and cloud streaming: two small reads, once per world, the first time it
+   opens. A world the store says nothing about just shows neither line. */
+async function loadWorldFlags(id) {
+  if (worldFlagInfo.has(id)) return;
+  worldFlagInfo.set(id, "loading");
+  try {
+    worldFlagInfo.set(id, await worldFlags(id));
+  } catch {
+    worldFlagInfo.set(id, { beta: null, streamable: null });
+  }
+  renderWorlds();
+}
+
+const yesNo = (v) => (v == null ? null : v ? "Yes" : "No");
+
+/** An opened world: where it lives, when you were there, and its pictures. */
+function worldDetail(w) {
+  const info = worldInfo.get(w.id);
+  const flags = worldFlagInfo.get(w.id);
+  let body;
+  if (!info || info.loading) body = "<p>Asking the store about this world…</p>";
+  else if (info.note) body = `<p class="warn">${esc(info.note)}</p>`;
+  else {
+    const d = info.data;
+    const pictures = loadSettings().images
+      ? d.images.length
+        ? `<h3>Pictures</h3><div class="world-pics">${d.images
+            .map(
+              (i) => `<figure><img src="${esc(i.uri)}" alt="${esc(`${w.name}: ${i.label}`)}" loading="lazy">
+                 <figcaption>${esc(i.label)}</figcaption></figure>`
+            )
+            .join("")}</div>`
+        : ""
+      : d.images.length
+        ? `<p class="hint">${plural(d.images.length, "picture")} — switch on Show app art in search results, in Settings, to see them.</p>`
+        : "";
+    body = `${factGroups([
+      [
+        "World",
+        [
+          ["World ID", w.id],
+          ["Destination ID", d.destinationId],
+          ["Last visited", d.lastVisit ? isoDay(d.lastVisit) : d.destinationId ? "Not recorded" : null],
+          ["Opens in", d.apps.join(", ")],
+          ["Beta", flags === "loading" ? "Asking…" : yesNo(flags?.beta)],
+          ["Cloud streaming", flags === "loading" ? "Asking…" : yesNo(flags?.streamable)],
+        ],
+      ],
+    ])}${
+      d.launchLink ? `<h3>Launch link</h3><p class="world-link">${esc(d.launchLink)}</p>` : ""
+    }${pictures}`;
+  }
+  return `<tr class="detail"><td colspan="5"><div class="panel">${body}</div></td></tr>`;
+}
+
+/* ---------- looking a world up ---------- */
+
+function setWorldNote(text, bad = false) {
+  el.worldLookupNote.textContent = text;
+  el.worldLookupNote.classList.toggle("bad", bad);
+  el.worldLookupNote.hidden = !text;
+}
+
+/**
+ * Look a world up by its ID or link and open it at the top of the list. A world
+ * already listed — saved, or looked up before — is simply opened.
+ */
+async function lookUpWorld() {
+  const id = parseWorldId(el.worldLookup.value);
+  if (!id) {
+    setWorldNote("That is not a world ID — paste the long number, or a horizon.meta.com world link.", true);
+    return;
+  }
+  setWorldNote("");
+
+  /* A world another tab already holds needs no request — it just joins the
+     Look up list. */
+  const known = anyWorld(id);
+  if (known) worldLookups = [known, ...worldLookups.filter((w) => w.id !== id)];
+  else {
+    el.worldLookupGo.disabled = true;
+    el.worldLookupGo.textContent = "Looking up…";
+    try {
+      const world = await lookupWorld(id);
+      worldLookups = [world, ...worldLookups.filter((w) => w.id !== world.id)];
+    } catch (err) {
+      setWorldNote(`Not found: ${err.message}`, true);
+      return;
+    } finally {
+      el.worldLookupGo.disabled = false;
+      el.worldLookupGo.textContent = "Look up world";
+      syncRelayNote();
+    }
+  }
+
+  worldOpen.add(id);
+  if (!worldInfo.has(id)) loadWorld(id);
+  loadWorldFlags(id);
+  renderWorlds();
+  el.worldRows.querySelector(`tr[data-world="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
 }

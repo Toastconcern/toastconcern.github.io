@@ -807,16 +807,25 @@ tr.detail > td {
 .logline.bad { color: var(--red); }
 
 
-/* Channels and Build history head whole sections, so they sit a step above the
-   group titles inside them — same uppercase treatment, a size larger. */
-.panel h3 {
-  font-size: .875rem;
+/* Every heading in a panel — the sections (Channels, Build history, Playtime
+   by headset) and the labels over each block of facts (App, Builds, Hashes) —
+   reads as one kind of thing, so they share one treatment. Full-strength text
+   against the muted labels underneath, so the eye finds the heading before it
+   starts reading what is under it. */
+.panel h3,
+.panel h4 {
+  font-size: .8125rem;
   font-weight: 600;
   letter-spacing: .06em;
   text-transform: uppercase;
   color: var(--text);
   margin: 0 0 .45rem;
 }
+/* A section that follows a table — playtime then backups in an opened app on
+   the User tabs — needs air above it, or its heading reads as the table's. */
+.panel .vscroll + h3,
+.panel p + h3,
+.panel__main > .vscroll + p { margin-top: 1.25rem; }
 
 .panel dl {
   display: grid;
@@ -838,18 +847,6 @@ tr.detail > td {
   overflow-wrap: anywhere;
 }
 
-/* Every label over a block of facts — the group titles, Hashes, Permissions —
-   reads as one kind of thing, so they all get the same treatment. */
-.panel h4 {
-  font-size: .8125rem;
-  font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  /* Full-strength text against the muted labels underneath, so the eye finds
-     the group before it starts reading the facts in it. */
-  color: var(--text);
-  margin: 0 0 .45rem;
-}
 
 /* Facts sit as short columns side by side rather than one long list. The
    columns wrap on their own, so this needs no breakpoints. */
@@ -953,6 +950,9 @@ tr.detail > td {
 .vtable th {
   position: sticky;
   top: 0;
+  /* Above anything opened inside the table — a build's details are a panel,
+     and a positioned panel would otherwise scroll over the headings. */
+  z-index: 2;
   background: var(--panel);
   font-family: var(--sans);
   padding: .35rem .6rem;
@@ -1059,6 +1059,20 @@ button.dl:disabled { color: #fff; opacity: .55; }
 }
 .dl-obb:hover { background: var(--hover); border-color: var(--border); }
 
+/* Details on a build row: neutral, since it downloads nothing, but the same
+   size and type as the Download and OBB beside it — the table's monospace and
+   the base button's 38px would otherwise make it the odd one out. */
+.vtable .build-btn {
+  font-family: var(--sans);
+  font-size: .8125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  padding: .35rem .9rem;
+  min-height: 0;
+  margin-right: .35rem;
+  white-space: nowrap;
+}
+
 /* never reached a channel — red so it does not read as an ordinary download */
 .dl-dev { background: var(--warn); border-color: var(--warn); }
 .dl-dev:hover { background: var(--warn-hi); border-color: var(--warn-hi); }
@@ -1095,10 +1109,10 @@ button.dl:disabled { color: #fff; opacity: .55; }
 }
 .actions a:hover, .actions button:hover:not(:disabled) { background: var(--hover); }
 
-#view-apps > .sub,
-#view-meta > .sub,
-#view-mine > .sub,
-#view-settings > .sub { margin: .25rem 0 1.5rem; }
+/* Every screen's description keeps a gap before the controls, tabs or table
+   under it. */
+main > section > .sub,
+.wrap > section > .sub { margin: .25rem 0 1.5rem; }
 
 /* Your entitlements says why it is empty in the same line that would otherwise
    count them, so that line has to be able to read as a refusal. */
@@ -1106,7 +1120,8 @@ button.dl:disabled { color: #fff; opacity: .55; }
 
 /* The search and filter boxes take whatever the pickers and buttons beside
    them leave, on every list. */
-#q, #mineQ, #orgId, #orgQ, #devicesQ, #defaultQ, #adbQ { flex: 1 1 14rem; }
+#q, #mineQ, #orgId, #orgQ, #devicesQ, #defaultQ, #adbQ, #plusQ,
+#worldQ, #worldLookup, #creatorQ, #worldShelf, #creatorPick { flex: 1 1 14rem; }
 
 /* The Default apps row also carries two pickers, two buttons and a sort, which
    together with a 14rem filter is wider than the column — the row wrapped and
@@ -1743,4 +1758,85 @@ details.hint > p {
   .bar,
   .wrap { max-width: 96rem; }
   .clip { max-width: 26rem; }
+}
+
+/* The search box lives in the bar, taking the room the menu leaves. */
+.barsearch {
+  display: flex;
+  flex: 1 1 14rem;
+  max-width: 26rem;
+}
+.barsearch input { width: 100%; }
+
+@media (max-width: 720px) {
+  .bar { flex-wrap: wrap; }
+  .barsearch { order: 3; flex-basis: 100%; max-width: none; }
+}
+
+/* On a phone the bar wraps in a set order: the name and the theme picker
+   share the top row, the menu takes the next, and the search box the last. */
+@media (max-width: 520px) {
+  .bar { flex-wrap: wrap; }
+  .bar > h1 { order: 1; margin-right: auto; }
+  #theme { order: 2; }
+  .bar > .nav { order: 3; flex-basis: 100%; margin-right: 0; }
+  .barsearch { order: 4; }
+}
+
+/* One build's details, opened under its row in the build history. The row's
+   table is nowrap monospace; the details are a panel of their own, so they
+   wrap and read like the manifest does. */
+/* Written out in full to outrank the build table's own last-column rule
+   (.vtable:not(.plain) td:last-child), which a spanning cell also matches. */
+.vtable:not(.plain) tr.build-detail > td:last-child {
+  background: var(--panel);
+  padding: .75rem .6rem 1rem;
+  white-space: normal;
+  /* The build table right-aligns its last column, and a cell spanning the
+     row counts as that; the details read left to right like any panel. */
+  text-align: left;
+}
+tr.build-detail .panel { font-family: var(--sans, inherit); }
+
+/* An opened app's panel: the tab strip, the app's buttons, then the section — an even
+   step between each, so a section's first heading never sits against the
+   buttons above it. */
+.panel-tabs { margin: 0 0 1rem; }
+[data-app-actions] { margin-bottom: 1.5rem; }
+[data-app-actions] > .actions { margin-top: 0; }
+/* Latest Binary Info is about a build — the latest one — so it sits with the
+   Builds tab and steps aside on Store. */
+.panel[data-tab="store"] [data-info],
+.panel[data-tab="store"] .info-out { display: none; }
+[data-app-actions]:not(:has(.actions)) { margin-bottom: 0; }
+/* A Get button standing in for a table on the Entitlement tab. */
+[data-pane] h3 + button { margin-bottom: .6rem; }
+
+/* An opened saved world: its launch link is one long line of JSON, and its
+   pictures sit in a row, each named underneath. */
+.world-link {
+  font-family: var(--mono);
+  font-size: .75rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.world-pics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: .25rem;
+}
+.world-pics figure { margin: 0; }
+.world-pics img {
+  display: block;
+  height: 7.5rem;
+  width: auto;
+  max-width: 100%;
+  border-radius: 3px;
+  background: var(--field);
+}
+.world-pics figcaption {
+  margin-top: .3rem;
+  font-size: .75rem;
+  color: var(--muted);
 }

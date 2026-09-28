@@ -57,6 +57,11 @@ export function loadSettings() {
       obb: localStorage.getItem("metadb.obb") !== "0",
       /* Off by default: fetch the library on load and tint apps you own. */
       autoOwned: localStorage.getItem("metadb.autoOwned") === "1",
+      /* Off by default: fetch the account's DLC, playtime or cloud backups as
+         soon as the page opens, rather than waiting for a Get button. */
+      autoDlc: localStorage.getItem("metadb.autoDlc") === "1",
+      autoPlaytime: localStorage.getItem("metadb.autoPlaytime") === "1",
+      autoBackups: localStorage.getItem("metadb.autoBackups") === "1",
       /* On unless turned off, same as the OBB lookup above. */
       wide: localStorage.getItem("metadb.wide") !== "0",
       /* On unless turned off, like the store button. */
@@ -92,6 +97,9 @@ export function loadSettings() {
       tourDone: false,
       obb: true,
       autoOwned: false,
+      autoDlc: false,
+      autoPlaytime: false,
+      autoBackups: false,
       wide: true,
       motion: true,
       motionSpeed: "180",
@@ -138,7 +146,7 @@ export function saveSettings(patch) {
 
 export function clearSettings() {
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -682,7 +690,7 @@ export const HMD_TYPES = [
   ["MONTEREY", "Quest"],
   ["PACIFIC", "Go"],
   ["RIFT", "Rift"],
-  ["LOMA", "Unknown"],
+  ["LOMA", "VR Glasses"],
 ];
 
 /* The platform each headset's store sells. Every headset is served its own
@@ -824,6 +832,19 @@ export async function appDetails(id) {
   )?.version;
 
   return {
+    ...binaryFields(binary),
+    requiredOs: requiredOs ?? null,
+    requiredPsdk: requiredPsdk ?? null,
+    updateRequired:
+      update.application?.latest_available_binary?.is_update_required ?? null,
+  };
+}
+
+/* What a binary record says about itself, the same in every reply that
+   carries one. The download URLs and encryption keys some replies include are
+   left behind — the page has no use for them and should not show them. */
+function binaryFields(binary) {
+  return {
     packageName: binary.package_name ?? null,
     version: binary.version ?? null,
     versionCode: binary.version_code ?? null,
@@ -834,14 +855,49 @@ export async function appDetails(id) {
     headTracking: binary.head_tracking ?? null,
     externalStorage: binary.can_use_external_storage ?? null,
     releasedAt: binary.release_date ? day(binary.release_date) : null,
-    requiredOs: requiredOs ?? null,
-    requiredPsdk: requiredPsdk ?? null,
     sha256: binary.sha256 ?? null,
     checksum: binary.checksum_hash ?? null,
     certSignature: binary.apk_cert_signature ?? null,
     permissions: binary.permissions ?? [],
-    updateRequired:
-      update.application?.latest_available_binary?.is_update_required ?? null,
+  };
+}
+
+/* AppBinaryCombinedQuery: the same record for one exact build, named by its
+   version code, where the manifest above only ever describes the latest. The
+   headset's app manager asks it when it needs to know about a build it is not
+   installing. */
+const BINARY_DOC_ID = "23514803210732035698740817391";
+
+/** One build's details: size, SDK, hashes, permissions, and its OBB if any. */
+export async function binaryDetails(appId, versionCode) {
+  const { token } = loadSettings();
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        client_doc_id: BINARY_DOC_ID,
+        variables: JSON.stringify({
+          params: { app_params: [{ app_id: String(appId), version_code: String(versionCode) }] },
+          fetch_fallback_uris: false,
+        }),
+      })
+  );
+  if (json.errors?.length) {
+    const msg = json.errors[0].message ?? "query refused";
+    throw new Error(
+      /logged out|unauthorized/i.test(msg)
+        ? `${msg} This query needs a logged-in account token, set on the Settings page.`
+        : msg
+    );
+  }
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+
+  const binary = json?.data?.app_binary_info?.info?.[0]?.binary;
+  if (!binary) throw new Error("the store has no details for this build");
+
+  return {
+    ...binaryFields(binary),
+    obbSize: Number(binary.obb_binary?.size) || null,
   };
 }
 
@@ -1480,6 +1536,10 @@ export async function lookupByPackage(packageName) {
 const ENTITLEMENTS_DOC_IDS = {
   quest: "412097616712440770934752951129",
   pc: "2890869346616033607941569925",
+  /* ExpiredEntitlements: what the account used to own — ended trials, lapsed
+     subscriptions. Same variables and the same reply shape as the Quest
+     library, filed under `app_entitlements` instead. */
+  expired: "92428577213436624608621763230",
 };
 
 /* Sent as the headset sends them. Most are artwork sizes this page never uses,
@@ -1515,7 +1575,7 @@ const ENTITLEMENT_PAGES = 10;
  * `latest_supported_binary` is the build this account may install right now,
  * which is what fills the version columns before any check has run.
  */
-function entitlementApp(node, platform) {
+function entitlementApp(node, platform, owned = true) {
   const app = node?.item;
   if (!app?.id) return null;
 
@@ -1529,8 +1589,8 @@ function entitlementApp(node, platform) {
        the row — unless the reply says otherwise for itself. */
     platform: app.platform ?? platform,
     /* Marks the row as coming from a library rather than the store, which says
-       nothing about channels either way. */
-    owned: true,
+       nothing about channels either way. An expired entitlement is not owned. */
+    owned,
     /* PAID_OFFER, NUX, DEVELOPER, OCULUS_KEYS … how it was come by. */
     grant: node.grant_reason ?? null,
     /* PERMANENT, or a lease with an expiry — a trial or a subscription. */
@@ -1575,8 +1635,9 @@ function entitlementConnection(json) {
 /**
  * Everything the signed-in account owns, from one store's library.
  *
- * `kind` is "quest" for the Android library or "pc" for the Rift one — two
- * queries, same variables, same shape. Entitlements belong to a person, so
+ * `kind` is "quest" for the Android library, "pc" for the Rift one, or
+ * "expired" for what the account used to own — three queries, same variables,
+ * same shape. Entitlements belong to a person, so
  * this reads the access token (`oc_www_at`); the built-in public one has no
  * account behind it and is refused.
  */
@@ -1624,7 +1685,7 @@ export async function myEntitlements(kind = "quest") {
     }
 
     for (const edge of list.edges ?? []) {
-      const app = entitlementApp(edge?.node, platform);
+      const app = entitlementApp(edge?.node, platform, kind !== "expired");
       if (app && !out.has(app.id)) out.set(app.id, app);
     }
 
@@ -1634,6 +1695,492 @@ export async function myEntitlements(kind = "quest") {
   }
 
   return [...out.values()];
+}
+
+/* ---------- the account's own data ----------
+   Read-only queries the headset's app manager (OCMS) runs about the signed-in
+   account. All of them are client_doc_id queries that want a logged-in access
+   token; the variable names were read out of the OCMS APK and confirmed
+   against the live store. */
+
+/** The store's refusal as an Error, or nothing when the reply is usable. */
+function accountError(json, what) {
+  if (json.errors?.length) {
+    const msg = json.errors[0].message ?? "query refused";
+    return new Error(
+      /logged out|unauthorized/i.test(msg)
+        ? `${msg} ${what} needs your own access token, set on the Settings page.`
+        : msg
+    );
+  }
+  if (json.error) return new Error(json.error.message ?? "request rejected");
+  return null;
+}
+
+async function accountQuery(clientDocId, variables, what) {
+  const { token } = loadSettings();
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({
+        access_token: token,
+        client_doc_id: clientDocId,
+        variables: JSON.stringify(variables),
+      })
+  );
+  const err = accountError(json, what);
+  if (err) throw err;
+  return json.data ?? {};
+}
+
+/* ReleaseChannelsQuery: the release channels this account can see for one app,
+   and which of them it is on (`viewer_release_channel`). The build history
+   already names every channel a build reached; this is the one thing it cannot
+   say — where you are. The ID is the Horizon OS shell's (systemux 207); the
+   app manager's older one answers identically. */
+const RELEASE_CHANNELS_DOC_ID = "18030355666629348722465830248";
+
+/**
+ * The channel this account is on for an app, and the channels it can see.
+ * Resolves to null without a request on the built-in token, which has no
+ * account to be on anything.
+ */
+export async function myReleaseChannels(appId) {
+  if (loadSettings().token === DEFAULT_TOKEN) return null;
+
+  const data = await accountQuery(
+    RELEASE_CHANNELS_DOC_ID,
+    { app_id: String(appId) },
+    "Your release channel"
+  );
+  const app = data.fetch__Application;
+  if (!app) return null;
+
+  return {
+    current: app.viewer_release_channel?.id ? String(app.viewer_release_channel.id) : null,
+    channels: (app.release_channels?.edges ?? [])
+      .map((e) => e?.node)
+      .filter((n) => n?.id)
+      .map((n) => ({
+        id: String(n.id),
+        name: n.channel_name ?? String(n.id),
+        live: Boolean(n.is_live),
+        public: Boolean(n.is_public),
+        version: n.latest_supported_binary?.version ?? null,
+        versionCode: n.latest_supported_binary?.version_code ?? null,
+      })),
+  };
+}
+
+/* UserInstalledAppTimeSpent: time in each installed app over the last 28 days,
+   for one headset. The app manager uses it to suggest what to uninstall. */
+const PLAYTIME_DOC_ID = "73337722012186324592102292727";
+
+/** [{ appId, packageName, seconds }] for one headset serial. */
+export async function headsetPlaytime(serial) {
+  const data = await accountQuery(
+    PLAYTIME_DOC_ID,
+    { input: { device_serial: serial } },
+    "Playtime"
+  );
+  return (data.xoc_user_installed_app_time_spent ?? [])
+    .filter((r) => r?.platform_app?.id)
+    .map((r) => ({
+      appId: String(r.platform_app.id),
+      packageName: r.platform_app.package_name ?? null,
+      seconds: Number(r.immersive_time_spent_sec_28d) || 0,
+    }));
+}
+
+/* GetUserCloudBackups: the app-data backups Meta holds for the given headsets.
+   Reading only — restoring and deleting are separate mutations, and neither is
+   used here. An empty `application_ids` means every app. */
+const CLOUD_BACKUPS_DOC_ID = "212972260414518954213137032242";
+
+/** [{ id, appId, packageName, serial, size, backedUpAt, type }] for these serials. */
+export async function cloudBackups(serials) {
+  const data = await accountQuery(
+    CLOUD_BACKUPS_DOC_ID,
+    { input: { device_serials: serials, application_ids: [] } },
+    "Cloud backups"
+  );
+  return (data.xoc_oculus_cloud_backups?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.id)
+    .map((n) => ({
+      id: String(n.id),
+      appId: n.application?.id ? String(n.application.id) : null,
+      packageName: n.application?.package_name ?? null,
+      serial: n.device_serial ?? null,
+      size: Number(n.file_size) || 0,
+      /* Seconds since the epoch. */
+      backedUpAt: Number(n.backup_time) || null,
+      /* FULL, or KEY_VALUE for the small settings-style backup. */
+      type: n.backup_type ?? null,
+    }));
+}
+
+/* SavedWorldsV2: the Horizon worlds this account has saved. The one variable
+   is the size of the square art, as a number of pixels. */
+const SAVED_WORLDS_DOC_ID = "27679804063342994800600718755";
+
+/** { count, worlds: [{ id, name, image }] } */
+export async function savedWorlds() {
+  const data = await accountQuery(
+    SAVED_WORLDS_DOC_ID,
+    { coverSquareImageSize: 225 },
+    "Saved worlds"
+  );
+  const saved = data.me?.horizon_saved_worlds;
+  const worlds = (saved?.edges ?? [])
+    .map((e) => e?.node?.horizon_world)
+    .filter((w) => w?.id)
+    .map((w) => ({
+      id: String(w.id),
+      name: w.name || String(w.id),
+      image: w.square_image?.image_uri ?? w.image?.image_uri ?? null,
+      /* The world's place in the VR shell, which the details query is keyed by. */
+      destinationId: w.oc_destination?.id ? String(w.oc_destination.id) : null,
+    }));
+  return { count: Number(saved?.count) || worlds.length, worlds };
+}
+
+/* HorizonWorldDestination: everything the shell knows about a world's
+   destination — when you were last there, the link it launches with, the apps
+   that can open it, and the world itself with all of its pictures. A world
+   with no destination falls back to HorizonWorld, which has the pictures. */
+const WORLD_DESTINATION_DOC_ID = "20471214089623756944511508210";
+const WORLD_DOC_ID = "55217164010924076863732658967";
+
+/**
+ * Any Horizon world by its ID, saved or not, as the same record Saved worlds
+ * lists — so a looked-up world opens to the same details.
+ */
+export async function lookupWorld(id) {
+  const data = await accountQuery(WORLD_DOC_ID, { id: String(id), coverSquareImageSize: 225 }, "World lookup");
+  const w = data.fetch__XFBHorizonWorld;
+  if (!w?.id) throw new Error("no Horizon world has that ID");
+  return {
+    id: String(w.id),
+    name: w.name || String(w.id),
+    image: w.square_image?.image_uri ?? w.image?.image_uri ?? null,
+    destinationId: w.oc_destination?.id ? String(w.oc_destination.id) : null,
+  };
+}
+
+/** A world ID out of a bare ID or a horizon.meta.com / meta.com world link. */
+export function parseWorldId(input) {
+  const text = String(input).trim();
+  if (/^\d{5,}$/.test(text)) return text;
+  const m = text.match(/world\/(?:[^/?#]*\/)?(\d{5,})/i) ?? text.match(/(\d{8,})/);
+  return m ? m[1] : null;
+}
+
+/** Every picture a world carries, labelled. */
+function worldImages(w) {
+  return [
+    ["Cover", w?.image?.image_uri],
+    ["Square", w?.square_image?.image_uri],
+    ["Travel preview", w?.travel_preview_img?.image_uri],
+    ["Portal", w?.portal_img?.image_uri],
+    ["Portal fallback", w?.portal_fallback_img?.image_uri],
+  ]
+    .filter(([, uri]) => uri)
+    .map(([label, uri]) => ({ label, uri }));
+}
+
+/** A world's destination, read with HorizonWorldDestination. */
+async function worldDestination(destinationId) {
+  const data = await accountQuery(
+    WORLD_DESTINATION_DOC_ID,
+    { id: destinationId, coverSquareImageSize: 225 },
+    "World details"
+  );
+  const d = data.fetch__ApplicationPresenceStatusDefinition;
+  if (!d) throw new Error("the store has no details for this world");
+  return {
+    world: d.horizon_world ?? null,
+    details: {
+      destinationId: d.destination_id ?? destinationId,
+      /* Seconds since the epoch, when the account has been there at all. */
+      lastVisit: Number(d.last_visit_time) || null,
+      launchLink: d.launch_deeplink ?? null,
+      apps: (d.vr_apps_for_deeplink_target ?? []).map((a) => a?.package_name).filter(Boolean),
+      images: worldImages(d.horizon_world),
+    },
+  };
+}
+
+/** { lastVisit, launchLink, apps, destinationId, images: [{ label, uri }] } */
+export async function worldDetails(world) {
+  if (world.destinationId) return (await worldDestination(world.destinationId)).details;
+
+  const data = await accountQuery(WORLD_DOC_ID, { id: world.id, coverSquareImageSize: 225 }, "World details");
+  return {
+    destinationId: null,
+    lastVisit: null,
+    launchLink: null,
+    apps: [],
+    images: worldImages(data.fetch__XFBHorizonWorld),
+  };
+}
+
+/* HorizonWorldsContentQuery and HorizonMheNativeExperienceQuery, from the
+   Horizon phone app: whether a world is a beta, and whether it can be
+   cloud-streamed. Their variables (`world_id`, `worldId`) were read out of that
+   app's dex. */
+const WORLD_CONTENT_DOC_ID = "21452207710938225055198250166";
+const WORLD_STREAMING_DOC_ID = "1322008781734439435276996443";
+
+/** { beta, streamable } — either is null when the store would not say. */
+export async function worldFlags(id) {
+  const [content, streaming] = await Promise.allSettled([
+    accountQuery(WORLD_CONTENT_DOC_ID, { world_id: String(id) }, "World details"),
+    accountQuery(WORLD_STREAMING_DOC_ID, { worldId: String(id) }, "World details"),
+  ]);
+  const beta = content.value?.xoc_horizon_worlds_content?.is_beta;
+  const streamable = streaming.value?.fetch__XFBHorizonWorld?.is_mhe_native_experience_enabled;
+  return {
+    beta: typeof beta === "boolean" ? beta : null,
+    streamable: typeof streamable === "boolean" ? streamable : null,
+  };
+}
+
+/* ---------- worlds, from the Horizon phone app ----------
+   Relay queries read out of the phone app's JS bundle (TwilightBundle.js.hbc),
+   called by plain doc_id. Their replies can carry errors for one tile while the
+   rest is fine, so the data is kept whenever there is any. */
+
+async function relayQuery(docId, variables, what) {
+  const { token } = loadSettings();
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({ access_token: token, doc_id: docId, variables: JSON.stringify(variables) })
+  );
+  if (!json.data) {
+    const err = accountError(json, what);
+    throw err ?? new Error(`the store returned nothing for ${what}`);
+  }
+  return json.data;
+}
+
+/* A feature flag the app's queries declare; off keeps the replies lean. */
+const HZW_FLAGS = { __relay_internal__pv__showSocialContextInHzwFeedsrelayprovider: false };
+
+/** One world tile from the phone app's feeds, as the Worlds table's row. */
+function worldTile(edge) {
+  const t = edge?.node?.target_object;
+  /* The lists mix in the odd app tile; only worlds belong on this screen. */
+  if (!/World/.test(t?.__typename ?? "")) return null;
+  const dest = t.vr_destination;
+  const id = dest?.horizon_world?.id ?? t.id;
+  if (!id) return null;
+  return {
+    id: String(id),
+    name: t.name || String(id),
+    image: edge.node.image?.uri ?? null,
+    destinationId: dest?.id ? String(dest.id) : null,
+    visits: Number(dest?.horizon_world?.lifetime_visit_count) || null,
+    online: dest?.concurrent_user_count ?? null,
+    likes: dest?.reactor_count ?? null,
+  };
+}
+
+/** A paged world list: { worlds, cursor } — cursor is null on the last page. */
+function worldPage(conn) {
+  return {
+    worlds: (conn?.edges ?? []).map(worldTile).filter(Boolean),
+    cursor: conn?.page_info?.has_next_page ? conn.page_info.end_cursor : null,
+  };
+}
+
+/* OCHorizonWorldsV2ViewPopularPaginationQuery: any of the app's named world
+   shelves, paged. The shelf is `feedSource`; WORLD_SHELVES are the ones that
+   answer a web token. */
+const WORLD_SHELF_DOC_ID = "26668802406145854";
+
+export const WORLD_SHELVES = [
+  ["HORIZON_TWILIGHT_CURATED_TOP_WORLDS", "Top worlds"],
+  ["HORIZON_TWILIGHT_TRENDING_WORLDS", "Trending"],
+  ["HORIZON_TWILIGHT_TRENDING_NEW_WORLDS", "New and trending"],
+  ["HORIZON_TWILIGHT_HIGH_CONCURRENCY_WORLDS", "Most played now"],
+  ["HORIZON_TWILIGHT_TOP_MOBILE_WORLDS", "Top on mobile"],
+  ["HORIZON_TWILIGHT_HIDDEN_GEMS_MOBILE_WORLDS", "Hidden gems"],
+  ["HORIZON_TWILIGHT_ACTION_WORLDS", "Action"],
+  ["HORIZON_TWILIGHT_ADVENTURE_WORLDS", "Adventure"],
+  ["HORIZON_TWILIGHT_BATTLE_ROYALE_WORLDS", "Battle royale"],
+  ["HORIZON_TWILIGHT_CARD_GAMES_WORLDS", "Card games"],
+  ["HORIZON_TWILIGHT_CREATIVITY_WORLDS", "Creativity"],
+  ["HORIZON_TWILIGHT_EXPLORATION_WORLDS", "Exploration"],
+  ["HORIZON_TWILIGHT_HANGOUT_WORLDS", "Hangout"],
+  ["HORIZON_TWILIGHT_PARTY_WORLDS", "Party"],
+  ["HORIZON_TWILIGHT_PUZZLE_WORLDS", "Puzzle"],
+  ["HORIZON_TWILIGHT_RACING_WORLDS", "Racing"],
+  ["HORIZON_TWILIGHT_SIMULATION_WORLDS", "Simulation"],
+  ["HORIZON_TWILIGHT_SPORTS_WORLDS", "Sports"],
+  ["HORIZON_TWILIGHT_STORY_WORLDS", "Story"],
+];
+
+/** One page of a world shelf. */
+export async function worldShelf(feedSource, cursor = null) {
+  const data = await relayQuery(
+    WORLD_SHELF_DOC_ID,
+    { count: 30, cursor, feedSource, ...HZW_FLAGS },
+    "Top worlds"
+  );
+  return worldPage(data.viewer?.pipelines?.popular);
+}
+
+/* OCPeopleSearchViewQuery: accounts by username or name. */
+const PEOPLE_SEARCH_DOC_ID = "26529290379993220";
+
+/** [{ id, alias, name }] */
+export async function searchPeople(text) {
+  const data = await relayQuery(
+    PEOPLE_SEARCH_DOC_ID,
+    {
+      count: 10,
+      cursor: null,
+      query_string: String(text),
+      __relay_internal__pv__IsInternUserIndicatorEnabledrelayprovider: false,
+    },
+    "People search"
+  );
+  return (data.user_search?.results?.edges ?? [])
+    .map((e) => e?.node?.user)
+    .filter((u) => u?.id)
+    .map((u) => ({ id: String(u.id), alias: u.alias ?? null, name: u.display_name ?? null }));
+}
+
+/* OCHorizonWorldsV2View3PPublishedWorldsPaginationQuery: the worlds one
+   account has published, paged. */
+const PUBLISHED_WORLDS_DOC_ID = "26869339619355285";
+
+/** One page of a user's published worlds. */
+export async function publishedWorlds(userId, cursor = null) {
+  const data = await relayQuery(
+    PUBLISHED_WORLDS_DOC_ID,
+    { count: 30, cursor, userID: String(userId), ...HZW_FLAGS },
+    "Published worlds"
+  );
+  return worldPage(data.user?.world_data?.published_worlds_list);
+}
+
+/* HorizonPlusItemsQuery: the Horizon+ subscription's games — the monthly
+   claimable ones, and the rotating catalog. No variables. The apps are plain
+   store apps, so they come back in the shape every list renders. */
+const HORIZON_PLUS_DOC_ID = "98891515114376018422795109374";
+
+/** [{ …app, plus: "monthly" | "catalog", claimed }] */
+export async function horizonPlus() {
+  const data = await accountQuery(HORIZON_PLUS_DOC_ID, {}, "Horizon+");
+  const item = data.viewer?.user?.platform_subscription_details?.item;
+  if (!item) throw new Error("the store returned no Horizon+ catalog for this account");
+
+  const row = (n, plus) => ({
+    id: String(n.id),
+    name: n.display_name || n.package_name || String(n.id),
+    packageName: n.package_name ?? null,
+    platform: "ANDROID_6DOF",
+    image: n.cover_square_image?.uri ?? n.vr_icon_image?.uri ?? null,
+    price: null,
+    offerId: null,
+    free: false,
+    channels: [],
+    plus,
+    /* The account holds an entitlement for it — claimed, or bought outright. */
+    claimed: Boolean(n.entitlement),
+  });
+  const nodes = (conn) => (conn?.edges ?? []).map((e) => e?.node).filter((n) => n?.id);
+
+  const out = new Map();
+  for (const n of nodes(item.platform_subscription_items)) out.set(String(n.id), row(n, "monthly"));
+  for (const n of nodes(item.platform_subscription_catalog_items)) {
+    if (!out.has(String(n.id))) out.set(String(n.id), row(n, "catalog"));
+  }
+  return [...out.values()];
+}
+
+/* MostRecentPresenceQuery: when the account was last active in VR, and where.
+   No variables. */
+const PRESENCE_DOC_ID = "30449252678782676021745973837";
+
+/** { lastActive, current, app, destination } or null when there is none. */
+export async function recentPresence() {
+  const data = await accountQuery(PRESENCE_DOC_ID, {}, "Last active");
+  const p = data.viewer?.user?.most_recent_presence;
+  if (!p) return null;
+  return {
+    /* Seconds since the epoch. */
+    lastActive: Number(p.vr_last_active_time) || null,
+    current: Boolean(p.is_current),
+    app: p.application?.display_name ?? p.application?.name ?? null,
+    destination: p.destination_api_name ?? null,
+  };
+}
+
+/* DurableIapEntitlement: the Quest library again, but carrying the in-app
+   purchases the account owns inside each app — DLC, unlocks, subscriptions.
+   Same variables and paging as the library query itself; the apps come back
+   with only their ID, so names and art still come from ActiveEntitlements. */
+const OWNED_IAPS_DOC_ID = "28180342483188919025162781957";
+
+/** A connection that may arrive as a plain list, as nodes, or as edges. */
+function listOf(v) {
+  if (Array.isArray(v)) return v;
+  if (Array.isArray(v?.nodes)) return v.nodes;
+  if (Array.isArray(v?.edges)) return v.edges.map((e) => e?.node);
+  return [];
+}
+
+/**
+ * Every in-app purchase the account owns, by app.
+ * Resolves to a Map of app ID -> [{ id, name, sku, type, grantedAt, expiresAt, state }].
+ */
+export async function ownedIaps() {
+  const { token } = loadSettings();
+  const out = new Map();
+  let cursor = null;
+
+  for (let page = 0; page < ENTITLEMENT_PAGES; page++) {
+    const json = await getJSON(
+      `${ENDPOINT}?` +
+        new URLSearchParams({
+          access_token: token,
+          client_doc_id: OWNED_IAPS_DOC_ID,
+          variables: JSON.stringify({ ...ENTITLEMENTS_VARIABLES, cursorID: cursor }),
+        })
+    );
+    const err = accountError(json, "DLC you own");
+    if (err) throw err;
+
+    const list = entitlementConnection(json);
+    if (!list) throw new Error("the store returned no library to read DLC from");
+
+    for (const edge of list.edges ?? []) {
+      const app = edge?.node?.item;
+      if (!app?.id) continue;
+      const iaps = listOf(app.iap_entitlements)
+        .filter((e) => e?.item)
+        .map((e) => ({
+          id: String(e.id ?? e.item.id),
+          name: e.item.display_name || e.item.sku || String(e.item.id),
+          sku: e.item.sku ?? null,
+          /* DURABLE, CONSUMABLE, SUBSCRIPTION … */
+          type: e.item.iap_type ?? null,
+          /* Seconds since the epoch; an expiry of 0 means it never lapses. */
+          grantedAt: Number(e.grant_time) || null,
+          expiresAt: Number(e.expiration_time) || null,
+          state: e.active_state ?? null,
+        }));
+      if (iaps.length) out.set(String(app.id), iaps);
+    }
+
+    if (!list.page_info?.has_next_page) break;
+    cursor = list.page_info.end_cursor ?? null;
+    if (!cursor) break;
+  }
+
+  return out;
 }
 
 /* Claiming a free app — the mutation behind the store's own Get button. It is
