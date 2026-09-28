@@ -1215,6 +1215,12 @@ main > section > .sub,
   min-height: 0;
 }
 .ptc-btn + .ptc-btn { margin-left: .35rem; }
+/* Enable in green, Disable in red — outlined, since both tokens are text
+   colours and too light to fill behind white in the dark themes. */
+.ptc-btn.ptc-on { color: var(--green); border-color: var(--green); font-weight: 600; }
+.ptc-btn.ptc-off { color: var(--red); border-color: var(--red); font-weight: 600; }
+.ptc-btn.ptc-on:disabled,
+.ptc-btn.ptc-off:disabled { color: var(--muted); border-color: var(--border); }
 
 .lookup__out:empty,
 .resolve-out:empty { display: none; }

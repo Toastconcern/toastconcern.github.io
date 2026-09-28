@@ -28,6 +28,7 @@ import {
   worldFlags,
   horizonPlus,
   recentPresence,
+  devicePTCStatus,
   accountDevices,
   orgApps,
   setDevicePTC,
@@ -45,7 +46,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=193";
+} from "./check.js?v=198";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -388,6 +389,10 @@ let devicesPromise = null;
 /* Serials identify a specific headset, so they are masked until asked for. The
    filter box still searches the real value either way. */
 let showSerials = false;
+
+/* Serial -> { allowed, enabled } from the store, "loading" while asked, or
+   { error } when it would not say. Read for each owned headset on Get devices. */
+const ptcStatus = new Map();
 
 /* The default-apps list for the headset/trigger last fetched. Ordinary store
    apps, so they render through the same row code as every other tab. Declared
@@ -1085,7 +1090,7 @@ function applyView() {
   el.viewSettings.hidden = view !== "settings";
 
   if (view === "companion") {
-    import("./companion.js?v=193")
+    import("./companion.js?v=198")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -1769,10 +1774,11 @@ async function installBuild(app, { installBuild: binaryId, version, code }, butt
 /* ---------- your devices ---------- */
 
 function initDevices() {
-  /* Get devices also asks when the account was last active — one more request,
-     and only on this button, not when playtime or backups want the headsets. */
+  /* Get devices also asks when the account was last active, and whether each
+     owned headset is on the test channel — only on this button, not when
+     playtime or backups want the headsets. */
   el.devicesLoad.addEventListener("click", () => {
-    loadDevices();
+    loadDevices().then(loadPTCStatuses);
     loadPresence();
   });
   el.serialToggle.addEventListener("click", () => {
@@ -1811,6 +1817,23 @@ async function fetchDevices() {
     el.devicesLoad.textContent = "Get devices";
     renderDevices();
   }
+}
+
+/* One small read per owned headset, all at once. */
+async function loadPTCStatuses() {
+  const serials = deviceList.filter((d) => d.ownership !== "shared" && d.serial).map((d) => d.serial);
+  await Promise.all(serials.map((s) => loadPTCStatus(s)));
+}
+
+async function loadPTCStatus(serial) {
+  ptcStatus.set(serial, "loading");
+  renderDevices();
+  try {
+    ptcStatus.set(serial, await devicePTCStatus(serial));
+  } catch (err) {
+    ptcStatus.set(serial, { error: err.message || "unknown" });
+  }
+  renderDevices();
 }
 
 async function loadPresence() {
@@ -1891,11 +1914,13 @@ function deviceImage(d) {
 }
 
 function deviceRowsHtml(list, { testChannel = true } = {}) {
+  /* Pictures follow the same Settings switch as app art. */
+  const art = loadSettings().images;
   return list
     .map(
       (d) => `<tr>
       <td class="name">${
-        deviceImage(d)
+        art && deviceImage(d)
           ? `<img class="art" src="${esc(deviceImage(d))}" alt="" loading="lazy">`
           : ""
       }${esc(d.model ?? "Unknown device")}</td>
@@ -1903,15 +1928,27 @@ function deviceRowsHtml(list, { testChannel = true } = {}) {
       <td>${esc(deviceStatus(d))}</td>${
         testChannel
           ? `
-      <td class="ptc-cell"><button type="button" class="ptc-btn" data-ptc-serial="${esc(
-        d.serial
-      )}" data-ptc-on="1">Enable</button><button type="button" class="ptc-btn"
-        data-ptc-serial="${esc(d.serial)}" data-ptc-on="0">Disable</button></td>`
+      <td class="ptc-cell">${ptcButtons(d.serial)}</td>`
           : ""
       }
     </tr>`
     )
     .join("");
+}
+
+/* Only the switch that would change something: Disable on a headset that is
+   on, Enable on one that is off — and nothing until the state is known. If
+   the store will not say, both, so the switch still works; a headset that may
+   not join keeps its Enable, greyed out rather than hidden. */
+function ptcButtons(serial) {
+  const button = (on, disabled = false) =>
+    `<button type="button" class="ptc-btn ${on ? "ptc-on" : "ptc-off"}" data-ptc-serial="${esc(serial)}"
+       data-ptc-on="${on ? 1 : 0}"${disabled ? " disabled" : ""}>${on ? "Enable" : "Disable"}</button>`;
+  const s = ptcStatus.get(serial);
+  if (!s || s === "loading") return "";
+  if (s.error) return button(true) + button(false);
+  if (!s.allowed) return button(true, true);
+  return s.enabled ? button(false) : button(true);
 }
 
 function setPtcOut(text, bad = false) {
@@ -1938,6 +1975,7 @@ async function setDevicePTCOne(serial, enabled, button) {
 
   try {
     await setDevicePTC(serial, enabled);
+    loadPTCStatus(serial);
     setPtcOut(
       `Test channel ${enabled ? "on" : "off"} for ${serial}. The headset picks
        the change up when it next looks for an update.`
@@ -4195,7 +4233,7 @@ function tourSteps() {
       title: "The other screens",
       body:
         "Apps also holds the default apps, Horizon+, Horizon worlds and an organization's apps. " +
-        "User has your headsets and what you own. Headsets has ADB and CompanionServer.",
+        "User has your headsets and what you own. Device has ADB and CompanionServer.",
     },
   ];
 }

@@ -13,20 +13,20 @@ Not affiliated with Meta.
 
 The top bar holds the search box, which works from any screen, and three menus plus
 **Settings**: **Apps** (Apps and games, Default apps, Horizon+, Worlds, Organizations), **User** (Headsets,
-Entitlements) and **Headsets** (ADB, CompanionServer). No screen fetches anything
+Entitlements) and **Device** (ADB, CompanionServer). No screen fetches anything
 until you press its button.
 
 | Screen | What it does |
 |---|---|
 | Apps → Apps and games | Store search, from the box in the top bar. Takes an app name, an app ID, a `meta.com` store link or an Android package name, and works out which it is. |
 | User → Entitlements | Everything your account owns — Quest, PC, or what it used to own (expired trials and subscriptions): each has its own Get button. Shows last played, state, where it came from, and how much DLC you own in each once DLC has been fetched. |
-| User → Headsets | The headsets registered to your account and the ones shared with you. Each can be opted in or out of the Public Test Channel (PTC). Get devices also says when the account was last active in VR. |
+| User → Headsets | The headsets registered to your account and the ones shared with you. Each shows whether it is on the Public Test Channel (PTC) and can be opted in or out. Get devices also says when the account was last active in VR. |
 | Apps → Default apps | What Meta pre-installs on a headset — pick the headset and the install trigger (`AUTO_UPDATER`, `NUX_BLOCKING` or `NUX_NON_BLOCKING`). |
 | Apps → Horizon+ | The games the Horizon+ subscription offers right now — this month's games to claim and the rotating catalog — and how many of them are on your account. |
 | Apps → Organizations | Every app a developer organization has published, from its organization ID. |
 | Apps → Worlds | Horizon worlds, in four tabs like an opened app's: **Top worlds** (the top, trending and genre lists the Horizon app shows), **Creator** (everything one creator has published — find them by username), **Look up** (any world by its ID or a horizon.meta.com link) and **Saved** (the worlds your account has saved). Shows each world's lifetime visits, players online now and likes. Open one for its world and destination IDs, when you last visited, the app it opens in, its launch link, and its pictures. |
-| Headsets → ADB | Lists what is installed on a connected headset next to the store's latest build, and installs an older build over it. Needs `node tools/adb-bridge.mjs` running. |
-| Headsets → CompanionServer | Talks to the headset's own CompanionServer over Web Bluetooth — the service the Meta phone app uses. Chrome or Edge only. |
+| Device → ADB | Lists what is installed on a connected headset next to the store's latest build, and installs an older build over it. Needs `node tools/adb-bridge.mjs` running. |
+| Device → CompanionServer | Talks to the headset's own CompanionServer over Web Bluetooth — the service the Meta phone app uses. Chrome or Edge only. |
 
 A short guided tour runs the first time the site is opened, and again from **Take the
 tour** in the footer. A box that downloads one build straight from its binary ID can be
