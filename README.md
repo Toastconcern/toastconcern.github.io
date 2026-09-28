@@ -11,39 +11,56 @@ Not affiliated with Meta.
 
 ## What's on the site
 
-The top bar has two menus and Settings. No screen fetches anything until you press its
-button.
+The top bar holds the search box, which works from any screen, and three menus plus
+**Settings**: **Apps** (Apps and games, Default apps, Horizon+, Worlds, Organizations), **User** (Headsets,
+Entitlements) and **Headsets** (ADB, CompanionServer). No screen fetches anything
+until you press its button.
 
-**Apps**
-
-| Screen | What it lists |
+| Screen | What it does |
 |---|---|
-| Apps and games | Store search. Takes an app name, an app ID, a `meta.com` store link or an Android package name, and works out which it is. |
-| Default apps | What Meta pre-installs on a headset — pick the headset and the install trigger (`AUTO_UPDATER`, `NUX_BLOCKING` or `NUX_NON_BLOCKING`). |
-| Entitlements | Everything your account owns, Quest or PC, with last played, state and where it came from. |
-| Organizations | Every app a developer organization has published, from its organization ID. |
+| Apps → Apps and games | Store search, from the box in the top bar. Takes an app name, an app ID, a `meta.com` store link or an Android package name, and works out which it is. |
+| User → Entitlements | Everything your account owns — Quest, PC, or what it used to own (expired trials and subscriptions): each has its own Get button. Shows last played, state, where it came from, and how much DLC you own in each once DLC has been fetched. |
+| User → Headsets | The headsets registered to your account and the ones shared with you. Each can be opted in or out of the Public Test Channel (PTC). Get devices also says when the account was last active in VR. |
+| Apps → Default apps | What Meta pre-installs on a headset — pick the headset and the install trigger (`AUTO_UPDATER`, `NUX_BLOCKING` or `NUX_NON_BLOCKING`). |
+| Apps → Horizon+ | The games the Horizon+ subscription offers right now — this month's games to claim and the rotating catalog — and how many of them are on your account. |
+| Apps → Organizations | Every app a developer organization has published, from its organization ID. |
+| Apps → Worlds | Horizon worlds, in four tabs like an opened app's: **Top worlds** (the top, trending and genre lists the Horizon app shows), **Creator** (everything one creator has published — find them by username), **Look up** (any world by its ID or a horizon.meta.com link) and **Saved** (the worlds your account has saved). Shows each world's lifetime visits, players online now and likes. Open one for its world and destination IDs, when you last visited, the app it opens in, its launch link, and its pictures. |
+| Headsets → ADB | Lists what is installed on a connected headset next to the store's latest build, and installs an older build over it. Needs `node tools/adb-bridge.mjs` running. |
+| Headsets → CompanionServer | Talks to the headset's own CompanionServer over Web Bluetooth — the service the Meta phone app uses. Chrome or Edge only. |
 
 A short guided tour runs the first time the site is opened, and again from **Take the
 tour** in the footer. A box that downloads one build straight from its binary ID can be
 switched on in Settings (*Show download by binary ID*); it is off by default.
 
-Every row opens the same way. **Check this app** pulls the release channels, the full
-build history, the store listing and any OBB expansion files in one go. **Check shown**
-does that for every row on screen, six at a time.
+### An opened app
+
+Every app, whichever list it is in, opens to three tabs. Under the tabs on Store and Builds
+sit the app's buttons: **Check this app**, **Get entitlement** (free apps only, and not on
+Entitlements) and **Open in store** — plus **Latest Binary Info** on Builds alone.
+
+- **Store** — what the store says about it: category, genres, rating, the modes and
+  hardware it supports, publisher, install size, all filled in by Check this app.
+- **Builds** — its release channels and full build history, filled in by Check this app.
+  **Check shown** on Apps and games does that for every row on screen, six at a time.
+- **Entitlement** — your account's side of it. Whether you own it is read when the tab
+  opens; the rest each wait for their own button: **Get release channels** (the channel your
+  account is on, and every channel it can see), **Get DLC** (the DLC and in-app purchases you
+  own in it), **Get playtime** (time in it over the last 28 days, per headset) and **Get cloud
+  backups** (every backup of it, with headset, type, size and date). DLC, playtime and backups
+  are each one fetch for the whole account, so once one is in, every app shows it. Nothing
+  here restores or deletes a backup. Settings has a switch for each of those three —
+  *Load all your DLC / playtime / cloud backups on start*, all off by default — that fetches
+  it as soon as the page opens instead.
+
+Every build in a build history has a **Details** button that opens that exact build's
+record under its row — download size, space needed, OBB size, target SDK, tracking, hashes
+and permissions — where Latest Binary Info only ever describes the latest build.
 
 In a build history, builds that reached a channel get a blue **Download** button, and the
 OBB beside it when there is one. Builds that never reached a channel are dimmed; turn on
 *Offer downloads for builds with no channel* in Settings to get a red Download on those
 too — red because the store will usually refuse them. Meta checks entitlement on every
 download, so this is not a way around owning an app.
-
-**Devices**
-
-| Screen | What it does |
-|---|---|
-| Your headsets | The headsets registered to your account and the ones shared with you. Each can be opted in or out of the Public Test Channel (PTC). |
-| ADB | Lists what is installed on a connected headset next to the store's latest build, and installs an older build over it. Needs `node tools/adb-bridge.mjs` running. |
-| CompanionServer | Talks to the headset's own CompanionServer over Web Bluetooth — the service the Meta phone app uses. Chrome or Edge only. |
 
 ## Getting started
 

@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=159">
+<link rel="stylesheet" href="css/style.css?v=193">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -48,23 +48,36 @@
 <header class="topbar">
   <div class="bar">
     <h1>MetaDB</h1>
-    <nav class="nav">
-      <!-- The screens that list store apps sit under one menu; the two that talk
-           to a headset sit under another. A group is marked "on" when the screen
-           being shown is one of its own. -->
+    <!-- The search box lives in the bar and works from any screen; Enter
+         brings the results up. The screens that list store apps sit under one
+         menu, the ones about the signed-in account under another, and the two
+         that talk to a headset directly under a third. Every link carries
+         data-view, so the current screen is marked, and a menu is marked when
+         the screen on show is one of its own. -->
+    <div class="barsearch" id="barSearch">
+      <input id="q" type="search" placeholder="App name, or an app ID, store link or package name" aria-label="Search the store" autocomplete="off" spellcheck="false">
+    </div>
+    <nav class="nav" aria-label="Screens">
       <div class="navgroup">
         <button class="navtop" type="button" aria-expanded="false">Apps</button>
         <div class="navmenu" hidden>
           <a href="#apps" data-view="apps">Apps and games</a>
           <a href="#default" data-view="default">Default apps</a>
-          <a href="#mine" data-view="mine">Entitlements</a>
+          <a href="#plus" data-view="plus">Horizon+</a>
+          <a href="#worlds" data-view="worlds">Worlds</a>
           <a href="#orgs" data-view="orgs">Organizations</a>
+        </div>
+      </div>
+      <div class="navgroup">
+        <button class="navtop" type="button" aria-expanded="false">User</button>
+        <div class="navmenu" hidden>
+          <a href="#devices" data-view="devices">Headsets</a>
+          <a href="#mine" data-view="mine">Entitlements</a>
         </div>
       </div>
       <div class="navgroup">
         <button class="navtop" type="button" aria-expanded="false">Headsets</button>
         <div class="navmenu" hidden>
-          <a href="#devices" data-view="devices">Headsets</a>
           <a href="#adb" data-view="adb">ADB</a>
           <a href="#companion" data-view="companion">CompanionServer</a>
         </div>
@@ -93,7 +106,6 @@
     </p>
 
     <div class="controls">
-      <input id="q" type="search" placeholder="App name, or an app ID, store link or package name" aria-label="Search the store" autocomplete="off" spellcheck="false">
       <select id="hmd" aria-label="Headset"></select>
       <select id="sort" aria-label="Sort by">
         <option value="relevance" selected>Relevance</option>
@@ -157,8 +169,9 @@
         <option value="deviceAz">Device A–Z</option>
         <option value="deviceZa">Device Z–A</option>
       </select>
-      <button id="mineLoad" type="button">Get Quest entitlements</button>
-      <button id="minePC" type="button">Get PC entitlements</button>
+      <button type="button" data-lib="quest">Get Quest entitlements</button>
+      <button type="button" data-lib="pc">Get PC entitlements</button>
+      <button type="button" data-lib="expired">Get expired entitlements</button>
     </div>
 
     <table>
@@ -174,6 +187,7 @@
           <th scope="col" class="c-used">Last played</th>
           <th scope="col" class="c-state">State</th>
           <th scope="col" class="c-grant">Source</th>
+          <th scope="col" class="c-dlc">DLC</th>
           <th scope="col" class="c-devb">Dev build</th>
         </tr>
       </thead>
@@ -202,6 +216,7 @@
     </div>
 
     <p class="count" id="devicesCount"></p>
+    <p class="hint" id="devicesPresence" hidden></p>
 
     <table>
       <thead>
@@ -232,6 +247,88 @@
         </thead>
         <tbody id="sharedRows"></tbody>
       </table>
+    </div>
+
+  </section>
+
+  <!-- ---------- worlds ---------- -->
+
+  <section id="view-worlds" hidden>
+
+    <h2>Worlds</h2>
+    <p class="sub" id="worldSub">Browse Horizon worlds: the top and trending lists the Horizon app shows, everything one creator has published, any world by its ID, or the ones you have saved. Open one for where it lives, when you were last there and its pictures. Needs your own access token, set in Settings.</p>
+
+    <!-- The same tab strip an opened app has. Each tab keeps its own list, and
+         the table below shows the one whose tab is on. -->
+    <div class="companion-tabs panel-tabs" role="tablist" aria-label="Worlds" id="worldTabs">
+      <button type="button" class="companion-tab on" data-world-tab="top" role="tab" aria-selected="true">Top worlds</button>
+      <button type="button" class="companion-tab" data-world-tab="creator" role="tab" aria-selected="false">Creator</button>
+      <button type="button" class="companion-tab" data-world-tab="lookup" role="tab" aria-selected="false">Look up</button>
+      <button type="button" class="companion-tab" data-world-tab="saved" role="tab" aria-selected="false">Saved</button>
+    </div>
+
+    <div data-world-pane="top">
+      <div class="controls">
+        <select id="worldShelf" aria-label="World list"></select>
+        <button id="worldShelfGo" type="button">Get worlds</button>
+      </div>
+    </div>
+
+    <div data-world-pane="creator" hidden>
+      <div class="controls">
+        <input id="creatorQ" type="search" placeholder="Creator's username or name" aria-label="Creator to find" autocomplete="off" spellcheck="false">
+        <button id="creatorFind" type="button">Find creator</button>
+        <select id="creatorPick" aria-label="Which creator" hidden></select>
+        <button id="creatorGo" type="button" hidden>Get their worlds</button>
+      </div>
+      <p class="hint" id="creatorNote" role="status" hidden></p>
+    </div>
+
+    <div data-world-pane="lookup" hidden>
+      <div class="controls">
+        <input id="worldLookup" type="search" placeholder="World ID or horizon.meta.com world link" aria-label="World to look up" autocomplete="off" spellcheck="false">
+        <button id="worldLookupGo" type="button">Look up world</button>
+      </div>
+      <p class="hint" id="worldLookupNote" role="status" hidden></p>
+    </div>
+
+    <div data-world-pane="saved" hidden>
+      <div class="controls">
+        <button id="worldLoad" type="button">Get saved worlds</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <input id="worldQ" type="search" placeholder="Filter by world name or ID" aria-label="Filter worlds" autocomplete="off" spellcheck="false">
+      <select id="worldSort" aria-label="Sort by">
+        <option value="list">List order</option>
+        <option value="visits">Most visited</option>
+        <option value="online">Most online now</option>
+        <option value="likes">Most liked</option>
+        <option value="az">Name A–Z</option>
+        <option value="za">Name Z–A</option>
+      </select>
+    </div>
+
+    <p class="count" id="worldCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">World</th>
+          <th scope="col">World ID</th>
+          <th scope="col">Visits</th>
+          <th scope="col">Online now</th>
+          <th scope="col">Likes</th>
+        </tr>
+      </thead>
+      <tbody id="worldRows"></tbody>
+    </table>
+
+    <p id="worldEmpty" class="empty" hidden></p>
+
+    <div class="controls">
+      <button id="worldMore" type="button" hidden>Load more</button>
     </div>
 
   </section>
@@ -339,6 +436,51 @@
     </table>
 
     <p id="defaultEmpty" class="empty" hidden></p>
+
+  </section>
+
+  <!-- ---------- horizon+ ---------- -->
+
+  <section id="view-plus" hidden>
+
+    <h2>Horizon+</h2>
+    <p class="sub">The games the Horizon+ subscription offers right now — this month's games to claim, and the catalog that comes and goes. Open one for its channels and build history. Needs your own access token, set in Settings.</p>
+
+    <div class="controls">
+      <button id="plusGo" type="button">Get Horizon+ games</button>
+      <input id="plusQ" type="search" placeholder="Filter these games by name or app ID" aria-label="Filter Horizon+ games" autocomplete="off" spellcheck="false">
+      <select id="plusPick" aria-label="Which games">
+        <option value="">Monthly and catalog</option>
+        <option value="monthly">This month's games</option>
+        <option value="catalog">Games catalog</option>
+      </select>
+      <select id="plusSort" aria-label="Sort by">
+        <option value="relevance">Store order</option>
+        <option value="az">Name A–Z</option>
+        <option value="za">Name Z–A</option>
+      </select>
+      <button id="checkPlus" type="button">Check shown</button>
+    </div>
+
+    <p class="count" id="plusCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">App</th>
+          <th scope="col" class="c-dev">Device</th>
+          <th scope="col" class="c-chan">Channel</th>
+          <th scope="col" class="c-price">Price</th>
+          <th scope="col" class="c-ver">Version</th>
+          <th scope="col" class="c-build">Build</th>
+          <th scope="col" class="c-date">Date</th>
+          <th scope="col" class="c-devb">Dev build</th>
+        </tr>
+      </thead>
+      <tbody id="plusRows"></tbody>
+    </table>
+
+    <p id="plusEmpty" class="empty" hidden></p>
 
   </section>
 
@@ -649,7 +791,7 @@
       <div class="field field--toggle">
         <label class="check">
           <input id="details" type="checkbox">
-          Show the more app info button
+          Show the Latest Binary Info button
         </label>
         <details class="hint">
           <summary>What this does</summary>
@@ -708,10 +850,60 @@
           <summary>What this does</summary>
           <p>
             Fetches your Quest library as soon as the page opens — the same list
-            the <strong>Entitlements</strong> tab shows — so search results
-            and the Meta apps list can flag anything already on your account with
-            a green tint down the left edge. Off by default, since it spends a
-            request on load and needs your own access token to return anything.
+            the <strong>Entitlements</strong> screen shows — so every app list can
+            flag anything already on your account with a green tint down the left
+            edge. Off by default, since it spends a request on load and needs your
+            own access token to return anything.
+          </p>
+        </details>
+      </div>
+
+      <div class="field field--toggle">
+        <label class="check">
+          <input id="autoDlc" type="checkbox">
+          Load all your DLC on start
+        </label>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Fetches every DLC and in-app purchase your account owns as soon as the
+            page opens, so an app's <strong>Entitlement</strong> tab and the DLC
+            column on Entitlements are filled in without pressing
+            <strong>Get DLC</strong>. Off by default: one request on every load,
+            and it needs your own access token.
+          </p>
+        </details>
+      </div>
+
+      <div class="field field--toggle">
+        <label class="check">
+          <input id="autoPlaytime" type="checkbox">
+          Load all your playtime on start
+        </label>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Fetches the last 28 days of playtime on every headset on your account
+            as soon as the page opens, so an app's <strong>Entitlement</strong> tab
+            shows it without pressing <strong>Get playtime</strong>. Off by
+            default: it is one request for the headset list and one per headset,
+            on every load.
+          </p>
+        </details>
+      </div>
+
+      <div class="field field--toggle">
+        <label class="check">
+          <input id="autoBackups" type="checkbox">
+          Load all your cloud backups on start
+        </label>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Fetches every cloud backup Meta keeps for your headsets as soon as the
+            page opens, so an app's <strong>Entitlement</strong> tab lists them
+            without pressing <strong>Get cloud backups</strong>. Off by default:
+            two requests on every load — the headset list and the backups.
           </p>
         </details>
       </div>
@@ -821,6 +1013,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=159"></script>
+<script type="module" src="js/app.js?v=193"></script>
 </body>
 </html>
