@@ -30,3 +30,5 @@ desktop.ini
 # Instructions for Claude Code — guidance for editing this site, not part of it.
 CLAUDE.md
 .claude/
+
+tools/org-download.mjs
