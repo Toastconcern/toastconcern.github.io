@@ -894,6 +894,18 @@ tr.detail > td {
 .revisions .vtable th,
 .revisions .vtable td { white-space: nowrap; }
 
+/* avatar: the facts above the settings table, and each slider as a short bar
+   with its value beside it — the reviews histogram's track and fill. */
+#avatarFacts:empty { display: none; }
+#avatarFacts { margin: .5rem 0 .75rem; }
+.av-slider { display: inline-flex; align-items: center; gap: .6rem; }
+.av-slider .rev-hist-track { display: block; width: 4.5rem; flex: none; }
+.av-slider .rev-hist-fill { display: block; }
+.av-val { font-family: var(--mono); font-size: .8125rem; }
+/* A slider and an item ID each stay on one line in a part's table. */
+.av-table td:last-child { white-space: nowrap; }
+.av-table .av-val { font-size: inherit; }
+
 /* binary manifest */
 
 .info-out:empty { display: none; }
@@ -1846,3 +1858,224 @@ tr.build-detail .panel { font-family: var(--sans, inherit); }
   font-size: .75rem;
   color: var(--muted);
 }
+
+/* ---------- app reviews (the Reviews tab) ---------- */
+.rev-summary {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: .25rem 0 1rem;
+}
+.rev-score-box { flex: none; min-width: 7rem; }
+.rev-score { font-size: 2.5rem; font-weight: 600; line-height: 1; }
+.rev-score-sub { color: var(--muted); font-size: .8rem; margin-top: .3rem; }
+.rev-stars { letter-spacing: 1px; color: var(--text); }
+.rev-stars .off { color: var(--muted); opacity: .4; }
+
+.rev-hist {
+  flex: 1 1 14rem;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  min-width: 12rem;
+}
+.rev-hist-row {
+  display: grid;
+  grid-template-columns: 2rem 1fr 3.5rem;
+  align-items: center;
+  gap: .5rem;
+  font-size: .78rem;
+  color: var(--muted);
+}
+.rev-hist-count { text-align: right; }
+.rev-hist-track {
+  height: .55rem;
+  border-radius: .3rem;
+  background: var(--line);
+  overflow: hidden;
+}
+.rev-hist-fill {
+  height: 100%;
+  min-width: 2px;
+  border-radius: .3rem;
+  background: var(--muted);
+}
+
+.rev-sorts { display: flex; gap: .35rem; margin: 0 0 1rem; }
+.rev-sorts .ptc-btn.on { color: var(--text); border-color: var(--text); font-weight: 600; }
+
+.review { border-top: 1px solid var(--line); padding: .85rem 0; }
+.review:first-child { border-top: 0; padding-top: .25rem; }
+.review-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .35rem; }
+.review-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--field);
+  border: 1px solid var(--border);
+  flex: none;
+}
+.review-who { font-weight: 600; }
+.rev-ea {
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 400;
+  border: 1px solid var(--border);
+  border-radius: .25rem;
+  padding: 0 .3rem;
+  margin-left: .4rem;
+  white-space: nowrap;
+}
+.review-meta {
+  color: var(--muted);
+  font-size: .8rem;
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+}
+.review-meta .rev-stars { font-size: .85rem; }
+.review-title { font-weight: 600; margin: .15rem 0; }
+.review-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-helpful { color: var(--muted); font-size: .8rem; margin-top: .4rem; }
+.review-dev {
+  margin: .6rem 0 0 1rem;
+  padding: .5rem .75rem;
+  border-left: 2px solid var(--border);
+  background: var(--field);
+  border-radius: .25rem;
+  font-size: .92rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.review-dev-label { color: var(--muted); font-size: .76rem; font-weight: 600; margin-bottom: .2rem; }
+
+/* ---------- related apps (the Related tab) ---------- */
+.related-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: .85rem;
+  margin-top: .25rem;
+}
+.related-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: .3rem;
+  padding: .5rem;
+  text-align: left;
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: .5rem;
+  min-height: 0;
+  cursor: pointer;
+}
+.related-tile:hover { background: var(--hover); border-color: var(--line); }
+.related-art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: .35rem;
+  background: var(--panel);
+}
+.related-name {
+  font-weight: 600;
+  font-size: .85rem;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.related-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .15rem .6rem;
+  font-size: .76rem;
+  color: var(--muted);
+}
+.related-price { color: var(--text); }
+.related-genre { font-size: .72rem; color: var(--muted); }
+
+/* ---------- purchases screen ---------- */
+#view-purchases td { vertical-align: middle; }
+/* Load more reads as a pagination control under the table, not a stray button. */
+#purchasesMoreBar {
+  justify-content: center;
+  margin-top: 1rem;
+  margin-bottom: 0;
+}
+.purchase-item {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+.purchase-item .art {
+  width: 34px;
+  height: 34px;
+  border-radius: .35rem;
+  object-fit: cover;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  flex: none;
+}
+.purchase-name { display: flex; flex-direction: column; gap: .1rem; min-width: 0; }
+.purchase-kind { font-size: .72rem; color: var(--muted); text-transform: capitalize; }
+.purchase-pay { white-space: nowrap; color: var(--muted); }
+.pill {
+  display: inline-block;
+  font-size: .7rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: .25rem;
+  padding: 0 .35rem;
+  margin-left: .3rem;
+  white-space: nowrap;
+}
+
+/* ---------- add-ons (DLC) tab ---------- */
+.addons-pane .addon-desc { color: var(--muted); font-size: .82rem; margin-top: .15rem; }
+.addons-pane .addon-pricecell { white-space: nowrap; text-align: right; }
+.addon-price { font-weight: 600; }
+.addon-was { color: var(--muted); text-decoration: line-through; font-size: .85rem; margin-right: .3rem; }
+.addon-owned { color: var(--green); font-weight: 600; }
+.addons-pane tr.owned td { background: color-mix(in srgb, var(--green) 9%, transparent); }
+
+/* ---------- achievements tab ---------- */
+.ach-grid { display: grid; gap: .6rem; margin-top: .25rem; }
+.ach {
+  display: flex;
+  gap: .7rem;
+  align-items: flex-start;
+  padding: .6rem;
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: var(--field);
+}
+.ach.on { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }
+.ach:not(.on) { opacity: .72; }
+.ach-art {
+  width: 46px;
+  height: 46px;
+  border-radius: .35rem;
+  object-fit: cover;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  flex: none;
+}
+.ach:not(.on) .ach-art { filter: grayscale(1); }
+.ach-body { min-width: 0; }
+.ach-title { font-weight: 600; }
+.ach-tick { color: var(--green); }
+.ach-desc { color: var(--muted); font-size: .85rem; margin-top: .15rem; }
+.ach-prog { color: var(--muted); font-size: .78rem; margin-top: .25rem; }
+
+/* ---------- release notes (Builds tab) ---------- */
+.relnotes { margin: .75rem 0; }
+.relnote-list { display: grid; gap: .75rem; }
+.relnote { border-left: 2px solid var(--border); padding: .1rem 0 .1rem .75rem; }
+.relnote-ver { font-weight: 600; }
+.relnote-code { color: var(--muted); font-weight: 400; font-size: .8rem; margin-left: .35rem; }
+.relnote-body { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: .2rem; color: var(--text); }

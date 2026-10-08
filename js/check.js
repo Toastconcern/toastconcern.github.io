@@ -1931,17 +1931,68 @@ export async function worldDetails(world) {
 const WORLD_CONTENT_DOC_ID = "21452207710938225055198250166";
 const WORLD_STREAMING_DOC_ID = "1322008781734439435276996443";
 
-/** { beta, streamable } — either is null when the store would not say. */
+/* WorldDoorInfoPanelImplQuery and XScreenDoorContainerQuery, from the Horizon
+   Worlds desktop editor: the panel a world's door shows — its creator, comfort
+   rating and description, whether phones/desktops and mixed reality can visit,
+   how many are in its best instance, and the large screenshot. Plain doc_id
+   Relay queries; their variables (`world_id`, `application_id`,
+   `large_image_size`) were read out of the editor's ReactVR bundle. */
+const WORLD_DOOR_DOC_ID = "30578118995168669";
+const WORLD_XSCREEN_DOC_ID = "25515318978074838";
+/* HorizonWorldDoorsQuery, from the editor's C# client (multifetch by `ids`):
+   capacity, maturity rating, members-only, publish privacy and whether search
+   lists it — the fields of a world's door that answer a web token. */
+const WORLD_DOORS_DOC_ID = "24918885697713173";
+/* CoordinatedTravelPortalWorldInformationQuery, also from the C# client (by
+   `id`): whether under-18s may enter, and which runtime the world is built for
+   (HUR or HSR, as the editor names them). */
+const WORLD_PORTAL_INFO_DOC_ID = "24888047720798282";
+const HORIZON_APP_ID = "2057013231240274";
+
+const bool = (v) => (typeof v === "boolean" ? v : null);
+
+/**
+ * { beta, streamable, creator, creatorImage, comfort, description, xscreen,
+ *   mixedReality, playersNow, screenshot, capacity, maturity, membersOnly, privacy,
+ *   searchable, youth, runtime } — each null when the store would not say.
+ */
 export async function worldFlags(id) {
-  const [content, streaming] = await Promise.allSettled([
+  const [content, streaming, door, xscreen, portal, info] = await Promise.allSettled([
     accountQuery(WORLD_CONTENT_DOC_ID, { world_id: String(id) }, "World details"),
     accountQuery(WORLD_STREAMING_DOC_ID, { worldId: String(id) }, "World details"),
+    relayQuery(WORLD_DOOR_DOC_ID, { world_id: String(id) }, "World details"),
+    relayQuery(
+      WORLD_XSCREEN_DOC_ID,
+      { application_id: HORIZON_APP_ID, world_id: String(id), large_image_size: 512 },
+      "World details"
+    ),
+    relayQuery(WORLD_DOORS_DOC_ID, { ids: [String(id)] }, "World details"),
+    relayQuery(WORLD_PORTAL_INFO_DOC_ID, { id: String(id) }, "World details"),
   ]);
-  const beta = content.value?.xoc_horizon_worlds_content?.is_beta;
-  const streamable = streaming.value?.fetch__XFBHorizonWorld?.is_mhe_native_experience_enabled;
+  const i = info.value?.world;
+  const p = portal.value?.multifetch__XFBHorizonWorld?.[0]?.node;
+  const capacity = Number(p?.capacity);
+  const d = door.value?.fetch__XFBHorizonWorld;
+  const x = xscreen.value?.fetch__XFBHorizonWorld;
+  const players = Number(x?.population_for_best_instance);
   return {
-    beta: typeof beta === "boolean" ? beta : null,
-    streamable: typeof streamable === "boolean" ? streamable : null,
+    beta: bool(content.value?.xoc_horizon_worlds_content?.is_beta),
+    streamable: bool(streaming.value?.fetch__XFBHorizonWorld?.is_mhe_native_experience_enabled),
+    creator: d?.owner_together_app_user?.owner_name ?? null,
+    creatorImage: d?.owner_together_app_user?.image_source_uri ?? null,
+    comfort: d?.comfort_level ?? null,
+    description: d?.localized_description ?? x?.localized_description ?? null,
+    xscreen: bool(d?.is_world_xscreen_visitable ?? x?.is_world_xscreen_visitable),
+    mixedReality: bool(d?.is_world_mr_visitable ?? x?.is_world_mr_visitable),
+    playersNow: Number.isFinite(players) && x?.population_for_best_instance != null ? players : null,
+    screenshot: x?.large_primary_screenshot?.image_uri ?? i?.primary_screenshot?.image_large_uri ?? null,
+    capacity: Number.isFinite(capacity) && capacity > 0 ? capacity : null,
+    maturity: p?.maturity_rating ?? null,
+    membersOnly: bool(p?.is_members_only),
+    privacy: p?.published_privacy ?? null,
+    searchable: bool(p?.searchable_when_public),
+    youth: i?.youth_content_gating_status ?? null,
+    runtime: i?.runtime_env ?? null,
   };
 }
 
@@ -2065,6 +2116,339 @@ export async function publishedWorlds(userId, cursor = null) {
   return worldPage(data.user?.world_data?.published_worlds_list);
 }
 
+/* OCStoreDiscoReviewsSurfaceQuery and OCStoreDiscoReviewsViewItemQuery, from
+   the Horizon phone app's store. The store's own star ratings and written
+   reviews for any app, by its store ID — the same data the PDP shows. The
+   summary query carries the average, the per-star histogram and the counts;
+   the list query pages the reviews themselves. Public store data, so the
+   built-in token reads them like it reads public LIVE builds. The variable
+   shapes — the summary's `itemID` with `ratingScores`/`sortOrder` left null,
+   and the list's `id`+`itemID` with `sort_order` one of the two orderings the
+   store returns — were read off a real request. */
+const REVIEWS_SUMMARY_DOC_ID = "29127926413476795";
+const REVIEWS_LIST_DOC_ID = "27358267370522650";
+
+/* The sort orders the store offers its own reviews in, as [value, label]. The
+   values are the `key`s of the store's `ordering_reviews`. */
+export const REVIEW_SORTS = [
+  ["top", "Most relevant"],
+  ["most_recent", "Most recent"],
+];
+
+/**
+ * An app's rating summary: the average, how many rated and reviewed it, and the
+ * 1–5 star breakdown.
+ * { score, scoreText, ratingCount, ratingCountText, reviewCount,
+ *   histogram: [{ star, count }] newest-first 5→1, canReview }
+ */
+export async function appReviewSummary(appId) {
+  const data = await relayQuery(
+    REVIEWS_SUMMARY_DOC_ID,
+    { itemID: String(appId), ratingScores: null, sortOrder: null },
+    "App reviews"
+  );
+  const it = data.item;
+  if (!it) throw new Error("the store has no page for this app");
+  const histogram = (it.quality_rating_histogram_aggregate_all ?? [])
+    .map((h) => ({ star: Number(h?.star_rating), count: Number(h?.count) || 0 }))
+    .filter((h) => h.star >= 1 && h.star <= 5)
+    .sort((a, b) => b.star - a.star);
+  const ratingCount = Number(it.quality_rating_count);
+  return {
+    score: typeof it.quality_rating_score === "number" ? it.quality_rating_score : null,
+    scoreText: it.quality_rating_i18n_score_string ?? null,
+    ratingCount: Number.isFinite(ratingCount) ? ratingCount : null,
+    ratingCountText: it.quality_rating_i18n_count_string ?? null,
+    reviewCount: Number(it.quality_review_count) || 0,
+    histogram,
+    canReview: Boolean(it.can_viewer_review),
+  };
+}
+
+/**
+ * One page of an app's written reviews.
+ * { reviews: [{ id, title, body, score, helpful, date, earlyAccess,
+ *               author: { name, alias, image }, devResponse }], cursor }
+ * cursor is null on the last page.
+ */
+export async function appReviews(appId, { count = 15, cursor = null, sort = "top" } = {}) {
+  const data = await relayQuery(
+    REVIEWS_LIST_DOC_ID,
+    { count, cursor, id: String(appId), itemID: String(appId), rating_scores: null, sort_order: sort },
+    "App reviews"
+  );
+  const conn = data.node?.user_reviews2;
+  const reviews = (conn?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.id)
+    .map((n) => {
+      const dr = n.developer_response;
+      return {
+        id: String(n.id),
+        title: n.translated_review_title ?? n.review_title ?? null,
+        body: n.translated_review_description ?? n.review_description ?? null,
+        score: Number(n.score) || null,
+        helpful: Number(n.review_helpful_count) || 0,
+        /* Seconds since the epoch. */
+        date: Number(n.date) || null,
+        earlyAccess: Boolean(n.is_early_access_review),
+        author: {
+          name: n.author?.display_name ?? n.author?.alias ?? "Anonymous",
+          alias: n.author?.alias ?? null,
+          image: n.author?.profile_photo?.uri ?? null,
+        },
+        /* Rare, and its body comes back under one of a couple of names. */
+        devResponse: dr
+          ? n.translated_developer_response_body ?? dr.body ?? dr.review_description ?? null
+          : null,
+      };
+    });
+  return {
+    reviews,
+    cursor: conn?.page_info?.has_next_page ? conn.page_info.end_cursor : null,
+  };
+}
+
+/* OCPDPRelatedItemsQueryRendererQuery: the store's "More like this" — the apps
+   its PDP recommends beside this one. By app ID like the rest of the store
+   queries; `encode` is the image format the art comes back in ("PNG"), and two
+   relay provider flags the query declares ride along, off. The variable shape
+   (appID + encode + the two providers) was read off a real request. */
+const RELATED_DOC_ID = "28273925445606615";
+
+/**
+ * The store's related apps for an app.
+ * [{ id, name, image, score, ratings, price, genres }] — `id` opens straight
+ * into the same panel the search box would, `price` is the store's own display
+ * string ("$24.99", "Free", "Purchased").
+ */
+export async function relatedApps(appId) {
+  const data = await relayQuery(
+    RELATED_DOC_ID,
+    {
+      appID: String(appId),
+      encode: "PNG",
+      __relay_internal__pv__IsInternUserIndicatorEnabledrelayprovider: false,
+      __relay_internal__pv__horizonPlusBadgerelayprovider: false,
+    },
+    "Related apps"
+  );
+  const edges = data.app?.related_items_with_ranking_trace?.edges ?? [];
+  return edges
+    .map((e) => e?.node)
+    .filter((n) => n?.id)
+    .map((n) => ({
+      id: String(n.id),
+      name: n.display_unit_title ?? n.display_name ?? String(n.id),
+      image: n.assets?.cover_square_image_small?.uri ?? n.assets?.icon_list_image_small?.uri ?? null,
+      score: n.quality_rating_i18n_score_string ?? null,
+      ratings: n.quality_rating_i18n_count_string ?? null,
+      price: n.price_or_status_display?.text ?? null,
+      genres: Array.isArray(n.genre_names) ? n.genre_names : [],
+    }));
+}
+
+/* AppReleaseNotesQuery (from the PC client): the per-version changelog text for
+   an app — the human "what's new" the mobile store query only ever returned
+   null for. By app ID; the notes hang off each supported binary. Returns a map
+   of versionCode -> { version, notes } so the Builds tab can caption each build.
+   Variable shape (just `id`) read off a real request. */
+const RELEASE_NOTES_DOC_ID = "9533163156782107";
+
+/** Map<versionCode(string), { version, notes }> — only versions that have notes. */
+export async function releaseNotes(appId) {
+  const data = await relayQuery(RELEASE_NOTES_DOC_ID, { id: String(appId) }, "Release notes");
+  const edges = data.node?.supportedBinaries?.edges ?? [];
+  const map = new Map();
+  for (const e of edges) {
+    const n = e?.node;
+    if (!n?.versionCode) continue;
+    const notes = (n.changeLog ?? "").trim() || (n.richChangeLog ?? "").trim();
+    if (notes) map.set(String(n.versionCode), { version: n.version ?? null, notes });
+  }
+  return map;
+}
+
+/* RelayLocalUserQuery (from the PC client, no variables): the viewer's own user
+   ID — needed to key the per-user achievements query. Fetched once a session. */
+const VIEWER_DOC_ID = "9593089467434564";
+let _viewerId = null;
+export async function viewerId() {
+  if (_viewerId) return _viewerId;
+  const data = await relayQuery(VIEWER_DOC_ID, {}, "Account");
+  const id = data.viewer?.user?.id;
+  if (!id) throw new Error("the store would not say who this token belongs to");
+  _viewerId = String(id);
+  return _viewerId;
+}
+
+/* AppDownloadableContentSectionQuery (from the PC client): an app's purchasable
+   add-ons / DLC / in-app items — the catalog, with each item's price and whether
+   this account already owns it. The connection sits under the app's latest
+   binary; it is paged by `first`+`after` (forward), and the total `count` tells
+   us when there is no more (the connection has no has_next_page). The variable
+   shape (id + first/after + the forward/before/last cursor fields) was read off
+   a real request. */
+const ADDONS_DOC_ID = "10041200072603920";
+const ADDONS_PAGE = 24;
+
+/**
+ * One page of an app's add-ons.
+ * { items: [{ id, name, description, owned, price, strikethrough, offerType }],
+ *   total, cursor }  — cursor is null once everything is loaded.
+ */
+export async function appAddons(appId, { count = ADDONS_PAGE, cursor = null, loaded = 0 } = {}) {
+  const data = await relayQuery(
+    ADDONS_DOC_ID,
+    { id: String(appId), first: count, forward: true, after: cursor, before: null, last: null },
+    "Add-ons"
+  );
+  const conn = data.node?.latest_supported_binary?.firstIapItems;
+  const edges = conn?.edges ?? [];
+  const items = edges
+    .map((e) => e?.node)
+    .filter((n) => n?.id)
+    .map((n) => ({
+      id: String(n.id),
+      name: n.display_name ?? String(n.id),
+      description: n.display_short_description ?? null,
+      owned: Boolean(n.is_viewer_entitled),
+      price: n.current_offer?.price?.formatted ?? null,
+      strikethrough: n.current_offer?.strikethrough_price?.formatted ?? null,
+      offerType: n.current_offer?.offer_type ?? null,
+    }));
+  const total = Number(conn?.count) || 0;
+  const nextLoaded = loaded + items.length;
+  return {
+    items,
+    total,
+    /* No has_next_page on this connection — more remains while we're short of
+       the reported total and the store still handed back a page. */
+    cursor: items.length && nextLoaded < total ? conn?.page_info?.end_cursor ?? null : null,
+  };
+}
+
+/* ProfileAppAchievmentsQuery (from the PC client): an app's achievements and
+   THIS account's progress in each. By app ID + the viewer's user ID. Returns
+   the definitions with art, the unlock description, whether each is secret, and
+   `progress_for_user` (unlocked / count / bitfield). Verified off a real request. */
+const ACHIEVEMENTS_DOC_ID = "9661547673890799";
+
+/**
+ * An app's achievements with the account's progress.
+ * { achievements: [{ id, title, description, unlockedDescription, type, target,
+ *     secret, unlocked, countProgress, image }], earned, total, secretRemaining }
+ */
+export async function appAchievements(appId) {
+  const uid = await viewerId();
+  const data = await relayQuery(ACHIEVEMENTS_DOC_ID, { appId: String(appId), userId: uid }, "Achievements");
+  const ps = data.node?.platform_services;
+  if (!ps) throw new Error("the store has no achievements for this app");
+  const achievements = (ps.achievement_definitions?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.id)
+    .map((n) => {
+      const unlocked = Boolean(n.progress_for_user?.is_unlocked);
+      return {
+        id: String(n.id),
+        title: n.title ?? null,
+        description: (unlocked && n.unlocked_description_override) || n.description || null,
+        type: n.achievement_type ?? null,
+        target: Number(n.target) || 0,
+        secret: Boolean(n.is_secret),
+        unlocked,
+        countProgress: Number(n.progress_for_user?.count_progress) || 0,
+        image: (unlocked ? n.unlocked_image?.uri : n.locked_image?.uri) ?? n.locked_image?.uri ?? null,
+      };
+    });
+  return {
+    achievements,
+    earned: achievements.filter((a) => a.unlocked).length,
+    total: achievements.length,
+    secretRemaining: Number(ps.unearned_secret_achievement_count) || 0,
+  };
+}
+
+/* OCPurchaseHistorySurfaceQuery / OCPurchaseHistoryViewQuery: the account's
+   order history — every purchase with what was paid, when, its status, and the
+   card or credit it went on. The surface query takes no variables and carries
+   the first page off `viewer.user.payment_account.digital_orders`; the view
+   query pages it by the payment account's own ID (`encode` is the art format).
+   Account-gated, so the user's own token is needed. Shapes read off a real
+   request (values never recorded). */
+const PURCHASES_DOC_ID = "28070162192637804";
+const PURCHASES_PAGE_DOC_ID = "27988212250838578";
+
+/* One connection of digital orders -> a flat list the Purchases screen draws. */
+function parsePurchases(conn, accountId) {
+  const orders = (conn?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.id)
+    .map((n) => {
+      const a = n.app_store_item ?? {};
+      const pm = n.payment_method;
+      const payment = pm
+        ? `${pm.card_type ?? pm.display_name ?? "Card"}${pm.last4 ? ` ••${pm.last4}` : ""}`
+        : n.is_platform_currency
+          ? "Meta credit"
+          : n.funding_source ?? null;
+      return {
+        id: String(n.id),
+        name: a.display_name ?? a.display_unit_title ?? String(a.id ?? n.id),
+        image:
+          a.icon_image?.uri ??
+          a.cover_square_image?.uri ??
+          a.parent_application?.icon_image?.uri ??
+          a.parent_application?.cover_square_image?.uri ??
+          null,
+        amount: n.purchase?.total?.formatted ?? null,
+        /* Seconds since the epoch. */
+        date: Number(n.purchase?.purchase_time) || Number(n.purchase?.creation_time) || null,
+        status: n.order_status ?? null,
+        refundStatus: n.refund_status ?? null,
+        refundable: Boolean(n.item_entitlement?.is_refundable),
+        payment,
+        /* Empty for a whole app; set for DLC / in-app purchases. */
+        iapType: a.iap_type ?? null,
+        /* The app this order is for, so a row can open it. A DLC/IAP order's
+           own item ID isn't an app, so prefer the parent application when there
+           is one; a whole-app order has no parent and uses its own ID. */
+        appId: a.parent_application?.id ? String(a.parent_application.id) : a.id ? String(a.id) : null,
+      };
+    });
+  return {
+    accountId: accountId ? String(accountId) : null,
+    orders,
+    cursor: conn?.page_info?.has_next_page ? conn.page_info.end_cursor : null,
+  };
+}
+
+/** { accountId, orders: [...], cursor } — the first page of the account's purchases.
+    `accountId` is the viewer's user ID: the page query is keyed by it, not by the
+    payment account (which does not resolve as a node). */
+export async function purchaseHistory() {
+  const data = await relayQuery(PURCHASES_DOC_ID, {}, "Purchases");
+  const user = data.viewer?.user;
+  const acct = user?.payment_account;
+  if (!acct) throw new Error("the store returned no purchase history for this account");
+  return parsePurchases(acct.digital_orders, user.id);
+}
+
+/* How many orders a page of history asks for. A page that comes back short is
+   the last one, whatever has_next_page claims. */
+export const PURCHASES_PAGE = 20;
+
+/** One more page of purchases, keyed by the viewer's user ID. The page query
+    returns the orders nested under the user's payment account. */
+export async function morePurchases(accountId, cursor) {
+  const data = await relayQuery(
+    PURCHASES_PAGE_DOC_ID,
+    { count: PURCHASES_PAGE, cursor, encode: "PNG", id: String(accountId) },
+    "Purchases"
+  );
+  return parsePurchases(data.node?.payment_account?.digital_orders, accountId);
+}
+
 /* HorizonPlusItemsQuery: the Horizon+ subscription's games — the monthly
    claimable ones, and the rotating catalog. No variables. The apps are plain
    store apps, so they come back in the shape every list renders. */
@@ -2104,17 +2488,82 @@ export async function horizonPlus() {
    No variables. */
 const PRESENCE_DOC_ID = "30449252678782676021745973837";
 
-/** { lastActive, current, app, destination } or null when there is none. */
+/* ViewerRosterFollowStatusQuery, from the Horizon Worlds desktop editor's C#
+   client: the same presence, plus whether it is in a lobby or a match and how
+   many are in the lobby with it. No variables. */
+const ROSTER_DOC_ID = "9609976019080474";
+
+/** { lastActive, current, app, destination, lobby, match, party } or null when there is none. */
 export async function recentPresence() {
-  const data = await accountQuery(PRESENCE_DOC_ID, {}, "Last active");
+  const [data, roster] = await Promise.all([
+    accountQuery(PRESENCE_DOC_ID, {}, "Last active"),
+    relayQuery(ROSTER_DOC_ID, {}, "Last active").catch(() => null),
+  ]);
   const p = data.viewer?.user?.most_recent_presence;
   if (!p) return null;
+  const r = roster?.viewer?.user;
+  const party = Number(r?.lobby_roster?.count);
   return {
+    lobby: r ? Boolean(r.most_recent_presence?.lobby_session_id) : null,
+    match: r ? Boolean(r.most_recent_presence?.match_session_id) : null,
+    party: Number.isFinite(party) && party > 0 ? party : null,
     /* Seconds since the epoch. */
     lastActive: Number(p.vr_last_active_time) || null,
     current: Boolean(p.is_current),
     app: p.application?.display_name ?? p.application?.name ?? null,
     destination: p.destination_api_name ?? null,
+  };
+}
+
+/* ---------- avatar, from the Horizon Worlds desktop editor ----------
+   Three account-only queries the editor runs before it opens the avatar editor
+   (doc_ids out of its C# client and ReactVR bundle; none takes a real variable):
+   AvatarStyle2Query — the style this account's avatar is on and whether it has
+   to move; AvatarHorizonGatingHookQuery — the one avatar gate the editor checks;
+   AvatarDynamicInitialInfoPanelQuery — every saved setting of the avatar: the
+   chosen item for each part, and each slider's value. */
+const AVATAR_STYLE_DOC_ID = "8293863540666138";
+const AVATAR_GATING_DOC_ID = "28812331135048217";
+const AVATAR_CONFIG_DOC_ID = "23879280514998626";
+
+/** "FLOAT_RANGE:float:0.5" / "BOOL:bool:true" / "<asset>:id:<item>" as { kind, value, asset }. */
+function avatarValue(raw) {
+  const [head, kind, ...rest] = String(raw ?? "").split(":");
+  const value = rest.join(":");
+  if (kind === "float") return { kind: "slider", value: Number(value) };
+  if (kind === "bool") return { kind: "switch", value: value === "true" };
+  if (kind === "id") return { kind: "item", value, asset: head };
+  return { kind: "other", value: String(raw ?? "") };
+}
+
+/**
+ * { style, hasAvatar, eligible, migrate, blockedForOs, gates: [[name, on]],
+ *   settings: [{ key, kind, value, asset }] } — parts the store would not say are null.
+ */
+export async function avatarInfo() {
+  const [style, gating, config] = await Promise.allSettled([
+    relayQuery(AVATAR_STYLE_DOC_ID, {}, "Avatar"),
+    relayQuery(AVATAR_GATING_DOC_ID, { data: {} }, "Avatar"),
+    relayQuery(AVATAR_CONFIG_DOC_ID, { data: {} }, "Avatar"),
+  ]);
+  if (style.status === "rejected" && gating.status === "rejected" && config.status === "rejected") {
+    throw style.reason;
+  }
+  const s = style.value?.avatar_vr_convergence_2;
+  const gates = Object.entries(gating.value?.avatar_horizon_gating_values ?? {}).filter(
+    ([, v]) => typeof v === "boolean"
+  );
+  const entries = config.value?.dyn_editor_info?.config_entries ?? [];
+  return {
+    style: s?.avatar_style_id ?? null,
+    hasAvatar: bool(s?.has_existing_avatar),
+    eligible: bool(s?.is_style_2_eligible),
+    migrate: bool(s?.should_user_migrate),
+    blockedForOs: bool(s?.should_block_user_for_os_update),
+    gates,
+    settings: entries
+      .filter((e) => e?.entry_key)
+      .map((e) => ({ key: String(e.entry_key), ...avatarValue(e.serialized_entry_value) })),
   };
 }
 

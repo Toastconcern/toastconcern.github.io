@@ -26,8 +26,19 @@ import {
   searchPeople,
   publishedWorlds,
   worldFlags,
+  appReviewSummary,
+  appReviews,
+  REVIEW_SORTS,
+  relatedApps,
+  appAddons,
+  appAchievements,
+  releaseNotes,
+  purchaseHistory,
+  morePurchases,
+  PURCHASES_PAGE,
   horizonPlus,
   recentPresence,
+  avatarInfo,
   devicePTCStatus,
   accountDevices,
   orgApps,
@@ -46,7 +57,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=198";
+} from "./check.js?v=211";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -313,6 +324,24 @@ const el = {
   viewMine: document.getElementById("view-mine"),
   mineRows: document.getElementById("mineRows"),
   mineSub: document.getElementById("mineSub"),
+
+  viewPurchases: document.getElementById("view-purchases"),
+  viewAvatar: document.getElementById("view-avatar"),
+  avatarLoad: document.getElementById("avatarLoad"),
+  avatarQ: document.getElementById("avatarQ"),
+  avatarFacts: document.getElementById("avatarFacts"),
+  avatarCount: document.getElementById("avatarCount"),
+  avatarRows: document.getElementById("avatarRows"),
+  avatarEmpty: document.getElementById("avatarEmpty"),
+  purchasesLoad: document.getElementById("purchasesLoad"),
+  purchasesMore: document.getElementById("purchasesMore"),
+  purchasesMoreBar: document.getElementById("purchasesMoreBar"),
+  purchasesShowPay: document.getElementById("purchasesShowPay"),
+  purchasesQ: document.getElementById("purchasesQ"),
+  purchasesRows: document.getElementById("purchasesRows"),
+  purchasesSub: document.getElementById("purchasesSub"),
+  purchasesCount: document.getElementById("purchasesCount"),
+  purchasesEmpty: document.getElementById("purchasesEmpty"),
   mineEmpty: document.getElementById("mineEmpty"),
   mineQ: document.getElementById("mineQ"),
   mineSort: document.getElementById("mineSort"),
@@ -359,6 +388,27 @@ const media = new Map();
    app and a build found through one channel stays found. */
 const obbs = new Map();
 
+/* App ID -> its reviews once the Reviews tab has fetched them:
+   { summary, reviews: [...], cursor, sort }. Kept so the tab comes back filled
+   after a redraw, and so re-sorting keeps the summary rather than refetching
+   it. The summary is one fetch per app; the list refetches on a sort change. */
+const reviewCache = new Map();
+
+/* App ID -> its related apps once the Related tab has fetched them, so the tab
+   comes back filled after a redraw. */
+const relatedCache = new Map();
+
+/* App ID -> its add-ons once the Add-ons tab has fetched them:
+   { items, total, cursor }. Paged a chunk at a time. */
+const addonsCache = new Map();
+
+/* App ID -> its achievements and this account's progress once fetched. */
+const achCache = new Map();
+
+/* App ID -> Map(versionCode -> {version, notes}) once the Builds tab's Release
+   notes button has fetched them. */
+const relNotesCache = new Map();
+
 /* Release-channel IDs already looked up, so a re-check of the same app never
    fires the same channel query twice. */
 const obbChecked = new Set();
@@ -385,6 +435,19 @@ let devicesNote = "";
    is loading — playtime and backups can start together — waits for the same
    one rather than reading an empty list. */
 let devicesPromise = null;
+
+/* Purchases screen state (declared up here for the same reason as the devices
+   state: initPurchases runs during module setup). `accountId` is the payment
+   account the first page returns, which Load more pages by. */
+let purchasesState = { orders: [], accountId: null, cursor: null, asked: false, loading: false, note: "" };
+/* Avatar screen state, up here for the same reason: initAvatar runs during
+   module setup. */
+let avatarState = { data: null, asked: false, loading: false, note: "" };
+/* The parts opened to their settings table, by name. */
+const avatarOpen = new Set();
+/* Payment methods (card type + last4) are sensitive, so they are masked until
+   asked for — like the headset serials. */
+let showPayment = false;
 
 /* Serials identify a specific headset, so they are masked until asked for. The
    filter box still searches the real value either way. */
@@ -507,6 +570,8 @@ initViews();
 initSettings();
 initOrgs();
 initDevices();
+initPurchases();
+initAvatar();
 initAccountTabs();
 initDefault();
 initPlus();
@@ -1076,10 +1141,12 @@ function applyView() {
   closeStage({ animate: false });
 
   const hash = location.hash.replace("#", "");
-  const view = ["mine", "devices", "worlds", "orgs", "default", "plus", "adb", "companion", "settings"].includes(hash) ? hash : "apps";
+  const view = ["mine", "purchases", "avatar", "devices", "worlds", "orgs", "default", "plus", "adb", "companion", "settings"].includes(hash) ? hash : "apps";
 
   el.viewApps.hidden = view !== "apps";
   el.viewMine.hidden = view !== "mine";
+  el.viewPurchases.hidden = view !== "purchases";
+  el.viewAvatar.hidden = view !== "avatar";
   el.viewDevices.hidden = view !== "devices";
   el.viewWorlds.hidden = view !== "worlds";
   el.viewOrgs.hidden = view !== "orgs";
@@ -1090,7 +1157,7 @@ function applyView() {
   el.viewSettings.hidden = view !== "settings";
 
   if (view === "companion") {
-    import("./companion.js?v=198")
+    import("./companion.js?v=211")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -1109,7 +1176,7 @@ function applyView() {
      would have to be kept on the page to be animated, and it is the arriving
      one the reader is looking for. */
   play(
-    [el.viewApps, el.viewMine, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
+    [el.viewApps, el.viewMine, el.viewPurchases, el.viewAvatar, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
@@ -1819,6 +1886,331 @@ async function fetchDevices() {
   }
 }
 
+/* ---------- purchases ----------
+   The account's order history, its own screen under User. Nothing until Get
+   purchases; then Load more pages it, keyed by the payment account the first
+   page named. Filtered by name client-side, like the other account lists. */
+
+function initPurchases() {
+  el.purchasesLoad.addEventListener("click", fetchPurchases);
+  el.purchasesMore.addEventListener("click", loadMorePurchases);
+  el.purchasesShowPay.addEventListener("click", () => {
+    showPayment = !showPayment;
+    el.purchasesShowPay.textContent = showPayment ? "Hide payment" : "Show payment";
+    renderPurchases();
+  });
+  el.purchasesQ.addEventListener("input", renderPurchases);
+  el.purchasesRows.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-open-app]");
+    if (row) openAppById(row.dataset.openApp);
+  });
+  renderPurchases();
+}
+
+async function fetchPurchases() {
+  purchasesState.asked = true;
+  purchasesState.loading = true;
+  purchasesState.note = "";
+  el.purchasesLoad.disabled = true;
+  el.purchasesLoad.textContent = "Loading…";
+  renderPurchases();
+
+  try {
+    const page = await purchaseHistory();
+    purchasesState.orders = page.orders;
+    purchasesState.accountId = page.accountId;
+    /* A first page that comes back short is all there is, whatever the store's
+       has_next_page says — so Load more stays hidden. */
+    purchasesState.cursor = page.orders.length >= PURCHASES_PAGE ? page.cursor : null;
+  } catch (err) {
+    purchasesState.orders = [];
+    purchasesState.cursor = null;
+    purchasesState.note = err.message || "Could not load your purchases.";
+  } finally {
+    purchasesState.loading = false;
+    el.purchasesLoad.disabled = false;
+    el.purchasesLoad.textContent = "Get purchases";
+    renderPurchases();
+  }
+}
+
+async function loadMorePurchases() {
+  if (!purchasesState.cursor || !purchasesState.accountId) return;
+  el.purchasesMore.disabled = true;
+  el.purchasesMore.textContent = "Loading…";
+  try {
+    const page = await morePurchases(purchasesState.accountId, purchasesState.cursor);
+    /* De-dupe on ID, in case a page boundary repeats an order. */
+    const seen = new Set(purchasesState.orders.map((o) => o.id));
+    const fresh = page.orders.filter((o) => !seen.has(o.id));
+    purchasesState.orders.push(...fresh);
+    /* The store keeps claiming another page even on the last one, so don't
+       trust its cursor alone: a short page (fewer than asked for) is the end,
+       and a page that adds nothing is too. Either way drop the cursor and the
+       Load more button goes with it. */
+    const full = page.orders.length >= PURCHASES_PAGE;
+    purchasesState.cursor = full && fresh.length ? page.cursor : null;
+  } catch (err) {
+    purchasesState.note = err.message || "Could not load more purchases.";
+  } finally {
+    el.purchasesMore.disabled = false;
+    el.purchasesMore.textContent = "Load more";
+    renderPurchases();
+  }
+}
+
+function renderPurchases() {
+  const { orders, asked, loading, note, cursor } = purchasesState;
+  const q = el.purchasesQ.value.trim().toLowerCase();
+  const shown = q ? orders.filter((o) => o.name.toLowerCase().includes(q)) : orders;
+
+  el.purchasesRows.innerHTML = shown
+    .map((o) => {
+      const refund =
+        o.refundStatus && !/^(none|not_refunded|no_refund)/i.test(o.refundStatus)
+          ? ` <span class="pill">${esc(prettyStatus(o.refundStatus))}</span>`
+          : "";
+      const art = o.image
+        ? `<img class="art" src="${esc(o.image)}" alt="" loading="lazy">`
+        : `<span class="art"></span>`;
+      const kind = o.iapType ? `<span class="purchase-kind">${esc(prettyStatus(o.iapType))}</span>` : "";
+      const pay = o.payment == null ? "—" : showPayment ? esc(o.payment) : "••••";
+      const nameCell = o.appId
+        ? `<button type="button" class="linkbtn" data-open-app="${esc(o.appId)}" title="Open ${esc(
+            o.name
+          )}">${esc(o.name)}</button>`
+        : esc(o.name);
+      return `<tr>
+          <td><div class="purchase-item">${art}<span class="purchase-name">${nameCell}${kind}</span></div></td>
+          <td>${esc(o.amount ?? "—")}</td>
+          <td>${o.date ? isoDay(o.date) : "—"}</td>
+          <td>${esc(prettyStatus(o.status) || "—")}${refund}</td>
+          <td class="purchase-pay">${pay}</td>
+        </tr>`;
+    })
+    .join("");
+
+  el.purchasesCount.textContent = asked && !loading
+    ? note
+      ? ""
+      : `${bigNumber(shown.length)}${q && shown.length !== orders.length ? ` of ${bigNumber(orders.length)}` : ""} ${
+          orders.length === 1 && !q ? "purchase" : "purchases"
+        }`
+    : "";
+
+  el.purchasesMoreBar.hidden = !(cursor && !q);
+
+  const empty =
+    !asked
+      ? "Press Get purchases to list this account's orders."
+      : loading
+        ? ""
+        : note
+          ? note
+          : orders.length === 0
+            ? "This account has no purchases on record."
+            : shown.length === 0
+              ? "Nothing matches that filter."
+              : "";
+  el.purchasesEmpty.hidden = !empty;
+  el.purchasesEmpty.textContent = empty;
+  el.purchasesEmpty.classList.toggle("warn", Boolean(note));
+}
+
+/* ---------- avatar ----------
+   Nothing is fetched until Get avatar is pressed; the filter then narrows the
+   settings table without asking again. */
+function initAvatar() {
+  el.avatarLoad.addEventListener("click", fetchAvatar);
+  el.avatarQ.addEventListener("input", renderAvatar);
+  el.avatarRows.addEventListener("click", (e) => {
+    if (e.target.closest("tr.detail")) return;
+    const row = e.target.closest("tr[data-part]");
+    if (row) toggleAvatarPart(row.dataset.part);
+  });
+  el.avatarRows.addEventListener("keydown", (e) => {
+    const row = e.target.closest?.("tr[data-part]");
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      toggleAvatarPart(row.dataset.part);
+    }
+  });
+  renderAvatar();
+}
+
+function toggleAvatarPart(part) {
+  if (avatarOpen.has(part)) avatarOpen.delete(part);
+  else avatarOpen.add(part);
+  renderAvatar();
+  el.avatarRows.querySelector(`tr[data-part="${CSS.escape(part)}"]`)?.focus();
+}
+
+async function fetchAvatar() {
+  avatarState.asked = true;
+  avatarState.loading = true;
+  avatarState.note = "";
+  el.avatarLoad.disabled = true;
+  el.avatarLoad.textContent = "Loading…";
+  renderAvatar();
+  try {
+    avatarState.data = await avatarInfo();
+  } catch (err) {
+    avatarState.data = null;
+    avatarState.note = err.message || "Could not read this account's avatar.";
+  } finally {
+    avatarState.loading = false;
+    el.avatarLoad.disabled = false;
+    el.avatarLoad.textContent = "Get avatar";
+    renderAvatar();
+  }
+}
+
+/* The editor's own names for the avatar's parts, where splitting the key's
+   camelCase would not read as English. */
+const AVATAR_NAMES = {
+  facehair: "Facial hair",
+  lash: "Lashes",
+  lashLower: "Lower lashes",
+  outfitMode: "Outfit",
+  mmMode: "Mix and match",
+  bot: "Bottom",
+  hairFlip: "Flipped",
+  parameter: "Shade",
+  parameters: "Fine shape",
+  editor_ui: "Editor",
+};
+
+/* "hairPColor_input" -> "Hair color", "lipStyle_input" -> "Lip style". */
+function avatarName(step) {
+  const s = step.replace(/_(input|geo|base)$/i, "");
+  if (AVATAR_NAMES[s]) return AVATAR_NAMES[s];
+  return words(
+    s
+      .replace(/PColor$/, " color")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/_/g, " ")
+  );
+}
+
+/* A setting's key as [part, setting]. Most keys are the part then what it
+   holds — "root/brows_input/hairPColor_input" is the brows' hair color. The
+   editor's sliders ("root/editor_ui/nose_width") are split on the underscore so
+   they sit under Nose, Face and the rest, and the root itself is the base. */
+function avatarKey(key) {
+  const steps = key.replace(/^root\/?/, "").split("/").filter(Boolean);
+  if (!steps.length) return ["Avatar", "Base"];
+  if (steps[0] === "editor_ui_enabled") return ["Editor", "Sliders"];
+  if (steps[0] === "editor_ui" && steps.length === 2) {
+    const [group, ...rest] = steps[1].split("_");
+    if (rest.length) return [avatarName(group), avatarName(rest.join("_"))];
+  }
+  return [avatarName(steps[0]), steps.length > 1 ? steps.slice(1).map(avatarName).join(" › ") : "Item"];
+}
+
+/* A slider as a small bar and its value (the editor's sliders run 0 to 1), a
+   switch as On/Off, and a chosen item by its ID, with the asset it comes from
+   on hover. Returns HTML. */
+function avatarSetting(s) {
+  if (s.kind === "slider") {
+    if (!Number.isFinite(s.value)) return "—";
+    const pct = Math.round(Math.min(1, Math.max(0, s.value)) * 100);
+    return `<span class="av-slider"><span class="rev-hist-track"><span class="rev-hist-fill" style="width:${pct}%"></span></span><span class="av-val">${esc(
+      s.value.toFixed(2)
+    )}</span></span>`;
+  }
+  if (s.kind === "switch") return s.value ? "On" : "Off";
+  if (s.kind === "item") {
+    return `<span class="av-val"${s.asset ? ` title="${esc(`From asset ${s.asset}`)}"` : ""}>${esc(s.value)}</span>`;
+  }
+  return esc(s.value || "—");
+}
+
+function renderAvatar() {
+  const { data, asked, loading, note } = avatarState;
+  const a = data ?? {};
+  el.avatarFacts.innerHTML = data
+    ? factGroups([
+        [
+          "Avatar",
+          [
+            ["Style", a.style ? words(a.style) : null],
+            ["Has an avatar", yesNo(a.hasAvatar)],
+            ["Can use style 2", yesNo(a.eligible)],
+            ["Has to move styles", yesNo(a.migrate)],
+            ["Held back for an OS update", yesNo(a.blockedForOs)],
+          ],
+        ],
+        ["Horizon gates", (a.gates ?? []).map(([k, v]) => [esc(words(k.replace(/^enable_/, ""))), v ? "On" : "Off"])],
+      ])
+    : "";
+
+  const settings = a.settings ?? [];
+  const q = el.avatarQ.value.trim().toLowerCase();
+  const shown = settings
+    .map((s) => ({ s, k: avatarKey(s.key) }))
+    .filter(({ s, k }) => !q || `${k.join(" ")} ${s.key}`.toLowerCase().includes(q));
+
+  /* One row per part, in the order the editor lists them; a part opens to a
+     table of its settings. While a filter is typed, every part it matches is
+     open, so the matches are on show without a click each. */
+  const parts = new Map();
+  for (const r of shown) {
+    if (!parts.has(r.k[0])) parts.set(r.k[0], []);
+    parts.get(r.k[0]).push(r);
+  }
+  const detail = (rows) => `<tr class="detail"><td colspan="2"><div class="vscroll short">
+      <table class="vtable plain av-table">
+        <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+        <tbody>${rows
+          .map(({ s, k }) => `<tr><td title="${esc(s.key)}">${esc(k[1])}</td><td>${avatarSetting(s)}</td></tr>`)
+          .join("")}</tbody>
+      </table></div></td></tr>`;
+  const focused = document.activeElement?.closest?.("#avatarRows tr[data-part]")?.dataset.part;
+  el.avatarRows.innerHTML = [...parts]
+    .map(([part, rows]) => {
+      const open = q ? true : avatarOpen.has(part);
+      return `<tr class="app" tabindex="0" data-part="${esc(part)}" aria-expanded="${open}">
+        <td class="name">${esc(part)}</td>
+        <td>${esc(plural(rows.length, "setting"))}</td>
+      </tr>${open ? detail(rows) : ""}`;
+    })
+    .join("");
+  if (focused) el.avatarRows.querySelector(`tr[data-part="${CSS.escape(focused)}"]`)?.focus();
+
+  const rows = shown;
+  el.avatarCount.textContent = settings.length
+    ? q
+      ? `${rows.length} of ${plural(settings.length, "setting")}`
+      : `${plural(settings.length, "setting")} across ${plural(new Set(settings.map((s) => avatarKey(s.key)[0])).size, "part")}`
+    : "";
+
+  const empty = !asked
+    ? "Press Get avatar to read this account's avatar."
+    : loading
+      ? ""
+      : note
+        ? note
+        : !settings.length
+          ? data
+            ? "The store returned no saved avatar settings."
+            : ""
+          : !rows.length
+            ? "Nothing matches that filter."
+            : "";
+  el.avatarEmpty.hidden = !empty;
+  el.avatarEmpty.textContent = empty;
+  el.avatarEmpty.classList.toggle("warn", Boolean(note));
+}
+
+/* "REFUND_COMPLETED" -> "Refund completed". */
+function prettyStatus(s) {
+  if (!s) return "";
+  return String(s)
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/^\w/, (c) => c.toUpperCase());
+}
+
 /* One small read per owned headset, all at once. */
 async function loadPTCStatuses() {
   const serials = deviceList.filter((d) => d.ownership !== "shared" && d.serial).map((d) => d.serial);
@@ -1854,7 +2246,9 @@ function presenceLine() {
   if (!p?.lastActive) return "";
   const when = new Date(p.lastActive * 1000).toISOString().slice(0, 16).replace("T", " ");
   const where = p.app ?? (p.destination ? words(p.destination) : null);
-  return `${p.current ? "Active now" : "Last active"} — ${when} UTC${where ? `, in ${where}` : ""}.`;
+  const session = p.match ? ", in a match" : p.lobby ? ", in a lobby" : "";
+  const party = p.party ? ` (${p.party} in the lobby)` : "";
+  return `${p.current ? "Active now" : "Last active"} — ${when} UTC${where ? `, in ${where}` : ""}${session}${party}.`;
 }
 
 /* All but the last character. Enough to see a serial is there and how long it
@@ -3127,9 +3521,11 @@ function appPanel(app, { staged = false, scope = null } = {}) {
        role="tab" aria-selected="${tab === name}">${label}</button>`;
 
   /* The app's actions — check, manifest, claim, store link — sit under the
-     tabs and serve Store and Builds alike. The Entitlement tab is about the
-     account, not the app, so they step aside there. */
-  const sharedActions = `<div data-app-actions${tab === "mine" ? " hidden" : ""}>
+     tabs and serve Store and Builds alike. The Reviews, Related and Entitlement
+     tabs stand on their own — their own Get button fetches them — so the shared
+     actions step aside on those. */
+  const actionsHidden = ["mine", "reviews", "related", "addons", "achievements"].includes(tab);
+  const sharedActions = `<div data-app-actions${actionsHidden ? " hidden" : ""}>
          ${actions ? `<div class="actions">${actions}</div>` : ""}
          <div class="claim-out"></div>
          <div class="resolve-out"></div>
@@ -3137,11 +3533,19 @@ function appPanel(app, { staged = false, scope = null } = {}) {
        </div>`;
 
   const main = `<div class="companion-tabs panel-tabs" role="tablist" aria-label="${esc(app.name)}">
-         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${tabButton("mine", "Entitlement")}
+         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${tabButton("reviews", "Reviews")}${tabButton("related", "Related")}${tabButton("addons", "Add-ons")}${tabButton("achievements", "Achievements")}${tabButton("mine", "Entitlement")}
        </div>
        ${sharedActions}
        <div ${pane("store")}>${storeFacts || "<p>Not checked yet — the listing arrives with Check this app.</p>"}</div>
-       <div ${pane("builds")}>${channelBlock}<div class="versions-out"></div></div>
+       <div ${pane("builds")}>${channelBlock}${
+         app.id && app.platform !== "PC"
+           ? `<div class="relnotes"><div class="controls"><button type="button" data-relnotes-get>Release notes</button></div><div class="relnotes-out"></div></div>`
+           : ""
+       }<div class="versions-out"></div></div>
+       <div ${pane("reviews")} class="reviews-pane">${reviewsPaneHtml(app)}</div>
+       <div ${pane("related")} class="related-pane">${relatedPaneHtml(app)}</div>
+       <div ${pane("addons")} class="addons-pane">${addonsPaneHtml(app)}</div>
+       <div ${pane("achievements")} class="ach-pane">${achPaneHtml(app)}</div>
        <div ${pane("mine")}>${yourCopy(app)}</div>`;
 
   /* Which tab is showing, for the stylesheet: Latest Binary Info belongs to
@@ -3196,7 +3600,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
       for (const p of panel.querySelectorAll("[data-pane]")) p.hidden = p.dataset.pane !== name;
       panel.dataset.tab = name;
       const shared = panel.querySelector("[data-app-actions]");
-      if (shared) shared.hidden = name === "mine";
+      if (shared) shared.hidden = ["mine", "reviews", "related", "addons", "achievements"].includes(name);
       if (name === "mine") wantYourCopy();
     });
   }
@@ -3285,7 +3689,67 @@ function appPanel(app, { staged = false, scope = null } = {}) {
     );
   }
 
+  const reviewsPane = panel.querySelector('[data-pane="reviews"]');
+  if (reviewsPane) wireReviews(app, reviewsPane);
+
+  const relatedPane = panel.querySelector('[data-pane="related"]');
+  if (relatedPane) wireRelated(app, relatedPane);
+
+  const addonsPane = panel.querySelector('[data-pane="addons"]');
+  if (addonsPane) wireAddons(app, addonsPane);
+
+  const achPane = panel.querySelector('[data-pane="achievements"]');
+  if (achPane) wireAch(app, achPane);
+
+  const relnotesOut = panel.querySelector(".relnotes-out");
+  if (relnotesOut) {
+    panel.querySelector("[data-relnotes-get]")?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      loadRelNotes(app, relnotesOut, e.currentTarget);
+    });
+    /* Come back filled after a redraw if already fetched. */
+    if (relNotesCache.has(app.id)) {
+      drawRelNotes(relnotesOut, relNotesCache.get(app.id));
+      const b = panel.querySelector("[data-relnotes-get]");
+      if (b) b.hidden = true;
+    }
+  }
+
   return panel;
+}
+
+/* The per-version changelog, under the build history on the Builds tab. */
+async function loadRelNotes(app, out, button) {
+  button.disabled = true;
+  button.textContent = "Loading…";
+  try {
+    const map = await releaseNotes(app.id);
+    relNotesCache.set(app.id, map);
+    drawRelNotes(out, map);
+    button.hidden = true;
+  } catch (err) {
+    button.disabled = false;
+    button.textContent = "Release notes";
+    paneError(out, "relnotes-error", `Could not load release notes: ${err.message}`);
+  }
+}
+
+function drawRelNotes(out, map) {
+  if (!map.size) {
+    out.innerHTML = `<p class="hint">The store has no release notes for this app.</p>`;
+    return;
+  }
+  /* Newest versionCode first. */
+  const rows = [...map.entries()]
+    .sort((a, b) => Number(b[0]) - Number(a[0]))
+    .map(
+      ([code, { version, notes }]) => `<div class="relnote">
+        <div class="relnote-ver">${esc(version ?? code)} <span class="relnote-code">build ${esc(code)}</span></div>
+        <div class="relnote-body">${esc(notes)}</div>
+      </div>`
+    )
+    .join("");
+  out.innerHTML = `<h3>Release notes</h3><div class="relnote-list">${rows}</div>`;
 }
 
 /** The expanded row under an app: its panel, in a cell wide enough to hold it. */
@@ -3299,6 +3763,434 @@ function detailRow(app, span, scope = null) {
 
   tr.append(td);
   return tr;
+}
+
+/* ---------- app reviews ----------
+   The store's own ratings and written reviews, on their own tab. Like the
+   Entitlement tab's lists, nothing is fetched until the Get button is pressed;
+   once it is, the result is cached so the tab comes back filled after a redraw.
+   The tab is about the app, so the shared actions stay put, as on Store and
+   Builds. */
+
+const REVIEW_PAGE = 15;
+
+/** Five stars with the first `score` of them filled. */
+function reviewStars(score) {
+  const n = Math.round(Number(score) || 0);
+  let out = "";
+  for (let i = 1; i <= 5; i++) {
+    out += `<span class="${i <= n ? "" : "off"}">★</span>`;
+  }
+  return `<span class="rev-stars" role="img" aria-label="${n} out of 5 stars">${out}</span>`;
+}
+
+/** The pane's contents: cached reviews if the tab has run, else the Get button. */
+function reviewsPaneHtml(app) {
+  if (!app.id) return `<p>No store ID to read reviews against.</p>`;
+  const c = reviewCache.get(app.id);
+  if (c) return renderReviews(c);
+  return `<div class="controls"><button type="button" data-reviews-get>Get reviews</button></div>
+       <p class="hint">The store's star ratings and written reviews for this app.</p>`;
+}
+
+/** The whole pane from a cache entry: summary, sort toggle, reviews, Load more. */
+function renderReviews(c) {
+  const s = c.summary;
+  const max = Math.max(1, ...s.histogram.map((h) => h.count));
+  const hist = s.histogram.length
+    ? `<div class="rev-hist">${s.histogram
+        .map(
+          (h) => `<div class="rev-hist-row">
+              <span class="rev-hist-star">${h.star}★</span>
+              <div class="rev-hist-track"><div class="rev-hist-fill" style="width:${
+                Math.round((h.count / max) * 100)
+              }%"></div></div>
+              <span class="rev-hist-count">${bigNumber(h.count)}</span>
+            </div>`
+        )
+        .join("")}</div>`
+    : "";
+
+  const counts = [
+    s.ratingCount != null ? `${s.ratingCountText ?? bigNumber(s.ratingCount)} ratings` : null,
+    s.reviewCount ? `${bigNumber(s.reviewCount)} written` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const summary =
+    s.score != null || s.histogram.length
+      ? `<div class="rev-summary">
+           <div class="rev-score-box">
+             <div class="rev-score">${esc(s.scoreText ?? (s.score != null ? s.score.toFixed(1) : "—"))}</div>
+             ${reviewStars(s.score)}
+             ${counts ? `<div class="rev-score-sub">${esc(counts)}</div>` : ""}
+           </div>
+           ${hist}
+         </div>`
+      : `<p>No ratings yet.</p>`;
+
+  const sorts =
+    c.reviews.length || c.cursor
+      ? `<div class="rev-sorts">${REVIEW_SORTS.map(
+          ([value, label]) =>
+            `<button type="button" class="ptc-btn${value === c.sort ? " on" : ""}"
+               data-review-sort="${value}"${value === c.sort ? " aria-pressed=\"true\"" : ""}>${label}</button>`
+        ).join("")}</div>`
+      : "";
+
+  const list = c.reviews.length
+    ? c.reviews.map(reviewCard).join("")
+    : s.reviewCount
+      ? `<p>No written reviews on this page.</p>`
+      : "";
+
+  const more = c.cursor
+    ? `<div class="controls"><button type="button" data-reviews-more>Load more</button></div>`
+    : "";
+
+  return `${summary}${sorts}<div class="reviews-list">${list}</div>${more}`;
+}
+
+/** One review. */
+function reviewCard(r) {
+  const avatar = r.author.image
+    ? `<img class="review-avatar" src="${esc(r.author.image)}" alt="" loading="lazy">`
+    : `<span class="review-avatar"></span>`;
+  const meta = [r.score != null ? reviewStars(r.score) : "", r.date ? isoDay(r.date) : ""]
+    .filter(Boolean)
+    .join(" ");
+  return `<div class="review">
+      <div class="review-head">
+        ${avatar}
+        <span class="review-who">${esc(r.author.name)}${
+          r.earlyAccess ? `<span class="rev-ea">Early access</span>` : ""
+        }</span>
+        <span class="review-meta">${meta}</span>
+      </div>
+      ${r.title ? `<div class="review-title">${esc(r.title)}</div>` : ""}
+      ${r.body ? `<div class="review-body">${esc(r.body)}</div>` : ""}
+      ${r.helpful ? `<div class="review-helpful">${bigNumber(r.helpful)} found this helpful</div>` : ""}
+      ${
+        r.devResponse
+          ? `<div class="review-dev"><div class="review-dev-label">Developer response</div>${esc(
+              r.devResponse
+            )}</div>`
+          : ""
+      }
+    </div>`;
+}
+
+/** Hook up the Get button, the sort toggle and Load more on a built pane. */
+function wireReviews(app, pane) {
+  if (!app.id) return;
+
+  pane.querySelector("[data-reviews-get]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    loadReviews(app, pane, { sort: "top", button: e.currentTarget });
+  });
+
+  for (const b of pane.querySelectorAll("[data-review-sort]")) {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const sort = b.dataset.reviewSort;
+      if (reviewCache.get(app.id)?.sort === sort) return;
+      loadReviews(app, pane, { sort, button: b });
+    });
+  }
+
+  pane.querySelector("[data-reviews-more]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    loadReviews(app, pane, { more: true, button: e.currentTarget });
+  });
+}
+
+/**
+ * Fetch reviews into the pane. A first press (or a sort change) fetches the
+ * summary — once per app — and the first page in the chosen order; Load more
+ * appends the next page in the order already showing.
+ */
+async function loadReviews(app, pane, { sort, more = false, button } = {}) {
+  const prev = reviewCache.get(app.id);
+  const label = button?.textContent;
+  if (button) {
+    button.disabled = true;
+    button.textContent = more ? "Loading…" : "Loading reviews…";
+  }
+
+  try {
+    if (more) {
+      if (!prev?.cursor) return;
+      const page = await appReviews(app.id, { count: REVIEW_PAGE, cursor: prev.cursor, sort: prev.sort });
+      prev.reviews = [...prev.reviews, ...page.reviews];
+      prev.cursor = page.cursor;
+    } else {
+      /* The summary is the same whatever the sort, so keep it across a re-sort. */
+      const summary = prev?.summary ?? (await appReviewSummary(app.id));
+      const page = await appReviews(app.id, { count: REVIEW_PAGE, sort });
+      reviewCache.set(app.id, { summary, reviews: page.reviews, cursor: page.cursor, sort });
+    }
+    pane.innerHTML = renderReviews(reviewCache.get(app.id));
+    wireReviews(app, pane);
+  } catch (err) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = label;
+    }
+    /* Keep whatever was already showing; add the reason under it. */
+    let note = pane.querySelector(".reviews-error");
+    if (!note) {
+      note = document.createElement("p");
+      note.className = "warn reviews-error";
+      pane.append(note);
+    }
+    note.textContent = `Could not load reviews: ${err.message}`;
+  }
+}
+
+/* ---------- related apps ----------
+   The store's "More like this", on its own tab. Like Reviews, it fetches only
+   when its Get button is pressed, and each result opens into the same panel the
+   search box would — a tile hands its ID to the search flow. */
+
+/** The pane's contents: the cached tiles if it has run, else the Get button. */
+function relatedPaneHtml(app) {
+  if (!app.id) return `<p>No store ID to find related apps for.</p>`;
+  const items = relatedCache.get(app.id);
+  if (items) return renderRelated(items);
+  return `<div class="controls"><button type="button" data-related-get>Get related</button></div>
+       <p class="hint">The apps the store recommends beside this one.</p>`;
+}
+
+/** The grid of related-app tiles, or a note when the store offered none. */
+function renderRelated(items) {
+  if (!items.length) return `<p>The store lists nothing like this app.</p>`;
+  return `<div class="related-grid">${items.map(relatedTile).join("")}</div>`;
+}
+
+/** One related app — art, name, rating, price; opens the app when pressed. */
+function relatedTile(r) {
+  const art = r.image
+    ? `<img class="related-art" src="${esc(r.image)}" alt="" loading="lazy">`
+    : `<span class="related-art"></span>`;
+  const rating = r.score ? `<span class="related-rating">★ ${esc(r.score)}${
+    r.ratings ? ` (${esc(r.ratings)})` : ""
+  }</span>` : "";
+  const price = r.price ? `<span class="related-price">${esc(r.price)}</span>` : "";
+  const genre = r.genres?.length ? `<span class="related-genre">${esc(r.genres[0])}</span>` : "";
+  return `<button type="button" class="related-tile" data-open-app="${esc(r.id)}" title="Open ${esc(
+    r.name
+  )}">
+      ${art}
+      <span class="related-name">${esc(r.name)}</span>
+      <span class="related-meta">${rating}${price}</span>
+      ${genre}
+    </button>`;
+}
+
+/** Hook up the Get button and the tiles on a built pane. */
+function wireRelated(app, pane) {
+  if (!app.id) return;
+
+  pane.querySelector("[data-related-get]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    loadRelated(app, pane, e.currentTarget);
+  });
+
+  for (const b of pane.querySelectorAll("[data-open-app]")) {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openAppById(b.dataset.openApp);
+    });
+  }
+}
+
+/** Open an app by its store ID through the same path the search box uses. */
+function openAppById(id) {
+  el.q.value = String(id);
+  if (location.hash !== "#apps") location.hash = "#apps";
+  runSearch();
+  window.scrollTo({ top: 0 });
+}
+
+/** Fetch the related apps into the pane. */
+async function loadRelated(app, pane, button) {
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Loading related…";
+  }
+  try {
+    const items = await relatedApps(app.id);
+    relatedCache.set(app.id, items);
+    pane.innerHTML = renderRelated(items);
+    wireRelated(app, pane);
+  } catch (err) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Get related";
+    }
+    let note = pane.querySelector(".related-error");
+    if (!note) {
+      note = document.createElement("p");
+      note.className = "warn related-error";
+      pane.append(note);
+    }
+    note.textContent = `Could not load related apps: ${err.message}`;
+  }
+}
+
+/* ---------- add-ons (DLC / in-app purchases) ----------
+   The store's purchasable extras for an app, on their own tab: each with its
+   price and whether this account already owns it. Fetched on Get, paged with
+   Load more, cached across redraws — like Reviews. */
+
+function addonsPaneHtml(app) {
+  if (!app.id) return `<p>No store ID to read add-ons for.</p>`;
+  const c = addonsCache.get(app.id);
+  if (c) return renderAddons(c);
+  return `<div class="controls"><button type="button" data-addons-get>Get add-ons</button></div>
+       <p class="hint">The DLC and in-app purchases this app sells, and which you own.</p>`;
+}
+
+function renderAddons(c) {
+  if (!c.items.length) return `<p>This app has no add-ons.</p>`;
+  const rows = c.items
+    .map((a) => {
+      const price = a.owned
+        ? `<span class="addon-owned">Owned</span>`
+        : a.strikethrough && a.strikethrough !== a.price
+          ? `<span class="addon-was">${esc(a.strikethrough)}</span> <span class="addon-price">${esc(a.price ?? "—")}</span>`
+          : `<span class="addon-price">${esc(a.price ?? "—")}</span>`;
+      return `<tr${a.owned ? ' class="owned"' : ""}>
+          <td>${esc(a.name)}${a.description ? `<div class="addon-desc">${esc(a.description)}</div>` : ""}</td>
+          <td class="addon-pricecell">${price}</td>
+        </tr>`;
+    })
+    .join("");
+  const more = c.cursor
+    ? `<div class="controls" style="justify-content:center;margin-top:1rem"><button type="button" data-addons-more>Load more</button></div>`
+    : "";
+  return `<p class="count">${bigNumber(c.total)} add-on${c.total === 1 ? "" : "s"}</p>
+     <table><thead><tr><th>Item</th><th>Price</th></tr></thead><tbody>${rows}</tbody></table>${more}`;
+}
+
+function wireAddons(app, pane) {
+  if (!app.id) return;
+  pane.querySelector("[data-addons-get]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    loadAddons(app, pane, { button: e.currentTarget });
+  });
+  pane.querySelector("[data-addons-more]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    loadAddons(app, pane, { more: true, button: e.currentTarget });
+  });
+}
+
+async function loadAddons(app, pane, { more = false, button } = {}) {
+  const prev = addonsCache.get(app.id);
+  if (button) {
+    button.disabled = true;
+    button.textContent = more ? "Loading…" : "Loading add-ons…";
+  }
+  try {
+    if (more) {
+      if (!prev?.cursor) return;
+      const page = await appAddons(app.id, { cursor: prev.cursor, loaded: prev.items.length });
+      const seen = new Set(prev.items.map((i) => i.id));
+      prev.items.push(...page.items.filter((i) => !seen.has(i.id)));
+      prev.cursor = page.cursor;
+      prev.total = page.total || prev.total;
+    } else {
+      const page = await appAddons(app.id, {});
+      addonsCache.set(app.id, { items: page.items, total: page.total, cursor: page.cursor });
+    }
+    pane.innerHTML = renderAddons(addonsCache.get(app.id));
+    wireAddons(app, pane);
+  } catch (err) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = more ? "Load more" : "Get add-ons";
+    }
+    paneError(pane, "addons-error", `Could not load add-ons: ${err.message}`);
+  }
+}
+
+/* ---------- achievements ----------
+   An app's achievements and this account's progress, on their own tab. One
+   fetch on Get (keyed by the app and the viewer's own user ID), cached. */
+
+function achPaneHtml(app) {
+  if (!app.id) return `<p>No store ID to read achievements for.</p>`;
+  const c = achCache.get(app.id);
+  if (c) return renderAch(c);
+  return `<div class="controls"><button type="button" data-ach-get>Get achievements</button></div>
+       <p class="hint">This app's achievements and how far you've got in each. Needs your own access token.</p>`;
+}
+
+function renderAch(c) {
+  if (!c.achievements.length) return `<p>This app has no achievements.</p>`;
+  const cards = c.achievements
+    .map((a) => {
+      const hidden = a.secret && !a.unlocked;
+      const art = a.image
+        ? `<img class="ach-art" src="${esc(a.image)}" alt="" loading="lazy">`
+        : `<span class="ach-art"></span>`;
+      const title = hidden ? "Secret achievement" : esc(a.title ?? "—");
+      const desc = hidden ? "Hidden until unlocked." : esc(a.description ?? "");
+      const prog =
+        !a.unlocked && a.type === "COUNT" && a.target > 0
+          ? `<div class="ach-prog">${bigNumber(a.countProgress)} / ${bigNumber(a.target)}</div>`
+          : "";
+      return `<div class="ach${a.unlocked ? " on" : ""}">
+          ${art}
+          <div class="ach-body">
+            <div class="ach-title">${title}${a.unlocked ? ` <span class="ach-tick">✓</span>` : ""}</div>
+            ${desc ? `<div class="ach-desc">${desc}</div>` : ""}
+            ${prog}
+          </div>
+        </div>`;
+    })
+    .join("");
+  const secret = c.secretRemaining ? ` · ${bigNumber(c.secretRemaining)} secret` : "";
+  return `<p class="count">${bigNumber(c.earned)} of ${bigNumber(c.total)} earned${secret}</p>
+     <div class="ach-grid">${cards}</div>`;
+}
+
+function wireAch(app, pane) {
+  if (!app.id) return;
+  pane.querySelector("[data-ach-get]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    loadAch(app, pane, e.currentTarget);
+  });
+}
+
+async function loadAch(app, pane, button) {
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Loading achievements…";
+  }
+  try {
+    const data = await appAchievements(app.id);
+    achCache.set(app.id, data);
+    pane.innerHTML = renderAch(data);
+  } catch (err) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Get achievements";
+    }
+    paneError(pane, "ach-error", `Could not load achievements: ${err.message}`);
+  }
+}
+
+/* A warning line appended under a tab pane, reused by the app-scoped tabs. */
+function paneError(pane, cls, text) {
+  let note = pane.querySelector("." + cls);
+  if (!note) {
+    note = document.createElement("p");
+    note.className = "warn " + cls;
+    pane.append(note);
+  }
+  note.textContent = text;
 }
 
 /* ---------- binary manifest ---------- */
@@ -4429,8 +5321,11 @@ function initAccountTabs() {
     if (e.key === "Enter") lookUpWorld();
   });
   el.worldLookup.addEventListener("input", () => setWorldNote(""));
-  /* A world row opens to its details, like an app row. */
+  /* A world row opens to its details, like an app row; the details themselves
+     wait for the panel's Get details button. */
   el.worldRows.addEventListener("click", (e) => {
+    const get = e.target.closest("button[data-world-load]");
+    if (get) return getWorldDetails(get.dataset.worldLoad);
     if (e.target.closest("tr.detail")) return;
     const row = e.target.closest("tr[data-world]");
     if (row) toggleWorld(row.dataset.world);
@@ -5004,11 +5899,15 @@ function toggleWorld(id) {
   if (worldOpen.has(id)) worldOpen.delete(id);
   else {
     worldOpen.add(id);
-    if (!worldInfo.has(id)) loadWorld(id);
-    loadWorldFlags(id);
   }
   renderWorlds();
   el.worldRows.querySelector(`tr[data-world="${CSS.escape(id)}"]`)?.focus();
+}
+
+/** The Get details button: every read about one world, once. */
+function getWorldDetails(id) {
+  if (!worldInfo.has(id)) loadWorld(id);
+  loadWorldFlags(id);
 }
 
 async function loadWorld(id) {
@@ -5025,15 +5924,16 @@ async function loadWorld(id) {
   }
 }
 
-/* Beta and cloud streaming: two small reads, once per world, the first time it
-   opens. A world the store says nothing about just shows neither line. */
+/* Beta, cloud streaming and the door panel (creator, comfort, description, who
+   can visit, players now, capacity): five small reads, once per world, when Get details
+   is pressed. A line the store says nothing about is simply left out. */
 async function loadWorldFlags(id) {
   if (worldFlagInfo.has(id)) return;
   worldFlagInfo.set(id, "loading");
   try {
     worldFlagInfo.set(id, await worldFlags(id));
   } catch {
-    worldFlagInfo.set(id, { beta: null, streamable: null });
+    worldFlagInfo.set(id, {});
   }
   renderWorlds();
 }
@@ -5045,35 +5945,58 @@ function worldDetail(w) {
   const info = worldInfo.get(w.id);
   const flags = worldFlagInfo.get(w.id);
   let body;
-  if (!info || info.loading) body = "<p>Asking the store about this world…</p>";
+  if (!info) body = `<button type="button" data-world-load="${esc(w.id)}">Get details</button>`;
+  else if (info.loading) body = `<button type="button" disabled>Loading…</button>`;
   else if (info.note) body = `<p class="warn">${esc(info.note)}</p>`;
   else {
     const d = info.data;
+    const asking = flags === "loading";
+    const f = asking ? {} : flags ?? {};
+    /* The editor's door panel adds the large screenshot; it joins the world's own pictures. */
+    const images = f.screenshot && !d.images.some((i) => i.uri === f.screenshot)
+      ? [...d.images, { label: "Screenshot", uri: f.screenshot }]
+      : d.images;
     const pictures = loadSettings().images
-      ? d.images.length
-        ? `<h3>Pictures</h3><div class="world-pics">${d.images
+      ? images.length
+        ? `<h3>Pictures</h3><div class="world-pics">${images
             .map(
               (i) => `<figure><img src="${esc(i.uri)}" alt="${esc(`${w.name}: ${i.label}`)}" loading="lazy">
                  <figcaption>${esc(i.label)}</figcaption></figure>`
             )
             .join("")}</div>`
         : ""
-      : d.images.length
-        ? `<p class="hint">${plural(d.images.length, "picture")} — switch on Show app art in search results, in Settings, to see them.</p>`
+      : images.length
+        ? `<p class="hint">${plural(images.length, "picture")} — switch on Show app art in search results, in Settings, to see them.</p>`
         : "";
+    const ask = (v) => (asking ? "Asking…" : v);
+    const comfort = f.comfort ? f.comfort.charAt(0) + f.comfort.slice(1).toLowerCase().replace(/_/g, " ") : null;
     body = `${factGroups([
       [
         "World",
         [
           ["World ID", w.id],
+          ["Creator", ask(f.creator)],
           ["Destination ID", d.destinationId],
           ["Last visited", d.lastVisit ? isoDay(d.lastVisit) : d.destinationId ? "Not recorded" : null],
           ["Opens in", d.apps.join(", ")],
-          ["Beta", flags === "loading" ? "Asking…" : yesNo(flags?.beta)],
-          ["Cloud streaming", flags === "loading" ? "Asking…" : yesNo(flags?.streamable)],
+          ["Players now", ask(f.playersNow == null ? null : String(f.playersNow))],
+          ["Capacity", ask(f.capacity == null ? null : `${f.capacity} per instance`)],
+          ["Comfort", ask(comfort)],
+          ["Maturity", ask(f.maturity ? words(f.maturity) : null)],
+          ["Under-18s", ask(f.youth ? words(f.youth) : null)],
+          ["Published", ask(f.privacy ? words(f.privacy) : null)],
+          ["Members only", ask(yesNo(f.membersOnly))],
+          ["In search", ask(yesNo(f.searchable))],
+          ["Phone & desktop", ask(yesNo(f.xscreen))],
+          ["Mixed reality", ask(yesNo(f.mixedReality))],
+          ["Beta", ask(yesNo(f.beta))],
+          ["Cloud streaming", ask(yesNo(f.streamable))],
+          ["Runtime", ask(f.runtime)],
         ],
       ],
     ])}${
+      f.description ? `<h3>Description</h3><p>${esc(f.description).replace(/\n/g, "<br>")}</p>` : ""
+    }${
       d.launchLink ? `<h3>Launch link</h3><p class="world-link">${esc(d.launchLink)}</p>` : ""
     }${pictures}`;
   }
@@ -5121,8 +6044,6 @@ async function lookUpWorld() {
   }
 
   worldOpen.add(id);
-  if (!worldInfo.has(id)) loadWorld(id);
-  loadWorldFlags(id);
   renderWorlds();
   el.worldRows.querySelector(`tr[data-world="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
 }

@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=198">
+<link rel="stylesheet" href="css/style.css?v=211">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -73,6 +73,8 @@
         <div class="navmenu" hidden>
           <a href="#devices" data-view="devices">Headsets</a>
           <a href="#mine" data-view="mine">Entitlements</a>
+          <a href="#purchases" data-view="purchases">Purchases</a>
+          <a href="#avatar" data-view="avatar">Avatar</a>
         </div>
       </div>
       <div class="navgroup">
@@ -198,6 +200,72 @@
 
   </section>
 
+  <!-- ---------- your purchases ---------- -->
+
+  <section id="view-purchases" hidden>
+
+    <h2>Purchases</h2>
+    <p class="sub" id="purchasesSub">Everything this account has bought — apps, DLC and in-app purchases — with what was paid, when, and how. Needs your own access token, set in Settings.</p>
+
+    <div class="controls">
+      <input id="purchasesQ" type="search" placeholder="Filter by name" aria-label="Filter your purchases" autocomplete="off" spellcheck="false">
+      <button id="purchasesLoad" type="button">Get purchases</button>
+      <button id="purchasesShowPay" type="button">Show payment</button>
+    </div>
+
+    <p class="count" id="purchasesCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Item</th>
+          <th scope="col">Paid</th>
+          <th scope="col">Date</th>
+          <th scope="col">Status</th>
+          <th scope="col">Payment</th>
+        </tr>
+      </thead>
+      <tbody id="purchasesRows"></tbody>
+    </table>
+
+    <p id="purchasesEmpty" class="empty" hidden></p>
+
+    <div class="controls" id="purchasesMoreBar" hidden>
+      <button id="purchasesMore" type="button">Load more</button>
+    </div>
+
+  </section>
+
+  <!-- ---------- your avatar ---------- -->
+
+  <section id="view-avatar" hidden>
+
+    <h2>Avatar</h2>
+    <p class="sub">This account's avatar as the Horizon Worlds desktop editor reads it: which style it is on, whether it has to move, and every saved setting — the item chosen for each part and where each slider sits. Needs your own access token, set in Settings.</p>
+
+    <div class="controls">
+      <input id="avatarQ" type="search" placeholder="Filter settings by name" aria-label="Filter avatar settings" autocomplete="off" spellcheck="false">
+      <button id="avatarLoad" type="button">Get avatar</button>
+    </div>
+
+    <div id="avatarFacts" class="panel"></div>
+
+    <p class="count" id="avatarCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Part</th>
+          <th scope="col">Settings</th>
+        </tr>
+      </thead>
+      <tbody id="avatarRows"></tbody>
+    </table>
+
+    <p id="avatarEmpty" class="empty" hidden></p>
+
+  </section>
+
   <!-- ---------- your devices ---------- -->
 
   <section id="view-devices" hidden>
@@ -256,7 +324,7 @@
   <section id="view-worlds" hidden>
 
     <h2>Worlds</h2>
-    <p class="sub" id="worldSub">Browse Horizon worlds: the top and trending lists the Horizon app shows, everything one creator has published, any world by its ID, or the ones you have saved. Open one for where it lives, when you were last there and its pictures. Needs your own access token, set in Settings.</p>
+    <p class="sub" id="worldSub">Browse Horizon worlds: the top and trending lists the Horizon app shows, everything one creator has published, any world by its ID, or the ones you have saved. Open one and press Get details for its creator, comfort rating, description, who can visit, players now, where it lives, when you were last there and its pictures. Needs your own access token, set in Settings.</p>
 
     <!-- The same tab strip an opened app has. Each tab keeps its own list, and
          the table below shows the one whose tab is on. -->
@@ -1013,6 +1081,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=198"></script>
+<script type="module" src="js/app.js?v=211"></script>
 </body>
 </html>
