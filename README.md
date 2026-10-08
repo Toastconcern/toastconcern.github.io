@@ -13,13 +13,14 @@ Not affiliated with Meta.
 
 The top bar holds the search box, which works from any screen, and three menus plus
 **Settings**: **Apps** (Apps and games, Default apps, Horizon+, Worlds, Organizations), **User** (Headsets,
-Entitlements) and **Device** (ADB, CompanionServer). No screen fetches anything
+Entitlements, Purchases) and **Device** (ADB, CompanionServer). No screen fetches anything
 until you press its button.
 
 | Screen | What it does |
 |---|---|
 | Apps → Apps and games | Store search, from the box in the top bar. Takes an app name, an app ID, a `meta.com` store link or an Android package name, and works out which it is. |
 | User → Entitlements | Everything your account owns — Quest, PC, or what it used to own (expired trials and subscriptions): each has its own Get button. Shows last played, state, where it came from, and how much DLC you own in each once DLC has been fetched. |
+| User → Purchases | This account's order history — apps, DLC and in-app purchases — with what was paid, the date, and the order and refund status. Filter by name, and load more a page at a time. The payment method (card or Meta credit) is masked until you press **Show payment**. |
 | User → Headsets | The headsets registered to your account and the ones shared with you. Each shows whether it is on the Public Test Channel (PTC) and can be opted in or out. Get devices also says when the account was last active in VR. |
 | Apps → Default apps | What Meta pre-installs on a headset — pick the headset and the install trigger (`AUTO_UPDATER`, `NUX_BLOCKING` or `NUX_NON_BLOCKING`). |
 | Apps → Horizon+ | The games the Horizon+ subscription offers right now — this month's games to claim and the rotating catalog — and how many of them are on your account. |
@@ -34,14 +35,25 @@ switched on in Settings (*Show download by binary ID*); it is off by default.
 
 ### An opened app
 
-Every app, whichever list it is in, opens to three tabs. Under the tabs on Store and Builds
-sit the app's buttons: **Check this app**, **Get entitlement** (free apps only, and not on
-Entitlements) and **Open in store** — plus **Latest Binary Info** on Builds alone.
+Every app, whichever list it is in, opens to seven tabs. Under the tabs on Store and Builds
+sit the app's buttons: **Check this app**, **Get entitlement** (free apps only, and
+not on Entitlements) and **Open in store** — plus **Latest Binary Info** on Builds alone.
 
 - **Store** — what the store says about it: category, genres, rating, the modes and
   hardware it supports, publisher, install size, all filled in by Check this app.
 - **Builds** — its release channels and full build history, filled in by Check this app.
   **Check shown** on Apps and games does that for every row on screen, six at a time.
+  **Release notes** lists the per-version changelog text where the store has it.
+- **Reviews** — the store's own star rating, the 1–5 breakdown and the written reviews,
+  sortable by most relevant or most recent, fetched when you press **Get reviews**.
+- **Related** — the apps the store recommends beside this one ("More like this"), fetched
+  when you press **Get related**. Each opens in place, so you can keep digging from one app
+  to the next.
+- **Add-ons** — the DLC and in-app purchases this app sells, each with its price (and sale
+  strikethrough) and whether you already own it, fetched with **Get add-ons** and paged.
+- **Achievements** — the app's achievements with art and descriptions, and how far your
+  account has got in each (earned count, per-achievement progress, secret ones hidden until
+  unlocked), fetched with **Get achievements**.
 - **Entitlement** — your account's side of it. Whether you own it is read when the tab
   opens; the rest each wait for their own button: **Get release channels** (the channel your
   account is on, and every channel it can see), **Get DLC** (the DLC and in-app purchases you
