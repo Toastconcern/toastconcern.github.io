@@ -45,7 +45,7 @@ const LANGUAGE = "en-US,en;q=0.6";
    truncate the body. It is set below, only where it still holds. */
 const PASS = ["Content-Type", "Content-Disposition"];
 
-export async function onRequest({ request }) {
+export async function onRequest({ request, env }) {
   const target = new URL(request.url).searchParams.get("url");
   if (!target) return new Response("no url", { status: 400 });
 
@@ -62,7 +62,12 @@ export async function onRequest({ request }) {
   const download = host.startsWith("securecdn");
   const isPost = request.method === "POST";
 
-  const upstream = await fetch(target, {
+  /* Store queries go through the US relay when it is bound (workers/relay-us):
+     Meta prices by where a request comes from, and this function runs wherever
+     Cloudflare serves the site — often Europe on the free plan. Downloads are not
+     priced, so they stay direct. Unbound, or if the relay fails, it is direct too. */
+  const viaUs = !download && env?.US_RELAY;
+  const init = {
     method: isPost ? "POST" : "GET",
     headers: {
       "User-Agent": OCMS_UA,
@@ -81,12 +86,25 @@ export async function onRequest({ request }) {
     /* Form bodies are tiny, so read the text rather than streaming — simpler,
        and avoids the duplex-stream requirement. */
     body: isPost ? await request.text() : undefined,
-  });
+  };
+  let upstream = null;
+  let route = "direct";
+  if (viaUs) {
+    try {
+      upstream = await env.US_RELAY.fetch(target, init);
+      route = "us";
+    } catch {
+      upstream = null;
+    }
+  }
+  if (!upstream) upstream = await fetch(target, init);
 
   const headers = new Headers({
     /* Same origin as the page, so this is belt and braces. */
     "Access-Control-Allow-Origin": "*",
     "Cache-Control": "no-store",
+    /* Which way the reply came: "us" through the US relay, "direct" from here. */
+    "X-MetaDB-Relay": route,
   });
   for (const name of PASS) {
     const value = upstream.headers.get(name);

@@ -15,6 +15,15 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=239 — 2026-10-13
+
+- Prices default to US dollars. Meta prices by where a request comes from, and Cloudflare
+  often serves the site from Europe, which came back in euros. The built-in relay now sends
+  store queries through a US relay (`workers/relay-us`, a Durable Object pinned to North
+  America) once it is deployed and bound. Until then it works as before. Downloads stay
+  direct.
+- The Copy link button is gone from app panels. The address bar is still the link.
+
 ## Site v=238 — 2026-10-13
 
 - Every request to Meta now goes out with the headset app manager's (OCMS) own headers:
@@ -26,7 +35,7 @@ Newest first. Every update gets an entry before it is pushed.
   back to the same place. It uses plain paths: `/search/beat%20saber` for a search,
   `/apps/<id>/builds` for an app on its Builds tab, `/worlds/<id>` and `/orgs/<id>`, and
   `/settings`, `/mine` and so on for the other screens. Back and Forward step between
-  screens. Each app panel has a **Copy link** button.
+  screens.
 - Old `#settings` and `#apps` links still work, and become the new paths.
 
 ## Site v=237 — 2026-10-13

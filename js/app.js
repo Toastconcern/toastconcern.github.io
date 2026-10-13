@@ -60,7 +60,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=238";
+} from "./check.js?v=239";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -1331,11 +1331,6 @@ function setRoute(changes) {
   if (next !== location.pathname) history.replaceState(history.state, "", next + location.search);
 }
 
-/** The link to one app, on one of its tabs — what Copy link hands out. */
-function appLink(app, tab) {
-  return location.origin + pathFor({ view: "apps", app: String(app.id), tab });
-}
-
 /** Put back what the address describes. */
 async function restoreRoute() {
   const s = routeState();
@@ -1417,7 +1412,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=238")
+    import("./companion.js?v=239")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -4992,7 +4987,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
         app.free && app.offerId && scope !== "mine"
           ? `<button type="button" data-claim="1">Get entitlement</button>`
           : ""
-      }<button type="button" data-copy-link="1" title="A link that opens this app, on this tab">Copy link</button>${storeLink}`
+      }${storeLink}`
     : `<button type="button" data-resolve="1">Find store ID</button>`;
 
   /* The channel this account is on, when a single check asked. Named by the
@@ -5193,20 +5188,6 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   panel.querySelector("[data-check]")?.addEventListener("click", (e) => {
     e.stopPropagation();
     checkOne(app, { channel: true });
-  });
-
-  panel.querySelector("[data-copy-link]")?.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    const b = e.currentTarget;
-    const link = appLink(app, layoutState.panelTabs.get(tabKey));
-    try {
-      await navigator.clipboard.writeText(link);
-      b.textContent = "Link copied";
-    } catch {
-      /* No clipboard (an old browser, or permission refused): the link is shown to copy by hand. */
-      window.prompt("Copy this link:", link);
-    }
-    setTimeout(() => (b.textContent = "Copy link"), 1800);
   });
 
   panel.querySelector("[data-images]")?.addEventListener("click", (e) => {

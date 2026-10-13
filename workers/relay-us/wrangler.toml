@@ -1,0 +1,18 @@
+# MetaDB's US relay. Deploy from this folder: npx wrangler deploy
+# Then bind it to the Pages project as US_RELAY (see README.md).
+name = "metadb-relay-us"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# No public address: only the Pages Function reaches it, through the binding.
+workers_dev = false
+
+[[durable_objects.bindings]]
+name = "RELAY"
+class_name = "Relay"
+
+# SQLite-backed, which is what the free plan offers. The object stores nothing;
+# it only exists to run in a chosen place.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Relay"]
