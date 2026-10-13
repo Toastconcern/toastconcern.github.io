@@ -15,6 +15,17 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=241 — 2026-10-13
+
+- MetaDB runs on the Quest 1. Its last system update has a 2019 browser engine (Chrome 74),
+  which could not read the site's code, so the page came up half-built. Old engines now get
+  their own copy of the site, made from the same code by `tools/legacy-build.mjs`, with layout
+  fallbacks. Everything newer is unchanged. Tested in Chromium 74: the full site and the
+  headset app's Downgrade layout.
+- Old engines that cannot report a dark or light preference now default to the dark theme.
+- When the site cannot start at all, it now says so at the top of the page: the browser
+  engine's version, the oldest it supports (Chrome 74), and the first error.
+
 ## Site v=240 — 2026-10-13
 
 - Downgrade: apps from unknown sources can list their versions from GitHub. Link an

@@ -1,0 +1,72 @@
+/* MetaDB legacy build (tools/legacy-build.mjs) for Chrome 74 engines — do not edit; regenerate.
+   Loaded before style.css, so where both set something, style.css still wins. */
+.bar > * + * { margin-left: 1rem; }
+.nav > * + * { margin-left: 1rem; }
+.nav > * { margin-top: .35rem; }
+.navtop > * + * { margin-left: .3rem; }
+.controls > * + * { margin-left: .5rem; }
+.controls > * { margin-top: .5rem; }
+.form .check > * + * { margin-left: .5rem; }
+.defaults-grid label > * + * { margin-top: .25rem; }
+.logbar > * + * { margin-left: .5rem; }
+.chan-rev > * + * { margin-left: 2.5rem; }
+.chan-rev > * { margin-top: .25rem; }
+.av-slider > * + * { margin-left: .6rem; }
+.perms > * + * { margin-left: 2rem; }
+.actions > * + * { margin-left: .5rem; }
+.actions > * { margin-top: .5rem; }
+details.hint > summary > * + * { margin-left: .35rem; }
+.limitbar:not([hidden]) > * + * { margin-left: .5rem; }
+@media (max-width: 520px) { .bar > * + * { margin-left: .6rem; } }
+@media (max-width: 520px) { .nav > * + * { margin-left: .6rem; } }
+.companion-tabs > * + * { margin-left: .25rem; }
+.companion-tabs > * { margin-top: .25rem; }
+.companion-cmd-form > * + * { margin-left: .6rem; }
+.companion-cmd-form > * { margin-top: .4rem; }
+.companion-field > * + * { margin-top: .15rem; }
+.companion-field.is-check > * + * { margin-left: .35rem; }
+.wifi-bar > * + * { margin-left: .75rem; }
+.wifi-bar > * { margin-top: .5rem; }
+.wifi-row > * + * { margin-left: .6rem; }
+.wifi-row > * { margin-top: .25rem; }
+.wifi-sig > * + * { margin-left: 2px; }
+.wifi-form > * + * { margin-left: .6rem; }
+.wifi-form > * { margin-top: .4rem; }
+.tour-actions > * + * { margin-left: .5rem; }
+.world-pics > * + * { margin-left: 1rem; }
+.world-pics > * { margin-top: 1rem; }
+.rev-summary > * + * { margin-left: 1.5rem; }
+.rev-summary > * { margin-top: 1.5rem; }
+.rev-hist > * + * { margin-top: .35rem; }
+.rev-sorts > * + * { margin-left: .35rem; }
+.review-head > * + * { margin-left: .6rem; }
+.ach > * + * { margin-left: .7rem; }
+.dg-bar > * + * { margin-left: .6rem; }
+.dg-app > * + * { margin-left: .75rem; }
+.dg-side li > * + * { margin-left: .75rem; }
+.dg-head > * + * { margin-left: 1rem; }
+.dg-cell > * + * { margin-left: .65rem; }
+.dg-list-head > * + * { margin-left: .5rem; }
+.dg-group-row > * + * { margin-left: .5rem; }
+.dg-gh-form > * + * { margin-left: .5rem; }
+.dg-gh-form > * { margin-top: .5rem; }
+.dg-gh-head > * + * { margin-left: 1rem; }
+.dg-gh-head > * { margin-top: .5rem; }
+.dg-toggle > * + * { margin-left: .4rem; }
+.dg-head-acts > * + * { margin-left: .5rem; }
+.tour-ring--none { top: 0; right: 0; bottom: 0; left: 0; }
+.ui-dialog { top: 0; right: 0; bottom: 0; left: 0; }
+:focus { outline: 2px solid var(--link); outline-offset: 1px; }
+tbody tr.app:focus { outline: 2px solid var(--link); outline-offset: -2px; }
+
+tbody tr.app.owned td, .vtable tr.installed td, .addons-pane tr.owned td { background: rgba(76, 175, 106, .12); }
+tbody tr.app.owned:hover td { background: rgba(76, 175, 106, .2); }
+.ach.on { border-color: rgba(76, 175, 106, .55); }
+.tour-ring { box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .6); }
+.tour-ring--none { background: rgba(0, 0, 0, .6); }
+.shots { grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); }
+.facts { grid-template-columns: repeat(auto-fit, minmax(17rem, max-content)); }
+.tour-card { width: 22rem; max-width: calc(100vw - 32px); }
+.vscroll { max-height: 60vh; }
+.ui-dialog__box { width: 31rem; max-width: 100%; }
+.ui-notices { width: 26rem; max-width: calc(100vw - 2.5rem); }

@@ -1,0 +1,178 @@
+// Old-browser build: node tools/legacy-build.mjs   (from the repo root)
+//
+// The Quest 1's last system update ships WebView 74 (Chrome 74, 2019), and nothing
+// on it will ever be newer. The site is written for Chrome 86+: `?.`, `??`, `??=`
+// and private methods stop Chrome 74 from even reading js/app.js, and flexbox
+// `gap`, `inset`, `min()`, `color-mix()` and `:focus-visible` are lost from the CSS.
+//
+// This writes two files for those engines, which index.html loads instead when it
+// finds one (everything newer gets the normal files, untouched):
+//
+//   js/app.legacy.js  js/app.js and everything it imports, as one file rewritten
+//                     for Chrome 74 by esbuild, with the few missing built-ins
+//                     filled in. It sits beside js/app.js, so import.meta.url and
+//                     the relative data/ paths still point where they should.
+//   css/legacy.css    loaded before style.css: margins standing in for flexbox gap,
+//                     and stand-ins for the declarations Chrome 74 drops.
+//
+// Run it after any change to js/ or css/style.css, before pushing. It needs
+// esbuild once: npm install --no-save --no-package-lock esbuild@0.24.2
+import { readFileSync, writeFileSync } from "node:fs";
+
+const TARGET = "chrome74";
+
+let esbuild;
+try {
+  esbuild = await import("esbuild");
+} catch {
+  console.error("esbuild is not installed. Once, from the repo root:\n  npm install --no-save --no-package-lock esbuild@0.24.2");
+  process.exit(1);
+}
+
+/* ---------- js/app.legacy.js ---------- */
+
+/* Built-ins Chrome 74 lacks that the site calls. Kept to what is used. */
+const POLYFILLS = `/* MetaDB legacy build (tools/legacy-build.mjs) for Chrome 74 engines — do not edit; regenerate. */
+(function () {
+  function replaceChildren() {
+    while (this.lastChild) this.removeChild(this.lastChild);
+    this.append.apply(this, arguments);
+  }
+  [Element, Document, DocumentFragment].forEach(function (C) {
+    if (!C.prototype.replaceChildren) C.prototype.replaceChildren = replaceChildren;
+  });
+  if (!Promise.allSettled) {
+    Promise.allSettled = function (list) {
+      return Promise.all(Array.from(list, function (p) {
+        return Promise.resolve(p).then(
+          function (value) { return { status: "fulfilled", value: value }; },
+          function (reason) { return { status: "rejected", reason: reason }; }
+        );
+      }));
+    };
+  }
+  if (!String.prototype.replaceAll) {
+    String.prototype.replaceAll = function (find, to) {
+      return typeof find === "string" ? this.split(find).join(to) : this.replace(find, to);
+    };
+  }
+})();
+`;
+
+/* The site imports with cache-busting queries (./check.js?v=241). Same files, so the
+   query is dropped for bundling. companion.js and adb.js are loaded on demand for
+   Web Bluetooth and USB, which an old headset engine has neither of: left as they
+   are, so those screens say they cannot start rather than taking the site down. */
+const queries = {
+  name: "strip-queries",
+  setup(build) {
+    build.onResolve({ filter: /\?/ }, (args) => {
+      if (/\/(companion|adb)\.js\?/.test(args.path)) return { path: args.path, external: true };
+      return { path: new URL(args.path.split("?")[0], `file:///${args.resolveDir.replace(/\\/g, "/")}/`).pathname.replace(/^\/([A-Za-z]:)/, "$1") };
+    });
+  },
+};
+
+await esbuild.build({
+  entryPoints: ["js/app.js"],
+  bundle: true,
+  format: "esm",
+  target: TARGET,
+  outfile: "js/app.legacy.js",
+  banner: { js: POLYFILLS },
+  plugins: [queries],
+  legalComments: "none",
+  logLevel: "warning",
+});
+
+/* ---------- css/legacy.css ---------- */
+
+const css = readFileSync("css/style.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+const out = [
+  "/* MetaDB legacy build (tools/legacy-build.mjs) for Chrome 74 engines — do not edit; regenerate.",
+  "   Loaded before style.css, so where both set something, style.css still wins. */",
+];
+
+/* Rules, with the @media they sit in. Nested blocks are walked by brace depth. */
+function rules(text) {
+  const found = [];
+  const walk = (src, media) => {
+    let i = 0;
+    while (i < src.length) {
+      const open = src.indexOf("{", i);
+      if (open < 0) break;
+      const head = src.slice(i, open).trim();
+      let depth = 1, j = open + 1;
+      while (j < src.length && depth) {
+        if (src[j] === "{") depth++;
+        else if (src[j] === "}") depth--;
+        j++;
+      }
+      const body = src.slice(open + 1, j - 1);
+      if (head.startsWith("@media")) walk(body, head);
+      else if (!head.startsWith("@")) found.push({ sel: head.replace(/\s+/g, " "), body, media });
+      i = j;
+    }
+  };
+  walk(text, null);
+  return found;
+}
+const all = rules(css);
+const emit = (media, text) => out.push(media ? `${media} { ${text} }` : text);
+const decl = (body, prop) => body.match(new RegExp(`(?:^|;)\\s*${prop}\\s*:\\s*([^;]+)`))?.[1]?.trim() ?? null;
+
+/* Flexbox gap: a margin on every child after the first, along the main axis. Grid
+   gap already works in Chrome 74, so grid rules are left alone. */
+const flexSelectors = new Set(all.filter((r) => /display\s*:\s*(inline-)?flex/.test(r.body)).map((r) => r.sel));
+let gaps = 0;
+for (const r of all) {
+  const gap = decl(r.body, "gap") ?? decl(r.body, "column-gap");
+  if (!gap || /display\s*:\s*(inline-)?grid/.test(r.body)) continue;
+  const isFlex = /display\s*:\s*(inline-)?flex/.test(r.body) || r.sel.split(",").some((s) => flexSelectors.has(s.trim())) || !/display\s*:/.test(r.body);
+  if (!isFlex) continue;
+  const [rowGap, colGap = rowGap] = gap.split(/\s+/);
+  const column = /flex-direction\s*:\s*column/.test(r.body);
+  const sels = r.sel.split(",").map((s) => s.trim()).filter((s) => !/::?(focus-visible|has|is|where)\b/.test(s));
+  if (!sels.length) continue;
+  const kids = sels.map((s) => `${s} > * + *`).join(", ");
+  emit(r.media, `${kids} { ${column ? `margin-top: ${rowGap}` : `margin-left: ${colGap}`}; }`);
+  /* Wrapped rows get the row gap too, as a top margin on every child. */
+  if (!column && /flex-wrap\s*:\s*wrap/.test(r.body)) emit(r.media, `${sels.map((s) => `${s} > *`).join(", ")} { margin-top: ${rowGap}; }`);
+  gaps++;
+}
+
+/* inset: the four sides. */
+for (const r of all) {
+  const inset = decl(r.body, "inset");
+  if (!inset) continue;
+  const v = inset.split(/\s+/);
+  const [t, rt = t, b = t, l = rt] = v;
+  emit(r.media, `${r.sel} { top: ${t}; right: ${rt}; bottom: ${b}; left: ${l}; }`);
+}
+
+/* :focus-visible: Chrome 74 drops a whole rule over it, so the keyboard ring is
+   shown on :focus instead. */
+for (const r of all) {
+  if (!/:focus-visible/.test(r.sel)) continue;
+  emit(r.media, `${r.sel.replace(/:focus-visible/g, ":focus")} {${r.body}}`);
+}
+
+/* The few min() and color-mix() declarations, by hand: no general rewrite holds. */
+out.push(`
+tbody tr.app.owned td, .vtable tr.installed td, .addons-pane tr.owned td { background: rgba(76, 175, 106, .12); }
+tbody tr.app.owned:hover td { background: rgba(76, 175, 106, .2); }
+.ach.on { border-color: rgba(76, 175, 106, .55); }
+.tour-ring { box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .6); }
+.tour-ring--none { background: rgba(0, 0, 0, .6); }
+.shots { grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); }
+.facts { grid-template-columns: repeat(auto-fit, minmax(17rem, max-content)); }
+.tour-card { width: 22rem; max-width: calc(100vw - 32px); }
+.vscroll { max-height: 60vh; }
+.ui-dialog__box { width: 31rem; max-width: 100%; }
+.ui-notices { width: 26rem; max-width: calc(100vw - 2.5rem); }`);
+
+writeFileSync("css/legacy.css", out.join("\n") + "\n");
+
+const js = readFileSync("js/app.legacy.js", "utf8");
+console.log(`js/app.legacy.js  ${(js.length / 1024).toFixed(0)} KB (${TARGET})`);
+console.log(`css/legacy.css    ${gaps} flex-gap fallbacks`);

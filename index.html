@@ -25,7 +25,41 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=240">
+<script>
+  /* If the site's script cannot run here, say so instead of leaving a half-built
+     page, and say why. Written in old JavaScript on purpose: it has to run on the
+     engines the main script cannot (an old headset's built-in browser, say).
+     js/app.js sets window.__metadbStarted on its last line, once setup is done. */
+  (function () {
+    /* With the old-browser build, Chrome 74 (the Quest 1) is the floor. */
+    var NEEDS = 74;
+    var first = null;
+    window.addEventListener("error", function (e) {
+      if (first || !e || !e.message) return;
+      var file = e.filename ? e.filename.split("/").pop().split("?")[0] : "";
+      first = e.message + (file ? " (" + file + (e.lineno ? ":" + e.lineno : "") + ")" : "");
+    }, true);
+    window.addEventListener("load", function () {
+      setTimeout(function () {
+        if (window.__metadbStarted) return;
+        var m = navigator.userAgent.match(/Chrome\/(\d+)/);
+        var version = m ? Number(m[1]) : null;
+        var box = document.createElement("div");
+        box.setAttribute("role", "alert");
+        box.style.cssText = "margin:12px 16px;padding:12px 16px;border:2px solid #c2352a;border-radius:8px;" +
+          "background:#fff4f2;color:#1c1c1c;font:15px/1.5 system-ui,sans-serif;position:relative;z-index:100";
+        var why = version && version < NEEDS
+          ? "This browser engine is Chrome " + version + ", and MetaDB needs Chrome " + NEEDS + " or newer."
+          : "The browser engine is " + (version ? "Chrome " + version : "not one MetaDB recognises") + ".";
+        box.innerHTML = "<strong>MetaDB could not start here.</strong> ";
+        box.appendChild(document.createTextNode(why + (first ? " It stopped at: " + first : "") +
+          " On a headset this is its built-in browser, which only a system update makes newer."));
+        document.body.insertBefore(box, document.body.firstChild);
+      }, 4000);
+    });
+  })();
+</script>
+<link rel="stylesheet" href="css/style.css?v=241">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -33,7 +67,11 @@
   (function () {
     var saved = null;
     try { saved = localStorage.getItem("theme"); } catch (e) {}
-    var system = window.matchMedia("(prefers-color-scheme: dark)").matches
+    /* An engine too old to report a preference (Chrome 75 and earlier, the Quest 1's)
+       gets dark, which is what a headset uses anyway. */
+    var reports = window.matchMedia("(prefers-color-scheme: dark)").matches ||
+      window.matchMedia("(prefers-color-scheme: light)").matches;
+    var system = !reports || window.matchMedia("(prefers-color-scheme: dark)").matches
       ? "dark"
       : "light";
     document.documentElement.dataset.theme = saved || system;
@@ -1245,6 +1283,34 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=240"></script>
+<script>
+  /* Which build this engine can run. js/app.js is written for Chrome 86 and later; an
+     older engine (the Quest 1's built-in one is Chrome 74, for good) cannot even read
+     it, so it gets js/app.legacy.js and css/legacy.css instead, both made from the
+     same sources by tools/legacy-build.mjs. Tested by what the engine accepts, not
+     by its name. Here at the end of the page, so the page is there when it runs. */
+  (function () {
+    var modern = true;
+    try {
+      new Function("var a = {}; a.b ??= a?.c ?? 1;");
+    } catch (e) {
+      modern = false;
+    }
+    if (!("replaceChildren" in Element.prototype)) modern = false;
+    window.__metadbLegacy = !modern;
+    if (!modern) {
+      document.documentElement.classList.add("legacy");
+      var main = document.querySelector('link[rel="stylesheet"][href*="style.css"]');
+      var css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "css/legacy.css?v=241";
+      main.parentNode.insertBefore(css, main);
+    }
+    var js = document.createElement("script");
+    js.type = "module";
+    js.src = modern ? "js/app.js?v=241" : "js/app.legacy.js?v=241";
+    document.body.appendChild(js);
+  })();
+</script>
 </body>
 </html>

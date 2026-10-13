@@ -63,7 +63,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=240";
+} from "./check.js?v=241";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -1430,7 +1430,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=240")
+    import("./companion.js?v=241")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -7791,3 +7791,6 @@ async function lookUpWorld() {
   renderWorlds();
   el.worldRows.querySelector(`tr[data-world="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
 }
+
+/* Setup finished: the start-up check in index.html stands down. */
+window.__metadbStarted = true;
