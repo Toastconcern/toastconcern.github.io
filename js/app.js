@@ -5,12 +5,9 @@ import {
   lookupByPackage,
   lookupPackages,
   storeNames,
-  OCMS_HEADERS,
+  ocmsHeaders,
   parseRepo,
   githubReleases,
-  SITE_BUILD,
-  liveSiteBuild,
-  fetchHistory,
   appDetails,
   storeListing,
   channelObbs,
@@ -63,7 +60,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=243";
+} from "./check.js?v=244";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -87,8 +84,6 @@ const APP_CAPS = (() => {
 const appHas = (feature) => Array.isArray(APP_CAPS.features) && APP_CAPS.features.includes(feature);
 if (IN_APP) document.documentElement.classList.add("in-app");
 
-/* Apps that publish no channel at all are grouped under this label. */
-const NO_CHANNEL = "Developer";
 
 /* System apps are identified by package name and have no store ID, so they get
    keyed by package instead. Nothing else in the UI needs to care which it is. */
@@ -228,7 +223,6 @@ const sorted = (list, mode) => [...list].sort(SORTS[mode] ?? SORTS.az);
 const el = {
   rows: document.getElementById("rows"),
   empty: document.getElementById("empty"),
-  sub: document.getElementById("sub"),
   count: document.getElementById("count"),
   q: document.getElementById("q"),
   hmd: document.getElementById("hmd"),
@@ -256,7 +250,6 @@ const el = {
   devicesQ: document.getElementById("devicesQ"),
   devicesSort: document.getElementById("devicesSort"),
   devicesRows: document.getElementById("devicesRows"),
-  devicesSub: document.getElementById("devicesSub"),
   devicesCount: document.getElementById("devicesCount"),
   devicesEmpty: document.getElementById("devicesEmpty"),
   devicesPresence: document.getElementById("devicesPresence"),
@@ -273,7 +266,6 @@ const el = {
   orgPick: document.getElementById("orgPick"),
   checkOrg: document.getElementById("checkOrg"),
   orgRows: document.getElementById("orgRows"),
-  orgSub: document.getElementById("orgSub"),
   orgCount: document.getElementById("orgCount"),
   orgEmpty: document.getElementById("orgEmpty"),
   defaultHmd: document.getElementById("defaultHmd"),
@@ -318,7 +310,6 @@ const el = {
   dgBody: document.getElementById("dgBody"),
   dgCount: document.getElementById("dgCount"),
   dgApps: document.getElementById("dgApps"),
-  dgSideH: document.getElementById("dgSideH"),
   dgShowAll: document.getElementById("dgShowAll"),
   dgMore: document.getElementById("dgMore"),
   dgMoreH: document.getElementById("dgMoreH"),
@@ -394,7 +385,6 @@ const el = {
   purchasesShowPay: document.getElementById("purchasesShowPay"),
   purchasesQ: document.getElementById("purchasesQ"),
   purchasesRows: document.getElementById("purchasesRows"),
-  purchasesSub: document.getElementById("purchasesSub"),
   purchasesCount: document.getElementById("purchasesCount"),
   purchasesEmpty: document.getElementById("purchasesEmpty"),
   mineEmpty: document.getElementById("mineEmpty"),
@@ -559,8 +549,6 @@ const storeArt = (() => {
   }
 })();
 let storeArtAsking = false;
-/* The newer-site check: when it last asked, and whether it is asking now. */
-let siteChecked = 0;
 /* A shared link being put back: the search it runs must not rewrite the link. */
 let restoringRoute = false;
 /* The address is a path — /apps/<id>/builds, /search/<words> — read by the "links"
@@ -591,7 +579,6 @@ const routeView = () => {
   });
   history.replaceState(history.state, "", path + location.search);
 })();
-let siteAsking = false;
 /* Packages whose art was asked for this visit. A miss is kept, but asked again
    on the next visit rather than never. */
 const storeArtTried = new Set();
@@ -694,7 +681,6 @@ initPlus();
 initHeadset();
 initDowngrade();
 initGetApp();
-initSiteUpdate();
 initDirectDownload();
 initTour();
 initColumns();
@@ -729,6 +715,9 @@ async function publishedBuild() {
 
 /** Nothing in progress that a reload would throw away. */
 function safeToReload() {
+  /* An install, save or backup in the headset app reports its progress to this
+     page, so it is never reloaded from under one — hidden or not. */
+  if (appInstalls.size) return false;
   if (document.hidden) return true;
   if (stagedApp) return false;
   const tag = document.activeElement?.tagName;
@@ -744,6 +733,8 @@ async function checkForUpdate() {
   const now = Date.now();
   if (now - lastUpdateCheck < 60_000) return;
   lastUpdateCheck = now;
+  /* The headset app's own version rides along: same moment, its own file. */
+  if (IN_APP) checkAppUpdate();
 
   const mine = loadedBuild();
   if (!mine) return;
@@ -775,7 +766,21 @@ async function checkForUpdate() {
   showUpdateNotice();
 }
 
+let updateAsked = false;
+
 function showUpdateNotice() {
+  /* Downgrade hides the page the notice goes on, so there it asks instead, once. */
+  if (document.documentElement.classList.contains("layout-dg")) {
+    if (updateAsked || appInstalls.size || !document.getElementById("uiDialog").hidden) return;
+    updateAsked = true;
+    uiConfirm({
+      title: "MetaDB has been updated",
+      text: "Reload to use the new version. Your sign-in, settings and backups stay as they are.",
+      yes: "Reload",
+      no: "Later",
+    }).then((go) => go && location.reload());
+    return;
+  }
   if (document.getElementById("updateNote")) return;
 
   const note = document.createElement("p");
@@ -1439,7 +1444,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=243")
+    import("./companion.js?v=244")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -2424,7 +2429,13 @@ window.metadbInstall = async (e) => {
 function initDowngrade() {
   if (!IN_APP) return;
   /* The relay's headers come from the site (app 1.3+), so they update with it. */
-  if (appHas("relayHeaders")) window.MetaDBApp.setRelayHeaders(JSON.stringify(OCMS_HEADERS));
+  if (appHas("relayHeaders")) {
+    ocmsHeaders()
+      .then((h) => window.MetaDBApp.setRelayHeaders(JSON.stringify(h)))
+      .catch(() => {
+        /* Not this time; the app keeps the last set it was given, or its own. */
+      });
+  }
   el.dgSite.addEventListener("click", () => {
     saveSettings({ layout: "site" });
     go("/apps");
@@ -3392,46 +3403,6 @@ function initGetApp() {
   document.getElementById("appCheck").addEventListener("click", () => checkAppUpdate({ quiet: false }));
   /* Once a launch, after setup: is a newer MetaDB published beside the site? */
   setTimeout(() => checkAppUpdate(), 1500);
-}
-
-/* ---------- a newer site ----------
-   A page left open keeps running the build it opened with, and the headset app
-   keeps one open for hours. So now and then — and whenever the page comes back
-   into view — it asks which build the site serves. A newer one reloads the page:
-   at once when nobody is looking and nothing is running, otherwise after asking.
-   Jobs in flight are waited for, since their progress reports go to this page. */
-function initSiteUpdate() {
-  const check = () => checkSiteUpdate();
-  setTimeout(check, 5000);
-  setInterval(check, 10 * 60 * 1000);
-  document.addEventListener("visibilitychange", check);
-  window.addEventListener("focus", check);
-}
-
-async function checkSiteUpdate() {
-  /* Hidden is always worth a look: a reload then interrupts nobody. */
-  const hidden = document.visibilityState === "hidden";
-  if (!SITE_BUILD || siteAsking || (!hidden && Date.now() - siteChecked < 60_000)) return;
-  if (!hidden) siteChecked = Date.now();
-  if (IN_APP) checkAppUpdate();
-  let live = 0;
-  try {
-    live = await liveSiteBuild();
-  } catch {}
-  if (live <= SITE_BUILD || appInstalls.size) return;
-  if (hidden) return location.reload();
-  if (!document.getElementById("uiDialog").hidden) return;
-  siteAsking = true;
-  const go = await uiConfirm({
-    title: "MetaDB has been updated",
-    text: "Reload to use the new version. Your sign-in, settings and backups stay as they are.",
-    yes: "Reload",
-    no: "Later",
-  });
-  siteAsking = false;
-  if (go) location.reload();
-  /* Later: asked again in an hour, or straight away once the page is hidden. */
-  else siteChecked = Date.now() + 59 * 60 * 1000;
 }
 
 /* ---------- the app's own update check ----------
@@ -4550,32 +4521,6 @@ function primaryOf(app) {
   );
 }
 
-function channelNames(app) {
-  const list = channelsOf(app);
-  return list.length ? list.map((c) => c.name) : [NO_CHANNEL];
-}
-
-/** Build a channel dropdown from whatever names a list actually contains. */
-function fillChannelFilter(select, list) {
-  const names = new Set();
-  for (const app of list) for (const n of channelNames(app)) names.add(n);
-
-  const ordered = [...names].sort((a, b) => {
-    if (a === NO_CHANNEL) return 1;
-    if (b === NO_CHANNEL) return -1;
-    if (a === "LIVE") return -1;
-    if (b === "LIVE") return 1;
-    return a.localeCompare(b);
-  });
-
-  for (const n of ordered) {
-    const opt = document.createElement("option");
-    opt.value = n;
-    opt.textContent = n;
-    select.append(opt);
-  }
-}
-
 /* ---------- boot ---------- */
 
 async function boot() {
@@ -4791,7 +4736,6 @@ async function runSearch() {
   renderAll();
 }
 
-const stateOf = (app) => results.get(keyOf(app))?.state ?? "unknown";
 
 /* ---------- rendering ---------- */
 

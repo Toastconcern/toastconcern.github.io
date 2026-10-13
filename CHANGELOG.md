@@ -15,6 +15,18 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=244 — 2026-10-13
+
+- The OCMS headers (User-Agent with the OCMS version, OS build, language) live in one file,
+  `data/ocms-headers.json`. The Cloudflare relay, `tools/relay.mjs` and the site all read it,
+  and the site hands it to the headset app. Changing the OCMS version is now one edit, and
+  installed apps (1.3+) pick it up the next time they open.
+- The site checked for a newer version twice over: two separate checks, both re-reading the
+  page. They are now one: 45 seconds after opening, then every 15 minutes, and when the tab
+  comes back into view. It never reloads during an install in the headset app, and in
+  Downgrade it asks in the app's own prompt.
+- Removed code nothing used.
+
 ## Site v=243 — 2026-10-13
 
 - Browser engines from Chrome 74 up to now all get what they need. Each CSS fallback (for

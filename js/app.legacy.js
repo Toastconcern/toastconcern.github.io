@@ -2690,18 +2690,11 @@ async function checkApp(app) {
     revisions
   };
 }
-var SITE_BUILD = Number(new URL(import.meta.url).searchParams.get("v")) || 0;
-async function liveSiteBuild() {
-  const res = await fetch(new URL("../", import.meta.url).href, { cache: "no-store" });
-  if (!res.ok) return 0;
-  const m = (await res.text()).match(/js\/app\.js\?v=(\d+)/);
-  return m ? Number(m[1]) : 0;
+async function ocmsHeaders() {
+  const res = await fetch(new URL(`../data/ocms-headers.json${new URL(import.meta.url).search}`, import.meta.url));
+  if (!res.ok) throw new Error(`ocms-headers.json answered ${res.status}`);
+  return res.json();
 }
-var OCMS_HEADERS = {
-  "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 14; Quest 3 Build/UP1A.231005.007.A1) [FBAN/OculusOCMS;FBAV/1048.0.0.115.1326;FBCR/null;FBDV/Quest 3;FBHV/209;FBLC/en_US;FBSV/14;FBSBT/user;FBBD/oculus;FBBV/584111364;FBCA/arm64-v8a:armeabi-v7a:armeabi;FBMF/Oculus;FBPN/com.oculus.ocms;FBDW/null;FBVM/null;]",
-  "X-Build-Version-Incremental": "52641960021500520",
-  "Accept-Language": "en-US,en;q=0.6"
-};
 function parseRepo(input) {
   var _a2;
   const s = String(input != null ? input : "").trim();
@@ -4257,7 +4250,6 @@ var sorted = (list, mode) => {
 var el = {
   rows: document.getElementById("rows"),
   empty: document.getElementById("empty"),
-  sub: document.getElementById("sub"),
   count: document.getElementById("count"),
   q: document.getElementById("q"),
   hmd: document.getElementById("hmd"),
@@ -4283,7 +4275,6 @@ var el = {
   devicesQ: document.getElementById("devicesQ"),
   devicesSort: document.getElementById("devicesSort"),
   devicesRows: document.getElementById("devicesRows"),
-  devicesSub: document.getElementById("devicesSub"),
   devicesCount: document.getElementById("devicesCount"),
   devicesEmpty: document.getElementById("devicesEmpty"),
   devicesPresence: document.getElementById("devicesPresence"),
@@ -4299,7 +4290,6 @@ var el = {
   orgPick: document.getElementById("orgPick"),
   checkOrg: document.getElementById("checkOrg"),
   orgRows: document.getElementById("orgRows"),
-  orgSub: document.getElementById("orgSub"),
   orgCount: document.getElementById("orgCount"),
   orgEmpty: document.getElementById("orgEmpty"),
   defaultHmd: document.getElementById("defaultHmd"),
@@ -4344,7 +4334,6 @@ var el = {
   dgBody: document.getElementById("dgBody"),
   dgCount: document.getElementById("dgCount"),
   dgApps: document.getElementById("dgApps"),
-  dgSideH: document.getElementById("dgSideH"),
   dgShowAll: document.getElementById("dgShowAll"),
   dgMore: document.getElementById("dgMore"),
   dgMoreH: document.getElementById("dgMoreH"),
@@ -4416,7 +4405,6 @@ var el = {
   purchasesShowPay: document.getElementById("purchasesShowPay"),
   purchasesQ: document.getElementById("purchasesQ"),
   purchasesRows: document.getElementById("purchasesRows"),
-  purchasesSub: document.getElementById("purchasesSub"),
   purchasesCount: document.getElementById("purchasesCount"),
   purchasesEmpty: document.getElementById("purchasesEmpty"),
   mineEmpty: document.getElementById("mineEmpty"),
@@ -4500,7 +4488,6 @@ var storeArt = (() => {
   }
 })();
 var storeArtAsking = false;
-var siteChecked = 0;
 var restoringRoute = false;
 var PANEL_TABS = ["store", "builds", "reviews", "addons", "achievements", "mine"];
 var VIEWS = [
@@ -4540,7 +4527,6 @@ var routeView = () => {
   });
   history.replaceState(history.state, "", path + location.search);
 })();
-var siteAsking = false;
 var storeArtTried = /* @__PURE__ */ new Set();
 var dgState = { tab: "apps", loaded: false, loading: false, note: "", selected: null, builds: /* @__PURE__ */ new Map(), backups: [], backupSel: null, more: [], releases: /* @__PURE__ */ new Map() };
 var adbBusy = false;
@@ -4593,7 +4579,6 @@ initPlus();
 initHeadset();
 initDowngrade();
 initGetApp();
-initSiteUpdate();
 initDirectDownload();
 initTour();
 initColumns();
@@ -4613,6 +4598,7 @@ async function publishedBuild() {
 }
 function safeToReload() {
   var _a2;
+  if (appInstalls.size) return false;
   if (document.hidden) return true;
   if (stagedApp) return false;
   const tag = (_a2 = document.activeElement) == null ? void 0 : _a2.tagName;
@@ -4624,6 +4610,7 @@ async function checkForUpdate() {
   const now = Date.now();
   if (now - lastUpdateCheck < 6e4) return;
   lastUpdateCheck = now;
+  if (IN_APP) checkAppUpdate();
   const mine = loadedBuild();
   if (!mine) return;
   let live = null;
@@ -4648,7 +4635,19 @@ async function checkForUpdate() {
   }
   showUpdateNotice();
 }
+var updateAsked = false;
 function showUpdateNotice() {
+  if (document.documentElement.classList.contains("layout-dg")) {
+    if (updateAsked || appInstalls.size || !document.getElementById("uiDialog").hidden) return;
+    updateAsked = true;
+    uiConfirm({
+      title: "MetaDB has been updated",
+      text: "Reload to use the new version. Your sign-in, settings and backups stay as they are.",
+      yes: "Reload",
+      no: "Later"
+    }).then((go2) => go2 && location.reload());
+    return;
+  }
   if (document.getElementById("updateNote")) return;
   const note2 = document.createElement("p");
   note2.id = "updateNote";
@@ -5051,7 +5050,7 @@ function applyView() {
   el.viewGetapp.hidden = view !== "getapp";
   if (view === "getapp") showAppInfo();
   if (view === "companion") {
-    import("./companion.js?v=243").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => console.error("companion init failed", e));
+    import("./companion.js?v=244").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => console.error("companion init failed", e));
   }
   el.limitbar.hidden = view !== "apps";
   for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);
@@ -5786,7 +5785,10 @@ window.metadbInstall = async (e) => {
 };
 function initDowngrade() {
   if (!IN_APP) return;
-  if (appHas("relayHeaders")) window.MetaDBApp.setRelayHeaders(JSON.stringify(OCMS_HEADERS));
+  if (appHas("relayHeaders")) {
+    ocmsHeaders().then((h) => window.MetaDBApp.setRelayHeaders(JSON.stringify(h))).catch(() => {
+    });
+  }
   el.dgSite.addEventListener("click", () => {
     saveSettings({ layout: "site" });
     go("/apps");
@@ -6591,37 +6593,6 @@ function initGetApp() {
   el.dgAppUpdate.addEventListener("click", () => offerAppUpdate(el.dgAppUpdate));
   document.getElementById("appCheck").addEventListener("click", () => checkAppUpdate({ quiet: false }));
   setTimeout(() => checkAppUpdate(), 1500);
-}
-function initSiteUpdate() {
-  const check = () => checkSiteUpdate();
-  setTimeout(check, 5e3);
-  setInterval(check, 10 * 60 * 1e3);
-  document.addEventListener("visibilitychange", check);
-  window.addEventListener("focus", check);
-}
-async function checkSiteUpdate() {
-  const hidden = document.visibilityState === "hidden";
-  if (!SITE_BUILD || siteAsking || !hidden && Date.now() - siteChecked < 6e4) return;
-  if (!hidden) siteChecked = Date.now();
-  if (IN_APP) checkAppUpdate();
-  let live = 0;
-  try {
-    live = await liveSiteBuild();
-  } catch {
-  }
-  if (live <= SITE_BUILD || appInstalls.size) return;
-  if (hidden) return location.reload();
-  if (!document.getElementById("uiDialog").hidden) return;
-  siteAsking = true;
-  const go2 = await uiConfirm({
-    title: "MetaDB has been updated",
-    text: "Reload to use the new version. Your sign-in, settings and backups stay as they are.",
-    yes: "Reload",
-    no: "Later"
-  });
-  siteAsking = false;
-  if (go2) location.reload();
-  else siteChecked = Date.now() + 59 * 60 * 1e3;
 }
 function appOwnVersion() {
   var _a2, _b2, _c;

@@ -23,29 +23,16 @@
 
 import http from "node:http";
 import { Readable } from "node:stream";
+import { readFileSync } from "node:fs";
 
 const PORT = Number(process.env.PORT) || 8788;
 const ALLOWED = /^https:\/\/(graph|www|securecdn(-[a-z0-9-]+)?)\.oculus\.com\//;
 
 /* Every request goes out as the headset's own app manager (OCMS) sends it: its
-   User-Agent, which carries the OCMS version (FBAV/1048.0.0.115.1326, build
-   FBBV/584111364), and the OS build header beside it. Read off a Quest 3: OCMS
-   from `dumpsys package com.oculus.ocms`, the rest from getprop
-   (ro.build.version.incremental, ro.vros.build.version for FBHV). Update all
-   three relays together — tools/relay.mjs, functions/api.js and the headset
-   app's Relay.java. */
-const OCMS_UA =
-  "Dalvik/2.1.0 (Linux; U; Android 14; Quest 3 Build/UP1A.231005.007.A1) " +
-  "[FBAN/OculusOCMS;FBAV/1048.0.0.115.1326;FBCR/null;FBDV/Quest 3;FBHV/209;" +
-  "FBLC/en_US;FBSV/14;FBSBT/user;FBBD/oculus;FBBV/584111364;" +
-  "FBCA/arm64-v8a:armeabi-v7a:armeabi;FBMF/Oculus;FBPN/com.oculus.ocms;" +
-  "FBDW/null;FBVM/null;]";
-/* The headset OS build OCMS names with it (Build.VERSION.INCREMENTAL). */
-const OCMS_BUILD = "52641960021500520";
-/* The language replies are written in: dates, number formats and store text in
-   US English, wherever the relay runs. It does not pick the currency — Meta
-   prices by where the request comes from. */
-const LANGUAGE = "en-US,en;q=0.6";
+   User-Agent (carrying the OCMS version), the OS build header, and the language
+   replies are written in. One file holds them for every relay and the site:
+   data/ocms-headers.json. Read once, at start. */
+const OCMS_HEADERS = JSON.parse(readFileSync(new URL("../data/ocms-headers.json", import.meta.url), "utf8"));
 
 /* Content-Disposition is what makes the browser save an APK under its own name
    rather than calling it after this endpoint.
@@ -97,9 +84,7 @@ http
       const upstream = await fetch(target, {
         method: isPost ? "POST" : "GET",
         headers: {
-          "User-Agent": OCMS_UA,
-          "X-Build-Version-Incremental": OCMS_BUILD,
-          "Accept-Language": LANGUAGE,
+          ...OCMS_HEADERS,
           ...(download
             ? { Accept: "*/*" }
             : isPost

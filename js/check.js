@@ -650,33 +650,17 @@ export async function checkApp(app) {
   };
 }
 
-/* The site build this page is running — its own ?v= — and the one the site
-   serves now, read off the app.js link in a fresh copy of the page. A page left
-   open for hours (the headset app keeps one open all day) compares the two to
-   know it is stale. */
-export const SITE_BUILD = Number(new URL(import.meta.url).searchParams.get("v")) || 0;
-
-export async function liveSiteBuild() {
-  const res = await fetch(new URL("../", import.meta.url).href, { cache: "no-store" });
-  if (!res.ok) return 0;
-  const m = (await res.text()).match(/js\/app\.js\?v=(\d+)/);
-  return m ? Number(m[1]) : 0;
+/* The headers Meta's own app manager (OCMS) sends, which every relay sends on every
+   request: its User-Agent (carrying the OCMS version), the OS build header, and the
+   language replies are written in. They live in data/ocms-headers.json, which the
+   Cloudflare relay and tools/relay.mjs read too, so an OCMS version bump is one edit.
+   The headset app (1.3 and later) is handed them from here at start-up. Fetched
+   beside this file, with its own ?v=, like the other data files. */
+export async function ocmsHeaders() {
+  const res = await fetch(new URL(`../data/ocms-headers.json${new URL(import.meta.url).search}`, import.meta.url));
+  if (!res.ok) throw new Error(`ocms-headers.json answered ${res.status}`);
+  return res.json();
 }
-
-/* The headers Meta's own app manager (OCMS) sends, which the relays send on every
-   request. The headset app (1.3 and later) takes them from here at start-up, so
-   an OCMS version bump reaches it without a new APK; the other two relays
-   (functions/api.js, tools/relay.mjs) carry the same values and change with it. */
-export const OCMS_HEADERS = {
-  "User-Agent":
-    "Dalvik/2.1.0 (Linux; U; Android 14; Quest 3 Build/UP1A.231005.007.A1) " +
-    "[FBAN/OculusOCMS;FBAV/1048.0.0.115.1326;FBCR/null;FBDV/Quest 3;FBHV/209;" +
-    "FBLC/en_US;FBSV/14;FBSBT/user;FBBD/oculus;FBBV/584111364;" +
-    "FBCA/arm64-v8a:armeabi-v7a:armeabi;FBMF/Oculus;FBPN/com.oculus.ocms;" +
-    "FBDW/null;FBVM/null;]",
-  "X-Build-Version-Incremental": "52641960021500520",
-  "Accept-Language": "en-US,en;q=0.6",
-};
 
 /* ---------- GitHub releases ----------
    Apps from unknown sources often publish their APKs as GitHub releases. GitHub's
