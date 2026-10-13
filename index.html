@@ -44,6 +44,28 @@
         if (window.__metadbStarted) return;
         var m = navigator.userAgent.match(/Chrome\/(\d+)/);
         var version = m ? Number(m[1]) : null;
+        /* An engine new enough to run the site that still failed has usually kept a
+           stale file: a script cached while a deploy was half-rolled-out, under the
+           same ?v= as the new one. Fetch every site file again (which overwrites the
+           cached copy) and reload, once a session, before saying anything. */
+        var healed = null;
+        try {
+          healed = sessionStorage.getItem("metadb.healed");
+        } catch (e) {}
+        if ((!version || version >= NEEDS) && !healed && window.fetch) {
+          try {
+            sessionStorage.setItem("metadb.healed", "1");
+          } catch (e) {}
+          var v = (document.querySelector('link[href*="style.css"]').getAttribute("href").match(/v=(\d+)/) || [])[1] || "";
+          var files = ["js/app.js", "js/check.js", "js/companion.js", "js/app.legacy.js", "css/style.css",
+            "css/compat.css", "css/legacy-gap.css", "data/ocms-headers.json"];
+          Promise.all(files.map(function (f) {
+            return fetch(f + "?v=" + v, { cache: "reload" }).catch(function () {});
+          })).then(function () {
+            location.reload();
+          });
+          return;
+        }
         var box = document.createElement("div");
         box.setAttribute("role", "alert");
         box.style.cssText = "margin:12px 16px;padding:12px 16px;border:2px solid #c2352a;border-radius:8px;" +
