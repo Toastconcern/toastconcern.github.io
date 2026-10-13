@@ -15,6 +15,16 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=243 — 2026-10-13
+
+- Browser engines from Chrome 74 up to now all get what they need. Each CSS fallback (for
+  flexbox gap, `inset`, `min()`, `color-mix()`, `:focus-visible`) now loads only where the
+  engine lacks that feature, separately from which script it runs. Chrome 84–85 no longer get
+  doubled spacing, and Chrome 86–110 get the colours `color-mix()` draws. Tested in Chromium
+  74, 84 and 86 and a current browser.
+- Old engines: the menus' arrows and the "What this is" toggles are spaced from their text
+  again.
+
 ## Site v=242 — 2026-10-13
 
 - Downgrade has its own theme picker in its top bar. It is the same setting as the site's

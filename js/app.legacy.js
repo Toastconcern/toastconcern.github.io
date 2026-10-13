@@ -5051,7 +5051,7 @@ function applyView() {
   el.viewGetapp.hidden = view !== "getapp";
   if (view === "getapp") showAppInfo();
   if (view === "companion") {
-    import("./companion.js?v=242").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => console.error("companion init failed", e));
+    import("./companion.js?v=243").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => console.error("companion init failed", e));
   }
   el.limitbar.hidden = view !== "apps";
   for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);

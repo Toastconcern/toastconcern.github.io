@@ -63,7 +63,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=242";
+} from "./check.js?v=243";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -1439,7 +1439,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=242")
+    import("./companion.js?v=243")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }

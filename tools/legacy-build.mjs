@@ -5,15 +5,17 @@
 // and private methods stop Chrome 74 from even reading js/app.js, and flexbox
 // `gap`, `inset`, `min()`, `color-mix()` and `:focus-visible` are lost from the CSS.
 //
-// This writes two files for those engines, which index.html loads instead when it
-// finds one (everything newer gets the normal files, untouched):
+// This writes three files from the real sources. index.html's loader tests each
+// engine and loads only what it lacks (a current engine loads none of them):
 //
-//   js/app.legacy.js  js/app.js and everything it imports, as one file rewritten
-//                     for Chrome 74 by esbuild, with the few missing built-ins
-//                     filled in. It sits beside js/app.js, so import.meta.url and
-//                     the relative data/ paths still point where they should.
-//   css/legacy-gap.css, css/compat.css
-//                     CSS fallbacks, loaded by what an engine lacks (see below).
+//   js/app.legacy.js    js/app.js and everything it imports, as one file rewritten
+//                       for Chrome 74 by esbuild, with the few missing built-ins filled
+//                       in. For engines that cannot read js/app.js (before Chrome 86).
+//                       It sits beside js/app.js, so import.meta.url and the relative
+//                       data/ paths still point where they should.
+//   css/legacy-gap.css  margins for flexbox gap, where gap lays out as nothing.
+//   css/compat.css      inset, min(), color-mix() and :focus-visible stand-ins, each
+//                       applying only where the engine lacks that one thing.
 //
 // Run it after any change to js/ or css/style.css, before pushing. It needs
 // esbuild once: npm install --no-save --no-package-lock esbuild@0.24.2
@@ -143,6 +145,14 @@ for (const r of all) {
   if (!sels.length) continue;
   const kids = sels.map((s) => `${s} > * + *`).join(", ");
   gapOut.push(inMedia(r.media, `${kids} { ${column ? `margin-top: ${rowGap}` : `margin-left: ${colGap}`}; }`));
+  /* A ::before or ::after drawn inside it (a menu's arrow) is spaced by gap too, and
+     no child selector reaches it. */
+  for (const s of sels) {
+    const side = column ? ["margin-top", "margin-bottom"] : ["margin-left", "margin-right"];
+    const size = column ? rowGap : colGap;
+    if (all.some((x) => x.sel.split(",").some((y) => y.trim() === `${s}::after`))) gapOut.push(inMedia(r.media, `${s}::after { ${side[0]}: ${size}; }`));
+    if (all.some((x) => x.sel.split(",").some((y) => y.trim() === `${s}::before`))) gapOut.push(inMedia(r.media, `${s}::before { ${side[1]}: ${size}; }`));
+  }
   /* Wrapped rows get the row gap too, as a top margin on every child. */
   if (!column && /flex-wrap\s*:\s*wrap/.test(r.body)) gapOut.push(inMedia(r.media, `${sels.map((s) => `${s} > *`).join(", ")} { margin-top: ${rowGap}; }`));
   gaps++;

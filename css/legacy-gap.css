@@ -4,6 +4,7 @@
 .nav > * + * { margin-left: 1rem; }
 .nav > * { margin-top: .35rem; }
 .navtop > * + * { margin-left: .3rem; }
+.navtop::after { margin-left: .3rem; }
 .controls > * + * { margin-left: .5rem; }
 .controls > * { margin-top: .5rem; }
 .form .check > * + * { margin-left: .5rem; }
@@ -16,6 +17,7 @@
 .actions > * + * { margin-left: .5rem; }
 .actions > * { margin-top: .5rem; }
 details.hint > summary > * + * { margin-left: .35rem; }
+details.hint > summary::before { margin-right: .35rem; }
 .limitbar:not([hidden]) > * + * { margin-left: .5rem; }
 @media (max-width: 520px) { .bar > * + * { margin-left: .6rem; } }
 @media (max-width: 520px) { .nav > * + * { margin-left: .6rem; } }
