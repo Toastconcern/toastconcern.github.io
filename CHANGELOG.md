@@ -17,6 +17,9 @@ Newest first. Every update gets an entry before it is pushed.
 
 ## Site v=238 — 2026-10-13
 
+- Every request to Meta now goes out with the headset app manager's (OCMS) own headers:
+  its User-Agent, carrying the current OCMS version (1048.0.0.115.1326), and the OS build.
+  That applies to the built-in relay, `tools/relay.mjs` and the headset app's relay.
 - The address is now a link to what is on screen, so it can be shared, and a reload comes
   back to the same place. It uses plain paths: `/search/beat%20saber` for a search,
   `/apps/<id>/builds` for an app on its Builds tab, `/worlds/<id>` and `/orgs/<id>`, and
@@ -90,6 +93,10 @@ These went out together; the live site was on `v=211` before them.
     MetaDB.
 - Get the app screen: install the headset app from the headset itself, or from a PC over
   ADB.
+
+## App 1.2 (build 3) — 2026-10-13
+
+- Requests to Meta now identify as the current version of the headset's own app manager.
 
 ## App 1.1 (build 2) — 2026-10-13
 

@@ -28,13 +28,23 @@ import java.util.regex.Pattern;
 final class Relay {
     static final int PORT = 8788;
 
-    /** What the Oculus companion app on a Quest 3 sends when it pulls a binary. */
-    static final String DOWNLOAD_UA =
+    /**
+     * Every request goes out as the headset's own app manager (OCMS) sends it: its
+     * User-Agent, which carries the OCMS version (FBAV/1048.0.0.115.1326, build
+     * FBBV/584111364), and the OS build header beside it. Read off a Quest 3: OCMS
+     * from {@code dumpsys package com.oculus.ocms}, the rest from getprop
+     * (ro.build.version.incremental, ro.vros.build.version for FBHV). Update all
+     * three relays together: this, tools/relay.mjs and functions/api.js.
+     */
+    static final String OCMS_UA =
             "Dalvik/2.1.0 (Linux; U; Android 14; Quest 3 Build/UP1A.231005.007.A1) "
-                    + "[FBAN/OculusOCMS;FBAV/1049.0.0.0.1598;FBCR/null;FBDV/Quest 3;FBHV/204;"
-                    + "FBLC/en_US;FBSV/14;FBSBT/user;FBBD/oculus;FBBV/582512031;"
+                    + "[FBAN/OculusOCMS;FBAV/1048.0.0.115.1326;FBCR/null;FBDV/Quest 3;FBHV/209;"
+                    + "FBLC/en_US;FBSV/14;FBSBT/user;FBBD/oculus;FBBV/584111364;"
                     + "FBCA/arm64-v8a:armeabi-v7a:armeabi;FBMF/Oculus;FBPN/com.oculus.ocms;"
                     + "FBDW/null;FBVM/null;]";
+
+    /** The headset OS build OCMS names with it (Build.VERSION.INCREMENTAL). */
+    static final String OCMS_BUILD = "52641960021500520";
 
     private static final Pattern ALLOWED =
             Pattern.compile("^https://(graph|www|securecdn(-[a-z0-9-]+)?)\\.oculus\\.com/.*");
@@ -105,8 +115,9 @@ final class Relay {
             HttpURLConnection up = (HttpURLConnection) new URL(target).openConnection();
             up.setConnectTimeout(30_000);
             up.setReadTimeout(300_000);
+            up.setRequestProperty("User-Agent", OCMS_UA);
+            up.setRequestProperty("X-Build-Version-Incremental", OCMS_BUILD);
             if (download) {
-                up.setRequestProperty("User-Agent", DOWNLOAD_UA);
                 up.setRequestProperty("Accept", "*/*");
                 // Ask for the bytes as they are, so the length still holds.
                 up.setRequestProperty("Accept-Encoding", "identity");

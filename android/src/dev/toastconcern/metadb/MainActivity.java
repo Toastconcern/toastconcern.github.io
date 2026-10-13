@@ -456,7 +456,7 @@ public final class MainActivity extends Activity {
         String name = URLUtil.guessFileName(target, disposition, mime);
         try {
             DownloadManager.Request r = new DownloadManager.Request(Uri.parse(target));
-            r.addRequestHeader("User-Agent", Relay.DOWNLOAD_UA);
+            r.addRequestHeader("User-Agent", Relay.OCMS_UA);
             r.setTitle(name);
             r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);

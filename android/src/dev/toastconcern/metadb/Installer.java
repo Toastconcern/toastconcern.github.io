@@ -745,7 +745,7 @@ final class Installer {
     /** Download with the companion app's User-Agent, as the relay would. Returns the store's file name. */
     private static String fetch(String url, File to, Progress p) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setRequestProperty("User-Agent", Relay.DOWNLOAD_UA);
+        c.setRequestProperty("User-Agent", Relay.OCMS_UA);
         c.setRequestProperty("Accept", "*/*");
         c.setRequestProperty("Accept-Encoding", "identity");
         c.setConnectTimeout(30_000);

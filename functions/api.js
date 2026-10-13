@@ -14,16 +14,23 @@
    anyone who finds the address can fetch arbitrary sites through. */
 const ALLOWED = /^(graph|securecdn(-[a-z0-9-]+)?)\.oculus\.com$/;
 
-/* Binary downloads are asked for by a headset, so they are answered as one.
-   This is what the Oculus companion app on a Quest 3 sends. `User-Agent` is a
-   forbidden header name in a browser, which is the other reason downloads come
-   through here rather than going straight to the CDN. */
-const DOWNLOAD_UA =
+/* Every request goes out as the headset's own app manager (OCMS) sends it: its
+   User-Agent, which carries the OCMS version (FBAV/1048.0.0.115.1326, build
+   FBBV/584111364), and the OS build header beside it. Read off a Quest 3: OCMS
+   from `dumpsys package com.oculus.ocms`, the rest from getprop
+   (ro.build.version.incremental, ro.vros.build.version for FBHV). Update all
+   three relays together — tools/relay.mjs, functions/api.js and the headset
+   app's Relay.java. `User-Agent` is a forbidden header name in a browser, which
+   is the other reason downloads come through here rather than going straight
+   to the CDN. */
+const OCMS_UA =
   "Dalvik/2.1.0 (Linux; U; Android 14; Quest 3 Build/UP1A.231005.007.A1) " +
-  "[FBAN/OculusOCMS;FBAV/1049.0.0.0.1598;FBCR/null;FBDV/Quest 3;FBHV/204;" +
-  "FBLC/en_US;FBSV/14;FBSBT/user;FBBD/oculus;FBBV/582512031;" +
+  "[FBAN/OculusOCMS;FBAV/1048.0.0.115.1326;FBCR/null;FBDV/Quest 3;FBHV/209;" +
+  "FBLC/en_US;FBSV/14;FBSBT/user;FBBD/oculus;FBBV/584111364;" +
   "FBCA/arm64-v8a:armeabi-v7a:armeabi;FBMF/Oculus;FBPN/com.oculus.ocms;" +
   "FBDW/null;FBVM/null;]";
+/* The headset OS build OCMS names with it (Build.VERSION.INCREMENTAL). */
+const OCMS_BUILD = "52641960021500520";
 
 /* Headers worth carrying back. Content-Disposition is what makes the browser
    save an APK under its own name instead of showing it as "api".
@@ -53,15 +60,19 @@ export async function onRequest({ request }) {
 
   const upstream = await fetch(target, {
     method: isPost ? "POST" : "GET",
-    headers: download
-      ? { Accept: "*/*", "User-Agent": DOWNLOAD_UA }
-      : isPost
-        ? {
-            "Content-Type":
-              request.headers.get("content-type") || "application/x-www-form-urlencoded",
-            Accept: "application/json",
-          }
-        : { Accept: "application/json" },
+    headers: {
+      "User-Agent": OCMS_UA,
+      "X-Build-Version-Incremental": OCMS_BUILD,
+      ...(download
+        ? { Accept: "*/*" }
+        : isPost
+          ? {
+              "Content-Type":
+                request.headers.get("content-type") || "application/x-www-form-urlencoded",
+              Accept: "application/json",
+            }
+          : { Accept: "application/json" }),
+    },
     /* Form bodies are tiny, so read the text rather than streaming — simpler,
        and avoids the duplex-stream requirement. */
     body: isPost ? await request.text() : undefined,
