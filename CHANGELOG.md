@@ -10,6 +10,13 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=235 — 2026-10-12
+
+- Downgrade: a store app with no store art shows its own icon from the headset instead of an
+  empty square.
+- An app whose art could not be found is looked up again next time MetaDB opens, rather than
+  never.
+
 ## Site v=234 — 2026-10-12
 
 - Downgrade: every installed app has Back up at its top right, beside Uninstall. That

@@ -58,7 +58,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=234";
+} from "./check.js?v=235";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -541,6 +541,9 @@ const storeArt = (() => {
   }
 })();
 let storeArtAsking = false;
+/* Packages whose art was asked for this visit. A miss is kept, but asked again
+   on the next visit rather than never. */
+const storeArtTried = new Set();
 const dgState = { tab: "apps", loaded: false, loading: false, note: "", selected: null, builds: new Map(), backups: [], backupSel: null, more: [] };
 let adbBusy = false;
 
@@ -1241,7 +1244,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=234")
+    import("./companion.js?v=235")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -2516,8 +2519,10 @@ async function dgSelect(pkg, { again = false } = {}) {
 }
 
 function dgArt(a) {
-  return a?.image
-    ? `<img class="dg-art" src="${esc(a.image)}" alt="" loading="lazy">`
+  /* An installed app the store has no art for still has its own icon. */
+  const image = a?.image || (a?.packageName && a.installedVersionCode != null ? dgHeadsetIcon(a.packageName) : null);
+  return image
+    ? `<img class="dg-art" src="${esc(image)}" alt="" loading="lazy">`
     : `<span class="dg-art"></span>`;
 }
 
@@ -2546,7 +2551,12 @@ function dgHeadsetIcon(pkg, backupId = null) {
  */
 async function fillStoreArt(pkgs, known = null) {
   const owned = ownedByPackage();
-  const want = [...new Set(pkgs)].filter((p) => p && !storeArt.has(p) && !owned.get(p)?.image);
+  const want = [...new Set(pkgs)].filter(
+    (p) =>
+      p &&
+      !owned.get(p)?.image &&
+      (!storeArt.has(p) || (storeArt.get(p) && !storeArt.get(p).image && !storeArtTried.has(p)))
+  );
   if (!want.length || storeArtAsking || !dgSignedIn()) return false;
   storeArtAsking = true;
   try {
@@ -2563,6 +2573,7 @@ async function fillStoreArt(pkgs, known = null) {
     const unnamed = hits.filter((p) => !known.get(p).name).map((p) => known.get(p).id);
     const names = unnamed.length ? await storeNames(unnamed).catch(() => new Map()) : new Map();
     for (const p of want) {
+      storeArtTried.add(p);
       const hit = known.get(p);
       if (!hit?.id) {
         if (!known.has(p)) storeArt.set(p, null);
