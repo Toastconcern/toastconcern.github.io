@@ -650,6 +650,25 @@ export async function checkApp(app) {
   };
 }
 
+/**
+ * Store names for many apps in one request: Map of app ID -> display name.
+ * The node endpoint takes a list of IDs, so a screenful costs one call.
+ */
+export async function storeNames(ids) {
+  const list = [...new Set(ids.map(String))].filter(Boolean);
+  if (!list.length) return new Map();
+  const { token } = loadSettings();
+  const json = await getJSON(
+    `${NODE}/?` + new URLSearchParams({ ids: list.join(","), fields: "display_name", access_token: token })
+  );
+  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const out = new Map();
+  for (const [id, node] of Object.entries(json)) {
+    if (node?.display_name) out.set(String(id), node.display_name);
+  }
+  return out;
+}
+
 /** Fetch one app by store ID, name and builds included. */
 export async function lookupApp(id) {
   const { token } = loadSettings();

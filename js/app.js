@@ -4,6 +4,7 @@ import {
   lookupApp,
   lookupByPackage,
   lookupPackages,
+  storeNames,
   fetchHistory,
   appDetails,
   storeListing,
@@ -57,7 +58,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=233";
+} from "./check.js?v=234";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -528,6 +529,18 @@ let appInfoAsked = false;
 /* Inside the app: a newer MetaDB, once the update check has found one. */
 let appUpdate = null;
 let appUpdateNoticed = false;
+/* Store names and art for packages the library does not cover: a store app
+   put on from an APK, or brought in with + Add APK. Asked once per package and
+   kept across visits; null marks a package the store does not know. */
+const STORE_ART_KEY = "metadb.storeArt";
+const storeArt = (() => {
+  try {
+    return new Map(Object.entries(JSON.parse(localStorage.getItem(STORE_ART_KEY)) ?? {}));
+  } catch {
+    return new Map();
+  }
+})();
+let storeArtAsking = false;
 const dgState = { tab: "apps", loaded: false, loading: false, note: "", selected: null, builds: new Map(), backups: [], backupSel: null, more: [] };
 let adbBusy = false;
 
@@ -1228,7 +1241,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=233")
+    import("./companion.js?v=234")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -1642,6 +1655,12 @@ async function loadHeadsetApps() {
            have no store ID either, so they are not listed at all. */
       }
     }
+    /* A store app installed from an APK is named now, but has no art: the
+       library is where art comes from. Ask the store for it, in the app only. */
+    if (IN_APP) {
+      const known = new Map(adbInstalled.filter((a) => a.resolved).map((a) => [a.packageName, a.resolved]));
+      await fillStoreArt([...known.keys()], known);
+    }
   } catch (err) {
     adbInstalled = [];
     adbSay(`Could not list the installed apps: ${err.message}`, true);
@@ -1679,9 +1698,9 @@ function resolveHeadsetApps() {
       return {
         id,
         packageName: a.packageName,
-        name: mine?.name || match?.name || a.label || a.packageName,
+        name: mine?.name || match?.name || storeArt.get(a.packageName)?.name || a.label || a.packageName,
         platform: mine?.platform ?? match?.platform ?? null,
-        image: mine?.image ?? null,
+        image: mine?.image ?? storeArt.get(a.packageName)?.image ?? null,
         channels: [],
         /* An entitlement already knows the build the account may install, so
            the Latest columns are filled before any check runs; a check then
@@ -1940,12 +1959,15 @@ const appInstalls = new Map();
 /* ---------- the headset app's own dialog and notices ----------
    In place of the browser's confirm and alert, which in a headset are a grey
    system box that does not look like anything else here. */
-function uiConfirm({ title, text, yes = "OK", no = "Cancel", danger = false }) {
+function uiConfirm({ title, text, list = [], yes = "OK", no = "Cancel", danger = false }) {
   const box = document.getElementById("uiDialog");
   const yesBtn = document.getElementById("uiDialogYes");
   const noBtn = document.getElementById("uiDialogNo");
+  const ul = document.getElementById("uiDialogList");
   document.getElementById("uiDialogTitle").textContent = title;
   document.getElementById("uiDialogText").textContent = text;
+  ul.replaceChildren(...list.map((t) => Object.assign(document.createElement("li"), { textContent: t })));
+  ul.hidden = !list.length;
   yesBtn.textContent = yes;
   noBtn.textContent = no;
   yesBtn.classList.toggle("ui-danger", danger);
@@ -2515,10 +2537,60 @@ function dgHeadsetIcon(pkg, backupId = null) {
   return dgIcons.get(key);
 }
 
-/** The art an app has anywhere: the installed list, then the library, then the headset. */
+/**
+ * Name and art from the store for packages it sells that the library does not
+ * cover. `known` is a package lookup already in hand (package -> { id, name });
+ * without one the packages are looked up first. One search per new app, for its
+ * square cover — the only reply that carries one by name — and every answer is
+ * kept, so each package costs this once. Resolves true when anything changed.
+ */
+async function fillStoreArt(pkgs, known = null) {
+  const owned = ownedByPackage();
+  const want = [...new Set(pkgs)].filter((p) => p && !storeArt.has(p) && !owned.get(p)?.image);
+  if (!want.length || storeArtAsking || !dgSignedIn()) return false;
+  storeArtAsking = true;
+  try {
+    if (!known) {
+      try {
+        known = await lookupPackages(want);
+      } catch (err) {
+        /* No match at all is an answer; anything else (no token, offline) is not. */
+        if (!/no recognisable app IDs/.test(err.message)) return false;
+        known = new Map();
+      }
+    }
+    const hits = want.filter((p) => known.get(p)?.id);
+    const unnamed = hits.filter((p) => !known.get(p).name).map((p) => known.get(p).id);
+    const names = unnamed.length ? await storeNames(unnamed).catch(() => new Map()) : new Map();
+    for (const p of want) {
+      const hit = known.get(p);
+      if (!hit?.id) {
+        if (!known.has(p)) storeArt.set(p, null);
+        continue;
+      }
+      const name = hit.name || names.get(String(hit.id)) || null;
+      let image = null;
+      if (name) {
+        try {
+          image = (await searchStore(name, { limit: 10 })).find((r) => r.id === String(hit.id))?.image ?? null;
+        } catch {}
+      }
+      storeArt.set(p, { id: String(hit.id), name, image });
+    }
+    try {
+      localStorage.setItem(STORE_ART_KEY, JSON.stringify(Object.fromEntries(storeArt)));
+    } catch {}
+    return true;
+  } finally {
+    storeArtAsking = false;
+  }
+}
+
+/** The art an app has anywhere: the installed list, then the library, the store, then the headset. */
 function dgArtFor(pkg, backupId = null) {
   const known = dgApp(pkg) ?? mineList.find((a) => a.packageName === pkg);
   if (known?.image) return known;
+  if (storeArt.get(pkg)?.image) return storeArt.get(pkg);
   const image = (backupId && dgHeadsetIcon(pkg, backupId)) || (installedCode(pkg) >= 0 ? dgHeadsetIcon(pkg) : null);
   return image ? { image } : null;
 }
@@ -2683,8 +2755,16 @@ function dgRenderDetail() {
         app.installedVersionCode == null
           ? "Not installed on this headset"
           : `On this headset: ${esc(app.installedVersion ?? "—")} (build ${app.installedVersionCode})`
-      }</p></div>${app.installedVersionCode == null ? "" : dgUninstallButton(app)}
+      }</p></div>${app.installedVersionCode == null ? "" : dgHeadActions(app)}
     </div>${body}`;
+}
+
+/** Top right of an installed app: keep a copy of the version on it, or remove it. */
+function dgHeadActions(app) {
+  const key = `backup:${app.packageName}`;
+  const job = appInstalls.has(key) ? ` data-job="${esc(key)}"` : "";
+  return `<div class="dg-head-acts"><button type="button" data-backup-installed${job}
+      title="Keep a copy of the version on this headset, expansion file and all">Back up</button>${dgUninstallButton(app)}</div>`;
 }
 
 function dgUninstallButton(app) {
@@ -2701,20 +2781,16 @@ function dgRenderSideDetail(app) {
   const kept = dgState.backups
     .filter((b) => b.packageName === app.packageName)
     .sort((x, y) => y.versionCode - x.versionCode);
-  const key = `backup:${app.packageName}`;
-  const job = appInstalls.has(key) ? ` data-job="${esc(key)}"` : "";
   el.dgDetail.innerHTML = `<div class="dg-head">${dgArt({ image: dgHeadsetIcon(app.packageName) })}
       <div><h2>${esc(app.name)}</h2><div class="dg-pkg">${esc(app.packageName)}</div>
-      <p class="dg-now">On this headset: ${esc(app.installedVersion ?? "—")} (build ${app.installedVersionCode ?? "—"})</p></div>${dgUninstallButton(app)}
+      <p class="dg-now">On this headset: ${esc(app.installedVersion ?? "—")} (build ${app.installedVersionCode ?? "—"})</p></div>${dgHeadActions(app)}
     </div>
-    <div class="controls"><button type="button" data-backup-installed${job}
-      title="Keep a copy of the version on this headset, expansion file and all">Back up this version</button></div>
     <p class="dg-warn">Not in the store, so there are no builds to download — but a copy of it can be kept, and put back later. Going back to an older copy uninstalls the app first, which deletes its saved data on this headset.</p>
     <h3 class="dg-group">Kept on this headset</h3>
     ${
       kept.length
         ? dgBackupTable(kept, app.installedVersionCode)
-        : `<p class="dg-empty">No copies of it yet. Back up this version keeps one.</p>`
+        : `<p class="dg-empty">No copies of it yet. Back up keeps one.</p>`
     }`;
 }
 
@@ -2732,12 +2808,21 @@ function dgBackupGroups() {
     /* The name the store gives it, when one of the copies came from the store. */
     if (b.source !== "file") g.name = b.name;
   }
-  for (const g of groups.values()) g.items.sort((x, y) => y.versionCode - x.versionCode);
+  const owned = ownedByPackage();
+  for (const g of groups.values()) {
+    g.items.sort((x, y) => y.versionCode - x.versionCode);
+    /* Only APKs of the reader's own: the store's name, when it sells the app. */
+    if (g.items.every((b) => b.source === "file")) {
+      g.name = owned.get(g.packageName)?.name || storeArt.get(g.packageName)?.name || g.name;
+    }
+  }
   return [...groups.values()].sort((x, y) => x.name.localeCompare(y.name));
 }
 
 function dgRenderBackups(hit) {
   const groups = dgBackupGroups();
+  const own = groups.filter((g) => g.items.every((b) => b.source === "file")).map((g) => g.packageName);
+  fillStoreArt(own).then((changed) => changed && dgState.tab === "backups" && dgRender());
   const shown = groups.filter(hit);
   const total = groups.reduce((n, g) => n + g.size, 0);
   if (dgState.backupSel && !groups.some((g) => g.packageName === dgState.backupSel)) dgState.backupSel = null;
@@ -2850,7 +2935,7 @@ function dgRenderHistory(hit) {
 function initGetApp() {
   document.getElementById("getappAdb")?.addEventListener("click", installAppOverAdb);
   if (!IN_APP) return;
-  el.dgAppUpdate.addEventListener("click", () => startAppUpdate(el.dgAppUpdate));
+  el.dgAppUpdate.addEventListener("click", () => offerAppUpdate(el.dgAppUpdate));
   document.getElementById("appCheck").addEventListener("click", () => checkAppUpdate({ quiet: false }));
   /* Once a launch, after setup: is a newer MetaDB published beside the site? */
   setTimeout(() => checkAppUpdate(), 1500);
@@ -2914,8 +2999,25 @@ function startAppUpdateOffer(out) {
   b.type = "button";
   b.className = "linkbtn";
   b.textContent = "Update now";
-  b.addEventListener("click", () => startAppUpdate(b));
+  b.addEventListener("click", () => offerAppUpdate(b));
   out.append(" ", b);
+}
+
+/* What changed, from the changelog the release was published with, before the
+   download starts. A release published without one goes straight to the update. */
+async function offerAppUpdate(button) {
+  const changes = Array.isArray(appUpdate?.changes) ? appUpdate.changes : [];
+  if (changes.length) {
+    const go = await uiConfirm({
+      title: `What's new in MetaDB ${appUpdate.version}`,
+      text: "MetaDB closes while Android replaces it; your sign-in and backups stay.",
+      list: changes,
+      yes: "Update",
+      no: "Not now",
+    });
+    if (!go) return;
+  }
+  startAppUpdate(button);
 }
 
 /* Download the published APK and hand it to Android, which closes MetaDB to

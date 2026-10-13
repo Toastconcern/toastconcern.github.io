@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=233">
+<link rel="stylesheet" href="css/style.css?v=234">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -1198,6 +1198,7 @@
   <div class="ui-dialog__box">
     <h2 id="uiDialogTitle"></h2>
     <p id="uiDialogText"></p>
+    <ul id="uiDialogList" class="ui-dialog__list" hidden></ul>
     <div class="actions">
       <button type="button" id="uiDialogNo">Cancel</button>
       <button type="button" id="uiDialogYes">OK</button>
@@ -1219,6 +1220,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=233"></script>
+<script type="module" src="js/app.js?v=234"></script>
 </body>
 </html>

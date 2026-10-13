@@ -2176,6 +2176,8 @@ tr.build-detail .panel { font-family: var(--sans, inherit); }
 }
 .ui-dialog__box h2 { margin: 0 0 .55rem; font-size: 1.15rem; line-height: 1.3; }
 .ui-dialog__box p { margin: 0; color: var(--muted); line-height: 1.55; }
+.ui-dialog__list { margin: .75rem 0 0; padding-left: 1.2rem; line-height: 1.55; max-height: 40vh; overflow-y: auto; }
+.ui-dialog__list li + li { margin-top: .25rem; }
 .ui-dialog__box .actions { justify-content: flex-end; margin-top: 1.4rem; }
 /* Red is the outcome — the data that goes — not the button. */
 .ui-dialog__box button.ui-danger { color: var(--red); border-color: var(--red); font-weight: 600; }
@@ -2217,7 +2219,7 @@ tr.build-detail .panel { font-family: var(--sans, inherit); }
 .dg-toggle input { width: 1.05rem; height: 1.05rem; margin: 0; accent-color: var(--green); }
 .dg-head + .controls { margin: 0 0 1.25rem; }
 .dg-detail h3.dg-group { margin-left: 0; }
-.dg-head .dg-uninstall { margin-left: auto; align-self: flex-start; flex: none; }
+.dg-head-acts { margin-left: auto; align-self: flex-start; flex: none; display: flex; gap: .5rem; }
 
 /* ---------- Get the app ---------- */
 #view-getapp .sub { max-width: 68ch; }

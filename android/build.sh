@@ -74,7 +74,17 @@ if [ "${PUBLISH:-}" = "1" ]; then
   VNAME=$(grep -o 'android:versionName="[^"]*"' AndroidManifest.xml | cut -d'"' -f2)
   VCODE=$(grep -o 'android:versionCode="[^"]*"' AndroidManifest.xml | cut -d'"' -f2)
   SIZE=$(wc -c < build/MetaDB.apk | tr -d ' ')
-  printf '{"version":"%s","versionCode":%s,"size":%s,"built":"%s"}\n' \
-    "$VNAME" "$VCODE" "$SIZE" "$(date -u +%Y-%m-%d)" > ../downloads/MetaDB.json
+  # "What's new": the bullets under "## App $VNAME" in ../CHANGELOG.md, as a JSON list.
+  CHANGES=$(awk -v head="## App $VNAME " '
+    index($0, head) == 1 { on = 1; next }
+    on && /^## / { exit }
+    on && /^- / { s = substr($0, 3); gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); printf "%s\"%s\"", (n++ ? "," : ""), s }
+  ' ../CHANGELOG.md)
+  if [ -z "$CHANGES" ]; then
+    echo "CHANGELOG.md has no '## App $VNAME' section — add one before publishing" >&2
+    exit 1
+  fi
+  printf '{"version":"%s","versionCode":%s,"size":%s,"built":"%s","changes":[%s]}\n' \
+    "$VNAME" "$VCODE" "$SIZE" "$(date -u +%Y-%m-%d)" "$CHANGES" > ../downloads/MetaDB.json
   echo "published ../downloads/MetaDB.apk ($VNAME, $SIZE bytes)"
 fi
