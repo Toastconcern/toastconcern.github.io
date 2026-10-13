@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=236">
+<link rel="stylesheet" href="css/style.css?v=237">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -724,6 +724,18 @@
     <pre class="getapp-cmd"><code>adb install -r MetaDB.apk</code></pre>
     <p class="hint">Either way the headset needs developer mode, which is a switch in the Meta Horizon phone app under the headset's settings.</p>
 
+    <h3 class="devices-sub-h" id="getext">Sign-in extension, for Chrome and Edge</h3>
+    <p class="getapp-text">On a computer, the extension signs this site in with your Meta account: press <strong>Sign in with Meta</strong> in Settings and both tokens are filled in from your Meta login. It reads Meta's two login cookies and hands them to this site only, when the site asks. Nothing is sent anywhere else. It is open source, and not in the extension stores yet, so it is added by hand:</p>
+    <ol class="getapp-steps">
+      <li>Download <strong>MetaDB-extension.zip</strong> and unzip it.</li>
+      <li>Open <strong>chrome://extensions</strong> (or <strong>edge://extensions</strong>) and turn on <strong>Developer mode</strong>.</li>
+      <li>Press <strong>Load unpacked</strong> and choose the unzipped folder.</li>
+      <li>Come back to <a href="#settings">Settings</a> and press <strong>Sign in with Meta</strong>. If you are not logged in to Meta in this browser, Meta's login opens in a new tab, and Settings fills in once you finish.</li>
+    </ol>
+    <div class="actions">
+      <a href="downloads/MetaDB-extension.zip" download="MetaDB-extension.zip">Download MetaDB-extension.zip</a>
+    </div>
+
   </section>
 
   <!-- ---------- settings ---------- -->
@@ -749,6 +761,12 @@
         <label for="appSignIn">Sign in</label>
         <div class="actions"><button type="button" id="appSignIn">Sign in with Meta</button><button type="button" id="appSignOut" hidden>Sign out</button></div>
         <p class="hint">Opens Meta's login here. Once you are signed in, both tokens below are filled in for you. They stay on this headset.</p>
+      </div>
+
+      <div class="field" id="extSignInField" data-not-in-app>
+        <label for="extSignIn">Sign in</label>
+        <div class="actions"><button type="button" id="extSignIn">Sign in with Meta</button></div>
+        <p class="hint" id="extSignInOut" role="status">Fills in both tokens below from your Meta login, with nothing to copy. It needs the MetaDB Sign-in extension for Chrome or Edge — <a href="#getapp">how to add it</a>.</p>
       </div>
 
       <div class="field">
@@ -1220,6 +1238,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=236"></script>
+<script type="module" src="js/app.js?v=237"></script>
 </body>
 </html>

@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "MetaDB Sign-in",
+  "version": "1.1",
+  "description": "Signs MetaDB in with your Meta account: hands MetaDB the two tokens Meta's login sets, when MetaDB asks.",
+  "permissions": ["cookies", "storage", "alarms"],
+  "host_permissions": ["https://*.oculus.com/*", "https://*.meta.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://metadb.toastconcern.dev/*", "http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": { "default_popup": "popup.html", "default_title": "MetaDB Sign-in", "default_icon": "icon128.png" },
+  "icons": { "128": "icon128.png" }
+}

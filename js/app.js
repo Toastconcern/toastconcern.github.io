@@ -60,7 +60,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=236";
+} from "./check.js?v=237";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -1250,7 +1250,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=236")
+    import("./companion.js?v=237")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -3747,12 +3747,80 @@ function appendLog(d) {
   el.logBox.scrollTop = el.logBox.scrollHeight;
 }
 
+/* ---------- Sign in with Meta, through the extension ----------
+   A web page cannot read Meta's cookies, which is where the two tokens live;
+   the MetaDB Sign-in extension can. Its content script runs on this site's
+   pages only and talks over postMessage: "here" when it is installed, "login"
+   when it opened Meta's login in a new tab, then the tokens once both are set.
+   They are saved through the Settings form, exactly as if they were pasted. */
+function initExtSignIn() {
+  const button = document.getElementById("extSignIn");
+  const out = document.getElementById("extSignInOut");
+  const label = button.textContent;
+  let found = false;
+  const reset = () => {
+    button.disabled = false;
+    button.textContent = label;
+  };
+
+  window.addEventListener("message", (e) => {
+    if (e.source !== window || e.origin !== location.origin || !e.data?.metadbExt) return;
+    const m = e.data;
+    if (m.type === "here") {
+      found = true;
+      out.textContent = "The MetaDB Sign-in extension is installed. This fills in both tokens below from your Meta login.";
+      /* Only when the extension's own update check is on and found one. */
+      if (m.update?.version) {
+        const a = document.createElement("a");
+        a.href = "downloads/MetaDB-extension.zip";
+        a.download = "MetaDB-extension.zip";
+        a.textContent = "download it";
+        out.append(
+          ` Version ${m.update.version} of the extension is out (you have ${m.version}) — `,
+          a,
+          ", unzip it over the extension's folder, and press Reload in the extension's menu."
+        );
+      }
+    } else if (m.type === "login") {
+      button.textContent = "Waiting for Meta's login…";
+      out.textContent = "Log in to Meta in the tab that opened. This fills in by itself once you are done.";
+    } else if (m.type === "tokens" && m.token && m.acToken) {
+      reset();
+      el.token.value = m.token;
+      el.acToken.value = m.acToken;
+      el.settingsForm.requestSubmit();
+      out.textContent = "Signed in. Both tokens are filled in and saved in this browser.";
+      uiNotice("Signed in with Meta.");
+    } else if (m.type === "cancelled" || m.type === "error") {
+      reset();
+      out.textContent =
+        m.type === "cancelled"
+          ? "Meta's login was closed before it finished. Press Sign in with Meta to try again."
+          : `The extension could not answer: ${m.message}`;
+    }
+  });
+  window.postMessage({ metadbPage: true, type: "hello" }, location.origin);
+
+  button.addEventListener("click", () => {
+    if (!found) {
+      location.hash = "#getapp";
+      requestAnimationFrame(() => document.getElementById("getext")?.scrollIntoView());
+      return;
+    }
+    button.disabled = true;
+    button.textContent = "Signing in…";
+    window.postMessage({ metadbPage: true, type: "sign-in" }, location.origin);
+  });
+}
+
 function initSettings() {
   if (IN_APP) {
     document.getElementById("appSignInField").hidden = false;
     document.getElementById("appSignIn").addEventListener("click", () => window.MetaDBApp.signIn("settings"));
     document.getElementById("appSignOut").addEventListener("click", appSignOut);
     syncAppSignIn();
+  } else {
+    initExtSignIn();
   }
 
   const saved = loadSettings();

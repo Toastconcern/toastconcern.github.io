@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MetaDB Sign-in</title>
+<style>
+  :root { --bg: #161616; --text: #ececec; --muted: #9a9a9a; --border: #3a3a3a; --field: #1f1f1f; --hover: #2a2a2a; --green: #4caf6a; --blue: #2f6fe0; }
+  body { margin: 0; width: 17rem; padding: 1rem; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, sans-serif; }
+  h1 { margin: 0 0 .35rem; font-size: 1rem; }
+  h1 span { color: var(--muted); font-weight: 400; }
+  h2 { margin: 0 0 .3rem; font-size: .9rem; }
+  p { margin: 0 0 .85rem; color: var(--muted); }
+  p.on { color: var(--text); }
+  p.on::before { content: ""; display: inline-block; width: .5rem; height: .5rem; margin-right: .45rem; border-radius: 50%; background: var(--green); }
+  a, button { display: block; box-sizing: border-box; width: 100%; padding: .5rem .75rem; margin-top: .4rem; border: 1px solid var(--border); border-radius: 6px; background: var(--field); color: var(--text); font: inherit; text-align: center; text-decoration: none; cursor: pointer; }
+  a:hover, button:hover { background: var(--hover); }
+  button:disabled { color: var(--muted); cursor: default; }
+  a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+  section { margin-top: .9rem; padding-top: .8rem; border-top: 1px solid var(--border); }
+  #update { margin: 0 0 .4rem; padding: .55rem .7rem; border-left: 3px solid var(--blue); background: var(--field); border-radius: 0 6px 6px 0; }
+  #update p { margin: 0; color: var(--text); }
+  #update ul { margin: .35rem 0 0; padding-left: 1.1rem; color: var(--muted); }
+  #update ol { margin: .45rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 13px; }
+  #updateState { margin: 0; font-size: 13px; }
+  label { display: flex; gap: .6rem; align-items: center; min-height: 44px; cursor: pointer; }
+  input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--green); }
+</style>
+</head>
+<body>
+  <h1>MetaDB Sign-in <span id="version"></span></h1>
+  <p id="state">Checking…</p>
+  <a href="https://metadb.toastconcern.dev/#settings" target="_blank">Open MetaDB</a>
+  <a id="login" href="https://secure.oculus.com/my/profile/" target="_blank" hidden>Log in to Meta</a>
+
+  <section aria-labelledby="updatesH">
+    <h2 id="updatesH">Updates</h2>
+    <div id="update" hidden>
+      <p id="updateTitle"></p>
+      <ul id="updateList"></ul>
+      <ol>
+        <li>Download the new zip and unzip it over this extension's folder.</li>
+        <li>Press <strong>Reload</strong> below.</li>
+      </ol>
+      <a href="https://metadb.toastconcern.dev/downloads/MetaDB-extension.zip" target="_blank">Download the new version</a>
+      <button type="button" id="reload">Reload</button>
+    </div>
+    <p id="updateState" role="status"></p>
+    <label><input type="checkbox" id="updates"> Check for updates</label>
+    <button type="button" id="checkNow">Check now</button>
+  </section>
+  <script src="popup.js"></script>
+</body>
+</html>

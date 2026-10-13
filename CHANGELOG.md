@@ -4,11 +4,38 @@ Newest first. Every update gets an entry before it is pushed.
 
 - **Site** entries are named by the cache-buster they ship with (`v=NNN`). The site is
   live on push, so one entry covers whatever goes out in one push.
+- **Extension** entries are named `Extension X.Y`, matching `version` in
+  `extension/manifest.json`. `node tools/extension-release.mjs` copies that section's bullets
+  into `downloads/MetaDB-extension.json` (read by the extension's update check and shown as
+  what changed), re-zips `downloads/MetaDB-extension.zip`, and refuses if the section is
+  missing. Write those bullets for someone reading them in the extension's menu.
 - **App** entries are named `App X.Y (build N)`, matching `versionName` / `versionCode` in
   `android/AndroidManifest.xml`. `PUBLISH=1 ./build.sh` copies that section's bullets into
   `downloads/MetaDB.json`, and the app shows them in the update prompt as "What's new". Write
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
+
+## Site v=237 — 2026-10-13
+
+- Settings has **Sign in with Meta** on the website too. With the MetaDB Sign-in extension
+  added to Chrome or Edge, it fills in both tokens from your Meta login. It opens Meta's
+  login in a new tab when you are not logged in yet, and fills in once you finish.
+- Get the app has the extension's download and the steps to add it.
+- Settings says when a newer version of the extension is out, with its download, if the
+  extension's update check is on.
+
+## Extension 1.1 — 2026-10-13
+
+- Checks for a newer version when the browser starts and every six hours, and puts a badge on its button when there is one.
+- The button's menu says what changed, links the download, and has a Reload button for after you unzip it.
+- Check for updates can be switched off in the menu, and there is a Check now button.
+- MetaDB's Settings mentions a newer extension too, while update checks are on.
+
+## Extension 1.0 — 2026-10-13
+
+- First release: reads Meta's two login cookies and hands them to MetaDB's own pages when
+  MetaDB asks, opening Meta's login if needed. The toolbar button shows whether you are
+  logged in to Meta.
 
 ## Site v=236 — 2026-10-12
 
