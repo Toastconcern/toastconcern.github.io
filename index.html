@@ -21,7 +21,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=211">
+<link rel="stylesheet" href="css/style.css?v=233">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -77,13 +77,15 @@
           <a href="#avatar" data-view="avatar">Avatar</a>
         </div>
       </div>
-      <div class="navgroup">
+      <div class="navgroup" data-not-in-app>
         <button class="navtop" type="button" aria-expanded="false">Device</button>
         <div class="navmenu" hidden>
           <a href="#adb" data-view="adb">ADB</a>
           <a href="#companion" data-view="companion">CompanionServer</a>
         </div>
       </div>
+      <a href="#downgrade" data-in-app>Downgrade</a>
+      <a href="#getapp" data-view="getapp" data-not-in-app>Get the app</a>
       <a href="#settings" data-view="settings">Settings</a>
     </nav>
     <select id="theme" aria-label="Theme"></select>
@@ -155,9 +157,12 @@
   <section id="view-mine" hidden>
 
     <h2>Entitlements</h2>
-    <p class="sub" id="mineSub">Apps and games this account owns.</p>
+    <p class="sub">Everything on your account, from the same library queries a headset and the desktop app run. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
+      <button type="button" data-lib="quest">Get Quest entitlements</button>
+      <button type="button" data-lib="pc">Get PC entitlements</button>
+      <button type="button" data-lib="expired">Get expired entitlements</button>
       <input id="mineQ" type="search" placeholder="Filter what you own by name, package or app ID" aria-label="Filter your entitlements" autocomplete="off" spellcheck="false">
       <select id="mineSort" aria-label="Sort by">
         <option value="az">Name A–Z</option>
@@ -171,10 +176,9 @@
         <option value="deviceAz">Device A–Z</option>
         <option value="deviceZa">Device Z–A</option>
       </select>
-      <button type="button" data-lib="quest">Get Quest entitlements</button>
-      <button type="button" data-lib="pc">Get PC entitlements</button>
-      <button type="button" data-lib="expired">Get expired entitlements</button>
     </div>
+
+    <p class="count" id="mineCount"></p>
 
     <table>
       <thead>
@@ -208,8 +212,8 @@
     <p class="sub" id="purchasesSub">Everything this account has bought — apps, DLC and in-app purchases — with what was paid, when, and how. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
-      <input id="purchasesQ" type="search" placeholder="Filter by name" aria-label="Filter your purchases" autocomplete="off" spellcheck="false">
       <button id="purchasesLoad" type="button">Get purchases</button>
+      <input id="purchasesQ" type="search" placeholder="Filter by name" aria-label="Filter your purchases" autocomplete="off" spellcheck="false">
       <button id="purchasesShowPay" type="button">Show payment</button>
     </div>
 
@@ -230,7 +234,7 @@
 
     <p id="purchasesEmpty" class="empty" hidden></p>
 
-    <div class="controls" id="purchasesMoreBar" hidden>
+    <div class="controls morebar" id="purchasesMoreBar" hidden>
       <button id="purchasesMore" type="button">Load more</button>
     </div>
 
@@ -244,8 +248,8 @@
     <p class="sub">This account's avatar as the Horizon Worlds desktop editor reads it: which style it is on, whether it has to move, and every saved setting — the item chosen for each part and where each slider sits. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
-      <input id="avatarQ" type="search" placeholder="Filter settings by name" aria-label="Filter avatar settings" autocomplete="off" spellcheck="false">
       <button id="avatarLoad" type="button">Get avatar</button>
+      <input id="avatarQ" type="search" placeholder="Filter settings by name" aria-label="Filter avatar settings" autocomplete="off" spellcheck="false">
     </div>
 
     <div id="avatarFacts" class="panel"></div>
@@ -274,12 +278,12 @@
     <p class="sub" id="devicesSub">Headsets registered to this account. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
+      <button id="devicesLoad" type="button">Get devices</button>
       <input id="devicesQ" type="search" placeholder="Filter by model or serial" aria-label="Filter your devices" autocomplete="off" spellcheck="false">
       <select id="devicesSort" aria-label="Sort by">
         <option value="modelAz">Device type A–Z</option>
         <option value="modelZa">Device type Z–A</option>
       </select>
-      <button id="devicesLoad" type="button">Get devices</button>
       <button id="serialToggle" type="button">Show serials</button>
     </div>
 
@@ -395,8 +399,8 @@
 
     <p id="worldEmpty" class="empty" hidden></p>
 
-    <div class="controls">
-      <button id="worldMore" type="button" hidden>Load more</button>
+    <div class="controls morebar" id="worldMoreBar" hidden>
+      <button id="worldMore" type="button">Load more</button>
     </div>
 
   </section>
@@ -690,6 +694,38 @@
 
   </section>
 
+  <!-- ---------- the headset app ---------- -->
+
+  <section id="view-getapp" hidden>
+
+    <h2>Get the app</h2>
+    <p class="sub">MetaDB for Quest is this site as an app on your headset. It opens on Downgrade: every app installed, every build of each one, and an Install, Update or Downgrade on each. It keeps a copy of anything it downloads, backs up the version you are on, signs in through Meta's own login, and needs no relay. It is open source, and not on the store.</p>
+
+    <p class="count" id="getappInfo"></p>
+
+    <h3 class="devices-sub-h">On the headset</h3>
+    <ol class="getapp-steps">
+      <li>Open <strong>metadb.toastconcern.dev</strong> in the Quest Browser, come to this screen, and press <strong>Download MetaDB.apk</strong> below.</li>
+      <li>Open the <strong>Files</strong> app and go to your downloads.</li>
+      <li>On <strong>MetaDB.apk</strong>, press the <strong>⋯</strong> menu, then <strong>Open with</strong> → <strong>Package installer</strong>, and choose <strong>Install</strong>.</li>
+      <li>MetaDB is in your library, under <strong>Unknown sources</strong>.</li>
+    </ol>
+    <div class="actions">
+      <a id="getappDownload" href="downloads/MetaDB.apk" download="MetaDB.apk">Download MetaDB.apk</a>
+    </div>
+
+    <h3 class="devices-sub-h">From a PC</h3>
+    <p class="getapp-text">With the headset plugged in and connected on the <a href="#adb">ADB</a> screen, one press puts it on:</p>
+    <div class="actions">
+      <button type="button" id="getappAdb">Install over ADB</button>
+    </div>
+    <p class="hint" id="getappOut" role="status"></p>
+    <p class="getapp-text">Or download it here and install it yourself, with <a href="https://sidequestvr.com/" target="_blank" rel="noopener">SideQuest</a> or with adb:</p>
+    <pre class="getapp-cmd"><code>adb install -r MetaDB.apk</code></pre>
+    <p class="hint">Either way the headset needs developer mode, which is a switch in the Meta Horizon phone app under the headset's settings.</p>
+
+  </section>
+
   <!-- ---------- settings ---------- -->
 
   <section id="view-settings" hidden>
@@ -701,10 +737,24 @@
 
       <h3 class="form__group">Getting in</h3>
 
+      <!-- Only inside the headset app, which can read the tokens off Meta's own login. -->
+      <div class="field" id="appVersionField" data-in-app>
+        <label for="appCheck">App version</label>
+        <p class="hint" id="appVersionText"></p>
+        <div class="actions"><button type="button" id="appCheck">Check for updates</button></div>
+        <p class="hint" id="appVersionOut" role="status"></p>
+      </div>
+
+      <div class="field" id="appSignInField" hidden>
+        <label for="appSignIn">Sign in</label>
+        <div class="actions"><button type="button" id="appSignIn">Sign in with Meta</button><button type="button" id="appSignOut" hidden>Sign out</button></div>
+        <p class="hint">Opens Meta's login here. Once you are signed in, both tokens below are filled in for you. They stay on this headset.</p>
+      </div>
+
       <div class="field">
         <label for="acToken">Account token</label>
         <input id="acToken" class="token" type="password" placeholder="paste your oc_ac_at value" autocomplete="off" spellcheck="false">
-        <details class="hint">
+        <details class="hint" data-not-in-app>
           <summary>What this is</summary>
           <p>
             The <code>oc_ac_at</code> cookie. To get yours: sign in at
@@ -720,7 +770,7 @@
       <div class="field">
         <label for="token">Access token</label>
         <input id="token" class="token" type="password" placeholder="paste your oc_www_at value" autocomplete="off" spellcheck="false">
-        <details class="hint">
+        <details class="hint" data-not-in-app>
           <summary>What this is</summary>
           <p>
             The <code>oc_www_at</code> cookie, from the same place. Everything that
@@ -1029,9 +1079,9 @@
         <div id="logBox" class="logbox" role="log" aria-live="polite" tabindex="0"></div>
       </div>
 
-      <h3 class="form__group">The relay</h3>
+      <h3 class="form__group" data-not-in-app>The relay</h3>
 
-      <div class="field">
+      <div class="field" data-not-in-app>
         <label for="relay">Relay URL</label>
         <input id="relay" type="url" placeholder="https://your-relay.example/?url={url}" spellcheck="false">
         <details class="hint">
@@ -1068,6 +1118,94 @@
 
 </div>
 
+<!-- The headset app's home: every app on this headset, and every build of it.
+     Only ever shown inside the app (android/), as the Downgrade layout. -->
+<div id="downgrade" class="dg" data-in-app>
+  <header class="dg-bar">
+    <span class="dg-brand">MetaDB <strong>Downgrade</strong></span>
+    <input id="dgQ" type="search" placeholder="Filter installed apps" aria-label="Filter installed apps" autocomplete="off" spellcheck="false">
+    <button id="dgRefresh" type="button">Refresh</button>
+    <button id="dgAppUpdate" type="button" hidden>Update MetaDB</button>
+    <button id="dgSignOut" type="button" hidden>Sign out</button>
+    <button id="dgSite" type="button">Full site</button>
+  </header>
+
+  <div class="companion-tabs dg-tabs" role="tablist" aria-label="Downgrade">
+    <button type="button" class="companion-tab on" role="tab" aria-selected="true" data-dg-tab="apps">Apps</button>
+    <button type="button" class="companion-tab" role="tab" aria-selected="false" data-dg-tab="backups">Backups</button>
+    <button type="button" class="companion-tab" role="tab" aria-selected="false" data-dg-tab="history">History</button>
+  </div>
+
+  <div id="dgSignIn" class="dg-signin" hidden>
+    <h2>Sign in to see your apps' builds</h2>
+    <p>Naming what is installed and downloading a build both need your Meta account. Sign in once; the tokens stay on this headset.</p>
+    <button id="dgSignInBtn" type="button">Sign in with Meta</button>
+  </div>
+
+  <div id="dgBody" class="dg-body">
+    <aside class="dg-list" aria-label="Installed apps">
+      <div class="dg-list-head">
+        <p class="count" id="dgCount"></p>
+        <label class="dg-toggle"><input type="checkbox" id="dgShowAll"> Show apps not installed</label>
+      </div>
+      <ul id="dgApps"></ul>
+      <h3 class="dg-group" id="dgMoreH" hidden>Not installed</h3>
+      <ul id="dgMore"></ul>
+      <h3 class="dg-group" id="dgSideH" hidden>Unknown sources</h3>
+      <ul id="dgSide" class="dg-side"></ul>
+    </aside>
+    <section id="dgDetail" class="dg-detail" aria-live="polite"></section>
+  </div>
+
+  <!-- Backups: the same split as Apps — the apps you have copies of on the left,
+       that app's kept versions on the right. -->
+  <div id="dgBackups" class="dg-body" hidden>
+    <aside class="dg-list" aria-label="Backed-up apps">
+      <div class="dg-list-head">
+        <p class="count" id="dgBackupsCount"></p>
+        <button id="dgAddApk" type="button" title="Add APKs of your own from this headset's files">+ Add APK</button>
+      </div>
+      <ul id="dgBackupApps"></ul>
+      <p id="dgBackupsEmpty" class="empty" hidden></p>
+    </aside>
+    <section id="dgBackupDetail" class="dg-detail" aria-live="polite"></section>
+  </div>
+
+  <section id="dgHistory" class="dg-page" hidden>
+    <h2>History</h2>
+    <p class="sub">What MetaDB has installed, updated, downgraded, saved and backed up on this headset, newest first.</p>
+    <div class="controls">
+      <button id="dgHistoryClear" type="button">Clear history</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">When</th>
+          <th scope="col">App</th>
+          <th scope="col">What</th>
+          <th scope="col">From</th>
+          <th scope="col">To</th>
+        </tr>
+      </thead>
+      <tbody id="dgHistoryRows"></tbody>
+    </table>
+    <p id="dgHistoryEmpty" class="empty" hidden></p>
+  </section>
+</div>
+
+<!-- The headset app's own dialog and notices, in place of the browser's. -->
+<div id="uiDialog" class="ui-dialog" role="dialog" aria-modal="true" aria-labelledby="uiDialogTitle" hidden>
+  <div class="ui-dialog__box">
+    <h2 id="uiDialogTitle"></h2>
+    <p id="uiDialogText"></p>
+    <div class="actions">
+      <button type="button" id="uiDialogNo">Cancel</button>
+      <button type="button" id="uiDialogYes">OK</button>
+    </div>
+  </div>
+</div>
+<div id="uiNotices" class="ui-notices" aria-live="polite"></div>
+
 <div class="limitbar">
   <label for="limit">Show</label>
   <select id="limit">
@@ -1081,6 +1219,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=211"></script>
+<script type="module" src="js/app.js?v=233"></script>
 </body>
 </html>

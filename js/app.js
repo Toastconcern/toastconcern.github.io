@@ -1,5 +1,6 @@
 import {
   checkApp,
+  DEFAULT_TOKEN,
   lookupApp,
   lookupByPackage,
   lookupPackages,
@@ -29,7 +30,6 @@ import {
   appReviewSummary,
   appReviews,
   REVIEW_SORTS,
-  relatedApps,
   appAddons,
   appAchievements,
   releaseNotes,
@@ -57,9 +57,18 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=211";
+} from "./check.js?v=233";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
+
+/* Inside the headset app (android/), which hands the page a small bridge. There
+   the Device screens have nothing to talk to — ADB wants a PC and CompanionServer
+   wants Web Bluetooth, which the app's web view does not have — so they are put
+   away, along with the relay settings (the app runs its own) and the steps for
+   copying a token by hand, and Settings offers sign-in through Meta's own login
+   instead. Anything marked data-not-in-app is hidden by the in-app class. */
+const IN_APP = typeof window.MetaDBApp === "object" && window.MetaDBApp !== null;
+if (IN_APP) document.documentElement.classList.add("in-app");
 
 /* Apps that publish no channel at all are grouped under this label. */
 const NO_CHANNEL = "Developer";
@@ -223,6 +232,7 @@ const el = {
   viewDefault: document.getElementById("view-default"),
   viewDevices: document.getElementById("view-devices"),
   viewSettings: document.getElementById("view-settings"),
+  viewGetapp: document.getElementById("view-getapp"),
 
   devicesLoad: document.getElementById("devicesLoad"),
   serialToggle: document.getElementById("serialToggle"),
@@ -283,6 +293,33 @@ const el = {
   adbSort: document.getElementById("adbSort"),
   adbRows: document.getElementById("adbRows"),
   adbEmpty: document.getElementById("adbEmpty"),
+  dgQ: document.getElementById("dgQ"),
+  dgRefresh: document.getElementById("dgRefresh"),
+  dgSite: document.getElementById("dgSite"),
+  dgSignIn: document.getElementById("dgSignIn"),
+  dgSignInBtn: document.getElementById("dgSignInBtn"),
+  dgBody: document.getElementById("dgBody"),
+  dgCount: document.getElementById("dgCount"),
+  dgApps: document.getElementById("dgApps"),
+  dgSideH: document.getElementById("dgSideH"),
+  dgShowAll: document.getElementById("dgShowAll"),
+  dgMore: document.getElementById("dgMore"),
+  dgMoreH: document.getElementById("dgMoreH"),
+  dgSide: document.getElementById("dgSide"),
+  dgDetail: document.getElementById("dgDetail"),
+  dgSignOut: document.getElementById("dgSignOut"),
+  dgAppUpdate: document.getElementById("dgAppUpdate"),
+  dgTabs: document.querySelectorAll("[data-dg-tab]"),
+  dgBackups: document.getElementById("dgBackups"),
+  dgBackupsCount: document.getElementById("dgBackupsCount"),
+  dgBackupApps: document.getElementById("dgBackupApps"),
+  dgBackupDetail: document.getElementById("dgBackupDetail"),
+  dgAddApk: document.getElementById("dgAddApk"),
+  dgBackupsEmpty: document.getElementById("dgBackupsEmpty"),
+  dgHistory: document.getElementById("dgHistory"),
+  dgHistoryRows: document.getElementById("dgHistoryRows"),
+  dgHistoryEmpty: document.getElementById("dgHistoryEmpty"),
+  dgHistoryClear: document.getElementById("dgHistoryClear"),
   adbOut: document.getElementById("adbOut"),
 
   settingsForm: document.getElementById("settingsForm"),
@@ -323,7 +360,7 @@ const el = {
 
   viewMine: document.getElementById("view-mine"),
   mineRows: document.getElementById("mineRows"),
-  mineSub: document.getElementById("mineSub"),
+  mineCount: document.getElementById("mineCount"),
 
   viewPurchases: document.getElementById("view-purchases"),
   viewAvatar: document.getElementById("view-avatar"),
@@ -354,6 +391,7 @@ const el = {
   worldSort: document.getElementById("worldSort"),
   worldLoad: document.getElementById("worldLoad"),
   worldMore: document.getElementById("worldMore"),
+  worldMoreBar: document.getElementById("worldMoreBar"),
   worldTabs: document.getElementById("worldTabs"),
   worldShelf: document.getElementById("worldShelf"),
   worldShelfGo: document.getElementById("worldShelfGo"),
@@ -393,10 +431,6 @@ const obbs = new Map();
    after a redraw, and so re-sorting keeps the summary rather than refetching
    it. The summary is one fetch per app; the list refetches on a sort change. */
 const reviewCache = new Map();
-
-/* App ID -> its related apps once the Related tab has fetched them, so the tab
-   comes back filled after a redraw. */
-const relatedCache = new Map();
 
 /* App ID -> its add-ons once the Add-ons tab has fetched them:
    { items, total, cursor }. Paged a chunk at a time. */
@@ -480,6 +514,21 @@ let adb = null;
    fetched before the entitlements arrive and still fill in when they do. */
 let adbInstalled = [];
 let adbApps = [];
+/* Inside the headset app: what is installed that the store has no entry for,
+   and whether the installed list has been read yet. */
+let adbSide = [];
+let headsetAsked = false;
+/* The Downgrade layout's own state. Up here, not beside its functions: the
+   first applyView() runs during setup and opens it straight away. */
+/* Get the app: where the APK and its version file are, and whether the version
+   has been read. Up here because the first applyView() can open that screen. */
+const APP_APK = new URL("downloads/MetaDB.apk", location.href).href;
+const APP_INFO = new URL("downloads/MetaDB.json", location.href).href;
+let appInfoAsked = false;
+/* Inside the app: a newer MetaDB, once the update check has found one. */
+let appUpdate = null;
+let appUpdateNoticed = false;
+const dgState = { tab: "apps", loaded: false, loading: false, note: "", selected: null, builds: new Map(), backups: [], backupSel: null, more: [] };
 let adbBusy = false;
 
 /* The keys (store id or package name) of everything the account owns, so the
@@ -576,6 +625,8 @@ initAccountTabs();
 initDefault();
 initPlus();
 initHeadset();
+initDowngrade();
+initGetApp();
 initDirectDownload();
 initTour();
 initColumns();
@@ -1141,7 +1192,25 @@ function applyView() {
   closeStage({ animate: false });
 
   const hash = location.hash.replace("#", "");
-  const view = ["mine", "purchases", "avatar", "devices", "worlds", "orgs", "default", "plus", "adb", "companion", "settings"].includes(hash) ? hash : "apps";
+
+  /* Inside the headset app the Downgrade layout is home: it takes the whole
+     window until Full site is pressed, and the choice is remembered. A site
+     screen named in the address means the site layout. */
+  if (IN_APP) {
+    const dg = hash === "downgrade" || (!hash && loadSettings().layout !== "site");
+    document.documentElement.classList.toggle("layout-dg", dg);
+    const want = dg ? "downgrade" : "site";
+    if (loadSettings().layout !== want) saveSettings({ layout: want });
+    if (dg) {
+      /* After setup finishes: the first applyView() runs while the rest of
+         this module is still being defined, and loading the list renders it. */
+      setTimeout(openDowngrade, 0);
+      return;
+    }
+  }
+
+  const views = ["mine", "purchases", "avatar", "devices", "worlds", "orgs", "default", "plus", "adb", "companion", "settings", "getapp"];
+  const view = views.includes(hash) && !(IN_APP && (hash === "adb" || hash === "companion")) ? hash : "apps";
 
   el.viewApps.hidden = view !== "apps";
   el.viewMine.hidden = view !== "mine";
@@ -1155,9 +1224,11 @@ function applyView() {
   el.viewHeadset.hidden = view !== "adb";
   el.viewCompanion.hidden = view !== "companion";
   el.viewSettings.hidden = view !== "settings";
+  el.viewGetapp.hidden = view !== "getapp";
+  if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=211")
+    import("./companion.js?v=233")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -1541,11 +1612,16 @@ async function disconnectHeadset() {
 }
 
 async function loadHeadsetApps() {
-  if (!adb) return;
+  if (!adb && !IN_APP) return;
+  headsetAsked = true;
   el.adbCount.textContent = "Asking the headset what it has installed…";
   try {
-    const { installedApps } = await import("./adb.js?v=149");
-    adbInstalled = await installedApps(adb);
+    if (IN_APP) {
+      adbInstalled = JSON.parse(window.MetaDBApp.installedApps());
+    } else {
+      const { installedApps } = await import("./adb.js?v=149");
+      adbInstalled = await installedApps(adb);
+    }
 
     /* Anything the library does not cover is asked about once, and remembered
        on the raw entry — so a later pass does not ask again. */
@@ -1603,7 +1679,7 @@ function resolveHeadsetApps() {
       return {
         id,
         packageName: a.packageName,
-        name: mine?.name || match?.name || a.packageName,
+        name: mine?.name || match?.name || a.label || a.packageName,
         platform: mine?.platform ?? match?.platform ?? null,
         image: mine?.image ?? null,
         channels: [],
@@ -1619,6 +1695,16 @@ function resolveHeadsetApps() {
       };
     })
     .filter(Boolean);
+
+  /* The rest, in the headset app, are listed on their own under Unknown sources:
+     nothing to offer for them, but they are on the headset all the same. */
+  const listed = new Set(adbApps.map((a) => a.packageName));
+  adbSide = IN_APP
+    ? adbInstalled
+        .filter((a) => !listed.has(a.packageName))
+        .map((a) => ({ ...a, name: a.label || a.packageName }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+    : [];
 }
 
 /* The headset list is not a store listing, so it does not use the store row.
@@ -1754,6 +1840,10 @@ function restoreBuildScroll(app, top) {
  * confirmed rather than assumed, because it takes the app's data with it.
  */
 async function installBuild(app, { installBuild: binaryId, version, code }, button) {
+  if (IN_APP) {
+    appInstall(app, binaryId, version, button);
+    return;
+  }
   if (!adb) {
     adbSay("Connect a headset first.", true);
     return;
@@ -1836,6 +1926,1051 @@ async function installBuild(app, { installBuild: binaryId, version, code }, butt
   button.textContent = label;
   button.disabled = false;
   syncRelayNote();
+}
+
+/* ---------- installing inside the headset app ----------
+   The same job as installBuild above, done by the app itself rather than over
+   adb: it downloads the build, works out from the APK whether this is a fresh
+   install, an upgrade or a step back, asks before uninstalling (which takes the
+   app's data with it), and puts the expansion file where the game looks. It
+   reports back through window.metadbInstall; the button carries the progress,
+   as every working button here does. */
+const appInstalls = new Map();
+
+/* ---------- the headset app's own dialog and notices ----------
+   In place of the browser's confirm and alert, which in a headset are a grey
+   system box that does not look like anything else here. */
+function uiConfirm({ title, text, yes = "OK", no = "Cancel", danger = false }) {
+  const box = document.getElementById("uiDialog");
+  const yesBtn = document.getElementById("uiDialogYes");
+  const noBtn = document.getElementById("uiDialogNo");
+  document.getElementById("uiDialogTitle").textContent = title;
+  document.getElementById("uiDialogText").textContent = text;
+  yesBtn.textContent = yes;
+  noBtn.textContent = no;
+  yesBtn.classList.toggle("ui-danger", danger);
+  const before = document.activeElement;
+  box.hidden = false;
+  (danger ? noBtn : yesBtn).focus();
+  return new Promise((resolve) => {
+    const finish = (answer) => {
+      box.hidden = true;
+      yesBtn.onclick = noBtn.onclick = null;
+      box.onkeydown = box.onclick = null;
+      before?.focus?.();
+      resolve(answer);
+    };
+    yesBtn.onclick = () => finish(true);
+    noBtn.onclick = () => finish(false);
+    box.onclick = (e) => e.target === box && finish(false);
+    box.onkeydown = (e) => e.key === "Escape" && finish(false);
+  });
+}
+
+/** A short notice in the corner: "ok" (green edge), "bad" (red) or "plain". */
+function uiNotice(text, kind = "ok") {
+  const host = document.getElementById("uiNotices");
+  if (!host) return;
+  const n = document.createElement("div");
+  n.className = `ui-notice ${kind === "ok" ? "" : kind}`.trim();
+  n.setAttribute("role", kind === "bad" ? "alert" : "status");
+  n.textContent = text;
+  host.append(n);
+  setTimeout(() => n.remove(), kind === "bad" ? 9000 : 5000);
+}
+
+/* A notice the app left for the page before it reloaded — sign-in's. */
+try {
+  const left = sessionStorage.getItem("metadb.notice");
+  if (left) {
+    sessionStorage.removeItem("metadb.notice");
+    setTimeout(() => uiNotice(left), 300);
+  }
+} catch {}
+
+/* ---------- history ----------
+   What the app did on this headset, newest first. Kept in this headset's own
+   storage; it is a log for the reader, not something anything depends on. */
+const HISTORY_KEY = "metadb.history";
+const HISTORY_MAX = 300;
+
+function readHistory() {
+  try {
+    const list = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]");
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function addHistory(entry) {
+  try {
+    const list = [{ at: Date.now(), ...entry }, ...readHistory()].slice(0, HISTORY_MAX);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+/**
+ * Start a job in the app: install a build (keeping a copy), save one without
+ * installing, put a kept one back, or back up what is installed. `key` names
+ * the job, and every button carrying data-job="<key>" shows its progress.
+ */
+/**
+ * A press on something already asked for. Waiting in the queue: take it out.
+ * Already running: leave it be. Either way the press is handled — true.
+ */
+function jobPressed(key) {
+  const job = appInstalls.get(key);
+  if (!job) return false;
+  if (job.queued) window.MetaDBApp.dequeue(key);
+  return true;
+}
+
+function appJob(key, { app = null, button = null, label = null, from = null } = {}) {
+  appInstalls.set(key, {
+    app,
+    from,
+    buttons: button ? [button] : [],
+    label: label ?? button?.textContent ?? "",
+  });
+  if (button) {
+    button.dataset.job = key;
+    button.disabled = true;
+    button.textContent = "Starting…";
+  }
+}
+
+async function appInstall(app, binaryId, version, button, { save = false } = {}) {
+  if (!canDownload()) {
+    uiNotice("Sign in first: Settings → Sign in with Meta.", "bad");
+    return;
+  }
+  const key = `${save ? "save" : "install"}:${binaryId}`;
+  if (jobPressed(key)) return;
+  appJob(key, {
+    app,
+    button,
+    from: app.installedVersionCode != null ? { version: app.installedVersion, code: app.installedVersionCode } : null,
+  });
+
+  /* A build with an expansion file is no use without it. The channel lookups
+     only cover the builds a channel lists, so for any other build ask the store
+     about this one exactly, rather than install a game with no data. */
+  let obb = obbs.get(String(binaryId)) ?? null;
+  const code = button?.dataset.code;
+  if (!obb && code) {
+    try {
+      const info = await binaryDetails(app.id, code);
+      if (info.obbId) {
+        obb = info.obbId;
+        obbs.set(String(binaryId), obb);
+      }
+    } catch {
+      /* No answer is not an answer of "none" — but the APK alone is still
+         what was asked for, and the store's own reply decides the rest. */
+    }
+  }
+
+  const job = JSON.stringify({
+    id: key,
+    apk: downloadURL(binaryId),
+    obb: obb ? downloadURL(obb) : null,
+    binaryId: String(binaryId),
+    appId: String(app.id ?? ""),
+    name: app.name,
+    version,
+  });
+  if (save) window.MetaDBApp.save(job);
+  else window.MetaDBApp.install(job);
+}
+
+const JOB_WORDS = {
+  uninstalled: "Uninstalled",
+  imported: "Added APK",
+  installed: "Installed",
+  updated: "Updated",
+  downgraded: "Downgraded",
+  restored: "Restored",
+  saved: "Saved",
+  "backed-up": "Backed up",
+};
+
+window.metadbInstall = async (e) => {
+  /* The installer asking, before it uninstalls anything. */
+  if (e.state === "ask") {
+    const yes = await uiConfirm({ title: e.title, text: e.text, yes: e.yes, danger: true });
+    window.MetaDBApp.answer(e.askId, yes);
+    return;
+  }
+
+  const key = String(e.id);
+  const job = appInstalls.get(key);
+  const buttons = new Set([...(job?.buttons ?? []), ...document.querySelectorAll(`[data-job="${CSS.escape(key)}"]`)]);
+
+  /* Waiting its turn behind another job. The button says where, and stays
+     pressable — pressing it again takes the job out of the queue. */
+  if (e.state === "queued") {
+    const first = job && !job.queued;
+    if (job) job.queued = true;
+    const place = e.position > 1 ? `Queued (${e.position}${["", "st", "nd", "rd"][e.position] ?? "th"})` : "Queued (next)";
+    for (const b of buttons) {
+      b.disabled = false;
+      b.textContent = place;
+      b.title = "Waiting for the install before it — press again to take it out of the queue";
+    }
+    if (first) uiNotice(`${job.app?.name ?? "That"} is queued — it starts when the one before it finishes.`, "plain");
+    return;
+  }
+
+  if (e.state === "progress") {
+    if (job) job.queued = false;
+    for (const b of buttons) {
+      b.disabled = true;
+      b.textContent = e.text;
+    }
+    return;
+  }
+
+  appInstalls.delete(key);
+  for (const b of buttons) {
+    if (!b.isConnected) continue;
+    b.disabled = false;
+    b.textContent = job?.label || b.textContent;
+    delete b.dataset.job;
+  }
+
+  if (e.state === "done") {
+    if (job?.app && e.packageName) {
+      job.app.packageName = e.packageName;
+      if (e.action === "uninstalled") {
+        job.app.installedVersionCode = null;
+        job.app.installedVersion = null;
+      } else if (e.action !== "saved" && e.action !== "backed-up") {
+        job.app.installedVersionCode = e.versionCode ?? null;
+        job.app.installedVersion = e.version ?? null;
+      }
+    }
+    if (e.action !== "same") {
+      addHistory({
+        action: e.action,
+        name: e.name,
+        packageName: e.packageName,
+        from: e.prevCode != null ? { version: e.prevVersion ?? null, code: e.prevCode } : null,
+        to: e.action === "uninstalled" ? null : { version: e.version, code: e.versionCode },
+        backup: e.backup ?? null,
+      });
+    }
+    uiNotice(e.text, e.action === "same" ? "plain" : "ok");
+    if (e.action === "imported") {
+      dgState.tab = "backups";
+      dgState.backupSel = e.packageName;
+    }
+    if (job?.app) refreshRow(job.app);
+    dgAfterJob();
+    return;
+  }
+
+  /* Turned away because another job is running: said, not logged. */
+  if (e.state === "busy") {
+    uiNotice(e.text, "plain");
+    return;
+  }
+
+  /* Cancelled or failed: said, and logged so the History tab tells the story. */
+  addHistory({
+    action: e.state === "cancelled" ? "cancelled" : "failed",
+    name: job?.app?.name ?? null,
+    packageName: job?.app?.packageName ?? null,
+    from: job?.from ?? null,
+    to: null,
+    text: e.text,
+  });
+  uiNotice(`${job?.app?.name ? `${job.app.name}: ` : ""}${e.text}`, e.state === "cancelled" ? "plain" : "bad");
+  dgAfterJob();
+};
+
+/* ---------- Downgrade: the headset app's home ----------
+   Three pages. Apps: everything installed on this headset, and for a store app
+   every build it has had, each one a press away — newer or older — with a copy
+   kept of anything downloaded. Backups: those copies, installable without a
+   download. History: what was done. The same pieces as the rest of the page
+   underneath: the installed list is loadHeadsetApps, the builds are a check,
+   the work is the app's installer. Unlike the site's screens it reads the list
+   as soon as it opens: the list is the whole point of it, and Refresh reads it
+   again. */
+
+function initDowngrade() {
+  if (!IN_APP) return;
+  el.dgSite.addEventListener("click", () => {
+    saveSettings({ layout: "site" });
+    location.hash = "apps";
+  });
+  el.dgRefresh.addEventListener("click", () => dgLoad(true));
+  el.dgQ.addEventListener("input", dgRender);
+  el.dgSignInBtn.addEventListener("click", () => window.MetaDBApp.signIn("downgrade"));
+  el.dgSignOut.addEventListener("click", appSignOut);
+  for (const t of el.dgTabs) {
+    t.addEventListener("click", () => {
+      dgState.tab = t.dataset.dgTab;
+      if (dgState.tab === "backups") dgReadBackups();
+      dgRender();
+    });
+  }
+  /* Installed, not installed and unknown sources all open from the one list. */
+  el.dgApps.closest(".dg-list").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-dg-app]");
+    if (b) dgSelect(b.dataset.dgApp);
+  });
+  el.dgShowAll.checked = loadSettings().dgAll;
+  el.dgShowAll.addEventListener("change", () => {
+    saveSettings({ dgAll: el.dgShowAll.checked });
+    dgRender();
+  });
+  el.dgDetail.addEventListener("click", (e) => {
+    const app = dgApp(dgState.selected);
+    if (!app) return;
+    if (e.target.closest("[data-restore], [data-delete-backup]")) return dgBackupClick(e);
+    const un = e.target.closest("[data-uninstall]");
+    if (un) return dgUninstall(app, un);
+    const install = e.target.closest("[data-install-build]");
+    if (install) return installBuild(app, install.dataset, install);
+    const save = e.target.closest("[data-save-build]");
+    if (save) return appInstall(app, save.dataset.saveBuild, save.dataset.version, save, { save: true });
+    const backup = e.target.closest("[data-backup-installed]");
+    if (backup) {
+      const key = `backup:${app.packageName}`;
+      if (jobPressed(key)) return;
+      appJob(key, { app, button: backup });
+      window.MetaDBApp.backup(key, app.packageName, app.name);
+    }
+  });
+  el.dgAddApk.addEventListener("click", () => window.MetaDBApp.addApks());
+  el.dgBackupApps.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-backup-app]");
+    if (!b) return;
+    dgState.backupSel = b.dataset.backupApp;
+    dgRender();
+  });
+  el.dgBackupDetail.addEventListener("click", dgBackupClick);
+  el.dgHistoryClear.addEventListener("click", async () => {
+    if (!readHistory().length) return;
+    const sure = await uiConfirm({
+      title: "Clear the history?",
+      text: "The list of what was installed, saved and backed up is removed. Nothing on the headset changes, and your backups stay.",
+      yes: "Clear history",
+    });
+    if (!sure) return;
+    try {
+      localStorage.removeItem(HISTORY_KEY);
+    } catch {}
+    dgRender();
+  });
+}
+
+/** Uninstall, asked first in words that say what goes with it. */
+async function dgUninstall(app, button) {
+  const key = `uninstall:${app.packageName}`;
+  if (jobPressed(key)) return;
+  const kept = dgState.backups.filter((b) => b.packageName === app.packageName).length;
+  const sure = await uiConfirm({
+    title: `Uninstall ${app.name}?`,
+    text:
+      `${app.name} ${app.installedVersion ?? ""} is removed from this headset, and its saved data with it. This cannot be undone. ` +
+      (kept
+        ? `Your ${plural(kept, "backup")} of it stay${kept === 1 ? "s" : ""} in Backups.`
+        : "There is no backup of it — Back up first if you may want this version again."),
+    yes: "Uninstall",
+    danger: true,
+  });
+  if (!sure) return;
+  appJob(key, {
+    app,
+    button,
+    from: app.installedVersionCode != null ? { version: app.installedVersion, code: app.installedVersionCode } : null,
+  });
+  window.MetaDBApp.uninstall(key, app.packageName, app.name);
+}
+
+/** Install or delete a kept copy — from Backups, or from an app in Apps. */
+async function dgBackupClick(e) {
+  const restore = e.target.closest("[data-restore]");
+  const del = e.target.closest("[data-delete-backup]");
+  const id = restore?.dataset.restore ?? del?.dataset.deleteBackup;
+  const b = id ? dgState.backups.find((x) => x.id === id) : null;
+  if (!b) return;
+  if (restore) {
+    const key = `restore:${b.id}`;
+    if (jobPressed(key)) return;
+    const have = installedCode(b.packageName);
+    appJob(key, {
+      app: { name: b.name, packageName: b.packageName },
+      button: restore,
+      from: have >= 0 ? { version: installedName(b.packageName), code: have } : null,
+    });
+    window.MetaDBApp.restore(key, b.id);
+    return;
+  }
+  const sure = await uiConfirm({
+    title: `Delete this backup of ${b.name}?`,
+    text: `${b.version} (build ${b.versionCode}), ${dgSize(b.size)}. The copy kept on this headset is removed; the app itself is not touched.`,
+    yes: "Delete backup",
+    danger: true,
+  });
+  if (!sure) return;
+  if (window.MetaDBApp.deleteBackup(b.id)) {
+    addHistory({ action: "deleted", name: b.name, packageName: b.packageName, from: null, to: { version: b.version, code: b.versionCode } });
+    uiNotice(`Deleted the backup of ${b.name} ${b.version}.`, "plain");
+  } else {
+    uiNotice("That backup could not be deleted.", "bad");
+  }
+  dgReadBackups();
+  dgRender();
+}
+
+/** Signed in: an account token for the lookups, and the account token for downloads. */
+function dgSignedIn() {
+  const { token, acToken } = loadSettings();
+  return Boolean(token && token !== DEFAULT_TOKEN && acToken);
+}
+
+/** Sign out, from Downgrade or from Settings: the tokens go, and Meta's login in the app. */
+async function appSignOut() {
+  const sure = await uiConfirm({
+    title: "Sign out of Meta?",
+    text: "Your tokens are removed from this headset and Meta's login in this app is cleared. Your backups and history stay.",
+    yes: "Sign out",
+  });
+  if (!sure) return;
+  window.MetaDBApp.signOut();
+  saveSettings({ token: "", acToken: "" });
+  el.token.value = "";
+  el.acToken.value = "";
+  mineList = [];
+  adbApps = [];
+  dgState.loaded = false;
+  dgState.selected = null;
+  dgState.builds.clear();
+  syncAppSignIn();
+  renderAll();
+  dgRender();
+  uiNotice("Signed out.", "plain");
+}
+
+/** Settings' Sign in / Sign out pair, inside the app. */
+function syncAppSignIn() {
+  if (!IN_APP) return;
+  const signed = dgSignedIn();
+  document.getElementById("appSignIn").hidden = signed;
+  document.getElementById("appSignOut").hidden = !signed;
+}
+
+function installedCode(pkg) {
+  return Number(window.MetaDBApp.installedVersion(pkg));
+}
+
+function installedName(pkg) {
+  const a = adbInstalled.find((x) => x.packageName === pkg);
+  return a?.version ?? null;
+}
+
+function dgApp(pkg) {
+  return (
+    adbApps.find((a) => a.packageName === pkg) ??
+    dgState.more.find((a) => a.packageName === pkg) ??
+    dgSideApp(pkg)
+  );
+}
+
+/** A sideloaded app: no store ID, so no builds — only what it is, and its kept copies. */
+function dgSideApp(pkg) {
+  const a = adbSide.find((x) => x.packageName === pkg);
+  return a
+    ? { side: true, packageName: a.packageName, name: a.name, installedVersion: a.version, installedVersionCode: a.versionCode }
+    : null;
+}
+
+/** Quest apps the account owns that are not on this headset. */
+function dgNotInstalled() {
+  const here = new Set(adbInstalled.map((a) => a.packageName));
+  return mineList
+    .filter((a) => a.id && a.packageName && !here.has(a.packageName) && a.owned !== false)
+    .map((a) => ({
+      id: a.id,
+      packageName: a.packageName,
+      name: a.name,
+      image: a.image,
+      platform: a.platform,
+      latest: a.latest ?? null,
+      channels: [],
+      notInstalled: true,
+      installedVersion: null,
+      installedVersionCode: null,
+    }));
+}
+
+function dgReadBackups() {
+  try {
+    dgState.backups = JSON.parse(window.MetaDBApp.backups());
+  } catch {
+    dgState.backups = [];
+  }
+}
+
+function dgSize(bytes) {
+  const n = Number(bytes) || 0;
+  return n >= 1e9 ? `${(n / 1e9).toFixed(2)} GB` : `${Math.max(1, Math.round(n / 1e6))} MB`;
+}
+
+function openDowngrade() {
+  dgReadBackups();
+  if (!dgState.loaded && !dgState.loading) dgLoad();
+  else dgRender();
+}
+
+/** After any job: what is installed, and what is kept, may both have changed. */
+function dgAfterJob() {
+  if (!IN_APP) return;
+  dgReadBackups();
+  if (headsetAsked) loadHeadsetApps().then(dgRender);
+  else dgRender();
+}
+
+async function dgLoad(force = false) {
+  if (!dgSignedIn()) {
+    dgRender();
+    return;
+  }
+  dgState.loading = true;
+  dgState.note = "";
+  el.dgRefresh.disabled = true;
+  el.dgRefresh.textContent = "Refreshing…";
+  dgRender();
+  try {
+    /* The library names the installed apps and carries their art; one already
+       on its way (the owned-apps setting) is waited for, not asked again. */
+    while (mineLoading) await new Promise((r) => setTimeout(r, 200));
+    if (force || mineKind !== "quest" || !mineList.length) await loadEntitlements("quest");
+    if (mineNote) dgState.note = mineNote;
+    await loadHeadsetApps();
+    dgReadBackups();
+    dgState.loaded = true;
+  } catch (err) {
+    dgState.note = err.message;
+  }
+  dgState.loading = false;
+  el.dgRefresh.disabled = false;
+  el.dgRefresh.textContent = "Refresh";
+  dgRender();
+  if (force && dgState.selected) dgSelect(dgState.selected, { again: true });
+}
+
+/** Ask for one app's builds, once; Refresh asks again. */
+async function dgSelect(pkg, { again = false } = {}) {
+  const app = dgApp(pkg);
+  if (!app) return;
+  dgState.selected = pkg;
+  dgReadBackups();
+  if (app.side) {
+    dgRender();
+    return;
+  }
+  const had = dgState.builds.get(app.id);
+  if (had?.loading || (had?.builds && !again)) {
+    dgRender();
+    return;
+  }
+  dgState.builds.set(app.id, { loading: true });
+  dgRender();
+  try {
+    const latest = await checkApp(app);
+    results.set(keyOf(app), { state: "info", latest });
+    versionCache.set(app.id, latest.builds);
+    if (loadSettings().obb) await findObbs(latest.channels);
+    dgState.builds.set(app.id, { builds: latest.builds });
+  } catch (err) {
+    dgState.builds.set(app.id, { error: err.message });
+  }
+  if (dgState.selected === pkg) dgRender();
+}
+
+function dgArt(a) {
+  return a?.image
+    ? `<img class="dg-art" src="${esc(a.image)}" alt="" loading="lazy">`
+    : `<span class="dg-art"></span>`;
+}
+
+/* Icons read off the headset, for apps the store has no art for — sideloaded
+   ones, and APKs of the reader's own. Asked once each and remembered. */
+const dgIcons = new Map();
+
+function dgHeadsetIcon(pkg, backupId = null) {
+  const key = backupId ? `b:${backupId}` : `p:${pkg}`;
+  if (!dgIcons.has(key)) {
+    let uri = null;
+    try {
+      uri = backupId ? window.MetaDBApp.backupIcon(backupId) : window.MetaDBApp.appIcon(pkg);
+    } catch {}
+    dgIcons.set(key, uri);
+  }
+  return dgIcons.get(key);
+}
+
+/** The art an app has anywhere: the installed list, then the library, then the headset. */
+function dgArtFor(pkg, backupId = null) {
+  const known = dgApp(pkg) ?? mineList.find((a) => a.packageName === pkg);
+  if (known?.image) return known;
+  const image = (backupId && dgHeadsetIcon(pkg, backupId)) || (installedCode(pkg) >= 0 ? dgHeadsetIcon(pkg) : null);
+  return image ? { image } : null;
+}
+
+function dgRender() {
+  if (!IN_APP) return;
+  const signed = dgSignedIn();
+  const tab = dgState.tab;
+  for (const t of el.dgTabs) {
+    const on = t.dataset.dgTab === tab;
+    t.classList.toggle("on", on);
+    t.setAttribute("aria-selected", String(on));
+  }
+  el.dgSignOut.hidden = !signed;
+  el.dgRefresh.hidden = tab !== "apps" || !signed;
+  el.dgQ.hidden = tab === "apps" && !signed;
+  el.dgSignIn.hidden = tab !== "apps" || signed;
+  el.dgBody.hidden = tab !== "apps" || !signed;
+  el.dgBackups.hidden = tab !== "backups";
+  el.dgHistory.hidden = tab !== "history";
+  syncAppSignIn();
+
+  const q = el.dgQ.value.trim().toLowerCase();
+  const hit = (a) =>
+    !q || (a.name ?? "").toLowerCase().includes(q) || (a.packageName ?? "").toLowerCase().includes(q);
+
+  if (tab === "backups") return dgRenderBackups(hit);
+  if (tab === "history") return dgRenderHistory(hit);
+  if (!signed) return;
+
+  const apps = adbApps.filter(hit).sort((a, b) => a.name.localeCompare(b.name));
+  const side = adbSide.filter(hit);
+  dgState.more = el.dgShowAll.checked ? dgNotInstalled().sort((a, b) => a.name.localeCompare(b.name)) : [];
+  const more = dgState.more.filter(hit);
+
+  el.dgCount.textContent = dgState.loading
+    ? "Looking at this headset…"
+    : dgState.note
+      ? dgState.note
+      : adbApps.length || dgState.more.length
+        ? (() => {
+            /* With not-installed apps shown, the count is every store app listed. */
+            const all = adbApps.length + dgState.more.length;
+            const listed = apps.length + more.length;
+            return `${listed === all ? plural(all, "app") : `${listed} of ${plural(all, "app")}`} from the store`;
+          })()
+        : dgState.loaded
+          ? "No store apps are installed."
+          : "";
+  el.dgCount.classList.toggle("warn", Boolean(dgState.note) && !dgState.loading);
+
+  el.dgApps.innerHTML = apps
+    .map(
+      (a) => `<li><button type="button" class="dg-app" data-dg-app="${esc(a.packageName)}"
+          aria-current="${a.packageName === dgState.selected}">${dgArt(a)}
+          <span class="dg-text"><span class="dg-name">${esc(a.name)}</span>
+          <span class="dg-ver">${esc(a.installedVersion ?? "—")} · ${a.installedVersionCode ?? "—"}</span></span>${
+            adbBehind(a) ? `<span class="dg-new">Update</span>` : ""
+          }</button></li>`
+    )
+    .join("");
+
+  el.dgMoreH.hidden = !more.length;
+  el.dgMore.innerHTML = more
+    .map(
+      (a) => `<li><button type="button" class="dg-app" data-dg-app="${esc(a.packageName)}"
+          aria-current="${a.packageName === dgState.selected}">${dgArt(a)}
+          <span class="dg-text"><span class="dg-name">${esc(a.name)}</span>
+          <span class="dg-ver">${esc(a.latest?.version ?? "—")} · ${a.latest?.versionCode ?? "—"}</span></span></button></li>`
+    )
+    .join("");
+
+  el.dgSideH.hidden = !side.length;
+  el.dgSide.innerHTML = side
+    .map((a) => {
+      const kept = dgState.backups.filter((k) => k.packageName === a.packageName).length;
+      return `<li><button type="button" class="dg-app" data-dg-app="${esc(a.packageName)}"
+          aria-current="${a.packageName === dgState.selected}">${dgArt({ image: dgHeadsetIcon(a.packageName) })}
+          <span class="dg-text"><span class="dg-name">${esc(a.name)}</span>
+          <span class="dg-ver">${esc(a.version ?? "—")} · ${a.versionCode ?? "—"}</span></span>${
+            kept ? `<span class="dg-new dg-off">${plural(kept, "backup")}</span>` : ""
+          }</button></li>`;
+    })
+    .join("");
+
+  dgRenderDetail();
+}
+
+/** A kept copy of exactly this build, if there is one. */
+function dgKept(pkg, code, binaryId) {
+  return (
+    dgState.backups.find(
+      (k) => (binaryId && k.binaryId === String(binaryId)) || (k.packageName === pkg && k.versionCode === code)
+    ) ?? null
+  );
+}
+
+function dgRenderDetail() {
+  const app = dgApp(dgState.selected);
+  if (!app) {
+    el.dgDetail.innerHTML = adbApps.length
+      ? `<p class="dg-empty">Pick an app to see every build it has had.</p>`
+      : "";
+    return;
+  }
+  if (app.side) return dgRenderSideDetail(app);
+
+  const st = dgState.builds.get(app.id);
+  let body;
+  if (!st || st.loading) {
+    body = `<p class="dg-empty">Asking the store for its builds…</p>`;
+  } else if (st.error) {
+    body = `<p class="dg-empty warn">${esc(st.error)}</p>`;
+  } else {
+    /* Released builds only: the rest never reached a channel, and the store
+       refuses to hand them out. */
+    const rows = st.builds
+      .filter((b) => b.channels.length && b.id)
+      .map((b) => {
+        const current = b.versionCode === app.installedVersionCode;
+        const older = app.installedVersionCode && b.versionCode < app.installedVersionCode;
+        const kept = dgKept(app.packageName, b.versionCode, b.id);
+        const job = (k) => (appInstalls.has(k) ? ` data-job="${esc(k)}"` : "");
+        /* The quieter action in front of the blue one: keep a copy. For the
+           build on the headset that is a backup of what is installed — no
+           download — and for the rest it saves the download. */
+        const keep = kept
+          ? `<span class="dg-saved" title="Kept on this headset — installs with no download">Saved</span>`
+          : current
+            ? `<button type="button" class="dl dl-obb" data-backup-installed${job(`backup:${app.packageName}`)}
+                title="Keep a copy of the version on this headset, expansion file and all">Back up</button>`
+            : `<button type="button" class="dl dl-obb" data-save-build="${esc(b.id)}" data-version="${esc(b.version)}"${job(`save:${b.id}`)}
+                title="Download ${esc(b.version)} and keep it here, without installing it">Save</button>`;
+        const action = current
+          ? `<span class="on-headset">On headset</span>`
+          : `<button type="button" class="dl" data-install-build="${esc(b.id)}"${job(`install:${b.id}`)}
+              data-version="${esc(b.version)}" data-code="${b.versionCode ?? ""}"
+              title="${esc(older ? `Go back to ${b.version} — uninstalls first, deleting this app's saved data` : `Install ${b.version}`)}">${
+              older ? "Downgrade" : app.installedVersionCode == null ? "Install" : "Update"
+            }</button>`;
+        return `<tr${current ? ` class="dg-current"` : ""}>
+            <td class="num">${esc(b.version)}${obbs.has(String(b.id)) ? `<span class="dg-obb">+ OBB</span>` : ""}</td>
+            <td class="num">${b.versionCode ?? "—"}</td>
+            <td class="num">${b.releasedAt ?? "—"}</td>
+            <td>${esc(b.channels.join(", "))}</td>
+            <td class="dg-act">${keep}${action}</td>
+          </tr>`;
+      })
+      .join("");
+    body = rows
+      ? `<p class="dg-warn">Going back to an older build uninstalls the app first, which deletes its saved data on this headset. Updating keeps it. Back up the version you are on first if you may want it again.</p>
+         <table>
+           <thead><tr><th scope="col">Version</th><th scope="col">Build</th><th scope="col">Released</th><th scope="col">Channel</th><th scope="col" aria-label="Actions"></th></tr></thead>
+           <tbody>${rows}</tbody>
+         </table>`
+      : `<p class="dg-empty">The store lists no released builds for this app.</p>`;
+  }
+
+  el.dgDetail.innerHTML = `<div class="dg-head">${dgArt(app)}
+      <div><h2>${esc(app.name)}</h2><div class="dg-pkg">${esc(app.packageName)}</div>
+      <p class="dg-now">${
+        app.installedVersionCode == null
+          ? "Not installed on this headset"
+          : `On this headset: ${esc(app.installedVersion ?? "—")} (build ${app.installedVersionCode})`
+      }</p></div>${app.installedVersionCode == null ? "" : dgUninstallButton(app)}
+    </div>${body}`;
+}
+
+function dgUninstallButton(app) {
+  const key = `uninstall:${app.packageName}`;
+  const job = appInstalls.has(key) ? ` data-job="${esc(key)}"` : "";
+  return `<button type="button" class="dg-uninstall" data-uninstall${job} title="Remove ${esc(app.name)} from this headset, and its saved data">Uninstall</button>`;
+}
+
+/**
+ * A sideloaded app: the store has no builds of it, so what there is to offer
+ * is a copy of the version installed, and the copies already kept.
+ */
+function dgRenderSideDetail(app) {
+  const kept = dgState.backups
+    .filter((b) => b.packageName === app.packageName)
+    .sort((x, y) => y.versionCode - x.versionCode);
+  const key = `backup:${app.packageName}`;
+  const job = appInstalls.has(key) ? ` data-job="${esc(key)}"` : "";
+  el.dgDetail.innerHTML = `<div class="dg-head">${dgArt({ image: dgHeadsetIcon(app.packageName) })}
+      <div><h2>${esc(app.name)}</h2><div class="dg-pkg">${esc(app.packageName)}</div>
+      <p class="dg-now">On this headset: ${esc(app.installedVersion ?? "—")} (build ${app.installedVersionCode ?? "—"})</p></div>${dgUninstallButton(app)}
+    </div>
+    <div class="controls"><button type="button" data-backup-installed${job}
+      title="Keep a copy of the version on this headset, expansion file and all">Back up this version</button></div>
+    <p class="dg-warn">Not in the store, so there are no builds to download — but a copy of it can be kept, and put back later. Going back to an older copy uninstalls the app first, which deletes its saved data on this headset.</p>
+    <h3 class="dg-group">Kept on this headset</h3>
+    ${
+      kept.length
+        ? dgBackupTable(kept, app.installedVersionCode)
+        : `<p class="dg-empty">No copies of it yet. Back up this version keeps one.</p>`
+    }`;
+}
+
+/* Backups: one entry per app on the left — however many versions of it are
+   kept — and that app's versions on the right, the same split as Apps. */
+function dgBackupGroups() {
+  const groups = new Map();
+  for (const b of dgState.backups) {
+    if (!groups.has(b.packageName)) {
+      groups.set(b.packageName, { packageName: b.packageName, name: b.name, items: [], size: 0 });
+    }
+    const g = groups.get(b.packageName);
+    g.items.push(b);
+    g.size += Number(b.size) || 0;
+    /* The name the store gives it, when one of the copies came from the store. */
+    if (b.source !== "file") g.name = b.name;
+  }
+  for (const g of groups.values()) g.items.sort((x, y) => y.versionCode - x.versionCode);
+  return [...groups.values()].sort((x, y) => x.name.localeCompare(y.name));
+}
+
+function dgRenderBackups(hit) {
+  const groups = dgBackupGroups();
+  const shown = groups.filter(hit);
+  const total = groups.reduce((n, g) => n + g.size, 0);
+  if (dgState.backupSel && !groups.some((g) => g.packageName === dgState.backupSel)) dgState.backupSel = null;
+
+  el.dgBackupsCount.textContent = groups.length
+    ? `${shown.length === groups.length ? plural(groups.length, "app") : `${shown.length} of ${plural(groups.length, "app")}`}, ${dgSize(total)}`
+    : "";
+  el.dgBackupApps.innerHTML = shown
+    .map((g) => {
+      const art = dgArtFor(g.packageName, g.items[0].id);
+      const have = installedCode(g.packageName);
+      return `<li><button type="button" class="dg-app" data-backup-app="${esc(g.packageName)}"
+          aria-current="${g.packageName === dgState.backupSel}">${dgArt(art)}
+          <span class="dg-text"><span class="dg-name">${esc(g.name)}</span>
+          <span class="dg-ver">${plural(g.items.length, "version")} · ${dgSize(g.size)}</span></span>${
+            have < 0 ? `<span class="dg-new dg-off">Not installed</span>` : ""
+          }</button></li>`;
+    })
+    .join("");
+  el.dgBackupsEmpty.hidden = shown.length > 0;
+  el.dgBackupsEmpty.textContent = groups.length
+    ? "Nothing matches."
+    : "No backups yet. Builds you install or save from Apps are kept here, Back up keeps the version you are on, and + Add APK brings in your own.";
+
+  dgRenderBackupDetail(groups.find((g) => g.packageName === dgState.backupSel) ?? null);
+}
+
+function dgRenderBackupDetail(g) {
+  if (!g) {
+    el.dgBackupDetail.innerHTML = dgState.backups.length
+      ? `<p class="dg-empty">Pick an app to see the versions kept of it.</p>`
+      : "";
+    return;
+  }
+  const have = installedCode(g.packageName);
+  el.dgBackupDetail.innerHTML = `<div class="dg-head">${dgArt(dgArtFor(g.packageName, g.items[0].id))}
+      <div><h2>${esc(g.name)}</h2><div class="dg-pkg">${esc(g.packageName)}</div>
+      <p class="dg-now">${have >= 0 ? `On this headset: ${esc(installedName(g.packageName) ?? "—")} (build ${have})` : "Not installed on this headset"}</p></div>
+    </div>
+    <p class="dg-warn">Installing from a backup needs no download, and works signed out. Going back to an older build uninstalls the app first, which deletes its saved data on this headset.</p>
+    ${dgBackupTable(g.items, have)}`;
+}
+
+/** Kept copies of one app as a table: install any of them, or delete it. */
+function dgBackupTable(items, have) {
+  have = have ?? -1;
+  const rows = items
+    .map((b) => {
+      const current = have === b.versionCode;
+      const key = `restore:${b.id}`;
+      const queued = appInstalls.get(key);
+      const job = queued ? ` data-job="${esc(key)}"` : "";
+      const action = current
+        ? `<span class="on-headset">On headset</span>`
+        : `<button type="button" class="dl" data-restore="${esc(b.id)}"${job}
+            title="${esc(have > b.versionCode ? `Go back to ${b.version} — uninstalls first, deleting this app's saved data` : `Install ${b.version} from this backup — no download`)}">${
+            have < 0 ? "Install" : have > b.versionCode ? "Downgrade" : "Update"
+          }</button>`;
+      const from = b.source === "headset" ? "This headset" : b.source === "file" ? "Your APK" : "Download";
+      return `<tr${current ? ` class="dg-current"` : ""}>
+          <td class="num">${esc(b.version)}${b.obbs?.length ? `<span class="dg-obb">+ OBB</span>` : ""}</td>
+          <td class="num">${b.versionCode}</td>
+          <td class="num">${new Date(b.savedAt).toISOString().slice(0, 10)}</td>
+          <td title="${esc(b.fileName ?? "")}">${from}</td>
+          <td class="num">${dgSize(b.size)}</td>
+          <td class="dg-act"><button type="button" class="ptc-btn" data-delete-backup="${esc(b.id)}">Delete</button> ${action}</td>
+        </tr>`;
+    })
+    .join("");
+  return `<table>
+      <thead><tr><th scope="col">Version</th><th scope="col">Build</th><th scope="col">Kept</th><th scope="col">From</th><th scope="col">Size</th><th scope="col" aria-label="Actions"></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+const HISTORY_WORDS = {
+  ...JOB_WORDS,
+  deleted: "Deleted backup",
+  cancelled: "Cancelled",
+  failed: "Failed",
+};
+
+function dgRenderHistory(hit) {
+  const all = readHistory();
+  const shown = all.filter(hit);
+  const ver = (v) => (v ? `${esc(v.version ?? "—")} <span class="dg-obb">${v.code ?? ""}</span>` : "—");
+  el.dgHistoryRows.innerHTML = shown
+    .map(
+      (h) => `<tr>
+          <td class="num">${new Date(h.at).toISOString().slice(0, 16).replace("T", " ")}</td>
+          <td class="name"><span class="dg-cell">${dgArt(dgArtFor(h.packageName, h.backup ?? null))}${esc(h.name ?? h.packageName ?? "—")}</span></td>
+          <td${h.action === "failed" ? ` class="warn"` : ""} title="${esc(h.text ?? "")}">${esc(HISTORY_WORDS[h.action] ?? h.action)}${
+            h.text && (h.action === "failed" || h.action === "cancelled") ? `: ${esc(h.text)}` : ""
+          }</td>
+          <td class="num">${ver(h.from)}</td>
+          <td class="num">${ver(h.to)}</td>
+        </tr>`
+    )
+    .join("");
+  el.dgHistoryClear.disabled = !all.length;
+  el.dgHistoryEmpty.hidden = shown.length > 0;
+  el.dgHistoryEmpty.textContent = all.length
+    ? "Nothing matches."
+    : "Nothing yet. Installs, updates, downgrades, saves and backups made here are listed as they happen.";
+}
+
+/* ---------- Get the app ----------
+   The headset app's APK, served beside the site (android/build.sh PUBLISH=1),
+   for the Quest Browser to download or for the ADB screen to put on. */
+function initGetApp() {
+  document.getElementById("getappAdb")?.addEventListener("click", installAppOverAdb);
+  if (!IN_APP) return;
+  el.dgAppUpdate.addEventListener("click", () => startAppUpdate(el.dgAppUpdate));
+  document.getElementById("appCheck").addEventListener("click", () => checkAppUpdate({ quiet: false }));
+  /* Once a launch, after setup: is a newer MetaDB published beside the site? */
+  setTimeout(() => checkAppUpdate(), 1500);
+}
+
+/* ---------- the app's own update check ----------
+   The site part of the app is always current — it is the live site. What can
+   go stale is the app around it (sign-in, the installer, the relay), so the app
+   compares its own build with the one published at downloads/MetaDB.json, and
+   offers the newer one. */
+function appOwnVersion() {
+  try {
+    return JSON.parse(window.MetaDBApp.appVersion?.() ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+async function checkAppUpdate({ quiet = true } = {}) {
+  if (!IN_APP) return;
+  const mine = appOwnVersion();
+  const out = document.getElementById("appVersionOut");
+  const button = document.getElementById("appCheck");
+  if (!quiet) {
+    button.disabled = true;
+    button.textContent = "Checking…";
+  }
+  let info = null;
+  try {
+    const res = await fetch(APP_INFO, { cache: "no-store" });
+    if (res.ok && /json/.test(res.headers.get("content-type") ?? "")) info = await res.json();
+  } catch {}
+  appUpdate = info && mine.versionCode && Number(info.versionCode) > Number(mine.versionCode) ? info : null;
+
+  el.dgAppUpdate.hidden = !appUpdate;
+  if (appUpdate) el.dgAppUpdate.textContent = `Update MetaDB to ${appUpdate.version}`;
+  document.getElementById("appVersionText").textContent =
+    `MetaDB ${mine.versionName ?? "?"} (build ${mine.versionCode ?? "?"})` +
+    (info ? ` · newest published: ${info.version} (build ${info.versionCode})` : "");
+
+  if (!quiet) {
+    button.disabled = false;
+    button.textContent = "Check for updates";
+    out.classList.toggle("bad", !info);
+    out.textContent = appUpdate
+      ? `MetaDB ${appUpdate.version} is out. Press Update MetaDB at the top of Downgrade, or here.`
+      : info
+        ? "MetaDB is up to date."
+        : "Could not read the published version — try again in a moment.";
+    if (appUpdate) startAppUpdateOffer(out);
+  } else if (appUpdate && !appUpdateNoticed) {
+    appUpdateNoticed = true;
+    uiNotice(`MetaDB ${appUpdate.version} is out — press Update MetaDB at the top to install it.`, "plain");
+  }
+}
+
+/* The same update, offered beside Check for updates in Settings. */
+function startAppUpdateOffer(out) {
+  if (out.querySelector("button")) return;
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "linkbtn";
+  b.textContent = "Update now";
+  b.addEventListener("click", () => startAppUpdate(b));
+  out.append(" ", b);
+}
+
+/* Download the published APK and hand it to Android, which closes MetaDB to
+   replace it. A history entry is not written: the app is gone before it could. */
+function startAppUpdate(button) {
+  const key = "selfupdate";
+  if (jobPressed(key)) return;
+  appJob(key, { app: { name: "MetaDB", packageName: "dev.toastconcern.metadb" }, button });
+  window.MetaDBApp.updateApp(key, APP_APK);
+}
+
+/* Version and size, read from the file published beside the APK — asked once,
+   and only when this screen opens. */
+async function showAppInfo() {
+  if (appInfoAsked) return;
+  appInfoAsked = true;
+  const out = document.getElementById("getappInfo");
+  try {
+    const res = await fetch(APP_INFO, { cache: "no-store" });
+    if (!res.ok) throw new Error();
+    const info = await res.json();
+    out.textContent = `Version ${info.version} · ${Math.max(1, Math.round(info.size / 1024))} KB · built ${info.built}`;
+  } catch {
+    out.textContent = "";
+  }
+}
+
+/** Put the app on the headset connected on the ADB screen. */
+async function installAppOverAdb() {
+  const button = document.getElementById("getappAdb");
+  const say = (text, bad = false) => {
+    const out = document.getElementById("getappOut");
+    out.textContent = text;
+    out.classList.toggle("bad", bad);
+  };
+  if (!adb) {
+    say("Connect the headset on the ADB screen first, then come back and press this again.", true);
+    return;
+  }
+  const label = button.textContent;
+  button.disabled = true;
+  try {
+    button.textContent = "Downloading…";
+    const res = await fetch(APP_APK, { cache: "no-store" });
+    if (!res.ok) throw new Error(`the APK returned ${res.status}`);
+    const blob = await res.blob();
+    const { installApk } = await import("./adb.js?v=149");
+    await installApk(adb, blob, { onProgress: (t) => (button.textContent = t) });
+    say("MetaDB is on the headset — it is in the library, under Unknown sources.");
+  } catch (err) {
+    say(`Could not install it: ${err.message}`, true);
+  } finally {
+    button.textContent = label;
+    button.disabled = false;
+  }
 }
 
 /* ---------- your devices ---------- */
@@ -1964,16 +3099,17 @@ function renderPurchases() {
   const q = el.purchasesQ.value.trim().toLowerCase();
   const shown = q ? orders.filter((o) => o.name.toLowerCase().includes(q)) : orders;
 
+  /* The same name cell as every other list: art only when Settings asks for it,
+     and nothing standing in for a missing picture. */
+  const showArt = loadSettings().images;
   el.purchasesRows.innerHTML = shown
     .map((o) => {
       const refund =
         o.refundStatus && !/^(none|not_refunded|no_refund)/i.test(o.refundStatus)
           ? ` <span class="pill">${esc(prettyStatus(o.refundStatus))}</span>`
           : "";
-      const art = o.image
-        ? `<img class="art" src="${esc(o.image)}" alt="" loading="lazy">`
-        : `<span class="art"></span>`;
-      const kind = o.iapType ? `<span class="purchase-kind">${esc(prettyStatus(o.iapType))}</span>` : "";
+      const art = showArt && o.image ? `<img class="art" src="${esc(o.image)}" alt="" loading="lazy">` : "";
+      const kind = o.iapType ? ` <span class="purchase-kind">${esc(prettyStatus(o.iapType))}</span>` : "";
       const pay = o.payment == null ? "—" : showPayment ? esc(o.payment) : "••••";
       const nameCell = o.appId
         ? `<button type="button" class="linkbtn" data-open-app="${esc(o.appId)}" title="Open ${esc(
@@ -1981,9 +3117,9 @@ function renderPurchases() {
           )}">${esc(o.name)}</button>`
         : esc(o.name);
       return `<tr>
-          <td><div class="purchase-item">${art}<span class="purchase-name">${nameCell}${kind}</span></div></td>
-          <td>${esc(o.amount ?? "—")}</td>
-          <td>${o.date ? isoDay(o.date) : "—"}</td>
+          <td class="name">${art}${nameCell}${kind}</td>
+          <td class="num">${esc(o.amount ?? "—")}</td>
+          <td class="num">${o.date ? isoDay(o.date) : "—"}</td>
           <td>${esc(prettyStatus(o.status) || "—")}${refund}</td>
           <td class="purchase-pay">${pay}</td>
         </tr>`;
@@ -2444,6 +3580,13 @@ function appendLog(d) {
 }
 
 function initSettings() {
+  if (IN_APP) {
+    document.getElementById("appSignInField").hidden = false;
+    document.getElementById("appSignIn").addEventListener("click", () => window.MetaDBApp.signIn("settings"));
+    document.getElementById("appSignOut").addEventListener("click", appSignOut);
+    syncAppSignIn();
+  }
+
   const saved = loadSettings();
   /* The built-in token is a default, not something the user typed — leave the
      box empty so it is obvious nothing personal is stored yet. */
@@ -2558,10 +3701,16 @@ function initSettings() {
 
   el.clearBtn.addEventListener("click", () => {
     clearSettings();
+    /* In the headset app, Reset also signs out of Meta there, and keeps the
+       app's own relay — the page cannot work without it. */
+    if (IN_APP) {
+      window.MetaDBApp.signOut();
+      saveSettings({ relay: window.MetaDBApp.relay() });
+    }
     el.token.value = "";
     el.acToken.value = "";
     tell("", "");
-    el.relay.value = "";
+    el.relay.value = IN_APP ? window.MetaDBApp.relay() : "";
     el.images.checked = false;
     el.details.checked = false;
     el.devDownloads.checked = false;
@@ -2582,7 +3731,7 @@ function initSettings() {
     el.defSort.value = el.sort.value = fresh.searchSort;
     el.defBuildSort.value = fresh.buildSort;
     syncRelayNote();
-    say("Cleared. Back to the built-in token and no relay.", "ok");
+    say(IN_APP ? "Cleared, and signed out of Meta." : "Cleared. Back to the built-in token and no relay.", "ok");
   });
 
   el.useLocal.addEventListener("click", () => {
@@ -3062,14 +4211,18 @@ function renderAll() {
   const mine = mineApps();
   buildRows(el.mineRows, mine, "mine");
 
-  el.mineSub.textContent = mineStatus(mine.length);
-  el.mineSub.classList.toggle("warn", Boolean(mineNote));
-  el.mineEmpty.hidden = mine.length > 0 || mineLoading || Boolean(mineNote);
-  el.mineEmpty.textContent = !mineAsked
-    ? "Press Get Quest, Get PC or Get expired entitlements to list what this account owns."
-    : mineList.length
-      ? "Nothing matches."
-      : LIBRARIES[mineKind].none;
+  /* Laid out like every other list: the subtitle stays put, the count sits
+     under the controls, and a refusal is the empty message, in warn colour. */
+  el.mineCount.textContent = mineStatus(mine.length);
+  el.mineEmpty.hidden = mine.length > 0 || mineLoading;
+  el.mineEmpty.textContent = mineNote
+    ? mineNote
+    : !mineAsked
+      ? "Press Get Quest, Get PC or Get expired entitlements to list what this account owns."
+      : mineList.length
+        ? "Nothing matches."
+        : LIBRARIES[mineKind].none;
+  el.mineEmpty.classList.toggle("warn", Boolean(mineNote));
 
   const orgShown = orgVisible();
   buildRows(el.orgRows, orgShown, "orgs");
@@ -3079,7 +4232,7 @@ function renderAll() {
     : orgNote
       ? orgNote
       : !orgAsked
-        ? "Enter an organization ID above to list its apps."
+        ? "Enter an organization ID and press List apps."
         : orgList.length
           ? "Nothing matches."
           : "No apps for that organization.";
@@ -3146,13 +4299,7 @@ function mineStatus(shown) {
   if (mineLoading) {
     return LIBRARIES[mineKind].asking;
   }
-  if (mineNote) return mineNote;
-  if (!mineAsked) {
-    return (
-      "Everything on your account, from the same library queries a headset and " +
-      "the desktop app run. Needs your own access token, set on the Settings page."
-    );
-  }
+  if (mineNote || !mineAsked) return "";
   const total = mineList.length;
   const word = `${LIBRARIES[mineKind].noun}${total === 1 ? "" : "s"}`;
   return shown === total
@@ -3191,11 +4338,10 @@ function appRow(app, scope) {
     }${esc(app.name)}</td>
     <td class="c-dev">${app.platform ? (DEVICE[app.platform] ?? app.platform) : "—"}</td>
     <td class="chan c-chan">${esc(
-      primary?.name ??
-        primary?.channel ??
-        /* An entitlement says nothing about channels either way, so it gets a
-           blank rather than being labelled as never released. */
-        (app.owned ? "—" : NO_CHANNEL)
+      /* Nothing known until a check runs — the same dash every other unknown
+         cell gets, rather than a label that reads as "never released" on apps
+         that are live. A check that finds no channel says "unreleased". */
+      primary?.name ?? primary?.channel ?? "—"
     )}${
       extra ? ` <span class="more-chan">+${extra}</span>` : ""
     }</td>
@@ -3208,11 +4354,21 @@ function appRow(app, scope) {
     ${app.owned ? ownedCells(app) : ""}
     ${devCell(app)}`;
 
+  /* Only this row's panel changes, so only it is added or taken away — redrawing
+     every list to open one panel cost ~20ms a click on a long library. The
+     focus never leaves the row this way, so there is nothing to put back. */
   const toggle = (e) => {
-    open.has(key) ? open.delete(key) : open.add(key);
-    focusId = keyOf(app);
-    focusScope = e.currentTarget.closest("tbody");
-    renderAll();
+    const row = e.currentTarget;
+    const next = row.nextElementSibling;
+    const panel = next?.classList.contains("detail") ? next : null;
+    if (open.has(key)) {
+      open.delete(key);
+      panel?.remove();
+    } else {
+      open.add(key);
+      if (!panel) row.after(detailRow(app, undefined, scope));
+    }
+    row.setAttribute("aria-expanded", String(open.has(key)));
   };
 
   tr.addEventListener("click", toggle);
@@ -3521,10 +4677,10 @@ function appPanel(app, { staged = false, scope = null } = {}) {
        role="tab" aria-selected="${tab === name}">${label}</button>`;
 
   /* The app's actions — check, manifest, claim, store link — sit under the
-     tabs and serve Store and Builds alike. The Reviews, Related and Entitlement
-     tabs stand on their own — their own Get button fetches them — so the shared
+     tabs and serve Store and Builds alike. The Reviews, Add-ons, Achievements and
+     Entitlement tabs stand on their own — their own Get button fetches them — so the shared
      actions step aside on those. */
-  const actionsHidden = ["mine", "reviews", "related", "addons", "achievements"].includes(tab);
+  const actionsHidden = ["mine", "reviews", "addons", "achievements"].includes(tab);
   const sharedActions = `<div data-app-actions${actionsHidden ? " hidden" : ""}>
          ${actions ? `<div class="actions">${actions}</div>` : ""}
          <div class="claim-out"></div>
@@ -3533,7 +4689,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
        </div>`;
 
   const main = `<div class="companion-tabs panel-tabs" role="tablist" aria-label="${esc(app.name)}">
-         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${tabButton("reviews", "Reviews")}${tabButton("related", "Related")}${tabButton("addons", "Add-ons")}${tabButton("achievements", "Achievements")}${tabButton("mine", "Entitlement")}
+         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${tabButton("reviews", "Reviews")}${tabButton("addons", "Add-ons")}${tabButton("achievements", "Achievements")}${tabButton("mine", "Entitlement")}
        </div>
        ${sharedActions}
        <div ${pane("store")}>${storeFacts || "<p>Not checked yet — the listing arrives with Check this app.</p>"}</div>
@@ -3543,7 +4699,6 @@ function appPanel(app, { staged = false, scope = null } = {}) {
            : ""
        }<div class="versions-out"></div></div>
        <div ${pane("reviews")} class="reviews-pane">${reviewsPaneHtml(app)}</div>
-       <div ${pane("related")} class="related-pane">${relatedPaneHtml(app)}</div>
        <div ${pane("addons")} class="addons-pane">${addonsPaneHtml(app)}</div>
        <div ${pane("achievements")} class="ach-pane">${achPaneHtml(app)}</div>
        <div ${pane("mine")}>${yourCopy(app)}</div>`;
@@ -3600,7 +4755,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
       for (const p of panel.querySelectorAll("[data-pane]")) p.hidden = p.dataset.pane !== name;
       panel.dataset.tab = name;
       const shared = panel.querySelector("[data-app-actions]");
-      if (shared) shared.hidden = ["mine", "reviews", "related", "addons", "achievements"].includes(name);
+      if (shared) shared.hidden = ["mine", "reviews", "addons", "achievements"].includes(name);
       if (name === "mine") wantYourCopy();
     });
   }
@@ -3656,7 +4811,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
     }
   }
 
-  if (app.onHeadset) {
+  if (app.onHeadset || (IN_APP && !isRift(app))) {
     panel.querySelector(".versions-out")?.addEventListener("click", (e) => {
       const button = e.target.closest("[data-install-build]");
       if (!button) return;
@@ -3692,8 +4847,6 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   const reviewsPane = panel.querySelector('[data-pane="reviews"]');
   if (reviewsPane) wireReviews(app, reviewsPane);
 
-  const relatedPane = panel.querySelector('[data-pane="related"]');
-  if (relatedPane) wireRelated(app, relatedPane);
 
   const addonsPane = panel.querySelector('[data-pane="addons"]');
   if (addonsPane) wireAddons(app, addonsPane);
@@ -3948,95 +5101,12 @@ async function loadReviews(app, pane, { sort, more = false, button } = {}) {
   }
 }
 
-/* ---------- related apps ----------
-   The store's "More like this", on its own tab. Like Reviews, it fetches only
-   when its Get button is pressed, and each result opens into the same panel the
-   search box would — a tile hands its ID to the search flow. */
-
-/** The pane's contents: the cached tiles if it has run, else the Get button. */
-function relatedPaneHtml(app) {
-  if (!app.id) return `<p>No store ID to find related apps for.</p>`;
-  const items = relatedCache.get(app.id);
-  if (items) return renderRelated(items);
-  return `<div class="controls"><button type="button" data-related-get>Get related</button></div>
-       <p class="hint">The apps the store recommends beside this one.</p>`;
-}
-
-/** The grid of related-app tiles, or a note when the store offered none. */
-function renderRelated(items) {
-  if (!items.length) return `<p>The store lists nothing like this app.</p>`;
-  return `<div class="related-grid">${items.map(relatedTile).join("")}</div>`;
-}
-
-/** One related app — art, name, rating, price; opens the app when pressed. */
-function relatedTile(r) {
-  const art = r.image
-    ? `<img class="related-art" src="${esc(r.image)}" alt="" loading="lazy">`
-    : `<span class="related-art"></span>`;
-  const rating = r.score ? `<span class="related-rating">★ ${esc(r.score)}${
-    r.ratings ? ` (${esc(r.ratings)})` : ""
-  }</span>` : "";
-  const price = r.price ? `<span class="related-price">${esc(r.price)}</span>` : "";
-  const genre = r.genres?.length ? `<span class="related-genre">${esc(r.genres[0])}</span>` : "";
-  return `<button type="button" class="related-tile" data-open-app="${esc(r.id)}" title="Open ${esc(
-    r.name
-  )}">
-      ${art}
-      <span class="related-name">${esc(r.name)}</span>
-      <span class="related-meta">${rating}${price}</span>
-      ${genre}
-    </button>`;
-}
-
-/** Hook up the Get button and the tiles on a built pane. */
-function wireRelated(app, pane) {
-  if (!app.id) return;
-
-  pane.querySelector("[data-related-get]")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    loadRelated(app, pane, e.currentTarget);
-  });
-
-  for (const b of pane.querySelectorAll("[data-open-app]")) {
-    b.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openAppById(b.dataset.openApp);
-    });
-  }
-}
-
 /** Open an app by its store ID through the same path the search box uses. */
 function openAppById(id) {
   el.q.value = String(id);
   if (location.hash !== "#apps") location.hash = "#apps";
   runSearch();
   window.scrollTo({ top: 0 });
-}
-
-/** Fetch the related apps into the pane. */
-async function loadRelated(app, pane, button) {
-  if (button) {
-    button.disabled = true;
-    button.textContent = "Loading related…";
-  }
-  try {
-    const items = await relatedApps(app.id);
-    relatedCache.set(app.id, items);
-    pane.innerHTML = renderRelated(items);
-    wireRelated(app, pane);
-  } catch (err) {
-    if (button) {
-      button.disabled = false;
-      button.textContent = "Get related";
-    }
-    let note = pane.querySelector(".related-error");
-    if (!note) {
-      note = document.createElement("p");
-      note.className = "warn related-error";
-      pane.append(note);
-    }
-    note.textContent = `Could not load related apps: ${err.message}`;
-  }
 }
 
 /* ---------- add-ons (DLC / in-app purchases) ----------
@@ -4579,10 +5649,17 @@ function downloadCell(v, offerDev, app = null) {
   const dev = !v.channels.length;
   if (dev && !offerDev) return "";
 
-  /* On the headset tab the point of a build is to put it there, not to keep a
-     copy — so the same row offers Install. The build already on the headset is
-     named rather than offered again. */
-  if (app?.onHeadset) {
+  /* Rift builds cannot run on a Quest, so inside the headset app they offer nothing. */
+  if (IN_APP && isRift(app)) return "";
+
+  /* On the headset tab — and everywhere inside the headset app — the point of a
+     build is to put it there, not to keep a copy, so the same row offers
+     Install. The build already on the headset is named rather than offered again. */
+  if (app?.onHeadset || IN_APP) {
+    if (IN_APP && app?.packageName && app.installedVersionCode == null) {
+      const have = Number(window.MetaDBApp.installedVersion(app.packageName));
+      if (have >= 0) app.installedVersionCode = have;
+    }
     if (!canDownload()) {
       return `<a class="dl dl-off" href="#settings"
                 title="Add your oc_ac_at account token in Settings">Install</a>`;
@@ -5800,7 +6877,8 @@ function renderWorlds() {
   }
   el.worldCount.textContent = loading ? "Asking the store…" : line;
 
-  el.worldMore.hidden = !paged?.cursor || paged.loading;
+  /* The whole bar, as on Purchases, so an empty row leaves no gap under the list. */
+  el.worldMoreBar.hidden = !paged?.cursor || paged.loading;
 }
 
 /* ---------- the search box in the bar ----------

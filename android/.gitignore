@@ -1,0 +1,3 @@
+# Build output and the local signing key never go in the repo.
+build/
+*.keystore

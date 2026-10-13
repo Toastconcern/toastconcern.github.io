@@ -22,7 +22,7 @@ const HISTORY_DOC_ID = "2885322071572384";
 const RIFT_META_DOC_ID = "24830095600010314";
 
 /** Works for public store data. Replace it on the Settings page if you have your own. */
-export const DEFAULT_TOKEN = "OC|1317831034909742|";
+export const DEFAULT_TOKEN = "OC|1966835873381466|";
 
 /* ---------- settings ---------- */
 
@@ -40,7 +40,26 @@ export const DEFAULT_TOKEN = "OC|1317831034909742|";
   } catch {}
 })();
 
+/* The settings, read once and then served from memory. Every row a list draws
+   asks for them, and reading ~30 keys out of localStorage per row cost thousands
+   of reads per redraw. Everything that writes them goes through saveSettings or
+   clearSettings below, which drop the copy; another tab writing them fires a
+   storage event, which drops it too. */
+let settingsCache = null;
+
+try {
+  window.addEventListener("storage", (e) => {
+    if (e.key === null || e.key.startsWith("metadb.")) settingsCache = null;
+  });
+} catch {}
+
+/** A fresh copy each call, so a caller changing it cannot change the cache. */
 export function loadSettings() {
+  settingsCache ??= readSettings();
+  return { ...settingsCache, hidden: [...settingsCache.hidden] };
+}
+
+function readSettings() {
   try {
     return {
       token: localStorage.getItem("metadb.token") || DEFAULT_TOKEN,
@@ -76,6 +95,10 @@ export function loadSettings() {
       buildSort: localStorage.getItem("metadb.buildSort") || "released",
       /* Which install trigger the Default apps tab starts on. */
       defaultTrigger: localStorage.getItem("metadb.defaultTrigger") || "AUTO_UPDATER",
+      /* Inside the headset app: "downgrade" (its home layout) or "site". */
+      layout: localStorage.getItem("metadb.layout") || "downgrade",
+      /* Downgrade's "Show apps not installed". */
+      dgAll: localStorage.getItem("metadb.dgAll") === "1",
       /* On unless explicitly turned off, so it keeps its old behaviour. */
       store: localStorage.getItem("metadb.store") !== "0",
       /* Developer: log every request to the console. Off by default. */
@@ -126,6 +149,7 @@ export function loadSettings() {
  * an emptied token fall back to the built-in one.
  */
 export function saveSettings(patch) {
+  settingsCache = null;
   try {
     for (const [key, value] of Object.entries(patch)) {
       const name = `metadb.${key}`;
@@ -145,8 +169,9 @@ export function saveSettings(patch) {
 }
 
 export function clearSettings() {
+  settingsCache = null;
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -464,15 +489,6 @@ const day = (secs) => new Date(secs * 1000).toISOString().slice(0, 10);
 
 /* ---------- build history ---------- */
 
-function historyURL(id) {
-  const { token } = loadSettings();
-  return `${ENDPOINT}?${new URLSearchParams({
-    access_token: token,
-    doc_id: HISTORY_DOC_ID,
-    variables: JSON.stringify({ applicationID: String(id) }),
-  })}`;
-}
-
 /**
  * Every binary the store holds for an app, newest first, plus the newest build
  * on each channel worked out from the channel links each binary carries.
@@ -555,26 +571,8 @@ function parseHistory(json) {
 const SUBMISSION_DOC_ID = "28182136738069293";
 
 export async function submissionDetail(submissionID) {
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        doc_id: SUBMISSION_DOC_ID,
-        variables: JSON.stringify({ submissionID: String(submissionID) }),
-      })
-  );
-
-  if (json.errors?.length) {
-    const msg = json.errors[0].message ?? "the store refused it";
-    throw new Error(
-      /logged out|unauthorized/i.test(msg)
-        ? `${msg} Viewing a submission needs your own access token, set on the Settings page.`
-        : msg
-    );
-  }
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(SUBMISSION_DOC_ID, { submissionID: String(submissionID) });
+  refuse(json, "Viewing a submission");
 
   const sub = json.data?.fetch__ApplicationSubmission;
   if (!sub) throw new Error("no submission in the reply");
@@ -618,7 +616,7 @@ export async function submissionDetail(submissionID) {
 }
 
 export async function fetchHistory(id) {
-  return parseHistory(await getJSON(historyURL(id)));
+  return parseHistory(await storeQuery(HISTORY_DOC_ID, { applicationID: String(id) }));
 }
 
 /**
@@ -775,44 +773,26 @@ const PATCH_ALGORITHMS = [
  * describe the latest build rather than a patch against something else.
  */
 export async function appDetails(id) {
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        client_doc_id: DETAILS_DOC_ID,
-        variables: JSON.stringify({
-          params: {
-            app_params: [
-              {
-                app_id: String(id),
-                installed_version_code: "0",
-                has_source_stamp: false,
-                supported_patch_algorithms: PATCH_ALGORITHMS,
-                for_pre_download: false,
-                installed_apk_cert_signature: "",
-              },
-            ],
-          },
-          fetch_all_assets: false,
-          includeLatestAvailableBinary: true,
-          fetch_fallback_uris: false,
-          compatibilityFilter: "DEFAULT_PSDK",
-          gpu_hash: "",
-        }),
-      })
-  );
-
-  if (json.errors?.length) {
-    const msg = json.errors[0].message ?? "query refused";
-    throw new Error(
-      /logged out|unauthorized/i.test(msg)
-        ? `${msg} This query needs a logged-in account token, set on the Settings page.`
-        : msg
-    );
-  }
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(DETAILS_DOC_ID, {
+    params: {
+      app_params: [
+        {
+          app_id: String(id),
+          installed_version_code: "0",
+          has_source_stamp: false,
+          supported_patch_algorithms: PATCH_ALGORITHMS,
+          for_pre_download: false,
+          installed_apk_cert_signature: "",
+        },
+      ],
+    },
+    fetch_all_assets: false,
+    includeLatestAvailableBinary: true,
+    fetch_fallback_uris: false,
+    compatibilityFilter: "DEFAULT_PSDK",
+    gpu_hash: "",
+  }, { client: true });
+  refuse(json, "The build manifest");
 
   const update = json?.data?.app_binary_updates?.updates?.[0];
   const binary = update?.new_binary;
@@ -870,27 +850,11 @@ const BINARY_DOC_ID = "23514803210732035698740817391";
 
 /** One build's details: size, SDK, hashes, permissions, and its OBB if any. */
 export async function binaryDetails(appId, versionCode) {
-  const { token } = loadSettings();
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        client_doc_id: BINARY_DOC_ID,
-        variables: JSON.stringify({
-          params: { app_params: [{ app_id: String(appId), version_code: String(versionCode) }] },
-          fetch_fallback_uris: false,
-        }),
-      })
-  );
-  if (json.errors?.length) {
-    const msg = json.errors[0].message ?? "query refused";
-    throw new Error(
-      /logged out|unauthorized/i.test(msg)
-        ? `${msg} This query needs a logged-in account token, set on the Settings page.`
-        : msg
-    );
-  }
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(BINARY_DOC_ID, {
+    params: { app_params: [{ app_id: String(appId), version_code: String(versionCode) }] },
+    fetch_fallback_uris: false,
+  }, { client: true });
+  refuse(json, "Build details");
 
   const binary = json?.data?.app_binary_info?.info?.[0]?.binary;
   if (!binary) throw new Error("the store has no details for this build");
@@ -898,6 +862,7 @@ export async function binaryDetails(appId, versionCode) {
   return {
     ...binaryFields(binary),
     obbSize: Number(binary.obb_binary?.size) || null,
+    obbId: binary.obb_binary?.id ? String(binary.obb_binary.id) : null,
   };
 }
 
@@ -936,26 +901,15 @@ const gb = (bytes) =>
  * (player modes, comfort) and are turned back into words here.
  */
 export async function storeListing(id, hmdType = loadSettings().hmd) {
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        doc_id: STORE_DOC_ID,
-        variables: JSON.stringify({
-          hmdType,
-          itemId: String(id),
-          /* The page turns these on to get the metadata line and off to skip
-             the AI review summary. Both are required. */
-          __relay_internal__pv__MDCAppStorFortheMetadataLineEnablerelayprovider: true,
-          __relay_internal__pv__MDCAppStoreGenAIReviewSummaryEnabledrelayprovider: false,
-        }),
-      })
-  );
-
-  if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(STORE_DOC_ID, {
+    hmdType,
+    itemId: String(id),
+    /* The page turns these on to get the metadata line and off to skip
+       the AI review summary. Both are required. */
+    __relay_internal__pv__MDCAppStorFortheMetadataLineEnablerelayprovider: true,
+    __relay_internal__pv__MDCAppStoreGenAIReviewSummaryEnabledrelayprovider: false,
+  });
+  refuse(json, "The store listing");
 
   const app = json?.data?.app_store_item;
   if (!app) throw new Error("no listing in the reply");
@@ -1221,19 +1175,8 @@ function pageMedia(app) {
  * an app with no offer still has pictures.
  */
 export async function appPage(id, hmdType = loadSettings().hmd) {
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        doc_id: OFFER_DOC_ID,
-        variables: JSON.stringify({ itemId: String(id), hmdType }),
-      })
-  );
-
-  if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(OFFER_DOC_ID, { itemId: String(id), hmdType });
+  refuse(json, "The app page");
 
   const app = json?.data?.app_store_item;
   if (!app) throw new Error("no app in the reply");
@@ -1253,31 +1196,12 @@ export async function appPage(id, hmdType = loadSettings().hmd) {
 
 /** Search the store by name. Resolves to [{ id, name, price, … }] or throws. */
 export async function searchStore(query, { limit = 5, hmdType = "EUREKA" } = {}) {
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        doc_id: SEARCH_DOC_ID,
-        variables: JSON.stringify({
-          query,
-          hmdType,
-          firstSearchResultItems: limit,
-        }),
-      })
-  );
-
-  if (json.errors?.length) {
-    const msg = json.errors[0].message ?? "query refused";
-    throw new Error(
-      /logged out|unauthorized/i.test(msg)
-        ? `${msg} Store search needs a logged-in account token, set on the Settings page.`
-        : msg
-    );
-  }
-
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(SEARCH_DOC_ID, {
+    query,
+    hmdType,
+    firstSearchResultItems: limit,
+  });
+  refuse(json, "Store search");
 
   return extractApps(json, HMD_PLATFORM[hmdType] ?? "ANDROID_6DOF").slice(0, limit);
 }
@@ -1321,31 +1245,13 @@ const DEFAULT_APPS_VARS = {
  * empty.
  */
 export async function defaultApps(hmdType = "HOLLYWOOD", trigger = "AUTO_UPDATER") {
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        client_doc_id: DEFAULT_APPS_DOC_ID,
-        variables: JSON.stringify({
-          hmd: hmdType,
-          node_id: DEFAULT_APPS_STORE_ID,
-          install_trigger: trigger,
-          ...DEFAULT_APPS_VARS,
-        }),
-      })
-  );
-
-  if (json.errors?.length) {
-    const msg = json.errors[0].message ?? "query refused";
-    throw new Error(
-      /logged out|unauthorized/i.test(msg)
-        ? `${msg} This query needs an access token, set on the Settings page.`
-        : msg
-    );
-  }
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(DEFAULT_APPS_DOC_ID, {
+    hmd: hmdType,
+    node_id: DEFAULT_APPS_STORE_ID,
+    install_trigger: trigger,
+    ...DEFAULT_APPS_VARS,
+  }, { client: true });
+  refuse(json, "Default apps");
 
   const nodes = json.data?.fetch__AppStore?.default_applications ?? [];
   return nodes.map(defaultAppRow);
@@ -1384,10 +1290,12 @@ function defaultAppRow(n) {
 }
 
 /* The lighter sibling the app manager also has (QUERY_NAME "DefaultAppsList"):
-   the same set with fewer fields, and no image-size variables. Its persisted
-   query doc_id is not in the APK — only DefaultApps' is — so this refuses until
-   the DefaultAppsList client_doc_id is captured from the persisted-query
-   manifest and filled in here. Everything else about it is ready. */
+   the same set with fewer fields. Its client_doc_id is
+   185084892615440180935645326511 (OCMS 1048), but off the headset the store
+   answers it with an empty list and a field_exception error on
+   default_applications, whatever the variables — hmd, node_id, the image sizes,
+   fetchEntitlementInfo either way. So it stays switched off; DefaultApps above
+   is the one that works. Put the ID below to try it again. */
 const DEFAULT_APPS_LIST_DOC_ID = "";
 
 export async function defaultAppsList(hmdType = "HOLLYWOOD", trigger = "AUTO_UPDATER") {
@@ -1398,23 +1306,12 @@ export async function defaultAppsList(hmdType = "HOLLYWOOD", trigger = "AUTO_UPD
     );
   }
 
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        client_doc_id: DEFAULT_APPS_LIST_DOC_ID,
-        variables: JSON.stringify({
-          hmd: hmdType,
-          node_id: DEFAULT_APPS_STORE_ID,
-          install_trigger: trigger,
-        }),
-      })
-  );
-
-  if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(DEFAULT_APPS_LIST_DOC_ID, {
+    hmd: hmdType,
+    node_id: DEFAULT_APPS_STORE_ID,
+    install_trigger: trigger,
+  }, { client: true });
+  refuse(json, "Default apps");
 
   const nodes = json.data?.fetch__AppStore?.default_applications ?? [];
   return nodes.map(defaultAppRow);
@@ -1476,27 +1373,8 @@ function extractPackageIds(json, wanted) {
  * Resolves to a Map of package name -> { id, name, platform }.
  */
 export async function lookupPackages(packageNames) {
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        client_doc_id: PACKAGE_DOC_ID,
-        variables: JSON.stringify({ package_names: packageNames }),
-      })
-  );
-
-  if (json.errors?.length) {
-    const msg = json.errors[0].message ?? "query refused";
-    throw new Error(
-      /logged out|unauthorized/i.test(msg)
-        ? `${msg} This query needs a logged-in account token, set on the Settings page.`
-        : msg
-    );
-  }
-
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(PACKAGE_DOC_ID, { package_names: packageNames }, { client: true });
+  refuse(json, "Package lookup");
 
   const found = extractPackageIds(json, packageNames);
 
@@ -1642,8 +1520,6 @@ function entitlementConnection(json) {
  * account behind it and is refused.
  */
 export async function myEntitlements(kind = "quest") {
-  const { token } = loadSettings();
-
   const clientDocId = ENTITLEMENTS_DOC_IDS[kind];
   if (!clientDocId) throw new Error(`no entitlements query for "${kind}"`);
 
@@ -1653,28 +1529,11 @@ export async function myEntitlements(kind = "quest") {
   let cursor = null;
 
   for (let page = 0; page < ENTITLEMENT_PAGES; page++) {
-    const json = await getJSON(
-      `${ENDPOINT}?` +
-        new URLSearchParams({
-          access_token: token,
-          client_doc_id: clientDocId,
-          variables: JSON.stringify({
-            ...ENTITLEMENTS_VARIABLES,
-            cursorID: cursor,
-          }),
-        })
-    );
-
-    if (json.errors?.length) {
-      const msg = json.errors[0].message ?? "query refused";
-      throw new Error(
-        /logged out|unauthorized/i.test(msg)
-          ? `${msg} Your entitlements needs your own account token, set on the Settings page.`
-          : msg
-      );
-    }
-
-    if (json.error) throw new Error(json.error.message ?? "request rejected");
+    const json = await storeQuery(clientDocId, {
+      ...ENTITLEMENTS_VARIABLES,
+      cursorID: cursor,
+    }, { client: true });
+    refuse(json, "Your entitlements");
 
     const list = entitlementConnection(json);
     if (!list) {
@@ -1717,18 +1576,33 @@ function accountError(json, what) {
   return null;
 }
 
-async function accountQuery(clientDocId, variables, what) {
+/** Throw the store's refusal, if it refused. `what` names the feature in the hint. */
+function refuse(json, what) {
+  const err = accountError(json, what);
+  if (err) throw err;
+}
+
+/**
+ * One persisted GraphQL query, as the reply's JSON. `id` is a doc_id, or a
+ * client_doc_id when `client` is set — the app manager's queries are addressed
+ * that way. Every store query in this file goes through here, so the request
+ * is built in one place.
+ */
+async function storeQuery(id, variables, { client = false } = {}) {
   const { token } = loadSettings();
-  const json = await getJSON(
+  return getJSON(
     `${ENDPOINT}?` +
       new URLSearchParams({
         access_token: token,
-        client_doc_id: clientDocId,
+        [client ? "client_doc_id" : "doc_id"]: id,
         variables: JSON.stringify(variables),
       })
   );
-  const err = accountError(json, what);
-  if (err) throw err;
+}
+
+async function accountQuery(clientDocId, variables, what) {
+  const json = await storeQuery(clientDocId, variables, { client: true });
+  refuse(json, what);
   return json.data ?? {};
 }
 
@@ -2002,11 +1876,7 @@ export async function worldFlags(id) {
    rest is fine, so the data is kept whenever there is any. */
 
 async function relayQuery(docId, variables, what) {
-  const { token } = loadSettings();
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({ access_token: token, doc_id: docId, variables: JSON.stringify(variables) })
-  );
+  const json = await storeQuery(docId, variables);
   if (!json.data) {
     const err = accountError(json, what);
     throw err ?? new Error(`the store returned nothing for ${what}`);
@@ -2207,45 +2077,6 @@ export async function appReviews(appId, { count = 15, cursor = null, sort = "top
     reviews,
     cursor: conn?.page_info?.has_next_page ? conn.page_info.end_cursor : null,
   };
-}
-
-/* OCPDPRelatedItemsQueryRendererQuery: the store's "More like this" — the apps
-   its PDP recommends beside this one. By app ID like the rest of the store
-   queries; `encode` is the image format the art comes back in ("PNG"), and two
-   relay provider flags the query declares ride along, off. The variable shape
-   (appID + encode + the two providers) was read off a real request. */
-const RELATED_DOC_ID = "28273925445606615";
-
-/**
- * The store's related apps for an app.
- * [{ id, name, image, score, ratings, price, genres }] — `id` opens straight
- * into the same panel the search box would, `price` is the store's own display
- * string ("$24.99", "Free", "Purchased").
- */
-export async function relatedApps(appId) {
-  const data = await relayQuery(
-    RELATED_DOC_ID,
-    {
-      appID: String(appId),
-      encode: "PNG",
-      __relay_internal__pv__IsInternUserIndicatorEnabledrelayprovider: false,
-      __relay_internal__pv__horizonPlusBadgerelayprovider: false,
-    },
-    "Related apps"
-  );
-  const edges = data.app?.related_items_with_ranking_trace?.edges ?? [];
-  return edges
-    .map((e) => e?.node)
-    .filter((n) => n?.id)
-    .map((n) => ({
-      id: String(n.id),
-      name: n.display_unit_title ?? n.display_name ?? String(n.id),
-      image: n.assets?.cover_square_image_small?.uri ?? n.assets?.icon_list_image_small?.uri ?? null,
-      score: n.quality_rating_i18n_score_string ?? null,
-      ratings: n.quality_rating_i18n_count_string ?? null,
-      price: n.price_or_status_display?.text ?? null,
-      genres: Array.isArray(n.genre_names) ? n.genre_names : [],
-    }));
 }
 
 /* AppReleaseNotesQuery (from the PC client): the per-version changelog text for
@@ -2586,21 +2417,12 @@ function listOf(v) {
  * Resolves to a Map of app ID -> [{ id, name, sku, type, grantedAt, expiresAt, state }].
  */
 export async function ownedIaps() {
-  const { token } = loadSettings();
   const out = new Map();
   let cursor = null;
 
   for (let page = 0; page < ENTITLEMENT_PAGES; page++) {
-    const json = await getJSON(
-      `${ENDPOINT}?` +
-        new URLSearchParams({
-          access_token: token,
-          client_doc_id: OWNED_IAPS_DOC_ID,
-          variables: JSON.stringify({ ...ENTITLEMENTS_VARIABLES, cursorID: cursor }),
-        })
-    );
-    const err = accountError(json, "DLC you own");
-    if (err) throw err;
+    const json = await storeQuery(OWNED_IAPS_DOC_ID, { ...ENTITLEMENTS_VARIABLES, cursorID: cursor }, { client: true });
+    refuse(json, "DLC you own");
 
     const list = entitlementConnection(json);
     if (!list) throw new Error("the store returned no library to read DLC from");
@@ -2646,34 +2468,15 @@ const CLAIM_DOC_ID = "24220194524234992";
  * it does not — already owned, priced, or a token with no account behind it.
  */
 export async function claimOffer(offerId, hmdType = loadSettings().hmd) {
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        doc_id: CLAIM_DOC_ID,
-        variables: JSON.stringify({
-          input: {
-            offer_id: String(offerId),
-            hmd_type: hmdType,
-            include_entitlement: true,
-            client_mutation_id: "1",
-          },
-        }),
-      })
-  );
-
-  if (json.errors?.length) {
-    const msg = json.errors[0].message ?? "the store refused it";
-    throw new Error(
-      /logged out|unauthorized/i.test(msg)
-        ? `${msg} Claiming needs your own access token, set on the Settings page.`
-        : msg
-    );
-  }
-
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(CLAIM_DOC_ID, {
+    input: {
+      offer_id: String(offerId),
+      hmd_type: hmdType,
+      include_entitlement: true,
+      client_mutation_id: "1",
+    },
+  });
+  refuse(json, "Claiming");
 
   /* The reply nests the result under the mutation's own name. Rather than
      hard-code that, take the first object under `data` and let the caller
@@ -2703,34 +2506,15 @@ const PTC_ACTOR_ID = 49;
  * throws with the store's own words when it does not.
  */
 export async function setDevicePTC(serial, enabled) {
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        doc_id: DEVICE_PTC_DOC_ID,
-        variables: JSON.stringify({
-          setStatusData: {
-            device_serial: String(serial),
-            is_enabled: Boolean(enabled),
-            actor_id: PTC_ACTOR_ID,
-            client_mutation_id: PTC_ACTOR_ID,
-          },
-        }),
-      })
-  );
-
-  if (json.errors?.length) {
-    const msg = json.errors[0].message ?? "the store refused it";
-    throw new Error(
-      /logged out|unauthorized/i.test(msg)
-        ? `${msg} Changing a headset's test channel needs your own access token, set on the Settings page.`
-        : msg
-    );
-  }
-
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(DEVICE_PTC_DOC_ID, {
+    setStatusData: {
+      device_serial: String(serial),
+      is_enabled: Boolean(enabled),
+      actor_id: PTC_ACTOR_ID,
+      client_mutation_id: PTC_ACTOR_ID,
+    },
+  });
+  refuse(json, "Changing a headset's test channel");
 
   return Object.values(json.data ?? {})[0] ?? {};
 }
@@ -2741,17 +2525,8 @@ const DEVICE_PTC_STATUS_DOC_ID = "7735473863144745";
 
 /** { allowed, enabled } for one headset serial. */
 export async function devicePTCStatus(serial) {
-  const { token } = loadSettings();
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        doc_id: DEVICE_PTC_STATUS_DOC_ID,
-        variables: JSON.stringify({ device_serial: String(serial) }),
-      })
-  );
-  const err = accountError(json, "Test channel status");
-  if (err) throw err;
+  const json = await storeQuery(DEVICE_PTC_STATUS_DOC_ID, { device_serial: String(serial) });
+  refuse(json, "Test channel status");
   const s = json.data?.public_test_channel_status;
   if (!s) throw new Error("the store gave no test channel status");
   return { allowed: Boolean(s.is_allowed), enabled: Boolean(s.is_enabled) };
@@ -2772,19 +2547,8 @@ const CHANNEL_DOC_ID = "3973666182694273";
  * a channel and nothing else, so there is no cursor to follow.
  */
 export async function channelObbs(releaseChannelID) {
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        doc_id: CHANNEL_DOC_ID,
-        variables: JSON.stringify({ releaseChannelID: String(releaseChannelID) }),
-      })
-  );
-
-  if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(CHANNEL_DOC_ID, { releaseChannelID: String(releaseChannelID) });
+  refuse(json, "The OBB lookup");
 
   const node = json.data?.node;
   if (!node) throw new Error("the store returned no such release channel");
@@ -2822,32 +2586,22 @@ const ORG_APPS_DOC_ID = "27915674441422265";
  * on a real org usually means the token is missing.
  */
 export async function orgApps(orgID) {
-  const { token } = loadSettings();
   const out = new Map();
   let after = null;
 
   /* Safety cap: 40 pages × 20 is 800 apps, well past any real organization. */
   for (let page = 0; page < 40; page += 1) {
-    const json = await getJSON(
-      `${ENDPOINT}?` +
-        new URLSearchParams({
-          access_token: token,
-          doc_id: ORG_APPS_DOC_ID,
-          variables: JSON.stringify({
-            after,
-            display_name: null,
-            exclude_hyperscapes: true,
-            exclude_platforms: ["HORIZON_WORLD", "HORIZON_UNITY_WORLD"],
-            first: 20,
-            orderby: "DISPLAY_NAME",
-            platform: null,
-            id: String(orgID),
-          }),
-        })
-    );
-
-    if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
-    if (json.error) throw new Error(json.error.message ?? "request rejected");
+    const json = await storeQuery(ORG_APPS_DOC_ID, {
+      after,
+      display_name: null,
+      exclude_hyperscapes: true,
+      exclude_platforms: ["HORIZON_WORLD", "HORIZON_UNITY_WORLD"],
+      first: 20,
+      orderby: "DISPLAY_NAME",
+      platform: null,
+      id: String(orgID),
+    });
+    refuse(json, "An organization's apps");
 
     const conn =
       json.data?.node?.applications ?? json.data?.organization?.applications ?? {};
@@ -2894,19 +2648,8 @@ const DEVICES_DOC_ID = "26205914622391442";
  * (`all_device_manifests` is a separate thing and deliberately ignored.)
  */
 export async function accountDevices() {
-  const { token } = loadSettings();
-
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        doc_id: DEVICES_DOC_ID,
-        variables: "{}",
-      })
-  );
-
-  if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(DEVICES_DOC_ID, {});
+  refuse(json, "Headsets");
 
   const root = json.data?.xoc_oc_user_from_frl ?? {};
   const owned = root.owned_devices?.nodes ?? [];
@@ -2966,24 +2709,8 @@ export function downloadURL(binaryId) {
 
 /** Resolve a binary id to its PC manifest: where the manifest and segments live. */
 export async function riftMetadata(binaryId) {
-  const { token } = loadSettings();
-  const json = await getJSON(
-    `${ENDPOINT}?` +
-      new URLSearchParams({
-        access_token: token,
-        doc_id: RIFT_META_DOC_ID,
-        variables: JSON.stringify({ binary_id: String(binaryId) }),
-      })
-  );
-  if (json.errors?.length) {
-    const msg = json.errors[0].message ?? "query refused";
-    throw new Error(
-      /logged out|unauthorized/i.test(msg)
-        ? `${msg} A Rift download needs a logged-in account token, set on the Settings page.`
-        : msg
-    );
-  }
-  if (json.error) throw new Error(json.error.message ?? "request rejected");
+  const json = await storeQuery(RIFT_META_DOC_ID, { binary_id: String(binaryId) });
+  refuse(json, "A Rift download");
 
   /* The query aliases the node as `metadata`, but the reply shape has shifted
      before; pull the three fields out wherever they sit rather than trusting a
