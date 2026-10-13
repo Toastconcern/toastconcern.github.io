@@ -31,6 +31,10 @@ const OCMS_UA =
   "FBDW/null;FBVM/null;]";
 /* The headset OS build OCMS names with it (Build.VERSION.INCREMENTAL). */
 const OCMS_BUILD = "52641960021500520";
+/* The language replies are written in: dates, number formats and store text in
+   US English, wherever the relay runs. It does not pick the currency — Meta
+   prices by where the request comes from. */
+const LANGUAGE = "en-US,en;q=0.6";
 
 /* Headers worth carrying back. Content-Disposition is what makes the browser
    save an APK under its own name instead of showing it as "api".
@@ -63,6 +67,7 @@ export async function onRequest({ request }) {
     headers: {
       "User-Agent": OCMS_UA,
       "X-Build-Version-Incremental": OCMS_BUILD,
+      "Accept-Language": LANGUAGE,
       ...(download
         ? { Accept: "*/*" }
         : isPost

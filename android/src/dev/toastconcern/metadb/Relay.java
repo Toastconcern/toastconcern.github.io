@@ -46,6 +46,13 @@ final class Relay {
     /** The headset OS build OCMS names with it (Build.VERSION.INCREMENTAL). */
     static final String OCMS_BUILD = "52641960021500520";
 
+    /**
+     * The language replies are written in: dates, number formats and store text in
+     * US English. It does not pick the currency; Meta prices by where the request
+     * comes from.
+     */
+    static final String LANGUAGE = "en-US,en;q=0.6";
+
     private static final Pattern ALLOWED =
             Pattern.compile("^https://(graph|www|securecdn(-[a-z0-9-]+)?)\\.oculus\\.com/.*");
 
@@ -117,6 +124,7 @@ final class Relay {
             up.setReadTimeout(300_000);
             up.setRequestProperty("User-Agent", OCMS_UA);
             up.setRequestProperty("X-Build-Version-Incremental", OCMS_BUILD);
+            up.setRequestProperty("Accept-Language", LANGUAGE);
             if (download) {
                 up.setRequestProperty("Accept", "*/*");
                 // Ask for the bytes as they are, so the length still holds.

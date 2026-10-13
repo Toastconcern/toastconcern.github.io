@@ -1,1 +1,1 @@
-{"version":"1.2","versionCode":3,"size":37411,"built":"2026-10-13","changes":["Requests to Meta now identify as the current version of the headset's own app manager."]}
+{"version":"1.2","versionCode":3,"size":37411,"built":"2026-10-13","changes":["Requests to Meta now identify as the current version of the headset's own app manager, and ask for US English."]}
