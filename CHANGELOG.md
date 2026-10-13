@@ -15,6 +15,15 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=238 — 2026-10-13
+
+- The address is now a link to what is on screen, so it can be shared, and a reload comes
+  back to the same place. It uses plain paths: `/search/beat%20saber` for a search,
+  `/apps/<id>/builds` for an app on its Builds tab, `/worlds/<id>` and `/orgs/<id>`, and
+  `/settings`, `/mine` and so on for the other screens. Back and Forward step between
+  screens. Each app panel has a **Copy link** button.
+- Old `#settings` and `#apps` links still work, and become the new paths.
+
 ## Site v=237 — 2026-10-13
 
 - Settings has **Sign in with Meta** on the website too. With the MetaDB Sign-in extension

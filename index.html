@@ -2,6 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- Every relative file (css/, js/, downloads/) loads from the root, whatever the
+     path: /apps/<id>/builds is a link, not a folder. The host serves this page for
+     any path that is not a file, and the script reads the path. -->
+<base href="/">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MetaDB</title>
 <meta name="description" content="Oculus/Meta app and update database.">
@@ -21,7 +25,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=237">
+<link rel="stylesheet" href="css/style.css?v=238">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -61,32 +65,32 @@
       <div class="navgroup">
         <button class="navtop" type="button" aria-expanded="false">Apps</button>
         <div class="navmenu" hidden>
-          <a href="#apps" data-view="apps">Apps and games</a>
-          <a href="#default" data-view="default">Default apps</a>
-          <a href="#plus" data-view="plus">Horizon+</a>
-          <a href="#worlds" data-view="worlds">Worlds</a>
-          <a href="#orgs" data-view="orgs">Organizations</a>
+          <a href="/apps" data-view="apps">Apps and games</a>
+          <a href="/default" data-view="default">Default apps</a>
+          <a href="/plus" data-view="plus">Horizon+</a>
+          <a href="/worlds" data-view="worlds">Worlds</a>
+          <a href="/orgs" data-view="orgs">Organizations</a>
         </div>
       </div>
       <div class="navgroup">
         <button class="navtop" type="button" aria-expanded="false">User</button>
         <div class="navmenu" hidden>
-          <a href="#devices" data-view="devices">Headsets</a>
-          <a href="#mine" data-view="mine">Entitlements</a>
-          <a href="#purchases" data-view="purchases">Purchases</a>
-          <a href="#avatar" data-view="avatar">Avatar</a>
+          <a href="/devices" data-view="devices">Headsets</a>
+          <a href="/mine" data-view="mine">Entitlements</a>
+          <a href="/purchases" data-view="purchases">Purchases</a>
+          <a href="/avatar" data-view="avatar">Avatar</a>
         </div>
       </div>
       <div class="navgroup" data-not-in-app>
         <button class="navtop" type="button" aria-expanded="false">Device</button>
         <div class="navmenu" hidden>
-          <a href="#adb" data-view="adb">ADB</a>
-          <a href="#companion" data-view="companion">CompanionServer</a>
+          <a href="/adb" data-view="adb">ADB</a>
+          <a href="/companion" data-view="companion">CompanionServer</a>
         </div>
       </div>
-      <a href="#downgrade" data-in-app>Downgrade</a>
-      <a href="#getapp" data-view="getapp" data-not-in-app>Get the app</a>
-      <a href="#settings" data-view="settings">Settings</a>
+      <a href="/downgrade" data-in-app>Downgrade</a>
+      <a href="/getapp" data-view="getapp" data-not-in-app>Get the app</a>
+      <a href="/settings" data-view="settings">Settings</a>
     </nav>
     <select id="theme" aria-label="Theme"></select>
   </div>
@@ -96,7 +100,7 @@
 
   <p id="relayNote" class="notice" hidden>
     This copy has no relay of its own, and the browser is refused the store's reply
-    without one. <a href="#settings">Set one up in Settings</a>.
+    without one. <a href="/settings">Set one up in Settings</a>.
   </p>
 
   <!-- ---------- apps and games ---------- -->
@@ -715,7 +719,7 @@
     </div>
 
     <h3 class="devices-sub-h">From a PC</h3>
-    <p class="getapp-text">With the headset plugged in and connected on the <a href="#adb">ADB</a> screen, one press puts it on:</p>
+    <p class="getapp-text">With the headset plugged in and connected on the <a href="/adb">ADB</a> screen, one press puts it on:</p>
     <div class="actions">
       <button type="button" id="getappAdb">Install over ADB</button>
     </div>
@@ -730,7 +734,7 @@
       <li>Download <strong>MetaDB-extension.zip</strong> and unzip it.</li>
       <li>Open <strong>chrome://extensions</strong> (or <strong>edge://extensions</strong>) and turn on <strong>Developer mode</strong>.</li>
       <li>Press <strong>Load unpacked</strong> and choose the unzipped folder.</li>
-      <li>Come back to <a href="#settings">Settings</a> and press <strong>Sign in with Meta</strong>. If you are not logged in to Meta in this browser, Meta's login opens in a new tab, and Settings fills in once you finish.</li>
+      <li>Come back to <a href="/settings">Settings</a> and press <strong>Sign in with Meta</strong>. If you are not logged in to Meta in this browser, Meta's login opens in a new tab, and Settings fills in once you finish.</li>
     </ol>
     <div class="actions">
       <a href="downloads/MetaDB-extension.zip" download="MetaDB-extension.zip">Download MetaDB-extension.zip</a>
@@ -766,7 +770,7 @@
       <div class="field" id="extSignInField" data-not-in-app>
         <label for="extSignIn">Sign in</label>
         <div class="actions"><button type="button" id="extSignIn">Sign in with Meta</button></div>
-        <p class="hint" id="extSignInOut" role="status">Fills in both tokens below from your Meta login, with nothing to copy. It needs the MetaDB Sign-in extension for Chrome or Edge — <a href="#getapp">how to add it</a>.</p>
+        <p class="hint" id="extSignInOut" role="status">Fills in both tokens below from your Meta login, with nothing to copy. It needs the MetaDB Sign-in extension for Chrome or Edge — <a href="/getapp">how to add it</a>.</p>
       </div>
 
       <div class="field">
@@ -1238,6 +1242,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=237"></script>
+<script type="module" src="js/app.js?v=238"></script>
 </body>
 </html>

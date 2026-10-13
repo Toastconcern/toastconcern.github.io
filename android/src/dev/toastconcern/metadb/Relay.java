@@ -31,7 +31,7 @@ final class Relay {
     /** What the Oculus companion app on a Quest 3 sends when it pulls a binary. */
     static final String DOWNLOAD_UA =
             "Dalvik/2.1.0 (Linux; U; Android 14; Quest 3 Build/UP1A.231005.007.A1) "
-                    + "[FBAN/OculusOCMS;FBAV/1048.0.0.0.870;FBCR/null;FBDV/Quest 3;FBHV/204;"
+                    + "[FBAN/OculusOCMS;FBAV/1049.0.0.0.1598;FBCR/null;FBDV/Quest 3;FBHV/204;"
                     + "FBLC/en_US;FBSV/14;FBSBT/user;FBBD/oculus;FBBV/582512031;"
                     + "FBCA/arm64-v8a:armeabi-v7a:armeabi;FBMF/Oculus;FBPN/com.oculus.ocms;"
                     + "FBDW/null;FBVM/null;]";

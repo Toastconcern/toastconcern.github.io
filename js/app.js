@@ -60,7 +60,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=237";
+} from "./check.js?v=238";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -525,8 +525,8 @@ let headsetAsked = false;
    first applyView() runs during setup and opens it straight away. */
 /* Get the app: where the APK and its version file are, and whether the version
    has been read. Up here because the first applyView() can open that screen. */
-const APP_APK = new URL("downloads/MetaDB.apk", location.href).href;
-const APP_INFO = new URL("downloads/MetaDB.json", location.href).href;
+const APP_APK = new URL("downloads/MetaDB.apk", document.baseURI).href;
+const APP_INFO = new URL("downloads/MetaDB.json", document.baseURI).href;
 let appInfoAsked = false;
 /* Inside the app: a newer MetaDB, once the update check has found one. */
 let appUpdate = null;
@@ -545,6 +545,36 @@ const storeArt = (() => {
 let storeArtAsking = false;
 /* The newer-site check: when it last asked, and whether it is asking now. */
 let siteChecked = 0;
+/* A shared link being put back: the search it runs must not rewrite the link. */
+let restoringRoute = false;
+/* The address is a path — /apps/<id>/builds, /search/<words> — read by the "links"
+   section further down; what has to exist before the init block runs is here. */
+const PANEL_TABS = ["store", "builds", "reviews", "addons", "achievements", "mine"];
+const VIEWS = ["apps", "search", "mine", "purchases", "avatar", "devices", "worlds", "orgs", "default",
+  "plus", "adb", "companion", "settings", "getapp", "downgrade"];
+/* The last search on Apps and games, so closing the app opened from it goes back to it. */
+let routeSearch = "";
+const routeView = () => {
+  const v = routeParts()[0] ?? "";
+  return v === "search" ? "apps" : v;
+};
+/* Old links — #settings, #apps?q=…, and the #downgrade / #settings the headset app
+   returns to after sign-in — become the paths they mean, before anything reads them.
+   A # that names no screen is a place on the page, and is left alone. */
+(() => {
+  const [view, query] = location.hash.replace(/^#/, "").split("?");
+  if (!VIEWS.includes(view)) return;
+  const p = new URLSearchParams(query ?? "");
+  const path = pathFor({
+    view,
+    q: p.get("q"),
+    app: p.get("app"),
+    tab: p.get("tab"),
+    world: p.get("world"),
+    org: p.get("org"),
+  });
+  history.replaceState(history.state, "", path + location.search);
+})();
 let siteAsking = false;
 /* Packages whose art was asked for this visit. A miss is kept, but asked again
    on the next visit rather than never. */
@@ -675,7 +705,8 @@ function loadedBuild() {
 }
 
 async function publishedBuild() {
-  const res = await fetch(location.pathname, { cache: "no-store" });
+  /* The home page, not this path: /apps/… is a link, not where the page lives. */
+  const res = await fetch(document.baseURI, { cache: "no-store" });
   if (!res.ok) return null;
   return (await res.text()).match(/style\.css\?v=(\d+)/)?.[1] ?? null;
 }
@@ -1203,8 +1234,144 @@ function initNav() {
 }
 
 function initViews() {
-  window.addEventListener("hashchange", applyView);
+  /* Back and Forward: the screen, then what it was showing. */
+  window.addEventListener("popstate", () => {
+    applyView();
+    restoreRoute();
+  });
+  /* Links to a screen (href="/settings", or an old "#settings") move without a reload.
+     A new tab, a download, or a modified click is left to the browser. */
+  document.addEventListener("click", (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target.closest("a[href]");
+    if (!a || a.target || a.hasAttribute("download")) return;
+    const href = a.getAttribute("href");
+    const screen = href.match(/^[#/]([a-z]+)$/)?.[1];
+    if (screen && VIEWS.includes(screen)) {
+      e.preventDefault();
+      go(`/${screen}`);
+    } else if (href.length > 1 && href.startsWith("#")) {
+      /* A place on this page: with <base href="/"> the browser would leave for the home page. */
+      const target = document.getElementById(href.slice(1));
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView();
+      }
+    }
+  });
   applyView();
+}
+
+/** Move to another screen, as a step Back can undo. */
+function go(path) {
+  if (path !== location.pathname) history.pushState(null, "", path);
+  applyView();
+}
+
+/* ---------- links ----------
+   The address is a link to what is on screen, and can be copied as it stands:
+     /search/beat%20saber               a search on Apps and games
+     /apps/2448060205267927/builds      one app, open on its Builds tab
+     /worlds/<id>   a looked-up world      /orgs/<id>   an organization's apps
+     /settings, /mine, …                every other screen
+   It is rewritten in place as the screen changes (replaceState, so Back steps
+   between screens, not through every search) and read on arrival — a shared link,
+   or a reload — to run the same steps again. The account-only screens link to the
+   screen itself; what they list belongs to whoever is signed in.
+
+   The host (Cloudflare Pages) answers any path that is not a file with index.html,
+   so /apps/… arrives here as it stands. <base href="/"> keeps every relative file
+   (css/, js/, downloads/) loading from the root, whatever the path. */
+
+/** The path, in parts: /apps/123/builds -> ["apps", "123", "builds"]. */
+function routeParts() {
+  const parts = location.pathname.split("/").filter(Boolean).map((p) => {
+    try {
+      return decodeURIComponent(p);
+    } catch {
+      return p;
+    }
+  });
+  if (parts[0] === "index.html") parts.shift();
+  return parts;
+}
+
+/** What the path describes. */
+function routeState() {
+  const [view = "", a = null, b = null] = routeParts();
+  if (view === "search") return { view: "apps", q: a };
+  if (view === "apps" || view === "") {
+    return { view: "apps", app: /^\d{5,}$/.test(a ?? "") ? a : null, tab: PANEL_TABS.includes(b) ? b : null };
+  }
+  if (view === "worlds") return { view, world: a };
+  if (view === "orgs") return { view, org: a };
+  return { view };
+}
+
+/** The path for a state: an open app wins over the search it came from. */
+function pathFor(s) {
+  const e = encodeURIComponent;
+  if (s.view === "apps") {
+    if (/^\d{5,}$/.test(s.app ?? "")) {
+      return `/apps/${e(s.app)}${PANEL_TABS.includes(s.tab) && s.tab !== "store" ? `/${e(s.tab)}` : ""}`;
+    }
+    return s.q ? `/search/${e(s.q)}` : "/apps";
+  }
+  if (s.view === "worlds" && s.world) return `/worlds/${e(s.world)}`;
+  if (s.view === "orgs" && s.org) return `/orgs/${e(s.org)}`;
+  return `/${s.view}`;
+}
+
+/** Change part of what the address says; null or "" drops it. */
+function setRoute(changes) {
+  if ("q" in changes) routeSearch = changes.q ?? "";
+  const s = { ...routeState(), ...changes };
+  if (s.view === "apps" && !s.app && !s.q) s.q = routeSearch;
+  const next = pathFor(s);
+  if (next !== location.pathname) history.replaceState(history.state, "", next + location.search);
+}
+
+/** The link to one app, on one of its tabs — what Copy link hands out. */
+function appLink(app, tab) {
+  return location.origin + pathFor({ view: "apps", app: String(app.id), tab });
+}
+
+/** Put back what the address describes. */
+async function restoreRoute() {
+  const s = routeState();
+
+  if (s.view === "apps") {
+    const q = (s.q ?? "").trim() || s.app;
+    if (!q) return;
+    if (s.q) routeSearch = s.q;
+    /* Already showing (Back to the same search) — no need to ask again. */
+    if (el.q.value.trim() !== q || !listing.length) {
+      restoringRoute = true;
+      el.q.value = q;
+      try {
+        await runSearch();
+      } finally {
+        restoringRoute = false;
+      }
+    }
+    const hit = s.app && listing.find((a) => String(a.id) === s.app);
+    if (!hit) return;
+    if (s.tab) layoutState.panelTabs.set(openKey("main", hit), s.tab);
+    open.add(openKey("main", hit));
+    renderAll();
+    /* Scrolled to just below the top bar, which stays over the page. */
+    const row = el.rows.querySelector(`tr[data-id="${CSS.escape(String(keyOf(hit)))}"]`);
+    if (row) {
+      const bar = document.querySelector(".topbar")?.getBoundingClientRect().height ?? 0;
+      window.scrollTo({ top: row.getBoundingClientRect().top + scrollY - bar - 12 });
+    }
+  } else if (s.view === "worlds" && s.world) {
+    el.worldLookup.value = s.world;
+    lookUpWorld();
+  } else if (s.view === "orgs" && /^\d+$/.test(s.org ?? "")) {
+    el.orgId.value = s.org;
+    runOrgApps();
+  }
 }
 
 function applyView() {
@@ -1213,7 +1380,7 @@ function applyView() {
      Nothing to fade out to, since that screen is going with it. */
   closeStage({ animate: false });
 
-  const hash = location.hash.replace("#", "");
+  const hash = routeView();
 
   /* Inside the headset app the Downgrade layout is home: it takes the whole
      window until Full site is pressed, and the choice is remembered. A site
@@ -1250,7 +1417,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=237")
+    import("./companion.js?v=238")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -1328,6 +1495,7 @@ async function runOrgApps() {
 
   try {
     orgList = await orgApps(id);
+    setRoute({ org: id });
   } catch (err) {
     orgList = [];
     orgNote = err.message || "Could not load the organization's apps.";
@@ -2234,7 +2402,7 @@ function initDowngrade() {
   if (!IN_APP) return;
   el.dgSite.addEventListener("click", () => {
     saveSettings({ layout: "site" });
-    location.hash = "apps";
+    go("/apps");
   });
   el.dgRefresh.addEventListener("click", () => dgLoad(true));
   el.dgQ.addEventListener("input", dgRender);
@@ -3803,7 +3971,7 @@ function initExtSignIn() {
 
   button.addEventListener("click", () => {
     if (!found) {
-      location.hash = "#getapp";
+      go("/getapp");
       requestAnimationFrame(() => document.getElementById("getext")?.scrollIntoView());
       return;
     }
@@ -4177,6 +4345,9 @@ async function boot() {
     if (el.q.value.trim()) runSearch();
   });
 
+  /* Arrived on a link (or reloaded): put back the search, app and tab it names. */
+  if (!IN_APP || !document.documentElement.classList.contains("layout-dg")) restoreRoute();
+
   el.checkAll.addEventListener("click", () =>
     checkList(visible(), el.checkAll, "Check shown")
   );
@@ -4315,6 +4486,8 @@ const PACKAGE_RE = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+){2,}$/i;
  */
 async function runSearch() {
   const raw = el.q.value.trim();
+  /* A new search is a new link; an app opened from the last one goes with it. */
+  if (!restoringRoute && (routeView() || "apps") === "apps") setRoute({ q: raw, app: null, tab: null });
 
   if (!raw) {
     listing = [];
@@ -4605,6 +4778,11 @@ function appRow(app, scope) {
       if (!panel) row.after(detailRow(app, undefined, scope));
     }
     row.setAttribute("aria-expanded", String(open.has(key)));
+    /* On Apps and games the link follows the app last opened. */
+    if (scope === "main" && app.id) {
+      const tab = layoutState.panelTabs.get(key);
+      setRoute(open.has(key) ? { app: app.id, tab: tab === "store" ? null : tab } : { app: null, tab: null });
+    }
   };
 
   tr.addEventListener("click", toggle);
@@ -4814,7 +4992,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
         app.free && app.offerId && scope !== "mine"
           ? `<button type="button" data-claim="1">Get entitlement</button>`
           : ""
-      }${storeLink}`
+      }<button type="button" data-copy-link="1" title="A link that opens this app, on this tab">Copy link</button>${storeLink}`
     : `<button type="button" data-resolve="1">Find store ID</button>`;
 
   /* The channel this account is on, when a single check asked. Named by the
@@ -4983,6 +5161,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
       e.stopPropagation();
       const name = b.dataset.panelTab;
       layoutState.panelTabs.set(tabKey, name);
+      if (scope === "main" && app.id) setRoute({ app: app.id, tab: name === "store" ? null : name });
       for (const x of panel.querySelectorAll("[data-panel-tab]")) {
         const on = x === b;
         x.classList.toggle("on", on);
@@ -5014,6 +5193,20 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   panel.querySelector("[data-check]")?.addEventListener("click", (e) => {
     e.stopPropagation();
     checkOne(app, { channel: true });
+  });
+
+  panel.querySelector("[data-copy-link]")?.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const b = e.currentTarget;
+    const link = appLink(app, layoutState.panelTabs.get(tabKey));
+    try {
+      await navigator.clipboard.writeText(link);
+      b.textContent = "Link copied";
+    } catch {
+      /* No clipboard (an old browser, or permission refused): the link is shown to copy by hand. */
+      window.prompt("Copy this link:", link);
+    }
+    setTimeout(() => (b.textContent = "Copy link"), 1800);
   });
 
   panel.querySelector("[data-images]")?.addEventListener("click", (e) => {
@@ -5340,7 +5533,7 @@ async function loadReviews(app, pane, { sort, more = false, button } = {}) {
 /** Open an app by its store ID through the same path the search box uses. */
 function openAppById(id) {
   el.q.value = String(id);
-  if (location.hash !== "#apps") location.hash = "#apps";
+  if (routeView() !== "apps") go("/apps");
   runSearch();
   window.scrollTo({ top: 0 });
 }
@@ -5765,7 +5958,7 @@ async function loadFflate() {
  */
 async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) {
   if (!canDownload()) {
-    location.hash = "#settings";
+    go("/settings");
     return;
   }
 
@@ -5897,7 +6090,7 @@ function downloadCell(v, offerDev, app = null) {
       if (have >= 0) app.installedVersionCode = have;
     }
     if (!canDownload()) {
-      return `<a class="dl dl-off" href="#settings"
+      return `<a class="dl dl-off" href="/settings"
                 title="Add your oc_ac_at account token in Settings">Install</a>`;
     }
     if (app.installedVersionCode && v.versionCode === app.installedVersionCode) {
@@ -5920,7 +6113,7 @@ function downloadCell(v, offerDev, app = null) {
      segments into a .zip in the browser, so it is a real control, not a link. */
   if (isRift(app)) {
     if (!canDownload()) {
-      return `<a class="dl dl-off" href="#settings"
+      return `<a class="dl dl-off" href="/settings"
                 title="Add your oc_ac_at account token in Settings">Download</a>`;
     }
     return `<button type="button" class="dl${dev ? " dl-dev" : ""}"
@@ -5934,7 +6127,7 @@ function downloadCell(v, offerDev, app = null) {
   }
 
   if (!canDownload()) {
-    return `<a class="dl dl-off" href="#settings"
+    return `<a class="dl dl-off" href="/settings"
               title="Add your oc_ac_at account token in Settings">Download</a>`;
   }
 
@@ -6445,9 +6638,9 @@ function tourSteps() {
 
 function initTour() {
   el.tourAgain.addEventListener("click", () => {
-    if (location.hash && location.hash !== "#apps") {
+    if (routeView() && routeView() !== "apps") {
       /* applyView runs on the hash change; start once the screen is in. */
-      location.hash = "#apps";
+      go("/apps");
       setTimeout(startTour, speed() + 50);
     } else {
       startTour();
@@ -7123,7 +7316,7 @@ function renderWorlds() {
 
 function initSearchBar() {
   el.q.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !["", "#apps"].includes(location.hash)) location.hash = "#apps";
+    if (e.key === "Enter" && !["", "apps"].includes(routeView())) go("/apps");
   });
 }
 
@@ -7358,6 +7551,7 @@ async function lookUpWorld() {
   }
 
   worldOpen.add(id);
+  setRoute({ world: id });
   renderWorlds();
   el.worldRows.querySelector(`tr[data-world="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
 }
