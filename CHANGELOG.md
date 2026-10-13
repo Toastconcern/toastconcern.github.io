@@ -15,6 +15,11 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=242 — 2026-10-13
+
+- Downgrade has its own theme picker in its top bar. It is the same setting as the site's
+  picker, so changing either one changes both.
+
 ## Site v=241 — 2026-10-13
 
 - MetaDB runs on the Quest 1. Its last system update has a 2019 browser engine (Chrome 74),

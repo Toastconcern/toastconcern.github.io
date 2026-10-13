@@ -4443,6 +4443,7 @@ var el = {
   worldRows: document.getElementById("worldRows"),
   worldEmpty: document.getElementById("worldEmpty"),
   theme: document.getElementById("theme"),
+  dgTheme: document.getElementById("dgTheme"),
   navLinks: document.querySelectorAll(".nav a[data-view]"),
   navGroups: document.querySelectorAll(".navgroup"),
   libButtons: document.querySelectorAll("#view-mine [data-lib]")
@@ -4664,7 +4665,9 @@ function initUpdates() {
   });
 }
 function systemTheme() {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const reports = dark || window.matchMedia("(prefers-color-scheme: light)").matches;
+  return dark || !reports ? "dark" : "light";
 }
 function applyFontSize(px) {
   const size = Math.round(
@@ -4690,22 +4693,27 @@ function initFontSize() {
 }
 function initTheme() {
   var _a2;
-  fillOptions(el.theme, THEMES);
+  const pickers = [el.theme, el.dgTheme].filter(Boolean);
+  for (const p of pickers) fillOptions(p, THEMES);
   let saved = "";
   try {
     saved = (_a2 = localStorage.getItem("theme")) != null ? _a2 : "";
   } catch {
   }
   el.theme.value = THEMES.some(([value]) => value === saved) ? saved : "";
+  for (const p of pickers) p.value = el.theme.value;
   applyTheme();
-  el.theme.addEventListener("change", () => {
-    try {
-      if (el.theme.value) localStorage.setItem("theme", el.theme.value);
-      else localStorage.removeItem("theme");
-    } catch {
-    }
-    applyTheme();
-  });
+  for (const picker of pickers) {
+    picker.addEventListener("change", () => {
+      for (const p of pickers) p.value = picker.value;
+      try {
+        if (picker.value) localStorage.setItem("theme", picker.value);
+        else localStorage.removeItem("theme");
+      } catch {
+      }
+      applyTheme();
+    });
+  }
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
     if (!el.theme.value) applyTheme();
   });
@@ -5043,7 +5051,7 @@ function applyView() {
   el.viewGetapp.hidden = view !== "getapp";
   if (view === "getapp") showAppInfo();
   if (view === "companion") {
-    import("./companion.js?v=241").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => console.error("companion init failed", e));
+    import("./companion.js?v=242").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => console.error("companion init failed", e));
   }
   el.limitbar.hidden = view !== "apps";
   for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);

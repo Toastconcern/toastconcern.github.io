@@ -59,7 +59,7 @@
     });
   })();
 </script>
-<link rel="stylesheet" href="css/style.css?v=241">
+<link rel="stylesheet" href="css/style.css?v=242">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -1187,6 +1187,7 @@
     <button id="dgRefresh" type="button">Refresh</button>
     <button id="dgAppUpdate" type="button" hidden>Update MetaDB</button>
     <button id="dgSignOut" type="button" hidden>Sign out</button>
+    <select id="dgTheme" aria-label="Theme"></select>
     <button id="dgSite" type="button">Full site</button>
   </header>
 
@@ -1284,11 +1285,16 @@
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
 <script>
-  /* Which build this engine can run. js/app.js is written for Chrome 86 and later; an
-     older engine (the Quest 1's built-in one is Chrome 74, for good) cannot even read
-     it, so it gets js/app.legacy.js and css/legacy.css instead, both made from the
-     same sources by tools/legacy-build.mjs. Tested by what the engine accepts, not
-     by its name. Here at the end of the page, so the page is there when it runs. */
+  /* Which build this engine can run, and which CSS fallbacks it needs. Each is
+     decided by testing what the engine does, not by its name or version.
+     - js/app.js is written for Chrome 86 and later. An older engine (the Quest 1's
+       built-in one is Chrome 74, for good) cannot even read it, and gets
+       js/app.legacy.js instead.
+     - css/legacy-gap.css, where flexbox gap lays out as nothing (Chrome 83 and older).
+     - css/compat.css, where inset, min(), color-mix() or :focus-visible is missing
+       (anything before Chrome 111); each part inside it applies only where needed.
+     All three are made from the real sources by tools/legacy-build.mjs. This runs at
+     the end of the page, so the page is there when the script starts. */
   (function () {
     var modern = true;
     try {
@@ -1298,17 +1304,44 @@
     }
     if (!("replaceChildren" in Element.prototype)) modern = false;
     window.__metadbLegacy = !modern;
-    if (!modern) {
-      document.documentElement.classList.add("legacy");
-      var main = document.querySelector('link[rel="stylesheet"][href*="style.css"]');
-      var css = document.createElement("link");
-      css.rel = "stylesheet";
-      css.href = "css/legacy.css?v=241";
-      main.parentNode.insertBefore(css, main);
+
+    var flexGap = (function () {
+      var box = document.createElement("div");
+      box.style.cssText = "display:flex;flex-direction:column;row-gap:1px;position:absolute;visibility:hidden";
+      box.appendChild(document.createElement("div"));
+      box.appendChild(document.createElement("div"));
+      document.body.appendChild(box);
+      var works = box.scrollHeight === 1;
+      box.parentNode.removeChild(box);
+      return works;
+    })();
+    var focusVisible = true;
+    try {
+      document.querySelector(":focus-visible");
+    } catch (e) {
+      focusVisible = false;
     }
+    var supports = function (prop, value) {
+      return window.CSS && CSS.supports && CSS.supports(prop, value);
+    };
+    var compat = !focusVisible || !supports("inset", "0") || !supports("width", "min(1px, 2px)") ||
+      !supports("color", "color-mix(in srgb, red 50%, blue)");
+
+    if (!focusVisible) document.documentElement.classList.add("no-focus-visible");
+    if (!modern) document.documentElement.classList.add("legacy");
+    var main = document.querySelector('link[rel="stylesheet"][href*="style.css"]');
+    var addCss = function (href) {
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = href;
+      main.parentNode.insertBefore(link, main);
+    };
+    if (!flexGap) addCss("css/legacy-gap.css?v=242");
+    if (compat) addCss("css/compat.css?v=242");
+
     var js = document.createElement("script");
     js.type = "module";
-    js.src = modern ? "js/app.js?v=241" : "js/app.legacy.js?v=241";
+    js.src = modern ? "js/app.js?v=242" : "js/app.legacy.js?v=242";
     document.body.appendChild(js);
   })();
 </script>

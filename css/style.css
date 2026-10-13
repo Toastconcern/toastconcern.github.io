@@ -2050,6 +2050,7 @@ tr.build-detail .panel { font-family: var(--sans, inherit); }
 .dg-brand { margin-right: auto; font-size: 1.05rem; color: var(--muted); white-space: nowrap; }
 .dg-brand strong { color: var(--text); font-weight: 600; }
 .dg-bar input { flex: 0 1 22rem; min-width: 8rem; }
+.dg-bar select { flex: none; min-height: 38px; }
 
 .dg-body {
   flex: 1;

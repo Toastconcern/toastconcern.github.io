@@ -63,7 +63,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=241";
+} from "./check.js?v=242";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -423,6 +423,7 @@ const el = {
   worldEmpty: document.getElementById("worldEmpty"),
 
   theme: document.getElementById("theme"),
+  dgTheme: document.getElementById("dgTheme"),
   navLinks: document.querySelectorAll(".nav a[data-view]"),
   navGroups: document.querySelectorAll(".navgroup"),
 
@@ -800,9 +801,10 @@ function initUpdates() {
 /* ---------- theme ---------- */
 
 function systemTheme() {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  /* An engine too old to report either (the Quest 1's) gets dark, as in index.html. */
+  const dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const reports = dark || window.matchMedia("(prefers-color-scheme: light)").matches;
+  return dark || !reports ? "dark" : "light";
 }
 
 /**
@@ -850,7 +852,10 @@ function initFontSize() {
 }
 
 function initTheme() {
-  fillOptions(el.theme, THEMES);
+  /* Two pickers, one setting: the site's top bar and the headset app's Downgrade
+     bar. Either one changes the theme, and the other follows. */
+  const pickers = [el.theme, el.dgTheme].filter(Boolean);
+  for (const p of pickers) fillOptions(p, THEMES);
 
   let saved = "";
   try {
@@ -860,15 +865,19 @@ function initTheme() {
   /* A palette that has since been removed falls back to following the system
      rather than leaving the picker showing something that does not exist. */
   el.theme.value = THEMES.some(([value]) => value === saved) ? saved : "";
+  for (const p of pickers) p.value = el.theme.value;
   applyTheme();
 
-  el.theme.addEventListener("change", () => {
-    try {
-      if (el.theme.value) localStorage.setItem("theme", el.theme.value);
-      else localStorage.removeItem("theme");
-    } catch {}
-    applyTheme();
-  });
+  for (const picker of pickers) {
+    picker.addEventListener("change", () => {
+      for (const p of pickers) p.value = picker.value;
+      try {
+        if (picker.value) localStorage.setItem("theme", picker.value);
+        else localStorage.removeItem("theme");
+      } catch {}
+      applyTheme();
+    });
+  }
 
   window
     .matchMedia("(prefers-color-scheme: dark)")
@@ -1430,7 +1439,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=241")
+    import("./companion.js?v=242")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
