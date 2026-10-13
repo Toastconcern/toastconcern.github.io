@@ -650,6 +650,19 @@ export async function checkApp(app) {
   };
 }
 
+/* The site build this page is running — its own ?v= — and the one the site
+   serves now, read off the app.js link in a fresh copy of the page. A page left
+   open for hours (the headset app keeps one open all day) compares the two to
+   know it is stale. */
+export const SITE_BUILD = Number(new URL(import.meta.url).searchParams.get("v")) || 0;
+
+export async function liveSiteBuild() {
+  const res = await fetch(new URL("../", import.meta.url).href, { cache: "no-store" });
+  if (!res.ok) return 0;
+  const m = (await res.text()).match(/js\/app\.js\?v=(\d+)/);
+  return m ? Number(m[1]) : 0;
+}
+
 /**
  * Store names for many apps in one request: Map of app ID -> display name.
  * The node endpoint takes a list of IDs, so a screenful costs one call.

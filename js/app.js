@@ -5,6 +5,8 @@ import {
   lookupByPackage,
   lookupPackages,
   storeNames,
+  SITE_BUILD,
+  liveSiteBuild,
   fetchHistory,
   appDetails,
   storeListing,
@@ -58,7 +60,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=235";
+} from "./check.js?v=236";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -541,6 +543,9 @@ const storeArt = (() => {
   }
 })();
 let storeArtAsking = false;
+/* The newer-site check: when it last asked, and whether it is asking now. */
+let siteChecked = 0;
+let siteAsking = false;
 /* Packages whose art was asked for this visit. A miss is kept, but asked again
    on the next visit rather than never. */
 const storeArtTried = new Set();
@@ -643,6 +648,7 @@ initPlus();
 initHeadset();
 initDowngrade();
 initGetApp();
+initSiteUpdate();
 initDirectDownload();
 initTour();
 initColumns();
@@ -1244,7 +1250,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=235")
+    import("./companion.js?v=236")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -2586,6 +2592,15 @@ async function fillStoreArt(pkgs, known = null) {
           image = (await searchStore(name, { limit: 10 })).find((r) => r.id === String(hit.id))?.image ?? null;
         } catch {}
       }
+      /* Search leaves some out — environments, system apps. Their store page
+         still has art: a square one if it has any, else the hero, cropped. */
+      if (!image) {
+        try {
+          const media = (await appPage(hit.id)).media;
+          const pick = (labels) => media.find((m) => labels.includes(m.label))?.uri;
+          image = pick(["Cover", "Icon", "Icon (VR)"]) ?? pick(["Hero", "Landscape"]) ?? null;
+        } catch {}
+      }
       storeArt.set(p, { id: String(hit.id), name, image });
     }
     try {
@@ -2950,6 +2965,46 @@ function initGetApp() {
   document.getElementById("appCheck").addEventListener("click", () => checkAppUpdate({ quiet: false }));
   /* Once a launch, after setup: is a newer MetaDB published beside the site? */
   setTimeout(() => checkAppUpdate(), 1500);
+}
+
+/* ---------- a newer site ----------
+   A page left open keeps running the build it opened with, and the headset app
+   keeps one open for hours. So now and then — and whenever the page comes back
+   into view — it asks which build the site serves. A newer one reloads the page:
+   at once when nobody is looking and nothing is running, otherwise after asking.
+   Jobs in flight are waited for, since their progress reports go to this page. */
+function initSiteUpdate() {
+  const check = () => checkSiteUpdate();
+  setTimeout(check, 5000);
+  setInterval(check, 10 * 60 * 1000);
+  document.addEventListener("visibilitychange", check);
+  window.addEventListener("focus", check);
+}
+
+async function checkSiteUpdate() {
+  /* Hidden is always worth a look: a reload then interrupts nobody. */
+  const hidden = document.visibilityState === "hidden";
+  if (!SITE_BUILD || siteAsking || (!hidden && Date.now() - siteChecked < 60_000)) return;
+  if (!hidden) siteChecked = Date.now();
+  if (IN_APP) checkAppUpdate();
+  let live = 0;
+  try {
+    live = await liveSiteBuild();
+  } catch {}
+  if (live <= SITE_BUILD || appInstalls.size) return;
+  if (hidden) return location.reload();
+  if (!document.getElementById("uiDialog").hidden) return;
+  siteAsking = true;
+  const go = await uiConfirm({
+    title: "MetaDB has been updated",
+    text: "Reload to use the new version. Your sign-in, settings and backups stay as they are.",
+    yes: "Reload",
+    no: "Later",
+  });
+  siteAsking = false;
+  if (go) location.reload();
+  /* Later: asked again in an hour, or straight away once the page is hidden. */
+  else siteChecked = Date.now() + 59 * 60 * 1000;
 }
 
 /* ---------- the app's own update check ----------

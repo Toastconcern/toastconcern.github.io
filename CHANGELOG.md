@@ -10,6 +10,16 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=236 — 2026-10-12
+
+- A page left open notices when the site has been updated. It reloads by itself while
+  MetaDB is out of view and nothing is installing; otherwise it asks, with Reload or Later.
+  It checks when it opens, every ten minutes, and whenever the window comes back into view.
+  In the headset app the same check also looks for a newer MetaDB.
+- Store apps that search does not find, such as Meta's environments, now get their art from
+  their store page, so Theatre and the like show a picture instead of a blank icon.
+- Downgrade: Back up and Uninstall sit centred in the app's header instead of at its top.
+
 ## Site v=235 — 2026-10-12
 
 - Downgrade: a store app with no store art shows its own icon from the headset instead of an

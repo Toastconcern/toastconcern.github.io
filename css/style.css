@@ -2219,7 +2219,7 @@ tr.build-detail .panel { font-family: var(--sans, inherit); }
 .dg-toggle input { width: 1.05rem; height: 1.05rem; margin: 0; accent-color: var(--green); }
 .dg-head + .controls { margin: 0 0 1.25rem; }
 .dg-detail h3.dg-group { margin-left: 0; }
-.dg-head-acts { margin-left: auto; align-self: flex-start; flex: none; display: flex; gap: .5rem; }
+.dg-head-acts { margin-left: auto; align-self: center; flex: none; display: flex; gap: .5rem; }
 
 /* ---------- Get the app ---------- */
 #view-getapp .sub { max-width: 68ch; }
