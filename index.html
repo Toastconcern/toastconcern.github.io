@@ -25,7 +25,7 @@
 <!-- ?v= is a cache buster: the HTML expires in ten minutes but these assets are
      held at the edge for hours, so a deploy that changes them must bump this or
      visitors get new markup with old scripts. -->
-<link rel="stylesheet" href="css/style.css?v=239">
+<link rel="stylesheet" href="css/style.css?v=240">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -1173,7 +1173,10 @@
       <ul id="dgApps"></ul>
       <h3 class="dg-group" id="dgMoreH" hidden>Not installed</h3>
       <ul id="dgMore"></ul>
-      <h3 class="dg-group" id="dgSideH" hidden>Unknown sources</h3>
+      <div class="dg-group-row">
+        <h3 class="dg-group" id="dgSideH">Unknown sources</h3>
+        <button type="button" class="ptc-btn" id="dgAddRepo" title="List an app's versions from its GitHub releases">+ GitHub</button>
+      </div>
       <ul id="dgSide" class="dg-side"></ul>
     </aside>
     <section id="dgDetail" class="dg-detail" aria-live="polite"></section>
@@ -1242,6 +1245,6 @@
 
 <a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
-<script type="module" src="js/app.js?v=239"></script>
+<script type="module" src="js/app.js?v=240"></script>
 </body>
 </html>

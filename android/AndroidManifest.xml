@@ -3,8 +3,8 @@
      built in. Sideload it; it is not on the store. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="dev.toastconcern.metadb"
-    android:versionCode="3"
-    android:versionName="1.2">
+    android:versionCode="4"
+    android:versionName="1.3">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Installing a build from the site: hand it to Android's installer, remove
@@ -17,11 +17,16 @@
     <!-- Only to put a game's expansion file in Android/obb, where the game looks
          for it. Asked for the first time a build with one is installed. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <!-- Android 10 has no all-files access; there, the older storage permission
+         (with legacy storage, below) is what lets MetaDB write in Android/obb. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 
     <application
         android:label="MetaDB"
         android:icon="@drawable/icon"
-        android:networkSecurityConfig="@xml/network_security_config">
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:requestLegacyExternalStorage="true">
 
         <!-- The site this app shows. build.sh can point a test build elsewhere. -->
         <meta-data android:name="metadb.site" android:value="https://metadb.toastconcern.dev/" />

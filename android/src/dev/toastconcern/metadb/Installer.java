@@ -283,7 +283,14 @@ final class Installer {
         fetch(job.getString("apk"), apk, pct -> progress(id, "Downloading " + pct + "%"));
 
         PackageInfo info = act.getPackageManager().getPackageArchiveInfo(apk.getPath(), 0);
-        if (info == null) throw new IOException("the store sent something that is not an APK");
+        if (info == null) throw new IOException("the download is not an APK");
+        /* A build meant for one app — a GitHub release linked to it — must be that
+           app; anything else is refused before it is kept or installed. */
+        String expect = job.optString("packageName", "");
+        if (!expect.isEmpty() && !expect.equals(info.packageName)) {
+            deleteTree(part);
+            throw new IOException("that APK is " + info.packageName + ", not " + expect + ", so it was not installed");
+        }
         if (info.applicationInfo != null) {
             info.applicationInfo.sourceDir = apk.getPath();
             info.applicationInfo.publicSourceDir = apk.getPath();
@@ -310,7 +317,8 @@ final class Installer {
         m.put("versionCode", info.getLongVersionCode());
         m.put("binaryId", binaryId == null ? JSONObject.NULL : binaryId);
         m.put("appId", job.optString("appId", ""));
-        m.put("source", "download");
+        m.put("source", job.optString("source", "download"));
+        if (job.has("repo")) m.put("repo", job.optString("repo"));
         m.put("savedAt", System.currentTimeMillis());
         m.put("apks", new JSONArray().put("base.apk"));
         m.put("obbs", obbs);
@@ -578,7 +586,7 @@ final class Installer {
 
         JSONArray obbs = m.optJSONArray("obbs");
         if (obbs != null && obbs.length() > 0) {
-            if (!Environment.isExternalStorageManager()) needFiles(id, "Allow MetaDB to put the expansion file in place…");
+            if (!canManageFiles()) needFiles(id, "Allow MetaDB to put the expansion file in place…");
             File target = new File(Environment.getExternalStorageDirectory(), "Android/obb/" + pkg);
             target.mkdirs();
             for (int i = 0; i < obbs.length(); i++) {
@@ -615,13 +623,30 @@ final class Installer {
         }
     }
 
+    /**
+     * Whether MetaDB may write in Android/obb. Android 11 and later call that
+     * all-files access; Android 10 has no such thing, and uses the older storage
+     * permission instead (with legacy storage, set in the manifest).
+     */
+    private boolean canManageFiles() {
+        if (Build.VERSION.SDK_INT >= 30) return Environment.isExternalStorageManager();
+        return act.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
     /** All-files access, for Android/obb. Asked for only when a build has an expansion file. */
     private void needFiles(String id, String text) throws Exception {
-        if (Environment.isExternalStorageManager()) return;
+        if (canManageFiles()) return;
         progress(id, text);
-        act.startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                Uri.parse("package:" + act.getPackageName())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-        if (!waitFor(Environment::isExternalStorageManager, 180)) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            act.startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:" + act.getPackageName())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } else {
+            act.runOnUiThread(() -> act.requestPermissions(new String[] {
+                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    android.Manifest.permission.READ_EXTERNAL_STORAGE}, 7));
+        }
+        if (!waitFor(this::canManageFiles, 180)) {
             throw new IOException("MetaDB was not allowed to manage files, which the expansion file needs");
         }
     }
@@ -742,10 +767,16 @@ final class Installer {
 
     // ---------- files ----------
 
-    /** Download with the companion app's User-Agent, as the relay would. Returns the store's file name. */
+    /**
+     * Download a file. Meta's CDN gets the app manager's headers, as the relay sends
+     * them; anywhere else (a GitHub release) is asked plainly. Returns the server's
+     * file name, if it gave one.
+     */
     private static String fetch(String url, File to, Progress p) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
-        c.setRequestProperty("User-Agent", Relay.OCMS_UA);
+        String host = c.getURL().getHost();
+        if (host.endsWith(".oculus.com")) Relay.applyHeaders(c);
+        else c.setRequestProperty("User-Agent", "MetaDB-Quest");
         c.setRequestProperty("Accept", "*/*");
         c.setRequestProperty("Accept-Encoding", "identity");
         c.setConnectTimeout(30_000);
@@ -753,7 +784,7 @@ final class Installer {
         int status = c.getResponseCode();
         if (status != 200) {
             String why = c.getHeaderField("X-Binary-Download-Denial-Reason");
-            throw new IOException("the store returned " + status + (why != null ? " (" + why + ")" : ""));
+            throw new IOException("the download returned " + status + (why != null ? " (" + why + ")" : ""));
         }
         String name = null;
         String cd = c.getHeaderField("Content-Disposition");

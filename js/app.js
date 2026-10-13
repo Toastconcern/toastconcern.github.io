@@ -5,6 +5,9 @@ import {
   lookupByPackage,
   lookupPackages,
   storeNames,
+  OCMS_HEADERS,
+  parseRepo,
+  githubReleases,
   SITE_BUILD,
   liveSiteBuild,
   fetchHistory,
@@ -60,7 +63,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=239";
+} from "./check.js?v=240";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -71,6 +74,17 @@ const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "
    copying a token by hand, and Settings offers sign-in through Meta's own login
    instead. Anything marked data-not-in-app is hidden by the in-app class. */
 const IN_APP = typeof window.MetaDBApp === "object" && window.MetaDBApp !== null;
+/* What the installed headset app can do (1.3 and later say; older ones have none of
+   the newer features), so the site uses a feature only where the app has it. */
+const APP_CAPS = (() => {
+  if (!IN_APP) return { features: [] };
+  try {
+    return JSON.parse(window.MetaDBApp.capabilities?.() ?? '{"features":[]}');
+  } catch {
+    return { features: [] };
+  }
+})();
+const appHas = (feature) => Array.isArray(APP_CAPS.features) && APP_CAPS.features.includes(feature);
 if (IN_APP) document.documentElement.classList.add("in-app");
 
 /* Apps that publish no channel at all are grouped under this label. */
@@ -309,6 +323,7 @@ const el = {
   dgMore: document.getElementById("dgMore"),
   dgMoreH: document.getElementById("dgMoreH"),
   dgSide: document.getElementById("dgSide"),
+  dgAddRepo: document.getElementById("dgAddRepo"),
   dgDetail: document.getElementById("dgDetail"),
   dgSignOut: document.getElementById("dgSignOut"),
   dgAppUpdate: document.getElementById("dgAppUpdate"),
@@ -579,7 +594,7 @@ let siteAsking = false;
 /* Packages whose art was asked for this visit. A miss is kept, but asked again
    on the next visit rather than never. */
 const storeArtTried = new Set();
-const dgState = { tab: "apps", loaded: false, loading: false, note: "", selected: null, builds: new Map(), backups: [], backupSel: null, more: [] };
+const dgState = { tab: "apps", loaded: false, loading: false, note: "", selected: null, builds: new Map(), backups: [], backupSel: null, more: [], releases: new Map() };
 let adbBusy = false;
 
 /* The keys (store id or package name) of everything the account owns, so the
@@ -1328,6 +1343,9 @@ function setRoute(changes) {
   const s = { ...routeState(), ...changes };
   if (s.view === "apps" && !s.app && !s.q) s.q = routeSearch;
   const next = pathFor(s);
+  /* Nothing to say on the home page (the empty search run at start-up): "/" stays
+     "/" — in the headset app "/" means Downgrade, and "/apps" the full site. */
+  if (next === "/apps" && !routeParts().length) return;
   if (next !== location.pathname) history.replaceState(history.state, "", next + location.search);
 }
 
@@ -1412,7 +1430,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=239")
+    import("./companion.js?v=240")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -2334,6 +2352,7 @@ window.metadbInstall = async (e) => {
   }
 
   if (e.state === "done") {
+    if (job?.app?.repoOnly && e.packageName) ghLearned(job.app, e.packageName);
     if (job?.app && e.packageName) {
       job.app.packageName = e.packageName;
       if (e.action === "uninstalled") {
@@ -2395,6 +2414,8 @@ window.metadbInstall = async (e) => {
 
 function initDowngrade() {
   if (!IN_APP) return;
+  /* The relay's headers come from the site (app 1.3+), so they update with it. */
+  if (appHas("relayHeaders")) window.MetaDBApp.setRelayHeaders(JSON.stringify(OCMS_HEADERS));
   el.dgSite.addEventListener("click", () => {
     saveSettings({ layout: "site" });
     go("/apps");
@@ -2420,9 +2441,46 @@ function initDowngrade() {
     saveSettings({ dgAll: el.dgShowAll.checked });
     dgRender();
   });
+  el.dgAddRepo.addEventListener("click", () => {
+    dgState.selected = "gh:new";
+    dgRender();
+    el.dgDetail.querySelector("[data-gh-form] input")?.focus();
+  });
+  /* Linking a repo: to the app on show, or a new entry from + GitHub. */
+  el.dgDetail.addEventListener("submit", (e) => {
+    const form = e.target.closest("[data-gh-form]");
+    if (!form) return;
+    e.preventDefault();
+    const app = dgApp(dgState.selected);
+    if (!app) return;
+    const repo = parseRepo(form.elements.repo.value);
+    if (!repo) {
+      const note = el.dgDetail.querySelector("[data-gh-note]");
+      if (note) note.textContent = "That is not a GitHub repo — give it as owner/repo, or paste its github.com link.";
+      return;
+    }
+    const repos = readRepos();
+    const key = app.adding ? `gh:${repo}` : app.packageName;
+    repos[key] = { repo, name: app.adding ? repo.split("/")[1] : app.name };
+    saveRepos(repos);
+    if (app.adding) dgState.selected = key;
+    ghLoad(repo);
+  });
   el.dgDetail.addEventListener("click", (e) => {
     const app = dgApp(dgState.selected);
     if (!app) return;
+    const ghIn = e.target.closest("[data-gh-install]");
+    if (ghIn) return ghInstall(app, ghIn.dataset.ghInstall, ghIn);
+    const ghSave = e.target.closest("[data-gh-save]");
+    if (ghSave) return ghInstall(app, ghSave.dataset.ghSave, ghSave, { save: true });
+    if (e.target.closest("[data-gh-refresh]")) return ghLoad(repoOf(app), true);
+    if (e.target.closest("[data-gh-unlink]")) {
+      const repos = readRepos();
+      delete repos[app.repoOnly ? app.key : app.packageName];
+      saveRepos(repos);
+      if (app.repoOnly) dgState.selected = null;
+      return dgRender();
+    }
     if (e.target.closest("[data-restore], [data-delete-backup]")) return dgBackupClick(e);
     const un = e.target.closest("[data-uninstall]");
     if (un) return dgUninstall(app, un);
@@ -2577,10 +2635,175 @@ function dgApp(pkg) {
 
 /** A sideloaded app: no store ID, so no builds — only what it is, and its kept copies. */
 function dgSideApp(pkg) {
+  if (pkg === "gh:new") return { side: true, adding: true, name: "Versions from GitHub", packageName: null };
   const a = adbSide.find((x) => x.packageName === pkg);
-  return a
-    ? { side: true, packageName: a.packageName, name: a.name, installedVersion: a.version, installedVersionCode: a.versionCode }
+  if (a) {
+    return { side: true, packageName: a.packageName, name: a.name, installedVersion: a.version, installedVersionCode: a.versionCode };
+  }
+  /* A GitHub repo whose app is not on the headset: added before it was installed
+     (keyed gh:owner/repo), or one whose app has since been uninstalled. */
+  const r = readRepos()[pkg];
+  return r
+    ? {
+        side: true,
+        repoOnly: true,
+        key: pkg,
+        repo: r.repo,
+        name: r.name || r.repo,
+        packageName: pkg.startsWith("gh:") ? null : pkg,
+        installedVersion: null,
+        installedVersionCode: null,
+      }
     : null;
+}
+
+/* ---------- GitHub releases, for apps from unknown sources ----------
+   A repo is linked to an app by its package (or, before the app is installed, by
+   gh:owner/repo, moved to the package the first time one of its APKs is saved or
+   installed). Kept in this headset's localStorage: it is a convenience, and the
+   backups themselves remember which repo a copy came from. */
+const REPOS_KEY = "metadb.githubRepos";
+
+function readRepos() {
+  try {
+    return JSON.parse(localStorage.getItem(REPOS_KEY)) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function saveRepos(repos) {
+  try {
+    localStorage.setItem(REPOS_KEY, JSON.stringify(repos));
+  } catch {}
+}
+
+/** The repo an app is linked to, if any. */
+const repoOf = (app) => (app.repoOnly ? app.repo : app.packageName ? readRepos()[app.packageName]?.repo ?? null : null);
+
+/** Ask GitHub for a repo's releases, once a visit; Refresh asks again. */
+async function ghLoad(repo, again = false) {
+  const had = dgState.releases.get(repo);
+  if (had?.loading || (had?.items && !again)) return;
+  dgState.releases.set(repo, { loading: true });
+  dgRender();
+  try {
+    dgState.releases.set(repo, { items: await githubReleases(repo) });
+  } catch (err) {
+    dgState.releases.set(repo, { error: err.message });
+  }
+  dgRender();
+}
+
+/** A repo-only entry whose APK named its package: from now on it is that app's repo. */
+function ghLearned(app, pkg) {
+  const repos = readRepos();
+  const entry = repos[app.key];
+  if (!entry || app.key === pkg) return;
+  delete repos[app.key];
+  repos[pkg] = entry;
+  saveRepos(repos);
+  if (dgState.selected === app.key) dgState.selected = pkg;
+}
+
+/** v1.2.3 against 1.2.10, number by number; null when either has no numbers. */
+function verCmp(a, b) {
+  const nums = (v) => String(v ?? "").split(/[^0-9]+/).filter(Boolean).map(Number);
+  const x = nums(a), y = nums(b);
+  if (!x.length || !y.length) return null;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+  }
+  return 0;
+}
+const sameVersion = (tag, installed) =>
+  installed != null && String(tag).replace(/^v/i, "").toLowerCase() === String(installed).replace(/^v/i, "").toLowerCase();
+
+/** Download a release's APK: install it (Install / Update / Downgrade) or only keep it. */
+function ghInstall(app, assetId, button, { save = false } = {}) {
+  const repo = repoOf(app);
+  const found = (dgState.releases.get(repo)?.items ?? [])
+    .flatMap((r) => r.assets.map((a) => ({ r, a })))
+    .find(({ a }) => a.id === assetId);
+  if (!found) return;
+  const key = `${save ? "save" : "install"}:gh:${assetId}`;
+  if (jobPressed(key)) return;
+  appJob(key, {
+    app,
+    button,
+    from: app.installedVersionCode != null ? { version: app.installedVersion, code: app.installedVersionCode } : null,
+  });
+  const job = {
+    id: key,
+    apk: found.a.url,
+    obb: null,
+    binaryId: `gh:${assetId}`,
+    appId: "",
+    name: app.repoOnly && !app.packageName ? repo.split("/")[1] : app.name,
+    version: found.r.tag,
+    source: "github",
+    repo,
+  };
+  /* The app checks the APK is the app it is linked to (1.3 and later). */
+  if (app.packageName) job.packageName = app.packageName;
+  if (save) window.MetaDBApp.save(JSON.stringify(job));
+  else window.MetaDBApp.install(JSON.stringify(job));
+}
+
+/** The GitHub part of an unknown-source app's panel: a box for a repo, or its releases. */
+function dgGithubSection(app) {
+  const repo = repoOf(app);
+  if (!repo) {
+    return `<h3 class="dg-group">Versions from GitHub</h3>
+      <form class="dg-gh-form" data-gh-form>
+        <input type="text" name="repo" placeholder="owner/repo, or a github.com link" aria-label="GitHub repo" autocomplete="off" spellcheck="false">
+        <button type="submit">Get versions</button>
+      </form>
+      <p class="hint" data-gh-note>Lists every release of the app's GitHub repo that has an APK, to install, update or go back to any of them.</p>`;
+  }
+  const st = dgState.releases.get(repo);
+  const head = `<h3 class="dg-group">Versions from GitHub</h3>
+    <div class="dg-gh-head"><a href="https://github.com/${esc(repo)}/releases" target="_blank" rel="noopener">${esc(repo)}</a>
+      <button type="button" class="ptc-btn" data-gh-refresh>Refresh</button>
+      <button type="button" class="ptc-btn" data-gh-unlink>Unlink</button></div>`;
+  if (!st || st.loading) return `${head}<p class="dg-empty">Asking GitHub for its releases…</p>`;
+  if (st.error) return `${head}<p class="dg-empty warn">${esc(st.error)}</p>`;
+  if (!st.items.length) return `${head}<p class="dg-empty">No release of ${esc(repo)} has an APK attached.</p>`;
+
+  const have = app.installedVersionCode;
+  const rows = st.items
+    .flatMap((r) => r.assets.map((a) => ({ r, a })))
+    .map(({ r, a }) => {
+      const current = have != null && sameVersion(r.tag, app.installedVersion);
+      const cmp = verCmp(r.tag, app.installedVersion);
+      const job = (k) => (appInstalls.has(k) ? ` data-job="${esc(k)}"` : "");
+      /* This download, or a copy of the same version backed up from the headset. */
+      const kept = dgState.backups.find(
+        (b) => b.binaryId === `gh:${a.id}` || (app.packageName && b.packageName === app.packageName && sameVersion(r.tag, b.version))
+      );
+      const keep = kept
+        ? `<span class="dg-saved" title="Kept on this headset — installs with no download">Saved</span>`
+        : `<button type="button" class="dl dl-obb" data-gh-save="${esc(a.id)}"${job(`save:gh:${a.id}`)}
+            title="Download ${esc(r.tag)} and keep it here, without installing it">Save</button>`;
+      const label = have == null ? "Install" : cmp == null ? "Install" : cmp > 0 ? "Update" : "Downgrade";
+      const action = current
+        ? `<span class="on-headset">On headset</span>`
+        : `<button type="button" class="dl" data-gh-install="${esc(a.id)}"${job(`install:gh:${a.id}`)}
+            title="${esc(label === "Downgrade" ? `Go back to ${r.tag} — uninstalls first, deleting this app's saved data` : `Install ${r.tag}`)}">${label}</button>`;
+      return `<tr${current ? ` class="dg-current"` : ""}>
+          <td class="num">${esc(r.tag)}${r.prerelease ? `<span class="dg-obb">pre-release</span>` : ""}</td>
+          <td class="num">${esc(r.published || "—")}</td>
+          <td class="dg-file" title="${esc(a.name)}">${esc(a.name)}</td>
+          <td class="num">${dgSize(a.size)}</td>
+          <td class="dg-act">${keep}${action}</td>
+        </tr>`;
+    })
+    .join("");
+  return `${head}
+    <table>
+      <thead><tr><th scope="col">Version</th><th scope="col">Released</th><th scope="col">File</th><th scope="col">Size</th><th scope="col" aria-label="Actions"></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
 }
 
 /** Quest apps the account owns that are not on this headset. */
@@ -2665,6 +2888,8 @@ async function dgSelect(pkg, { again = false } = {}) {
   dgState.selected = pkg;
   dgReadBackups();
   if (app.side) {
+    const repo = repoOf(app);
+    if (repo) ghLoad(repo);
     dgRender();
     return;
   }
@@ -2852,7 +3077,11 @@ function dgRender() {
     )
     .join("");
 
-  el.dgSideH.hidden = !side.length;
+  const repoOnly = Object.entries(readRepos())
+    .filter(([key]) => !adbSide.some((x) => x.packageName === key))
+    .map(([key, r]) => ({ key, name: r.name || r.repo, repo: r.repo, packageName: key.startsWith("gh:") ? "" : key }))
+    .filter(hit)
+    .sort((a, b) => a.name.localeCompare(b.name));
   el.dgSide.innerHTML = side
     .map((a) => {
       const kept = dgState.backups.filter((k) => k.packageName === a.packageName).length;
@@ -2863,6 +3092,14 @@ function dgRender() {
             kept ? `<span class="dg-new dg-off">${plural(kept, "backup")}</span>` : ""
           }</button></li>`;
     })
+    .concat(
+      repoOnly.map(
+        (a) => `<li><button type="button" class="dg-app" data-dg-app="${esc(a.key)}"
+          aria-current="${a.key === dgState.selected}">${dgArt(null)}
+          <span class="dg-text"><span class="dg-name">${esc(a.name)}</span>
+          <span class="dg-ver">${esc(a.repo)} · not installed</span></span></button></li>`
+      )
+    )
     .join("");
 
   dgRenderDetail();
@@ -2967,6 +3204,23 @@ function dgUninstallButton(app) {
  * is a copy of the version installed, and the copies already kept.
  */
 function dgRenderSideDetail(app) {
+  if (app.adding) {
+    el.dgDetail.innerHTML = `<div class="dg-head">${dgArt(null)}
+        <div><h2>Versions from GitHub</h2>
+        <p class="dg-now">For an app that publishes its APKs as GitHub releases.</p></div>
+      </div>
+      <p class="dg-warn">Name its repo and every release with an APK is listed, to install or keep. Once one is installed, it shows under Unknown sources like any other app, with its versions beside it.</p>
+      ${dgGithubSection(app)}`;
+    return;
+  }
+  if (app.repoOnly) {
+    el.dgDetail.innerHTML = `<div class="dg-head">${dgArt(null)}
+        <div><h2>${esc(app.name)}</h2><div class="dg-pkg">${esc(app.packageName ?? app.repo)}</div>
+        <p class="dg-now">Not installed on this headset</p></div>
+      </div>
+      ${dgGithubSection(app)}`;
+    return;
+  }
   const kept = dgState.backups
     .filter((b) => b.packageName === app.packageName)
     .sort((x, y) => y.versionCode - x.versionCode);
@@ -2974,7 +3228,8 @@ function dgRenderSideDetail(app) {
       <div><h2>${esc(app.name)}</h2><div class="dg-pkg">${esc(app.packageName)}</div>
       <p class="dg-now">On this headset: ${esc(app.installedVersion ?? "—")} (build ${app.installedVersionCode ?? "—"})</p></div>${dgHeadActions(app)}
     </div>
-    <p class="dg-warn">Not in the store, so there are no builds to download — but a copy of it can be kept, and put back later. Going back to an older copy uninstalls the app first, which deletes its saved data on this headset.</p>
+    <p class="dg-warn">Not in the store. If it publishes its APKs on GitHub, its versions can be listed below; either way a copy of it can be kept, and put back later. Going back to an older version uninstalls the app first, which deletes its saved data on this headset.</p>
+    ${dgGithubSection(app)}
     <h3 class="dg-group">Kept on this headset</h3>
     ${
       kept.length

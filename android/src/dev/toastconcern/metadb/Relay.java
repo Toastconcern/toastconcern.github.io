@@ -11,9 +11,18 @@ import java.net.Socket;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import android.content.Context;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -57,6 +66,70 @@ final class Relay {
             Pattern.compile("^https://(graph|www|securecdn(-[a-z0-9-]+)?)\\.oculus\\.com/.*");
 
     private static volatile boolean started;
+
+    /*
+     * Headers the site set (MetaDBApp.setRelayHeaders), sent in place of the
+     * built-in ones above, so an OCMS version bump is a site change rather than a
+     * new APK. Kept across launches, so the relay has them before the page loads.
+     * The built-in ones stay as the fallback for a site that never sets any.
+     */
+    private static volatile Map<String, String> custom = new HashMap<>();
+    private static final Pattern HEADER_NAME = Pattern.compile("^[A-Za-z0-9-]{1,64}$");
+    /* Ones the relay decides itself, or that would change what is sent and to whom. */
+    private static final Set<String> FIXED = new HashSet<>(Arrays.asList(
+            "host", "content-length", "content-type", "cookie", "authorization", "connection",
+            "transfer-encoding", "accept", "accept-encoding", "origin", "referer"));
+
+    /** The headers the site set last time, if any. Called before start(). */
+    static void loadHeaders(Context c) {
+        String saved = c.getSharedPreferences("relay", Context.MODE_PRIVATE).getString("headers", null);
+        if (saved == null) return;
+        try {
+            custom = parseHeaders(saved);
+        } catch (JSONException ignored) {
+        }
+    }
+
+    /** Replace the site-set headers. Refuses the lot if any one is not allowed. */
+    static boolean setHeaders(Context c, String json) {
+        try {
+            Map<String, String> m = parseHeaders(json);
+            custom = m;
+            c.getSharedPreferences("relay", Context.MODE_PRIVATE).edit().putString("headers", json).apply();
+            return true;
+        } catch (JSONException e) {
+            return false;
+        }
+    }
+
+    private static Map<String, String> parseHeaders(String json) throws JSONException {
+        JSONObject o = new JSONObject(json);
+        Map<String, String> m = new HashMap<>();
+        for (Iterator<String> it = o.keys(); it.hasNext(); ) {
+            String k = it.next();
+            String v = o.getString(k);
+            if (!HEADER_NAME.matcher(k).matches() || FIXED.contains(k.toLowerCase(Locale.ROOT))
+                    || v.length() > 1024 || v.indexOf('\r') >= 0 || v.indexOf('\n') >= 0) {
+                throw new JSONException("header not allowed: " + k);
+            }
+            m.put(k, v);
+        }
+        return m;
+    }
+
+    /** The OCMS headers on one request: the built-in ones, then whatever the site set over them. */
+    static void applyHeaders(HttpURLConnection up) {
+        up.setRequestProperty("User-Agent", OCMS_UA);
+        up.setRequestProperty("X-Build-Version-Incremental", OCMS_BUILD);
+        up.setRequestProperty("Accept-Language", LANGUAGE);
+        for (Map.Entry<String, String> e : custom.entrySet()) up.setRequestProperty(e.getKey(), e.getValue());
+    }
+
+    /** The User-Agent in use, for downloads handed to Android's DownloadManager. */
+    static String userAgent() {
+        String ua = custom.get("User-Agent");
+        return ua != null ? ua : OCMS_UA;
+    }
 
     private Relay() {}
 
@@ -122,9 +195,7 @@ final class Relay {
             HttpURLConnection up = (HttpURLConnection) new URL(target).openConnection();
             up.setConnectTimeout(30_000);
             up.setReadTimeout(300_000);
-            up.setRequestProperty("User-Agent", OCMS_UA);
-            up.setRequestProperty("X-Build-Version-Incremental", OCMS_BUILD);
-            up.setRequestProperty("Accept-Language", LANGUAGE);
+            applyHeaders(up);
             if (download) {
                 up.setRequestProperty("Accept", "*/*");
                 // Ask for the bytes as they are, so the length still holds.

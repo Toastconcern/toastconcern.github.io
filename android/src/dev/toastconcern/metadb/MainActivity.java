@@ -60,6 +60,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle saved) {
         super.onCreate(saved);
+        Relay.loadHeaders(this);
         Relay.start();
 
         // Only a DEBUG=1 build is debuggable; that lets Chrome's DevTools attach to the page.
@@ -250,6 +251,35 @@ public final class MainActivity extends Activity {
             });
         }
 
+        /**
+         * What this build can do, so the site can use a newer feature only where the
+         * installed app has it, and keep working on older ones:
+         * { versionCode, features: [...] }. Added in 1.3; older apps do not have it.
+         */
+        @JavascriptInterface
+        public String capabilities() {
+            try {
+                android.content.pm.PackageInfo p = getPackageManager().getPackageInfo(getPackageName(), 0);
+                return new JSONObject().put("versionCode", p.getLongVersionCode())
+                        .put("features", new org.json.JSONArray()
+                                .put("relayHeaders").put("expectPackage").put("jobSource"))
+                        .toString();
+            } catch (Exception e) {
+                return "{\"features\":[]}";
+            }
+        }
+
+        /**
+         * The headers the built-in relay sends to Meta, set by the site so they can
+         * change without a new APK. JSON object of header names to values; the relay
+         * keeps them across launches. Returns false (and changes nothing) if any one
+         * is refused.
+         */
+        @JavascriptInterface
+        public boolean setRelayHeaders(String json) {
+            return Relay.setHeaders(MainActivity.this, json);
+        }
+
         /** This app's own version: { versionCode, versionName }. */
         @JavascriptInterface
         public String appVersion() {
@@ -330,9 +360,14 @@ public final class MainActivity extends Activity {
                     o.put("label", String.valueOf(pm.getApplicationLabel(ai)));
                     o.put("version", p.versionName == null ? JSONObject.NULL : p.versionName);
                     o.put("versionCode", p.getLongVersionCode());
+                    /* Who installed it. getInstallSourceInfo is Android 11 and later;
+                       Android 10 has only the older call, which says the same. A missing
+                       method is an Error, not an Exception, so it is never left to a catch. */
                     String by = null;
                     try {
-                        by = pm.getInstallSourceInfo(p.packageName).getInstallingPackageName();
+                        by = Build.VERSION.SDK_INT >= 30
+                                ? pm.getInstallSourceInfo(p.packageName).getInstallingPackageName()
+                                : pm.getInstallerPackageName(p.packageName);
                     } catch (Exception ignored) {
                     }
                     o.put("installer", by == null ? JSONObject.NULL : by);
@@ -456,7 +491,7 @@ public final class MainActivity extends Activity {
         String name = URLUtil.guessFileName(target, disposition, mime);
         try {
             DownloadManager.Request r = new DownloadManager.Request(Uri.parse(target));
-            r.addRequestHeader("User-Agent", Relay.OCMS_UA);
+            r.addRequestHeader("User-Agent", Relay.userAgent());
             r.setTitle(name);
             r.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
             r.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);

@@ -15,6 +15,17 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=240 — 2026-10-13
+
+- Downgrade: apps from unknown sources can list their versions from GitHub. Link an
+  app's repo (owner/repo, or its github.com link), and every release with an APK is listed,
+  with Save and Install, Update or Downgrade, the same as store builds. **+ GitHub** beside
+  Unknown sources adds a repo for an app that is not installed yet. It moves to the app
+  once one of its APKs is installed.
+- The headset app now takes its relay headers (the OCMS version) from the site, so they
+  update without a new APK (app 1.3 and later).
+- Fixed: the headset app opened on the full site instead of Downgrade after a reload.
+
 ## Site v=239 — 2026-10-13
 
 - Prices default to US dollars. Meta prices by where a request comes from, and Cloudflare
@@ -104,6 +115,13 @@ These went out together; the live site was on `v=211` before them.
     MetaDB.
 - Get the app screen: install the headset app from the headset itself, or from a PC over
   ADB.
+
+## App 1.3 (build 4) — 2026-10-13
+
+- Install, update or go back to any GitHub release of apps from unknown sources.
+- An APK from a linked repo is checked to be that app before it is kept or installed.
+- The headers MetaDB sends to Meta now update with the site, without a new version of the app.
+- Works on Android 10: installing games with expansion files, and listing your apps, no longer need Android 11.
 
 ## App 1.2 (build 3) — 2026-10-13
 

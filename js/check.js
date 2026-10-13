@@ -663,6 +663,65 @@ export async function liveSiteBuild() {
   return m ? Number(m[1]) : 0;
 }
 
+/* The headers Meta's own app manager (OCMS) sends, which the relays send on every
+   request. The headset app (1.3 and later) takes them from here at start-up, so
+   an OCMS version bump reaches it without a new APK; the other two relays
+   (functions/api.js, tools/relay.mjs) carry the same values and change with it. */
+export const OCMS_HEADERS = {
+  "User-Agent":
+    "Dalvik/2.1.0 (Linux; U; Android 14; Quest 3 Build/UP1A.231005.007.A1) " +
+    "[FBAN/OculusOCMS;FBAV/1048.0.0.115.1326;FBCR/null;FBDV/Quest 3;FBHV/209;" +
+    "FBLC/en_US;FBSV/14;FBSBT/user;FBBD/oculus;FBBV/584111364;" +
+    "FBCA/arm64-v8a:armeabi-v7a:armeabi;FBMF/Oculus;FBPN/com.oculus.ocms;" +
+    "FBDW/null;FBVM/null;]",
+  "X-Build-Version-Incremental": "52641960021500520",
+  "Accept-Language": "en-US,en;q=0.6",
+};
+
+/* ---------- GitHub releases ----------
+   Apps from unknown sources often publish their APKs as GitHub releases. GitHub's
+   API answers any page directly (no relay), and without a sign-in it allows 60
+   requests an hour from one address — one per repo opened here. */
+
+/** "owner/repo" out of whatever was pasted: owner/repo, a github.com link, a releases link. */
+export function parseRepo(input) {
+  const s = String(input ?? "").trim();
+  const m =
+    s.match(/^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:[/?#].*)?$/i) ??
+    s.match(/^([\w.-]+)\/([\w.-]+?)(?:\.git)?$/);
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
+/** A repo's releases that carry an APK, newest first: [{ tag, name, published, prerelease, url, assets }]. */
+export async function githubReleases(repo) {
+  let res;
+  try {
+    res = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=50`, {
+      headers: { Accept: "application/vnd.github+json" },
+    });
+  } catch {
+    throw new Error("could not reach GitHub");
+  }
+  if (res.status === 404) throw new Error(`there is no public repo called ${repo}`);
+  if (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0") {
+    throw new Error("GitHub's limit of 60 requests an hour is used up — try again in a while");
+  }
+  if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+  return (await res.json())
+    .filter((r) => !r.draft)
+    .map((r) => ({
+      tag: r.tag_name,
+      name: r.name || r.tag_name,
+      published: (r.published_at ?? "").slice(0, 10),
+      prerelease: Boolean(r.prerelease),
+      url: r.html_url,
+      assets: (r.assets ?? [])
+        .filter((a) => /\.apk$/i.test(a.name))
+        .map((a) => ({ id: String(a.id), name: a.name, size: a.size, url: a.browser_download_url })),
+    }))
+    .filter((r) => r.assets.length);
+}
+
 /**
  * Store names for many apps in one request: Map of app ID -> display name.
  * The node endpoint takes a list of IDs, so a screenful costs one call.

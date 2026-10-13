@@ -2214,6 +2214,14 @@ tr.build-detail .panel { font-family: var(--sans, inherit); }
 .dg-list-head button { flex: none; }
 .dg-list .empty { padding: 1rem .6rem; }
 .dg-new.dg-off { color: var(--muted); }
+/* Unknown sources heading, with + GitHub beside it. */
+.dg-group-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin: 1.6rem .6rem .5rem; }
+.dg-group-row .dg-group { margin: 0; }
+.dg-gh-form { display: flex; flex-wrap: wrap; gap: .5rem; max-width: 40rem; margin: 0 0 .6rem; }
+.dg-gh-form input { flex: 1 1 16rem; min-height: 38px; }
+.dg-gh-head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin: 0 0 .8rem; }
+.dg-gh-head a { color: var(--link); }
+.dg .dg-file { max-width: 18rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Apps' "Show apps not installed": a small switch beside the count. */
 .dg-toggle { display: flex; align-items: center; gap: .4rem; flex: none; font-size: .8125rem; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .dg-toggle input { width: 1.05rem; height: 1.05rem; margin: 0; accent-color: var(--green); }
