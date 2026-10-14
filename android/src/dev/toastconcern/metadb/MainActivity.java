@@ -74,6 +74,9 @@ public final class MainActivity extends Activity {
             WebView.setWebContentsDebuggingEnabled(true);
             String other = getIntent().getStringExtra("site");
             if (other != null) site = Uri.parse(other);
+            /* Testing an update against another server. Release builds never read this. */
+            String update = getIntent().getStringExtra("update");
+            if (update != null) Installer.debugUpdateUrl = update;
         }
 
         web = new WebView(this);
@@ -295,7 +298,9 @@ public final class MainActivity extends Activity {
         /** Update MetaDB itself from the APK at `url` (the site's downloads/MetaDB.apk). */
         @JavascriptInterface
         public void updateApp(String jobId, String url) {
-            run("{\"id\":" + JSONObject.quote(jobId) + ",\"url\":" + JSONObject.quote(url) + "}", "selfupdate");
+            /* The address the page sends is ignored: updates only come from the one
+               built into the app (Installer.UPDATE_URL), and must be signed like it. */
+            run("{\"id\":" + JSONObject.quote(jobId) + "}", "selfupdate");
         }
 
         /** Uninstall an app, after the page has asked. Queued like the rest. */

@@ -78,6 +78,31 @@ chrome.tabs.onRemoved.addListener(async (id) => {
    is the only thing the check sends, and it carries nothing but the address. */
 const UPDATE_URL = "https://metadb.toastconcern.dev/downloads/MetaDB-extension.json";
 
+/* Where updates come from, and who signs them — both fixed here, in the extension.
+   The version file must carry a signature that verifies with this public key; only
+   the developer holds the private half (tools/extension-release.mjs signs with it).
+   A file that does not verify is treated as no update at all, so not even someone in
+   control of the site can put an update in front of this extension. The signed part
+   also carries the zip's SHA-256 and size, which popup.js checks before saving it. */
+const UPDATE_ZIP = "https://metadb.toastconcern.dev/downloads/MetaDB-extension.zip";
+const SIGNING_KEY =
+  "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/G5zsdMHo72ELmhZMhD82ZHSufLVDKyU5SsmazIojMDh/dc6BTmwXlxPfX2v428BVg1GKO7wFaRfEj94T+6buw==";
+
+const fromBase64 = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+
+/** The signed payload of a version file, or null when it is missing or does not verify. */
+async function verified(info) {
+  const { payload, signature } = info?.signed ?? {};
+  if (typeof payload !== "string" || typeof signature !== "string") return null;
+  try {
+    const key = await crypto.subtle.importKey("spki", fromBase64(SIGNING_KEY), { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+    const ok = await crypto.subtle.verify({ name: "ECDSA", hash: "SHA-256" }, key, fromBase64(signature), new TextEncoder().encode(payload));
+    return ok ? JSON.parse(payload) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** "1.10" > "1.9": compared number by number. */
 function newer(a, b) {
   const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number);
@@ -105,9 +130,17 @@ async function checkUpdate() {
     const res = await fetch(UPDATE_URL, { cache: "no-store" });
     if (!res.ok) throw new Error(`the site answered ${res.status}`);
     if (!/json/.test(res.headers.get("content-type") ?? "")) throw new Error("the site has no version file");
-    const info = await res.json();
+    /* Only the signed part is believed; the plain copy beside it is for older versions. */
+    const info = await verified(await res.json());
+    if (!info) throw new Error("the update file failed its signature check, so it was ignored");
     const update = newer(info.version, chrome.runtime.getManifest().version)
-      ? { version: String(info.version), changes: Array.isArray(info.changes) ? info.changes.map(String) : [] }
+      ? {
+          version: String(info.version),
+          changes: Array.isArray(info.changes) ? info.changes.map(String) : [],
+          sha256: String(info.sha256 ?? ""),
+          size: Number(info.size) || 0,
+          url: UPDATE_ZIP,
+        }
       : null;
     const checked = Date.now();
     await chrome.storage.local.set({ update, checked });

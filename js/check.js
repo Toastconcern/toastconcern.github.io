@@ -676,22 +676,33 @@ export function parseRepo(input) {
   return m ? `${m[1]}/${m[2]}` : null;
 }
 
+/* GitHub hands out releases 100 at a time at most. Every page is read, following the
+   reply's own link to the next one, up to this many: one request a page, out of the
+   60 an hour GitHub allows without a sign-in. */
+const GITHUB_PAGES = 10;
+
 /** A repo's releases that carry an APK, newest first: [{ tag, name, published, prerelease, url, assets }]. */
 export async function githubReleases(repo) {
-  let res;
-  try {
-    res = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=50`, {
-      headers: { Accept: "application/vnd.github+json" },
-    });
-  } catch {
-    throw new Error("could not reach GitHub");
+  const all = [];
+  let url = `https://api.github.com/repos/${repo}/releases?per_page=100`;
+  for (let page = 0; url && page < GITHUB_PAGES; page++) {
+    let res;
+    try {
+      res = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+    } catch {
+      throw new Error("could not reach GitHub");
+    }
+    if (res.status === 404) throw new Error(`there is no public repo called ${repo}`);
+    if (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0") {
+      /* Part of the list is better than none: keep the pages already read. */
+      if (all.length) break;
+      throw new Error("GitHub's limit of 60 requests an hour is used up — try again in a while");
+    }
+    if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+    all.push(...(await res.json()));
+    url = (res.headers.get("link") ?? "").match(/<([^>]+)>;\s*rel="next"/)?.[1] ?? null;
   }
-  if (res.status === 404) throw new Error(`there is no public repo called ${repo}`);
-  if (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0") {
-    throw new Error("GitHub's limit of 60 requests an hour is used up — try again in a while");
-  }
-  if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
-  return (await res.json())
+  return all
     .filter((r) => !r.draft)
     .map((r) => ({
       tag: r.tag_name,

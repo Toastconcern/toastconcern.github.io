@@ -19,6 +19,8 @@
   section { margin-top: .9rem; padding-top: .8rem; border-top: 1px solid var(--border); }
   #update { margin: 0 0 .4rem; padding: .55rem .7rem; border-left: 3px solid var(--blue); background: var(--field); border-radius: 0 6px 6px 0; }
   #update p { margin: 0; color: var(--text); }
+  #update #downloadState { margin-top: .4rem; font-size: 13px; color: var(--muted); }
+  #downloadState:empty { display: none; }
   #update ul { margin: .35rem 0 0; padding-left: 1.1rem; color: var(--muted); }
   #update ol { margin: .45rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 13px; }
   #updateState { margin: 0; font-size: 13px; }
@@ -41,7 +43,8 @@
         <li>Download the new zip and unzip it over this extension's folder.</li>
         <li>Press <strong>Reload</strong> below.</li>
       </ol>
-      <a href="https://metadb.toastconcern.dev/downloads/MetaDB-extension.zip" target="_blank">Download the new version</a>
+      <button type="button" id="download">Download the new version</button>
+      <p id="downloadState" role="status"></p>
       <button type="button" id="reload">Reload</button>
     </div>
     <p id="updateState" role="status"></p>

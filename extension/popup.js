@@ -67,5 +67,36 @@ $("checkNow").addEventListener("click", () => {
   });
 });
 
+/* The new version is fetched from the extension's own fixed address and saved only if it
+   is exactly the file the developer signed: its SHA-256 and size are part of the signed
+   version file (background.js verifies that signature before an update is shown). */
+const hex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
+$("download").addEventListener("click", async () => {
+  const b = $("download");
+  const say = (text) => ($("downloadState").textContent = text);
+  b.disabled = true;
+  b.textContent = "Checking the download…";
+  try {
+    const { update } = await chrome.storage.local.get("update");
+    if (!update || !update.sha256 || !update.size || !update.url) throw new Error("Press Check now first, then try again.");
+    const res = await fetch(update.url, { cache: "no-store" });
+    if (!res.ok) throw new Error(`The download answered ${res.status}.`);
+    const data = await res.arrayBuffer();
+    if (data.byteLength !== update.size || hex(await crypto.subtle.digest("SHA-256", data)) !== update.sha256) {
+      throw new Error("The download is not the file the developer signed, so it was not saved.");
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([data], { type: "application/zip" }));
+    a.download = `MetaDB-extension-${update.version}.zip`;
+    a.click();
+    say("Checked and saved. Unzip it over this extension's folder, then press Reload.");
+  } catch (err) {
+    say(err.message);
+  } finally {
+    b.disabled = false;
+    b.textContent = "Download the new version";
+  }
+});
+
 /* Reloads the extension from its folder, which picks up the unzipped new version. */
 $("reload").addEventListener("click", () => chrome.runtime.reload());

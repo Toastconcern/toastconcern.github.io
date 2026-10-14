@@ -10,6 +10,8 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
@@ -31,6 +33,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -189,7 +194,7 @@ final class Installer {
                     uninstall(id, job.getString("packageName"), job.optString("name", null));
                     break;
                 case "selfupdate":
-                    selfUpdate(id, job.getString("url"));
+                    selfUpdate(id);
                     break;
                 default:
                     throw new IOException("unknown job");
@@ -494,25 +499,77 @@ final class Installer {
      * is asked. Android closes the app to replace it; it opens again from the
      * library.
      */
-    private void selfUpdate(String id, String url) throws Exception {
+    private void selfUpdate(String id) throws Exception {
         PackageManager pm = act.getPackageManager();
         String self = act.getPackageName();
         long have = installedCode(self);
         File apk = new File(act.getCacheDir(), "metadb-update.apk");
+        String url = debugUpdateUrl != null ? debugUpdateUrl : UPDATE_URL;
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        /* From that address and nowhere else: a redirect is refused, not followed. */
+        c.setInstanceFollowRedirects(false);
         c.setConnectTimeout(30_000);
         c.setReadTimeout(120_000);
+        if (debugUpdateUrl == null && !"https".equals(c.getURL().getProtocol())) {
+            throw new IOException("updates only come over https");
+        }
         if (c.getResponseCode() != 200) throw new IOException("the update returned " + c.getResponseCode());
         try (InputStream in = c.getInputStream(); OutputStream out = new FileOutputStream(apk)) {
             copy(in, out, c.getContentLengthLong(), pct -> progress(id, "Downloading " + pct + "%"));
         }
-        PackageInfo info = pm.getPackageArchiveInfo(apk.getPath(), 0);
-        if (info == null) throw new IOException("the update is not an APK — is it published yet?");
-        if (!self.equals(info.packageName)) throw new IOException("the update is not MetaDB");
-        if (info.getLongVersionCode() <= have) throw new Cancelled("MetaDB is already up to date.");
-        progress(id, "Installing…");
-        install(new File[] {apk}, self);
-        apk.delete();
+        try {
+            PackageInfo info = pm.getPackageArchiveInfo(apk.getPath(), SIGNERS);
+            if (info == null) throw new IOException("the update is not an APK — is it published yet?");
+            if (!self.equals(info.packageName)) throw new IOException("the update is not MetaDB");
+            /* Signed with the very certificate this app is signed with, or it is not
+               installed: only the developer's key can make that, wherever the file
+               came from. Checked here, before Android is asked at all. */
+            Set<String> mine = signers(pm.getPackageInfo(self, SIGNERS));
+            Set<String> theirs = signers(info);
+            if (mine.isEmpty() || theirs.isEmpty() || !mine.equals(theirs)) {
+                throw new IOException("the update is not signed by MetaDB's developer, so it was not installed");
+            }
+            if (info.getLongVersionCode() <= have) throw new Cancelled("MetaDB is already up to date.");
+            progress(id, "Installing…");
+            install(new File[] {apk}, self);
+        } finally {
+            apk.delete();
+        }
+    }
+
+    /**
+     * Where MetaDB's own updates come from: fixed in the app. The page asks for an
+     * update, but never says where from — the address it sends is ignored.
+     */
+    static final String UPDATE_URL = "https://metadb.toastconcern.dev/downloads/MetaDB.apk";
+
+    /** Debug builds only, for testing an update: another address (MainActivity sets it). */
+    static volatile String debugUpdateUrl = null;
+
+    /* Both flags: the newer one, and the older one some Android versions still fill
+       for an APK file that has not been installed. */
+    @SuppressWarnings("deprecation")
+    private static final int SIGNERS = PackageManager.GET_SIGNING_CERTIFICATES | PackageManager.GET_SIGNATURES;
+
+    /** SHA-256 of each certificate an app or APK is signed with now. Empty if unreadable. */
+    @SuppressWarnings("deprecation")
+    private static Set<String> signers(PackageInfo p) {
+        Set<String> out = new HashSet<>();
+        if (p == null) return out;
+        Signature[] certs = null;
+        SigningInfo si = p.signingInfo;
+        if (si != null) certs = si.hasMultipleSigners() ? si.getApkContentsSigners() : si.getSigningCertificateHistory();
+        if ((certs == null || certs.length == 0) && p.signatures != null) certs = p.signatures;
+        if (certs == null) return out;
+        /* With key rotation the history holds older keys too; the current one is last. */
+        if (si != null && !si.hasMultipleSigners() && certs.length > 1) certs = new Signature[] {certs[certs.length - 1]};
+        try {
+            MessageDigest sha = MessageDigest.getInstance("SHA-256");
+            for (Signature s : certs) out.add(Base64.encodeToString(sha.digest(s.toByteArray()), Base64.NO_WRAP));
+        } catch (Exception e) {
+            out.clear();
+        }
+        return out;
     }
 
     /**

@@ -15,6 +15,22 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## App 1.4 (build 5) — 2026-10-13
+
+- MetaDB only updates itself from its own address, built into the app, and ignores any other.
+- An update must be signed with the same key as the installed app, or it is refused before anything is installed.
+
+## Extension 1.2 — 2026-10-13
+
+- Update notices must be signed by the developer; anything else is ignored, even if the site were taken over.
+- Download now fetches the new version itself and saves it only if it is exactly the signed file.
+
+## Site v=245 — 2026-10-13
+
+- Downgrade: GitHub repos list every release with an APK, not just the newest 50. It reads
+  GitHub's pages 100 at a time, up to 1,000 releases. QuestAppVersionSwitcher now shows all
+  156 versions.
+
 ## Site v=244 — 2026-10-13
 
 - The OCMS headers (User-Agent with the OCMS version, OS build, language) live in one file,
@@ -26,6 +42,9 @@ Newest first. Every update gets an entry before it is pushed.
   comes back into view. It never reloads during an install in the headset app, and in
   Downgrade it asks in the app's own prompt.
 - Removed code nothing used.
+- If the site fails to start because the browser kept a stale file (a deploy caught half
+  rolled out, which happened to the headset app with v=244), it now fetches its files again
+  and reloads by itself, once. The error message only shows if that does not fix it.
 
 ## Site v=243 — 2026-10-13
 

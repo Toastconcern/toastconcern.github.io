@@ -2701,29 +2701,36 @@ function parseRepo(input) {
   const m = (_a2 = s.match(/^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:[/?#].*)?$/i)) != null ? _a2 : s.match(/^([\w.-]+)\/([\w.-]+?)(?:\.git)?$/);
   return m ? `${m[1]}/${m[2]}` : null;
 }
+var GITHUB_PAGES = 10;
 async function githubReleases(repo) {
-  let res;
-  try {
-    res = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=50`, {
-      headers: { Accept: "application/vnd.github+json" }
-    });
-  } catch {
-    throw new Error("could not reach GitHub");
+  var _a2, _b2, _c;
+  const all = [];
+  let url = `https://api.github.com/repos/${repo}/releases?per_page=100`;
+  for (let page = 0; url && page < GITHUB_PAGES; page++) {
+    let res;
+    try {
+      res = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+    } catch {
+      throw new Error("could not reach GitHub");
+    }
+    if (res.status === 404) throw new Error(`there is no public repo called ${repo}`);
+    if (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0") {
+      if (all.length) break;
+      throw new Error("GitHub's limit of 60 requests an hour is used up \u2014 try again in a while");
+    }
+    if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+    all.push(...await res.json());
+    url = (_c = (_b2 = ((_a2 = res.headers.get("link")) != null ? _a2 : "").match(/<([^>]+)>;\s*rel="next"/)) == null ? void 0 : _b2[1]) != null ? _c : null;
   }
-  if (res.status === 404) throw new Error(`there is no public repo called ${repo}`);
-  if (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0") {
-    throw new Error("GitHub's limit of 60 requests an hour is used up \u2014 try again in a while");
-  }
-  if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
-  return (await res.json()).filter((r) => !r.draft).map((r) => {
-    var _a2, _b2;
+  return all.filter((r) => !r.draft).map((r) => {
+    var _a3, _b3;
     return {
       tag: r.tag_name,
       name: r.name || r.tag_name,
-      published: ((_a2 = r.published_at) != null ? _a2 : "").slice(0, 10),
+      published: ((_a3 = r.published_at) != null ? _a3 : "").slice(0, 10),
       prerelease: Boolean(r.prerelease),
       url: r.html_url,
-      assets: ((_b2 = r.assets) != null ? _b2 : []).filter((a) => /\.apk$/i.test(a.name)).map((a) => ({ id: String(a.id), name: a.name, size: a.size, url: a.browser_download_url }))
+      assets: ((_b3 = r.assets) != null ? _b3 : []).filter((a) => /\.apk$/i.test(a.name)).map((a) => ({ id: String(a.id), name: a.name, size: a.size, url: a.browser_download_url }))
     };
   }).filter((r) => r.assets.length);
 }
@@ -5050,7 +5057,7 @@ function applyView() {
   el.viewGetapp.hidden = view !== "getapp";
   if (view === "getapp") showAppInfo();
   if (view === "companion") {
-    import("./companion.js?v=244").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => console.error("companion init failed", e));
+    import("./companion.js?v=245").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => console.error("companion init failed", e));
   }
   el.limitbar.hidden = view !== "apps";
   for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);
