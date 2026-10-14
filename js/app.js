@@ -60,7 +60,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=245";
+} from "./check.js?v=247";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -1444,7 +1444,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=245")
+    import("./companion.js?v=247")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => console.error("companion init failed", e));
   }
@@ -2443,7 +2443,7 @@ function initDowngrade() {
   el.dgRefresh.addEventListener("click", () => dgLoad(true));
   el.dgQ.addEventListener("input", dgRender);
   el.dgSignInBtn.addEventListener("click", () => window.MetaDBApp.signIn("downgrade"));
-  el.dgSignOut.addEventListener("click", appSignOut);
+  el.dgSignOut.addEventListener("click", signOut);
   for (const t of el.dgTabs) {
     t.addEventListener("click", () => {
       dgState.tab = t.dataset.dgTab;
@@ -2606,14 +2606,25 @@ function dgSignedIn() {
 }
 
 /** Sign out, from Downgrade or from Settings: the tokens go, and Meta's login in the app. */
-async function appSignOut() {
-  const sure = await uiConfirm({
-    title: "Sign out of Meta?",
-    text: "Your tokens are removed from this headset and Meta's login in this app is cleared. Your backups and history stay.",
-    yes: "Sign out",
-  });
+/* Sign out: in the headset app, also clears Meta's login there. On the website,
+   only MetaDB's copy of the tokens goes; the browser's own Meta login is Meta's,
+   and Sign in with Meta reads it again. */
+async function signOut() {
+  const sure = await uiConfirm(
+    IN_APP
+      ? {
+          title: "Sign out of Meta?",
+          text: "Your tokens are removed from this headset and Meta's login in this app is cleared. Your backups and history stay.",
+          yes: "Sign out",
+        }
+      : {
+          title: "Sign out of MetaDB?",
+          text: "Both tokens are removed from this browser, and MetaDB goes back to the built-in token. You stay logged in to Meta itself, so Sign in with Meta can fill them in again.",
+          yes: "Sign out",
+        }
+  );
   if (!sure) return;
-  window.MetaDBApp.signOut();
+  if (IN_APP) window.MetaDBApp.signOut();
   saveSettings({ token: "", acToken: "" });
   el.token.value = "";
   el.acToken.value = "";
@@ -2623,6 +2634,7 @@ async function appSignOut() {
   dgState.selected = null;
   dgState.builds.clear();
   syncAppSignIn();
+  syncExtSignIn();
   renderAll();
   dgRender();
   uiNotice("Signed out.", "plain");
@@ -4153,12 +4165,20 @@ function appendLog(d) {
    They are saved through the Settings form, exactly as if they were pasted. */
 function initExtSignIn() {
   const button = document.getElementById("extSignIn");
+  const refresh = document.getElementById("extRefresh");
   const out = document.getElementById("extSignInOut");
-  const label = button.textContent;
   let found = false;
+  let busy = null; // the button whose request is under way
   const reset = () => {
-    button.disabled = false;
-    button.textContent = label;
+    busy = null;
+    button.disabled = refresh.disabled = false;
+    syncExtSignIn();
+  };
+  /* While a request is out, its progress takes the place of the signed-in line. */
+  const status = (text) => {
+    out.textContent = text;
+    out.hidden = false;
+    document.getElementById("extSignedIn").hidden = true;
   };
 
   window.addEventListener("message", (e) => {
@@ -4166,56 +4186,96 @@ function initExtSignIn() {
     const m = e.data;
     if (m.type === "here") {
       found = true;
-      out.textContent = "The MetaDB Sign-in extension is installed. This fills in both tokens below from your Meta login.";
+      button.dataset.found = "1";
+      out.textContent = "The MetaDB Sign-in extension is installed. Sign in with Meta fills in both tokens below from your Meta login.";
+      syncExtSignIn();
       /* Only when the extension's own update check is on and found one. */
       if (m.update?.version) {
+        const note = document.getElementById("extUpdate");
         const a = document.createElement("a");
         a.href = "downloads/MetaDB-extension.zip";
         a.download = "MetaDB-extension.zip";
         a.textContent = "download it";
-        out.append(
-          ` Version ${m.update.version} of the extension is out (you have ${m.version}) — `,
+        note.replaceChildren(
+          `Version ${m.update.version} of the extension is out (you have ${m.version}) — `,
           a,
           ", unzip it over the extension's folder, and press Reload in the extension's menu."
         );
+        note.hidden = false;
       }
     } else if (m.type === "login") {
-      button.textContent = "Waiting for Meta's login…";
-      out.textContent = "Log in to Meta in the tab that opened. This fills in by itself once you are done.";
+      if (busy) busy.textContent = "Waiting for Meta's login…";
+      status("Log in to Meta in the tab that opened. This fills in by itself once you are done.");
     } else if (m.type === "tokens" && m.token && m.acToken) {
-      reset();
+      const was = busy;
+      const same = el.token.value.trim() === m.token && el.acToken.value.trim() === m.acToken;
       el.token.value = m.token;
       el.acToken.value = m.acToken;
       el.settingsForm.requestSubmit();
-      out.textContent = "Signed in. Both tokens are filled in and saved in this browser.";
-      uiNotice("Signed in with Meta.");
+      reset();
+      uiNotice(
+        was !== refresh
+          ? "Signed in with Meta."
+          : same
+            ? "Tokens are already up to date."
+            : "Tokens refreshed from your Meta login."
+      );
     } else if (m.type === "cancelled" || m.type === "error") {
       reset();
-      out.textContent =
+      status(
         m.type === "cancelled"
-          ? "Meta's login was closed before it finished. Press Sign in with Meta to try again."
-          : `The extension could not answer: ${m.message}`;
+          ? "Meta's login was closed before it finished. Press the button again to try again."
+          : `The extension could not answer: ${m.message}`
+      );
     }
   });
   window.postMessage({ metadbPage: true, type: "hello" }, location.origin);
 
+  /* Asks the extension for the tokens in Meta's cookies, opening Meta's login if
+     there are none. Sign in and Refresh are the same request. */
+  const ask = (which, label) => {
+    busy = which;
+    button.disabled = refresh.disabled = true;
+    which.textContent = label;
+    window.postMessage({ metadbPage: true, type: "sign-in" }, location.origin);
+  };
+
   button.addEventListener("click", () => {
+    if (dgSignedIn()) {
+      signOut();
+      return;
+    }
     if (!found) {
       go("/getapp");
       requestAnimationFrame(() => document.getElementById("getext")?.scrollIntoView());
       return;
     }
-    button.disabled = true;
-    button.textContent = "Signing in…";
-    window.postMessage({ metadbPage: true, type: "sign-in" }, location.origin);
+    ask(button, "Signing in…");
   });
+  refresh.addEventListener("click", () => ask(refresh, "Refreshing…"));
+  syncExtSignIn();
+}
+
+/** Settings' sign-in buttons on the website: Sign in with Meta, or, once both
+    tokens are saved, Sign out plus Refresh tokens (when the extension is there). */
+function syncExtSignIn() {
+  if (IN_APP) return;
+  const button = document.getElementById("extSignIn");
+  if (button.disabled) return; // a request is under way and owns the labels
+  const signed = dgSignedIn();
+  const refresh = document.getElementById("extRefresh");
+  button.textContent = signed ? "Sign out" : "Sign in with Meta";
+  refresh.textContent = "Refresh tokens";
+  refresh.hidden = !signed || !button.dataset.found;
+  document.getElementById("extSignInOut").hidden = signed;
+  document.getElementById("extSignedIn").hidden = !signed;
 }
 
 function initSettings() {
   if (IN_APP) {
     document.getElementById("appSignInField").hidden = false;
     document.getElementById("appSignIn").addEventListener("click", () => window.MetaDBApp.signIn("settings"));
-    document.getElementById("appSignOut").addEventListener("click", appSignOut);
+    document.getElementById("appSignOut").addEventListener("click", signOut);
     syncAppSignIn();
   } else {
     initExtSignIn();
@@ -4239,6 +4299,7 @@ function initSettings() {
         relay: el.relay.value.trim(),
       });
       syncRelayNote();
+      syncExtSignIn();
       say("Saved.", "ok");
     } catch (err) {
       say(err.message, "bad");
@@ -4253,6 +4314,7 @@ function initSettings() {
 
     try {
       saveSettings({ token, acToken });
+      syncExtSignIn();
       renderAll();
       tell(
         [
@@ -4365,6 +4427,7 @@ function initSettings() {
     el.defSort.value = el.sort.value = fresh.searchSort;
     el.defBuildSort.value = fresh.buildSort;
     syncRelayNote();
+    syncExtSignIn();
     say(IN_APP ? "Cleared, and signed out of Meta." : "Cleared. Back to the built-in token and no relay.", "ok");
   });
 

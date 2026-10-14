@@ -81,7 +81,7 @@
     });
   })();
 </script>
-<link rel="stylesheet" href="css/style.css?v=245">
+<link rel="stylesheet" href="css/style.css?v=247">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -829,8 +829,10 @@
 
       <div class="field" id="extSignInField" data-not-in-app>
         <label for="extSignIn">Sign in</label>
-        <div class="actions"><button type="button" id="extSignIn">Sign in with Meta</button></div>
+        <div class="actions"><button type="button" id="extRefresh" hidden>Refresh tokens</button><button type="button" id="extSignIn">Sign in with Meta</button></div>
         <p class="hint" id="extSignInOut" role="status">Fills in both tokens below from your Meta login, with nothing to copy. It needs the MetaDB Sign-in extension for Chrome or Edge — <a href="/getapp">how to add it</a>.</p>
+        <p class="hint" id="extSignedIn" role="status" hidden>Signed in. Both tokens below came from your Meta login and are saved in this browser. Refresh tokens reads them again from your Meta login — press it if requests start failing, or after switching Meta accounts. Sign out removes them from MetaDB; you stay logged in to Meta itself.</p>
+        <p class="hint" id="extUpdate" hidden></p>
       </div>
 
       <div class="field">
@@ -1358,12 +1360,12 @@
       link.href = href;
       main.parentNode.insertBefore(link, main);
     };
-    if (!flexGap) addCss("css/legacy-gap.css?v=245");
-    if (compat) addCss("css/compat.css?v=245");
+    if (!flexGap) addCss("css/legacy-gap.css?v=247");
+    if (compat) addCss("css/compat.css?v=247");
 
     var js = document.createElement("script");
     js.type = "module";
-    js.src = modern ? "js/app.js?v=245" : "js/app.legacy.js?v=245";
+    js.src = modern ? "js/app.js?v=247" : "js/app.legacy.js?v=247";
     document.body.appendChild(js);
   })();
 </script>

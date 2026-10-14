@@ -15,6 +15,15 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=247 — 2026-10-14
+
+- Settings → Sign in with Meta turns into **Sign out** once you are signed in, with a line
+  saying so. Signing out removes both tokens from this browser (it asks first) and leaves
+  your Meta login itself alone, so signing back in is one press.
+- Signed in with the extension, **Refresh tokens** sits beside Sign out and reads both tokens
+  again from your Meta login, opening Meta's login if it has run out. Use it when requests
+  start failing or after switching Meta accounts.
+
 ## App 1.4 (build 5) — 2026-10-13
 
 - MetaDB only updates itself from its own address, built into the app, and ignores any other.
