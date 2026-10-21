@@ -182,6 +182,10 @@ node tools/adb-bridge.mjs       # only for the ADB screen, on 127.0.0.1:8789
 `tools/serve.mjs` serves `index.html` for any path that is not a file, as the live host
 does, so links like `/apps/<id>` open. `python -m http.server` 404s them.
 
+The ADB bridge only answers pages from metadb.toastconcern.dev, toastconcern.github.io and
+localhost, so another site open in the browser cannot drive the headset. To use it from
+another copy of the site, list that origin: `METADB_ORIGINS=https://example.com node tools/adb-bridge.mjs`.
+
 Then in Settings, open *Relay URL → What this is* and press **use the local relay**.
 
 ## Files

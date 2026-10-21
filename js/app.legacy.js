@@ -2520,6 +2520,7 @@ function emitLog(detail) {
   } catch {
   }
 }
+var REQUEST_TIMEOUT_MS = 9e4;
 async function getJSON(url) {
   const { relay, log } = loadSettings();
   const started = log ? performance.now() : 0;
@@ -2536,11 +2537,18 @@ async function getJSON(url) {
     },
     body: query
   } : { headers: { Accept: "application/json" } };
+  if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) {
+    init.signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  }
   const logUrl = post ? `${ENDPOINT}?${withoutToken(query)}` : forLog(url);
   let res;
   try {
     res = await fetch(target, init);
-  } catch {
+  } catch (err2) {
+    if ((err2 == null ? void 0 : err2.name) === "TimeoutError") {
+      if (log) emitLog({ url: logUrl, error: "no reply in time" });
+      throw new Error("the request timed out \u2014 the store or the relay did not answer");
+    }
     if (log) emitLog({ url: logUrl, error: "no reply \u2014 relay unreachable or blocked" });
     throw new Error(
       relay ? "could not reach the relay \u2014 check the URL on the Settings page" : "the browser blocked this request; set a relay URL on the Settings page"
@@ -2549,7 +2557,7 @@ async function getJSON(url) {
   if (log) {
     emitLog({ url: logUrl, status: res.status, ms: Math.round(performance.now() - started) });
   }
-  if (!relay && res.status === 404) {
+  if (!relay && res.status === 404 && !res.headers.has("X-MetaDB-Relay")) {
     builtInMissing = true;
     throw new Error(
       "this site has no built-in relay \u2014 set a relay URL on the Settings page"
@@ -2612,7 +2620,15 @@ function stitch(text) {
   const root = (_a2 = parts.find((p) => p.data || p.errors || p.error)) != null ? _a2 : null;
   if (!(root == null ? void 0 : root.data)) return root;
   for (const part of parts) {
-    if (part === root || !part.data || !Array.isArray(part.path)) continue;
+    if (part === root || !Array.isArray(part.path)) continue;
+    if (Array.isArray(part.items)) {
+      let list = root.data;
+      for (const step of part.path.slice(0, -1)) list = list == null ? void 0 : list[step];
+      const at = part.path[part.path.length - 1];
+      if (Array.isArray(list) && Number.isInteger(at)) list.splice(at, part.items.length, ...part.items);
+      continue;
+    }
+    if (!part.data) continue;
     let node = root.data;
     for (const step of part.path) node = node == null ? void 0 : node[step];
     if (node && typeof node === "object") Object.assign(node, part.data);
@@ -2773,11 +2789,13 @@ var HMD_TYPES = [
   ["MONTEREY", "Quest"],
   ["PACIFIC", "Go"],
   ["RIFT", "Rift"],
+  ["LAGUNA", "Rift S"],
   ["LOMA", "VR Glasses"]
 ];
 var HMD_PLATFORM = {
   PACIFIC: "ANDROID_3DOF",
-  RIFT: "PC"
+  RIFT: "PC",
+  LAGUNA: "PC"
 };
 function extractApps(json, fallbackPlatform = null) {
   var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
@@ -3699,15 +3717,23 @@ async function releaseNotes(appId) {
   return map;
 }
 var VIEWER_DOC_ID = "9593089467434564";
-var _viewerId = null;
-async function viewerId() {
-  var _a2, _b2;
-  if (_viewerId) return _viewerId;
-  const data = await relayQuery(VIEWER_DOC_ID, {}, "Account");
-  const id = (_b2 = (_a2 = data.viewer) == null ? void 0 : _a2.user) == null ? void 0 : _b2.id;
-  if (!id) throw new Error("the store would not say who this token belongs to");
-  _viewerId = String(id);
-  return _viewerId;
+var viewer = { token: null, id: null };
+function viewerId() {
+  const { token } = loadSettings();
+  if (viewer.token !== token) {
+    const entry = { token, id: null };
+    entry.id = relayQuery(VIEWER_DOC_ID, {}, "Account").then((data) => {
+      var _a2, _b2;
+      const id = (_b2 = (_a2 = data.viewer) == null ? void 0 : _a2.user) == null ? void 0 : _b2.id;
+      if (!id) throw new Error("the store would not say who this token belongs to");
+      return String(id);
+    });
+    entry.id.catch(() => {
+      if (viewer === entry) viewer = { token: null, id: null };
+    });
+    viewer = entry;
+  }
+  return viewer.id;
 }
 var ADDONS_DOC_ID = "10041200072603920";
 var ADDONS_PAGE = 24;
@@ -3856,6 +3882,174 @@ async function horizonPlus() {
     if (!out.has(String(n.id))) out.set(String(n.id), row(n, "catalog"));
   }
   return [...out.values()];
+}
+var STORE_FRONT_DOC_ID = "27955155650852217";
+var STORE_SECTION_DOC_ID = "28264408599874874";
+var LAYOUTS = {
+  Default: "Shelf",
+  List: "List",
+  Spotlight: "Spotlight",
+  MerchEditorial: "Editorial",
+  MerchLaunch: "New release",
+  MerchTimebound: "Limited time",
+  CategoryStrip: "Categories"
+};
+var layoutName = (type) => {
+  var _a2, _b2;
+  const key = (_a2 = /RenderingStrategy(\w+)$/.exec(type != null ? type : "")) == null ? void 0 : _a2[1];
+  return key ? (_b2 = LAYOUTS[key]) != null ? _b2 : key : null;
+};
+async function storeFront(hmdType = loadSettings().hmd, viewId = null) {
+  var _a2, _b2, _c, _d, _e, _f, _g;
+  const quest = ((_a2 = HMD_PLATFORM[hmdType]) != null ? _a2 : "ANDROID_6DOF") === "ANDROID_6DOF";
+  const data = await relayQuery(
+    STORE_FRONT_DOC_ID,
+    {
+      appStoreID: null,
+      hmdType,
+      useTestStore: false,
+      storeViewTypes: [quest ? "STORE_VIEWS_WITH_CATEGORY_CONTEXT" : "IN_2D"],
+      storeViewID: viewId,
+      seedID: null,
+      shouldShowBalance: false,
+      __relay_internal__pv__storeInitialShelvesCountrelayprovider: 60,
+      __relay_internal__pv__topChartsCardrelayprovider: false,
+      __relay_internal__pv__horizonPlusBadgerelayprovider: false,
+      __relay_internal__pv__hasTWNewMerchUnitsLaunchEnabledrelayprovider: false
+    },
+    "The store front"
+  );
+  const store = (_b2 = data.viewer) == null ? void 0 : _b2.app_store;
+  if (!store) throw new Error("the store returned no store front for this headset");
+  const view = (_d = (_c = store.store_views) == null ? void 0 : _c[0]) != null ? _d : null;
+  const sections = ((_f = (_e = view == null ? void 0 : view.streamed_subsections) == null ? void 0 : _e.edges) != null ? _f : []).map((e) => e == null ? void 0 : e.node).filter((n) => (n == null ? void 0 : n.id) && n.section_name).map((n) => {
+    var _a3;
+    return {
+      id: String(n.id),
+      name: n.section_name,
+      layout: layoutName((_a3 = n.rendering_strategy) == null ? void 0 : _a3.__typename),
+      ordered: Boolean(n.is_ordered_list)
+    };
+  });
+  return {
+    views: ((_g = store.all_store_views) != null ? _g : []).filter((v) => v == null ? void 0 : v.id).map((v) => ({ id: String(v.id), name: v.translated_display_name || String(v.id) })),
+    viewId: (view == null ? void 0 : view.id) ? String(view.id) : null,
+    sections
+  };
+}
+async function storeSection(sectionId, hmdType = loadSettings().hmd, cursor = null, start = 0) {
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  const data = await relayQuery(
+    STORE_SECTION_DOC_ID,
+    {
+      id: String(sectionId),
+      count: 50,
+      cursor,
+      encode: "JPEG",
+      __relay_internal__pv__horizonPlusBadgerelayprovider: false
+    },
+    "The store section"
+  );
+  const units = (_a2 = data.node) == null ? void 0 : _a2.units;
+  const platform = (_b2 = HMD_PLATFORM[hmdType]) != null ? _b2 : "ANDROID_6DOF";
+  const apps = [];
+  for (const edge of (_c = units == null ? void 0 : units.edges) != null ? _c : []) {
+    const n = edge == null ? void 0 : edge.node;
+    if ((n == null ? void 0 : n.__typename) !== "Application" || !n.id) continue;
+    const offer = n.current_offer;
+    const a = (_d = n.assets) != null ? _d : {};
+    apps.push({
+      id: String(n.id),
+      name: n.display_name || n.display_unit_title || String(n.id),
+      packageName: (_e = n.package_name) != null ? _e : null,
+      platform,
+      image: (_k = (_j = (_h = (_f = a.cover_square_image) == null ? void 0 : _f.uri) != null ? _h : (_g = n.cover_landscape_image) == null ? void 0 : _g.uri) != null ? _j : (_i = a.icon_image) == null ? void 0 : _i.uri) != null ? _k : null,
+      /* The store words the price itself ("Free", "$19.99", "Coming soon"),
+         so that is shown as it is. */
+      price: ((_l = n.price_or_status_display) == null ? void 0 : _l.text) || ((_m = offer == null ? void 0 : offer.price) == null ? void 0 : _m.formatted) || null,
+      offerId: (offer == null ? void 0 : offer.id) ? String(offer.id) : null,
+      free: ((_n = offer == null ? void 0 : offer.price) == null ? void 0 : _n.offset_amount) === "0",
+      channels: [],
+      rank: start + apps.length + 1
+    });
+  }
+  return {
+    apps,
+    cursor: ((_o = units == null ? void 0 : units.page_info) == null ? void 0 : _o.has_next_page) ? units.page_info.end_cursor : null
+  };
+}
+var TOP_CHARTS_DOC_ID = "26156053534020750";
+var TOP_CHARTS_SECTION_ID = "1359505205516508";
+async function topCharts(hmdType = loadSettings().hmd) {
+  var _a2, _b2, _c;
+  const data = await relayQuery(
+    TOP_CHARTS_DOC_ID,
+    { hmdType, sectionID: TOP_CHARTS_SECTION_ID },
+    "The top charts"
+  );
+  return ((_c = (_b2 = (_a2 = data.section) == null ? void 0 : _a2.units) == null ? void 0 : _b2.edges) != null ? _c : []).map((e) => e == null ? void 0 : e.node).filter((n) => {
+    var _a3;
+    return ((_a3 = n == null ? void 0 : n.banner_target) == null ? void 0 : _a3.id) && n.display_unit_title;
+  }).map((n) => ({
+    id: String(n.banner_target.id),
+    name: n.display_unit_title,
+    layout: "Top chart",
+    ordered: true
+  }));
+}
+var WISHLIST_SECTION_ID = "1694291617673045";
+function wishlist(hmdType = loadSettings().hmd, cursor = null, start = 0) {
+  return storeSection(WISHLIST_SECTION_ID, hmdType, cursor, start);
+}
+var DEV_POSTS_DOC_ID = "28585215657832212";
+var DEV_POST_FLAGS = Object.fromEntries(
+  [
+    "showSocialContextInHzwFeeds",
+    "shouldEnableMetaCredit",
+    "showSocialContextInHzwFeedsThreeTiles",
+    "EnableStoryDebugInfo",
+    "IsEnhancedUserTile",
+    "IsCoinflipUserTile",
+    "ArePostLikesEnabled",
+    "AreHorizonWorldsPostShown"
+  ].map((n) => [`__relay_internal__pv__${n}relayprovider`, false])
+);
+async function appDevPosts(appId, hmdType = loadSettings().hmd) {
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  const data = await relayQuery(
+    DEV_POSTS_DOC_ID,
+    {
+      itemID: String(appId),
+      hmdType,
+      platform: (_a2 = HMD_PLATFORM[hmdType]) != null ? _a2 : "ANDROID_6DOF",
+      LIBRARY_INFO_LAST_ACTIVE_WINDOW: -1,
+      ...DEV_POST_FLAGS
+    },
+    "Developer posts"
+  );
+  const app = data.app;
+  if (!app) throw new Error("the store has no page for this app");
+  const seen = /* @__PURE__ */ new Set();
+  const posts = [];
+  for (const post of (_b2 = app.posts) != null ? _b2 : []) {
+    for (const s of (_d = (_c = post == null ? void 0 : post.target_object) == null ? void 0 : _c.story_previews) != null ? _d : []) {
+      const r = s == null ? void 0 : s.tw_tile_rendering_strategy;
+      if ((r == null ? void 0 : r.__typename) !== "XOCTwilightDevPostStoryRenderingStrategy" || !r.story) continue;
+      const st = r.story;
+      const id = String((_g = (_f = (_e = st.target_object) == null ? void 0 : _e.id) != null ? _f : st.id) != null ? _g : "");
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      posts.push({
+        id,
+        title: st.title || null,
+        body: st.description_plain_text || null,
+        time: st.display_time || null,
+        image: (_k = (_j = (_h = st.largeImageForSingleStoryTile) == null ? void 0 : _h.uri) != null ? _j : (_i = st.image) == null ? void 0 : _i.uri) != null ? _k : null,
+        author: (_m = (_l = st.source) == null ? void 0 : _l.name) != null ? _m : null
+      });
+    }
+  }
+  return posts;
 }
 var PRESENCE_DOC_ID = "30449252678782676021745973837";
 var ROSTER_DOC_ID = "9609976019080474";
@@ -4135,6 +4329,11 @@ function parseAppId(input) {
 
 // js/app.js
 var DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
+function deviceName(platform) {
+  var _a2;
+  if (!platform) return null;
+  return (_a2 = DEVICE[platform]) != null ? _a2 : String(platform).toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
 var IN_APP = typeof window.MetaDBApp === "object" && window.MetaDBApp !== null;
 var APP_CAPS = (() => {
   var _a2, _b2, _c;
@@ -4244,10 +4443,7 @@ var SORTS = {
   ...alphabetical("source", (app) => app.owned ? grantLabel(app.grant) : null),
   ...alphabetical(
     "device",
-    (app) => {
-      var _a2;
-      return app.platform ? (_a2 = DEVICE[app.platform]) != null ? _a2 : app.platform : null;
-    }
+    (app) => deviceName(app.platform)
   )
 };
 var sorted = (list, mode) => {
@@ -4317,6 +4513,29 @@ var el = {
   plusRows: document.getElementById("plusRows"),
   plusCount: document.getElementById("plusCount"),
   plusEmpty: document.getElementById("plusEmpty"),
+  viewWishlist: document.getElementById("view-wishlist"),
+  wishGo: document.getElementById("wishGo"),
+  wishQ: document.getElementById("wishQ"),
+  wishSort: document.getElementById("wishSort"),
+  checkWish: document.getElementById("checkWish"),
+  wishRows: document.getElementById("wishRows"),
+  wishCount: document.getElementById("wishCount"),
+  wishEmpty: document.getElementById("wishEmpty"),
+  wishMoreBar: document.getElementById("wishMoreBar"),
+  wishMore: document.getElementById("wishMore"),
+  viewStore: document.getElementById("view-store"),
+  storeHmd: document.getElementById("storeHmd"),
+  storeView: document.getElementById("storeView"),
+  storeGo: document.getElementById("storeGo"),
+  storeSection: document.getElementById("storeSection"),
+  storeQ: document.getElementById("storeQ"),
+  storeSort: document.getElementById("storeSort"),
+  checkStore: document.getElementById("checkStore"),
+  storeRows: document.getElementById("storeRows"),
+  storeCount: document.getElementById("storeCount"),
+  storeEmpty: document.getElementById("storeEmpty"),
+  storeMoreBar: document.getElementById("storeMoreBar"),
+  storeMore: document.getElementById("storeMore"),
   viewHeadset: document.getElementById("view-adb"),
   viewCompanion: document.getElementById("view-companion"),
   adbUsb: document.getElementById("adbUsb"),
@@ -4450,6 +4669,7 @@ var obbs = /* @__PURE__ */ new Map();
 var reviewCache = /* @__PURE__ */ new Map();
 var addonsCache = /* @__PURE__ */ new Map();
 var achCache = /* @__PURE__ */ new Map();
+var postsCache = /* @__PURE__ */ new Map();
 var relNotesCache = /* @__PURE__ */ new Map();
 var obbChecked = /* @__PURE__ */ new Set();
 var obbNote = "";
@@ -4474,12 +4694,30 @@ var defaultLoading = false;
 var defaultAsked = false;
 var defaultNote = "";
 var plusState = { rows: [], asked: false, loading: false, note: "" };
+var storeState = {
+  front: null,
+  charts: [],
+  hmd: null,
+  section: null,
+  rows: [],
+  cursor: null,
+  asked: false,
+  loading: false,
+  note: ""
+};
+var wishState = { rows: [], cursor: null, asked: false, loading: false, note: "" };
 var presenceState = { data: null, note: "" };
 var adb = null;
 var adbInstalled = [];
 var adbApps = [];
 var adbSide = [];
 var headsetAsked = false;
+var packageAnswers = /* @__PURE__ */ new Map();
+var staleTables = /* @__PURE__ */ new Set();
+var renderTimer = 0;
+var searchSeq = 0;
+var dialogPending = null;
+var dialogReturnFocus = null;
 var APP_APK = new URL("downloads/MetaDB.apk", document.baseURI).href;
 var APP_INFO = new URL("downloads/MetaDB.json", document.baseURI).href;
 var appInfoAsked = false;
@@ -4496,18 +4734,20 @@ var storeArt = (() => {
 })();
 var storeArtAsking = false;
 var restoringRoute = false;
-var PANEL_TABS = ["store", "builds", "reviews", "addons", "achievements", "mine"];
+var PANEL_TABS = ["store", "builds", "reviews", "posts", "addons", "achievements", "mine"];
 var VIEWS = [
   "apps",
   "search",
   "mine",
   "purchases",
+  "wishlist",
   "avatar",
   "devices",
   "worlds",
   "orgs",
   "default",
   "plus",
+  "store",
   "adb",
   "companion",
   "settings",
@@ -4562,6 +4802,8 @@ var shelfState = { rows: [], cursor: null, label: "", fetchPage: null, asked: fa
 var creatorState = { rows: [], cursor: null, label: "", fetchPage: null, asked: false, loading: false, note: "" };
 var worldTab = "top";
 var libraryNames = null;
+var libraryToken = null;
+var libraryError = "";
 var stagedApp = null;
 var stagedScope = null;
 var listing = [];
@@ -4583,6 +4825,8 @@ initAvatar();
 initAccountTabs();
 initDefault();
 initPlus();
+initStore();
+initWishlist();
 initHeadset();
 initDowngrade();
 initGetApp();
@@ -4758,7 +5002,7 @@ function play(node, className, { keep = false } = {}) {
   }
 }
 var isStaged = (app) => Boolean(stagedApp) && keyOf(stagedApp) === keyOf(app);
-var stageEl = () => document.querySelector(".stage");
+var stageEl = () => document.querySelector(".stage:not(.leaving)");
 function openStage(app, scope = null) {
   closeStage({ animate: false });
   stagedApp = app;
@@ -4776,9 +5020,10 @@ function closeStage({ animate = true } = {}) {
   stagedApp = null;
   stagedScope = null;
   const stage = stageEl();
+  stage == null ? void 0 : stage.classList.add("leaving");
   const done = () => {
     stage == null ? void 0 : stage.remove();
-    document.documentElement.classList.remove("staged");
+    releaseScrollLock();
   };
   if (!stage || !animate || !animates()) return done();
   play(stage, "stage-out", { keep: true });
@@ -4793,7 +5038,10 @@ function refreshStage() {
   restoreScrolls(stage, inner);
   stage.scrollTop = at;
 }
-var galleryEl = () => document.querySelector(".gallery");
+var galleryEl = () => document.querySelector(".gallery:not(.leaving)");
+function releaseScrollLock() {
+  if (!stagedApp && !stageEl() && !galleryEl()) document.documentElement.classList.remove("staged");
+}
 function shotFigure(shot) {
   const cap = shot.natural ? ` style="width:auto"` : shot.width ? ` style="max-width:${shot.width}px"` : "";
   return `<figure class="shot">
@@ -4838,9 +5086,10 @@ function openGallery(app, shots, heading = `${app.name} \u2014 images`) {
 function closeGallery({ animate = true } = {}) {
   const gallery = galleryEl();
   if (!gallery) return;
+  gallery.classList.add("leaving");
   const done = () => {
     gallery.remove();
-    if (!stagedApp) document.documentElement.classList.remove("staged");
+    releaseScrollLock();
   };
   if (!animate || !animates()) return done();
   play(gallery, "stage-out", { keep: true });
@@ -5040,33 +5289,40 @@ function applyView() {
       return;
     }
   }
-  const views = ["mine", "purchases", "avatar", "devices", "worlds", "orgs", "default", "plus", "adb", "companion", "settings", "getapp"];
+  const views = ["mine", "purchases", "wishlist", "avatar", "devices", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
   const view = views.includes(hash) && !(IN_APP && (hash === "adb" || hash === "companion")) ? hash : "apps";
   el.viewApps.hidden = view !== "apps";
   el.viewMine.hidden = view !== "mine";
   el.viewPurchases.hidden = view !== "purchases";
+  el.viewWishlist.hidden = view !== "wishlist";
   el.viewAvatar.hidden = view !== "avatar";
   el.viewDevices.hidden = view !== "devices";
   el.viewWorlds.hidden = view !== "worlds";
   el.viewOrgs.hidden = view !== "orgs";
   el.viewDefault.hidden = view !== "default";
   el.viewPlus.hidden = view !== "plus";
+  el.viewStore.hidden = view !== "store";
   el.viewHeadset.hidden = view !== "adb";
   el.viewCompanion.hidden = view !== "companion";
   el.viewSettings.hidden = view !== "settings";
   el.viewGetapp.hidden = view !== "getapp";
   if (view === "getapp") showAppInfo();
   if (view === "companion") {
-    import("./companion.js?v=247").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => console.error("companion init failed", e));
+    import("./companion.js?v=248").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
+      var _a2;
+      console.error("companion init failed", e);
+      if (!navigator.bluetooth) (_a2 = el.viewCompanion.querySelector("#companionUnsupported")) == null ? void 0 : _a2.removeAttribute("hidden");
+    });
   }
   el.limitbar.hidden = view !== "apps";
+  if ([...staleTables].some((t) => !onHiddenScreen(t))) renderAll();
   for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);
   for (const g of el.navGroups) {
     g.querySelector(".navtop").classList.toggle("on", !!g.querySelector("a.on"));
   }
   window.scrollTo(0, 0);
   play(
-    [el.viewApps, el.viewMine, el.viewPurchases, el.viewAvatar, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
+    [el.viewApps, el.viewMine, el.viewPurchases, el.viewWishlist, el.viewAvatar, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
@@ -5134,11 +5390,11 @@ function initOrgs() {
     runOrgApps();
   });
   el.orgPlatform.addEventListener("change", renderAll);
-  el.orgQ.addEventListener("input", renderAll);
+  el.orgQ.addEventListener("input", renderSoon);
   el.orgSort.addEventListener("change", renderAll);
   el.checkOrg.addEventListener(
     "click",
-    () => checkList(orgList, el.checkOrg, "Check shown")
+    () => checkList(orgVisible(), el.checkOrg, "Check shown")
   );
 }
 function defaultVisible() {
@@ -5146,14 +5402,15 @@ function defaultVisible() {
   return sorted(defaultList.filter((a) => matches(a, q)), el.defaultSort.value);
 }
 function initDefault() {
+  const pc = (value) => value === "RIFT" || value === "LAGUNA";
   for (const [value, label] of HMD_TYPES) {
-    if (value === "RIFT") continue;
+    if (pc(value)) continue;
     const opt = document.createElement("option");
     opt.value = value;
     opt.textContent = `${label} (${value})`;
     el.defaultHmd.append(opt);
   }
-  if (loadSettings().hmd !== "RIFT") el.defaultHmd.value = loadSettings().hmd;
+  if (!pc(loadSettings().hmd)) el.defaultHmd.value = loadSettings().hmd;
   for (const [value, label] of DEFAULT_APP_TRIGGERS) {
     const opt = document.createElement("option");
     opt.value = value;
@@ -5162,11 +5419,11 @@ function initDefault() {
   }
   el.defaultTrigger.value = loadSettings().defaultTrigger;
   el.defaultGo.addEventListener("click", runDefaultApps);
-  el.defaultQ.addEventListener("input", renderAll);
+  el.defaultQ.addEventListener("input", renderSoon);
   el.defaultSort.addEventListener("change", renderAll);
   el.checkDefault.addEventListener(
     "click",
-    () => checkList(defaultList, el.checkDefault, "Check shown")
+    () => checkList(defaultVisible(), el.checkDefault, "Check shown")
   );
 }
 async function runDefaultApps() {
@@ -5199,7 +5456,7 @@ function plusVisible() {
 }
 function initPlus() {
   el.plusGo.addEventListener("click", runHorizonPlus);
-  el.plusQ.addEventListener("input", renderAll);
+  el.plusQ.addEventListener("input", renderSoon);
   el.plusPick.addEventListener("change", renderAll);
   el.plusSort.addEventListener("change", renderAll);
   el.checkPlus.addEventListener(
@@ -5226,6 +5483,153 @@ async function runHorizonPlus() {
     syncRelayNote();
   }
 }
+function storeVisible() {
+  const q = el.storeQ.value.trim().toLowerCase();
+  return sorted(storeState.rows.filter((a) => matches(a, q)), el.storeSort.value);
+}
+function initStore() {
+  for (const [value, label] of HMD_TYPES) {
+    el.storeHmd.append(new Option(`${label} (${value})`, value));
+  }
+  el.storeHmd.value = loadSettings().hmd;
+  el.storeGo.addEventListener("click", () => runStoreFront(null));
+  el.storeView.addEventListener("change", () => runStoreFront(el.storeView.value || null));
+  el.storeSection.addEventListener("change", () => loadStoreSection(el.storeSection.value));
+  el.storeMore.addEventListener("click", moreStoreSection);
+  el.storeQ.addEventListener("input", renderSoon);
+  el.storeSort.addEventListener("change", renderAll);
+  el.checkStore.addEventListener(
+    "click",
+    () => checkList(storeVisible(), el.checkStore, "Check shown")
+  );
+}
+async function runStoreFront(viewId) {
+  var _a2, _b2;
+  if (storeState.loading) return;
+  const hmd = viewId ? storeState.hmd : el.storeHmd.value;
+  Object.assign(storeState, {
+    asked: true,
+    loading: true,
+    note: "",
+    rows: [],
+    cursor: null,
+    section: null
+  });
+  el.storeGo.disabled = true;
+  el.storeGo.textContent = "Loading\u2026";
+  el.storeView.disabled = true;
+  el.storeSection.disabled = true;
+  renderAll();
+  try {
+    const [front, charts] = await Promise.all([
+      storeFront(hmd, viewId),
+      viewId ? storeState.charts : topCharts(hmd).catch(() => [])
+    ]);
+    Object.assign(storeState, { front, charts, hmd });
+    el.storeView.replaceChildren(...front.views.map((v) => new Option(v.name, v.id)));
+    el.storeView.hidden = front.views.length < 2;
+    if (front.viewId) el.storeView.value = front.viewId;
+    const options = (list) => list.map((s) => new Option(s.layout ? `${s.name} \u2014 ${s.layout}` : s.name, s.id));
+    const group = (label, list) => {
+      const g = document.createElement("optgroup");
+      g.label = label;
+      g.append(...options(list));
+      return g;
+    };
+    el.storeSection.replaceChildren(
+      ...charts.length ? [group("Sections", front.sections), group("Top charts", charts)] : options(front.sections)
+    );
+    if (!front.sections.length) storeState.note = "The store lists no sections for this headset.";
+  } catch (err2) {
+    storeState.front = null;
+    storeState.charts = [];
+    storeState.note = err2.message || "Could not load the store front.";
+  } finally {
+    storeState.loading = false;
+    el.storeGo.disabled = false;
+    el.storeGo.textContent = "Get store";
+    el.storeView.disabled = false;
+    el.storeSection.disabled = !((_a2 = storeState.front) == null ? void 0 : _a2.sections.length);
+    renderAll();
+    syncRelayNote();
+  }
+  const first = (_b2 = storeState.front) == null ? void 0 : _b2.sections[0];
+  if (first) loadStoreSection(first.id);
+}
+function loadStoreSection(id) {
+  var _a2, _b2;
+  const section = [...(_b2 = (_a2 = storeState.front) == null ? void 0 : _a2.sections) != null ? _b2 : [], ...storeState.charts].find((s) => s.id === id);
+  if (!section) return;
+  Object.assign(storeState, { section, rows: [], cursor: null, note: "" });
+  el.storeSection.value = id;
+  fetchStorePage(el.storeSection);
+}
+function moreStoreSection() {
+  if (storeState.cursor) fetchStorePage(el.storeMore);
+}
+async function fetchStorePage(button) {
+  if (storeState.loading || !storeState.section) return;
+  const { section, hmd, cursor } = storeState;
+  const label = button.tagName === "BUTTON" ? button.textContent : null;
+  storeState.loading = true;
+  const controls = [button, el.storeGo, el.storeView, el.storeSection];
+  const wasDisabled = controls.map((c) => c.disabled);
+  for (const c of controls) c.disabled = true;
+  if (label) button.textContent = "Loading\u2026";
+  renderAll();
+  try {
+    const page = await storeSection(section.id, hmd, cursor, storeState.rows.length);
+    if (storeState.section !== section) return;
+    const have = new Set(storeState.rows.map((a) => a.id));
+    storeState.rows.push(...page.apps.filter((a) => !have.has(a.id)));
+    storeState.cursor = page.cursor;
+  } catch (err2) {
+    storeState.note = err2.message || "Could not load this section.";
+  } finally {
+    storeState.loading = false;
+    controls.forEach((c, i) => c.disabled = c === button ? false : wasDisabled[i]);
+    if (label) button.textContent = label;
+    renderAll();
+    syncRelayNote();
+  }
+}
+function wishVisible() {
+  const q = el.wishQ.value.trim().toLowerCase();
+  return sorted(wishState.rows.filter((a) => matches(a, q)), el.wishSort.value);
+}
+function initWishlist() {
+  el.wishGo.addEventListener("click", () => fetchWishPage(el.wishGo, true));
+  el.wishMore.addEventListener("click", () => wishState.cursor && fetchWishPage(el.wishMore, false));
+  el.wishQ.addEventListener("input", renderSoon);
+  el.wishSort.addEventListener("change", renderAll);
+  el.checkWish.addEventListener(
+    "click",
+    () => checkList(wishVisible(), el.checkWish, "Check shown")
+  );
+}
+async function fetchWishPage(button, fresh) {
+  if (wishState.loading) return;
+  if (fresh) Object.assign(wishState, { rows: [], cursor: null });
+  const label = button.textContent;
+  Object.assign(wishState, { asked: true, loading: true, note: "" });
+  button.disabled = true;
+  button.textContent = "Loading\u2026";
+  renderAll();
+  try {
+    const page = await wishlist(void 0, wishState.cursor, wishState.rows.length);
+    const have = new Set(wishState.rows.map((a) => a.id));
+    wishState.rows.push(...page.apps.filter((a) => !have.has(a.id)));
+    wishState.cursor = page.cursor;
+  } catch (err2) {
+    wishState.note = err2.message || "Could not load your wishlist.";
+  } finally {
+    wishState.loading = false;
+    button.disabled = false;
+    button.textContent = label;
+    renderAll();
+    syncRelayNote();
+  }
+}
 var BRIDGE_URL = null;
 function initHeadset() {
   el.adbUsb.addEventListener("click", () => connectHeadset("usb"));
@@ -5245,7 +5649,7 @@ function initHeadset() {
       pairHeadset();
     }
   });
-  el.adbQ.addEventListener("input", renderAll);
+  el.adbQ.addEventListener("input", renderSoon);
   el.adbSort.addEventListener("change", renderAll);
   renderHeadset();
 }
@@ -5348,6 +5752,7 @@ async function disconnectHeadset() {
   renderHeadset();
 }
 async function loadHeadsetApps() {
+  var _a2;
   if (!adb && !IN_APP) return;
   headsetAsked = true;
   el.adbCount.textContent = "Asking the headset what it has installed\u2026";
@@ -5358,17 +5763,19 @@ async function loadHeadsetApps() {
       const { installedApps } = await import("./adb.js?v=149");
       adbInstalled = await installedApps(adb);
     }
-    const missing = adbInstalled.filter((a) => !ownedByPackage().has(a.packageName) && !a.resolved).map((a) => a.packageName);
+    const owned = ownedByPackage();
+    const missing = adbInstalled.filter((a) => !owned.has(a.packageName) && !packageAnswers.has(a.packageName)).map((a) => a.packageName);
     if (missing.length) {
       el.adbCount.textContent = `Naming ${missing.length} packages\u2026`;
       try {
         const known = await lookupPackages(missing);
-        for (const entry of adbInstalled) {
-          const match = known.get(entry.packageName);
-          if (match) entry.resolved = match;
-        }
+        for (const pkg of missing) packageAnswers.set(pkg, (_a2 = known.get(pkg)) != null ? _a2 : null);
       } catch {
       }
+    }
+    for (const entry of adbInstalled) {
+      const match = packageAnswers.get(entry.packageName);
+      if (match) entry.resolved = match;
     }
     if (IN_APP) {
       const known = new Map(adbInstalled.filter((a) => a.resolved).map((a) => [a.packageName, a.resolved]));
@@ -5428,9 +5835,9 @@ function adbRow(app) {
   tr.innerHTML = `
     <td class="name">${showArt && app.image ? `<img class="art" src="${esc(app.image)}" alt="" loading="lazy">` : ""}${esc(app.name)}</td>
     <td class="num">${esc((_d = app.installedVersion) != null ? _d : "\u2014")}</td>
-    <td class="num">${(_e = app.installedVersionCode) != null ? _e : "\u2014"}</td>
+    <td class="num c-build">${(_e = app.installedVersionCode) != null ? _e : "\u2014"}</td>
     <td class="num">${esc((_f = latest == null ? void 0 : latest.version) != null ? _f : "\u2014")}</td>
-    <td class="num">${(_g = latest == null ? void 0 : latest.versionCode) != null ? _g : "\u2014"}</td>`;
+    <td class="num c-build">${(_g = latest == null ? void 0 : latest.versionCode) != null ? _g : "\u2014"}</td>`;
   const toggle = (e) => {
     open.has(key) ? open.delete(key) : open.add(key);
     focusId = keyOf(app);
@@ -5575,6 +5982,8 @@ ${app.packageName} will be uninstalled first, which deletes its saved data on th
 }
 var appInstalls = /* @__PURE__ */ new Map();
 function uiConfirm({ title, text, list = [], yes = "OK", no = "Cancel", danger = false }) {
+  const superseding = Boolean(dialogPending);
+  dialogPending == null ? void 0 : dialogPending(false);
   const box = document.getElementById("uiDialog");
   const yesBtn = document.getElementById("uiDialogYes");
   const noBtn = document.getElementById("uiDialogNo");
@@ -5586,16 +5995,22 @@ function uiConfirm({ title, text, list = [], yes = "OK", no = "Cancel", danger =
   yesBtn.textContent = yes;
   noBtn.textContent = no;
   yesBtn.classList.toggle("ui-danger", danger);
-  const before = document.activeElement;
+  if (!superseding) dialogReturnFocus = document.activeElement;
+  const before = dialogReturnFocus;
   box.hidden = false;
   (danger ? noBtn : yesBtn).focus();
   return new Promise((resolve) => {
     const finish = (answer) => {
       var _a2;
+      dialogPending = null;
       box.hidden = true;
       yesBtn.onclick = noBtn.onclick = null;
       box.onkeydown = box.onclick = null;
       (_a2 = before == null ? void 0 : before.focus) == null ? void 0 : _a2.call(before);
+      resolve(answer);
+    };
+    dialogPending = (answer) => {
+      dialogPending = null;
       resolve(answer);
     };
     yesBtn.onclick = () => finish(true);
@@ -6582,14 +6997,20 @@ function dgRenderHistory(hit) {
   const shown = all.filter(hit);
   const ver = (v) => {
     var _a2, _b2;
-    return v ? `${esc((_a2 = v.version) != null ? _a2 : "\u2014")} <span class="dg-obb">${(_b2 = v.code) != null ? _b2 : ""}</span>` : "\u2014";
+    return v ? `${esc((_a2 = v.version) != null ? _a2 : "\u2014")} <span class="dg-obb">${esc((_b2 = v.code) != null ? _b2 : "")}</span>` : "\u2014";
+  };
+  const art = /* @__PURE__ */ new Map();
+  const artFor = (pkg, backup) => {
+    const key = `${pkg}|${backup != null ? backup : ""}`;
+    if (!art.has(key)) art.set(key, dgArt(dgArtFor(pkg, backup)));
+    return art.get(key);
   };
   el.dgHistoryRows.innerHTML = shown.map(
     (h) => {
       var _a2, _b2, _c, _d, _e;
       return `<tr>
           <td class="num">${new Date(h.at).toISOString().slice(0, 16).replace("T", " ")}</td>
-          <td class="name"><span class="dg-cell">${dgArt(dgArtFor(h.packageName, (_a2 = h.backup) != null ? _a2 : null))}${esc((_c = (_b2 = h.name) != null ? _b2 : h.packageName) != null ? _c : "\u2014")}</span></td>
+          <td class="name"><span class="dg-cell">${artFor(h.packageName, (_a2 = h.backup) != null ? _a2 : null)}${esc((_c = (_b2 = h.name) != null ? _b2 : h.packageName) != null ? _c : "\u2014")}</span></td>
           <td${h.action === "failed" ? ` class="warn"` : ""} title="${esc((_d = h.text) != null ? _d : "")}">${esc((_e = HISTORY_WORDS[h.action]) != null ? _e : h.action)}${h.text && (h.action === "failed" || h.action === "cancelled") ? `: ${esc(h.text)}` : ""}</td>
           <td class="num">${ver(h.from)}</td>
           <td class="num">${ver(h.to)}</td>
@@ -7089,12 +7510,12 @@ function onDevicePTCClick(e) {
 async function setDevicePTCOne(serial, enabled, button) {
   const buttons = [...button.closest("tr").querySelectorAll(".ptc-btn")];
   buttons.forEach((b) => b.disabled = true);
-  setPtcOut(`${enabled ? "Enabling" : "Disabling"} the test channel on ${serial}\u2026`);
+  setPtcOut(`${enabled ? "Enabling" : "Disabling"} the test channel on ${headsetLabel(serial)}\u2026`);
   try {
     await setDevicePTC(serial, enabled);
     loadPTCStatus(serial);
     setPtcOut(
-      `Test channel ${enabled ? "on" : "off"} for ${serial}. The headset picks
+      `Test channel ${enabled ? "on" : "off"} for ${headsetLabel(serial)}. The headset picks
        the change up when it next looks for an update.`
     );
   } catch (err2) {
@@ -7499,12 +7920,12 @@ async function boot() {
     "click",
     () => checkList(visible(), el.checkAll, "Check shown")
   );
-  el.mineQ.addEventListener("input", renderAll);
+  el.mineQ.addEventListener("input", renderSoon);
   el.mineSort.addEventListener("change", renderAll);
   for (const b of el.libButtons) {
     b.addEventListener("click", () => loadEntitlements(b.dataset.lib));
   }
-  runSearch();
+  if (!searchSeq) runSearch();
   if (loadSettings().autoOwned) loadEntitlements("quest");
   const auto = loadSettings();
   if (auto.autoDlc) loadIaps();
@@ -7586,10 +8007,14 @@ var visible = () => sorted(listing, el.sort.value);
 var PACKAGE_RE = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+){2,}$/i;
 async function runSearch() {
   const raw = el.q.value.trim();
+  const seq = ++searchSeq;
   if (!restoringRoute && (routeView() || "apps") === "apps") setRoute({ q: raw, app: null, tab: null });
   if (!raw) {
     listing = [];
     listingNote = "";
+    searching = false;
+    el.searchGo.disabled = false;
+    el.searchGo.textContent = "Search";
     renderAll();
     return;
   }
@@ -7598,25 +8023,28 @@ async function runSearch() {
   el.searchGo.textContent = "Searching\u2026";
   listingNote = "";
   renderAll();
+  let found;
+  let note2;
   try {
     const id = parseAppId(raw);
+    const hmdType = el.hmd.value;
     if (id) {
-      listing = [await lookupApp(id)];
-      listingNote = "fetched by ID";
+      found = [await lookupApp(id)];
+      note2 = "fetched by ID";
     } else if (PACKAGE_RE.test(raw)) {
-      listing = [await lookupByPackage(raw)];
-      listingNote = "resolved from package name";
+      found = [await lookupByPackage(raw)];
+      note2 = "resolved from package name";
     } else {
-      listing = await searchStore(raw, {
-        limit: pageSize(),
-        hmdType: el.hmd.value
-      });
-      listingNote = `store search on ${el.hmd.value}`;
+      found = await searchStore(raw, { limit: pageSize(), hmdType });
+      note2 = `store search on ${hmdType}`;
     }
   } catch (err2) {
-    listing = [];
-    listingNote = `search failed: ${err2.message}`;
+    found = [];
+    note2 = `search failed: ${err2.message}`;
   }
+  if (seq !== searchSeq) return;
+  listing = found;
+  listingNote = note2;
   searching = false;
   el.searchGo.disabled = false;
   el.searchGo.textContent = "Search";
@@ -7625,8 +8053,17 @@ async function runSearch() {
 var focusId = null;
 var focusScope = null;
 var openKey = (scope, app) => `${scope}:${keyOf(app)}`;
+function onHiddenScreen(node) {
+  var _a2;
+  return Boolean((_a2 = node.closest('section[id^="view-"]')) == null ? void 0 : _a2.hidden);
+}
 function buildRows(tbody, list, scope) {
   var _a2, _b2;
+  if (onHiddenScreen(tbody)) {
+    staleTables.add(tbody);
+    return;
+  }
+  staleTables.delete(tbody);
   const scrolled = /* @__PURE__ */ new Map();
   for (const d of tbody.querySelectorAll(":scope > tr.detail")) {
     const id = (_a2 = d.previousElementSibling) == null ? void 0 : _a2.dataset.id;
@@ -7663,8 +8100,13 @@ function saveScrolls(root) {
 function restoreScrolls(root, saved) {
   for (const [key, v] of scrollKeys(root)) if (saved.has(key)) v.scrollTop = saved.get(key);
 }
+function renderSoon() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderAll, 120);
+}
 function renderAll() {
   var _a2;
+  clearTimeout(renderTimer);
   ownedKeys = loadSettings().autoOwned && mineKind !== "expired" ? new Set(mineList.map(keyOf)) : /* @__PURE__ */ new Set();
   const list = visible();
   const idle = !searching && !el.q.value.trim() && !listingNote;
@@ -7696,6 +8138,23 @@ function renderAll() {
   const monthly = plusAll.filter((a) => a.plus === "monthly").length;
   const claimed = plusAll.filter((a) => a.claimed).length;
   el.plusCount.textContent = plusState.loading ? "Asking the store\u2026" : !plusAll.length ? "" : `${plusShown.length === plusAll.length ? plural(plusAll.length, "game") : `${plusShown.length} of ${plusAll.length} games`} \u2014 ${monthly} this month, ${plusAll.length - monthly} in the catalog; ${claimed} on this account.`;
+  const storeShown = storeVisible();
+  const storeAll = storeState.rows;
+  buildRows(el.storeRows, storeShown, "store");
+  el.storeEmpty.hidden = storeShown.length > 0 || storeState.loading;
+  el.storeEmpty.textContent = storeState.note ? storeState.note : !storeState.asked ? "Pick a headset and press Get store to list the sections its store shows." : storeAll.length ? "Nothing matches." : "This section has no apps in it \u2014 it may hold banners, worlds or videos only.";
+  el.storeEmpty.classList.toggle("warn", Boolean(storeState.note));
+  el.storeMoreBar.hidden = !storeState.cursor || !storeAll.length;
+  const section = storeState.section;
+  el.storeCount.textContent = storeState.loading ? "Asking the store\u2026" : !section || !storeAll.length ? storeState.front && !storeState.note ? `${plural(storeState.front.sections.length, "section")}${storeState.charts.length ? ` and ${plural(storeState.charts.length, "top chart")}` : ""} on this store.` : "" : `${section.name}: ${storeShown.length === storeAll.length ? plural(storeAll.length, "app") : `${storeShown.length} of ${storeAll.length} apps`}${storeState.cursor ? " so far" : ""}${section.layout ? ` \u2014 shown in the store as ${section.layout.toLowerCase()}` : ""}${section.ordered ? ", ranked" : ""}.`;
+  const wishShown = wishVisible();
+  const wishAll = wishState.rows;
+  buildRows(el.wishRows, wishShown, "wishlist");
+  el.wishEmpty.hidden = wishShown.length > 0 || wishState.loading;
+  el.wishEmpty.textContent = wishState.note ? wishState.note : !wishState.asked ? "Press Get wishlist to list what is on your wishlist." : wishAll.length ? "Nothing matches." : "Your wishlist is empty.";
+  el.wishEmpty.classList.toggle("warn", Boolean(wishState.note));
+  el.wishMoreBar.hidden = !wishState.cursor || !wishAll.length;
+  el.wishCount.textContent = wishState.loading ? "Asking the store\u2026" : !wishAll.length ? "" : `${wishShown.length === wishAll.length ? plural(wishAll.length, "app") : `${wishShown.length} of ${wishAll.length} apps`}${wishState.cursor ? " so far" : ""} on your wishlist.`;
   buildAdbRows();
   if (focusId) {
     (_a2 = (focusScope != null ? focusScope : el.rows).querySelector(`tr.app[data-id="${focusId}"]`)) == null ? void 0 : _a2.focus();
@@ -7728,7 +8187,7 @@ function appRow(app, scope) {
   tr.setAttribute("aria-expanded", String(open.has(key)));
   tr.innerHTML = `
     <td class="name">${showArt && app.image ? `<img class="art" src="${esc(app.image)}" alt="" loading="lazy">` : ""}${esc(app.name)}</td>
-    <td class="c-dev">${app.platform ? (_e = DEVICE[app.platform]) != null ? _e : app.platform : "\u2014"}</td>
+    <td class="c-dev">${esc((_e = deviceName(app.platform)) != null ? _e : "\u2014")}</td>
     <td class="chan c-chan">${esc(
     /* Nothing known until a check runs — the same dash every other unknown
        cell gets, rather than a label that reads as "never released" on apps
@@ -7825,7 +8284,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
            once the app has been checked. */
         ["Organization", store == null ? void 0 : store.orgId],
         ["Package", app.packageName],
-        ["Device", app.platform ? (_d = DEVICE[app.platform]) != null ? _d : app.platform : null],
+        ["Device", deviceName(app.platform)],
         ["Price", app.price]
       ]
     ],
@@ -7874,7 +8333,8 @@ function appPanel(app, { staged = false, scope = null } = {}) {
     ]
   ];
   const opts = loadSettings();
-  const storeLink = app.id && opts.store ? `<a href="https://www.meta.com/experiences/${app.id}/" target="_blank"
+  const storePath = app.platform === "PC" ? "pcvr/" : /3DOF|^ANDROID$/.test((_d = app.platform) != null ? _d : "") ? "go/" : "";
+  const storeLink = app.id && opts.store ? `<a href="https://www.meta.com/experiences/${storePath}${app.id}/" target="_blank"
            rel="noopener">Open in store</a>` : "";
   const actions = app.id ? `<button type="button" data-check="1">Check this app</button>${/* Binary info reads Android builds only; a Rift app has nothing to show. */
   opts.details && app.platform !== "PC" ? `<button type="button" data-info="1">Latest Binary Info</button>` : ""}${/* Shown on every free app that carries an offer. The store refuses a
@@ -7940,7 +8400,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   const pane = (name) => `data-pane="${name}"${tab === name ? "" : " hidden"}`;
   const tabButton = (name, label) => `<button type="button" class="companion-tab${tab === name ? " on" : ""}" data-panel-tab="${name}"
        role="tab" aria-selected="${tab === name}">${label}</button>`;
-  const actionsHidden = ["mine", "reviews", "addons", "achievements"].includes(tab);
+  const actionsHidden = ["mine", "reviews", "posts", "addons", "achievements"].includes(tab);
   const sharedActions = `<div data-app-actions${actionsHidden ? " hidden" : ""}>
          ${actions ? `<div class="actions">${actions}</div>` : ""}
          <div class="claim-out"></div>
@@ -7948,12 +8408,13 @@ function appPanel(app, { staged = false, scope = null } = {}) {
          <div class="info-out"></div>
        </div>`;
   const main = `<div class="companion-tabs panel-tabs" role="tablist" aria-label="${esc(app.name)}">
-         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${tabButton("reviews", "Reviews")}${tabButton("addons", "Add-ons")}${tabButton("achievements", "Achievements")}${tabButton("mine", "Entitlement")}
+         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${tabButton("reviews", "Reviews")}${tabButton("posts", "Posts")}${tabButton("addons", "Add-ons")}${tabButton("achievements", "Achievements")}${tabButton("mine", "Entitlement")}
        </div>
        ${sharedActions}
        <div ${pane("store")}>${storeFacts || "<p>Not checked yet \u2014 the listing arrives with Check this app.</p>"}</div>
        <div ${pane("builds")}>${channelBlock}${app.id && app.platform !== "PC" ? `<div class="relnotes"><div class="controls"><button type="button" data-relnotes-get>Release notes</button></div><div class="relnotes-out"></div></div>` : ""}<div class="versions-out"></div></div>
        <div ${pane("reviews")} class="reviews-pane">${reviewsPaneHtml(app)}</div>
+       <div ${pane("posts")} class="posts-pane">${postsPaneHtml(app)}</div>
        <div ${pane("addons")} class="addons-pane">${addonsPaneHtml(app)}</div>
        <div ${pane("achievements")} class="ach-pane">${achPaneHtml(app)}</div>
        <div ${pane("mine")}>${yourCopy(app)}</div>`;
@@ -7990,7 +8451,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
       for (const p of panel.querySelectorAll("[data-pane]")) p.hidden = p.dataset.pane !== name;
       panel.dataset.tab = name;
       const shared = panel.querySelector("[data-app-actions]");
-      if (shared) shared.hidden = ["mine", "reviews", "addons", "achievements"].includes(name);
+      if (shared) shared.hidden = ["mine", "reviews", "posts", "addons", "achievements"].includes(name);
       if (name === "mine") wantYourCopy();
     });
   }
@@ -8066,6 +8527,8 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   if (addonsPane) wireAddons(app, addonsPane);
   const achPane = panel.querySelector('[data-pane="achievements"]');
   if (achPane) wireAch(app, achPane);
+  const postsPane = panel.querySelector('[data-pane="posts"]');
+  if (postsPane) wirePosts(app, postsPane);
   const relnotesOut = panel.querySelector(".relnotes-out");
   if (relnotesOut) {
     (_p = panel.querySelector("[data-relnotes-get]")) == null ? void 0 : _p.addEventListener("click", (e) => {
@@ -8086,6 +8549,7 @@ async function loadRelNotes(app, out, button) {
   try {
     const map = await releaseNotes(app.id);
     relNotesCache.set(app.id, map);
+    if (redrawnMeanwhile(app, out)) return;
     drawRelNotes(out, map);
     button.hidden = true;
   } catch (err2) {
@@ -8221,6 +8685,7 @@ async function loadReviews(app, pane, { sort, more = false, button } = {}) {
       const page = await appReviews(app.id, { count: REVIEW_PAGE, sort });
       reviewCache.set(app.id, { summary, reviews: page.reviews, cursor: page.cursor, sort });
     }
+    if (redrawnMeanwhile(app, pane)) return;
     pane.innerHTML = renderReviews(reviewCache.get(app.id));
     wireReviews(app, pane);
   } catch (err2) {
@@ -8294,6 +8759,7 @@ async function loadAddons(app, pane, { more = false, button } = {}) {
       const page = await appAddons(app.id, {});
       addonsCache.set(app.id, { items: page.items, total: page.total, cursor: page.cursor });
     }
+    if (redrawnMeanwhile(app, pane)) return;
     pane.innerHTML = renderAddons(addonsCache.get(app.id));
     wireAddons(app, pane);
   } catch (err2) {
@@ -8349,6 +8815,7 @@ async function loadAch(app, pane, button) {
   try {
     const data = await appAchievements(app.id);
     achCache.set(app.id, data);
+    if (redrawnMeanwhile(app, pane)) return;
     pane.innerHTML = renderAch(data);
   } catch (err2) {
     if (button) {
@@ -8357,6 +8824,58 @@ async function loadAch(app, pane, button) {
     }
     paneError(pane, "ach-error", `Could not load achievements: ${err2.message}`);
   }
+}
+function postsPaneHtml(app) {
+  if (!app.id) return `<p>No store ID to read posts for.</p>`;
+  const c = postsCache.get(app.id);
+  if (c) return renderPosts(c);
+  return `<div class="controls"><button type="button" data-posts-get>Get posts</button></div>
+       <p class="hint">The developer's news and update posts on this app's store page. Needs your own access token.</p>`;
+}
+function renderPosts(posts) {
+  if (!posts.length) return `<p>The developer has no posts on this app's store page.</p>`;
+  const cards = posts.map((p) => {
+    var _a2;
+    const art = p.image ? `<img class="post-art" src="${esc(p.image)}" alt="" loading="lazy">` : "";
+    const meta = [p.author, p.time].filter(Boolean).map(esc).join(" \xB7 ");
+    return `<article class="post">
+          ${art}
+          <div class="post-body">
+            <div class="post-title">${esc((_a2 = p.title) != null ? _a2 : "Untitled post")}</div>
+            ${meta ? `<div class="post-meta">${meta}</div>` : ""}
+            ${p.body ? `<div class="post-text">${esc(p.body)}</div>` : ""}
+          </div>
+        </article>`;
+  }).join("");
+  return `<p class="count">${plural(posts.length, "post")}</p>
+     <div class="post-list">${cards}</div>`;
+}
+function wirePosts(app, pane) {
+  var _a2;
+  if (!app.id) return;
+  (_a2 = pane.querySelector("[data-posts-get]")) == null ? void 0 : _a2.addEventListener("click", (e) => {
+    e.stopPropagation();
+    loadPosts(app, pane, e.currentTarget);
+  });
+}
+async function loadPosts(app, pane, button) {
+  button.disabled = true;
+  button.textContent = "Loading posts\u2026";
+  try {
+    const posts = await appDevPosts(app.id, app.platform === "PC" ? "RIFT" : void 0);
+    postsCache.set(app.id, posts);
+    if (redrawnMeanwhile(app, pane)) return;
+    pane.innerHTML = renderPosts(posts);
+  } catch (err2) {
+    button.disabled = false;
+    button.textContent = "Get posts";
+    paneError(pane, "posts-error", `Could not load posts: ${err2.message}`);
+  }
+}
+function redrawnMeanwhile(app, pane) {
+  if (pane.isConnected) return false;
+  refreshRow(app);
+  return true;
 }
 function paneError(pane, cls, text) {
   let note2 = pane.querySelector("." + cls);
@@ -8390,6 +8909,7 @@ async function toggleAppInfo(app, out, button) {
   try {
     const info = await appDetails(app.id);
     infoCache.set(app.id, info);
+    if (redrawnMeanwhile(app, out)) return;
     drawAppInfo(out, info);
   } catch (err2) {
     out.innerHTML = `<p class="warn">Could not fetch: ${esc(err2.message)}</p>`;
@@ -8791,11 +9311,15 @@ async function resolveId(app, out, button) {
   out.innerHTML = `<p>Asking the store for ${esc(app.packageName)}\u2026</p>`;
   try {
     const found = await lookupByPackage(app.packageName);
+    const before = [...open].filter((k) => k.endsWith(`:${keyOf(app)}`));
+    const tabs = before.map((k) => layoutState.panelTabs.get(k));
     Object.assign(app, found);
-    out.innerHTML = `
-      <p>Found <strong>${esc(found.id)}</strong>. Add it to
-      <code>data/meta-apps.json</code> so it sticks:</p>
-      <pre>${esc(JSON.stringify(app, null, 2))}</pre>`;
+    before.forEach((k, i) => {
+      const moved = `${k.slice(0, k.lastIndexOf(":"))}:${keyOf(app)}`;
+      open.delete(k);
+      open.add(moved);
+      if (tabs[i]) layoutState.panelTabs.set(moved, tabs[i]);
+    });
     renderAll();
   } catch (err2) {
     out.innerHTML = `<p class="warn">Could not resolve: ${esc(err2.message)}</p>`;
@@ -8813,7 +9337,7 @@ function note(found) {
 function refreshRow(app) {
   for (const tr of document.querySelectorAll(`tr.app[data-id="${keyOf(app)}"]`)) {
     const tbody = tr.closest("tbody");
-    const scope = tbody === el.adbRows ? "adb" : tbody === el.mineRows ? "mine" : tbody === el.orgRows ? "orgs" : tbody === el.defaultRows ? "default" : tbody === el.plusRows ? "plus" : "main";
+    const scope = tbody === el.adbRows ? "adb" : tbody === el.mineRows ? "mine" : tbody === el.orgRows ? "orgs" : tbody === el.defaultRows ? "default" : tbody === el.plusRows ? "plus" : tbody === el.storeRows ? "store" : tbody === el.wishRows ? "wishlist" : "main";
     const next = tr.nextElementSibling;
     tr.replaceWith(scope === "adb" ? adbRow(app) : appRow(app, scope));
     if (next == null ? void 0 : next.classList.contains("detail")) {
@@ -8895,31 +9419,36 @@ async function findObbs(channels = []) {
   }
 }
 async function checkList(list, button, label) {
-  if (!list.length) return;
+  if (!list.length || button.disabled) return;
+  button.disabled = true;
   el.checkAll.disabled = true;
   el.checkOrg.disabled = true;
-  const checkable = [];
-  for (const app of list) {
-    if (app.id) checkable.push(app);
-    else await checkOne(app);
-  }
-  const CONCURRENCY = 6;
-  let cursor = 0;
-  let done = 0;
-  async function worker() {
-    while (cursor < checkable.length) {
-      const app = checkable[cursor++];
-      await checkOne(app);
-      done += 1;
-      button.textContent = `Checking ${done} of ${checkable.length}\u2026`;
+  try {
+    const checkable = [];
+    for (const app of list) {
+      if (app.id) checkable.push(app);
+      else await checkOne(app);
     }
+    const CONCURRENCY = 6;
+    let cursor = 0;
+    let done = 0;
+    async function worker() {
+      while (cursor < checkable.length) {
+        const app = checkable[cursor++];
+        await checkOne(app);
+        done += 1;
+        button.textContent = `Checking ${done} of ${checkable.length}\u2026`;
+      }
+    }
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, checkable.length) }, worker)
+    );
+  } finally {
+    button.textContent = label;
+    button.disabled = false;
+    el.checkAll.disabled = false;
+    el.checkOrg.disabled = false;
   }
-  await Promise.all(
-    Array.from({ length: Math.min(CONCURRENCY, checkable.length) }, worker)
-  );
-  button.textContent = label;
-  el.checkAll.disabled = false;
-  el.checkOrg.disabled = false;
 }
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -9137,19 +9666,27 @@ async function ownedHeadsets() {
   if (devicesNote) throw new Error(devicesNote);
   return deviceList.filter((d) => d.ownership !== "shared" && d.serial);
 }
+function library() {
+  return libraryToken === loadSettings().token ? libraryNames : null;
+}
 function appNames() {
   var _a2;
-  if (libraryNames) return Promise.resolve(libraryNames);
+  if (library()) return Promise.resolve(libraryNames);
   (_a2 = layoutState.names) != null ? _a2 : layoutState.names = (async () => {
+    const { token } = loadSettings();
     let list = mineKind === "quest" && mineList.length ? mineList : null;
+    let error = "";
     if (!list) {
       try {
         list = await myEntitlements("quest");
-      } catch {
+      } catch (err2) {
         list = [];
+        error = err2.message;
       }
     }
     libraryNames = new Map(list.map((a) => [a.id, a]));
+    libraryToken = token;
+    libraryError = error;
     layoutState.names = null;
     return libraryNames;
   })();
@@ -9382,6 +9919,7 @@ async function browseMore(state, button = el.worldMore) {
   if (!state || state.loading || !state.fetchPage) return;
   const label = button.textContent;
   state.loading = true;
+  state.note = "";
   button.disabled = true;
   button.textContent = "Loading\u2026";
   renderWorlds();
@@ -9474,7 +10012,7 @@ function renderWorlds() {
   el.worldRows.innerHTML = rows.map(
     (w) => `<tr class="app" tabindex="0" data-world="${esc(w.id)}" aria-expanded="${worldOpen.has(w.id)}">
       <td class="name">${art && w.image ? `<img class="art" src="${esc(w.image)}" alt="" loading="lazy">` : ""}${esc(w.name)}</td>
-      <td class="num">${esc(w.id)}</td>
+      <td class="num c-wid">${esc(w.id)}</td>
       <td class="num">${bigNumber(w.visits)}</td>
       <td class="num">${bigNumber(w.online)}</td>
       <td class="num">${bigNumber(w.likes)}</td>
@@ -9510,8 +10048,9 @@ function initSearchBar() {
 }
 function yourCopy(app) {
   if (!app.id) return "<p>No store ID, so nothing on the account can be matched to it.</p>";
-  const own = libraryNames == null ? void 0 : libraryNames.get(app.id);
-  const ownLine = !libraryNames ? "<p>Asking the store what this account owns\u2026</p>" : own ? `<p class="hint">In your Quest library \u2014 ${esc(own.state ? words2(own.state) : "owned")}, from ${esc(
+  const names = library();
+  const own = names == null ? void 0 : names.get(app.id);
+  const ownLine = !names ? "<p>Asking the store what this account owns\u2026</p>" : libraryError ? `<p class="warn">Could not read your Quest library: ${esc(libraryError)}</p>` : own ? `<p class="hint">In your Quest library \u2014 ${esc(own.state ? words2(own.state) : "owned")}, from ${esc(
     grantLabel(own.grant)
   )}${own.lastUsed ? `, last played ${esc(isoDay(own.lastUsed))}` : ""}.</p>` : `<p class="hint">Not in your Quest library.</p>`;
   return `<h3>Ownership</h3>${ownLine}${channelSection(app)}${app.platform === "PC" ? "" : dlcTable(app)}${accountSections(app, "play", { load: true })}${accountSections(app, "backup", { load: true })}`;
@@ -9549,7 +10088,7 @@ function channelSection(app) {
   return `<h3>Release channels</h3>${body}`;
 }
 function wantYourCopy() {
-  if (!libraryNames) appNames().then(() => renderAccountTabs());
+  if (!library()) appNames().then(() => renderAccountTabs());
 }
 function loadForApp(app, what) {
   if (what === "dlc") return loadIaps();
@@ -9579,6 +10118,7 @@ async function loadWorld(id) {
   const world = anyWorld(id);
   if (!world) return;
   worldInfo.set(id, { loading: true, data: null, note: "" });
+  renderWorlds();
   try {
     worldInfo.set(id, { loading: false, data: await worldDetails(world), note: "" });
   } catch (err2) {
@@ -9591,6 +10131,7 @@ async function loadWorld(id) {
 async function loadWorldFlags(id) {
   if (worldFlagInfo.has(id)) return;
   worldFlagInfo.set(id, "loading");
+  renderWorlds();
   try {
     worldFlagInfo.set(id, await worldFlags(id));
   } catch {

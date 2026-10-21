@@ -82,7 +82,18 @@ export async function onRequest({ request, env }) {
       upstream = null;
     }
   }
-  if (!upstream) upstream = await fetch(target, init);
+  if (!upstream) {
+    /* Unreachable upstream: answer with a marked 502 rather than letting the
+       throw become Cloudflare's own HTML error page. */
+    try {
+      upstream = await fetch(target, init);
+    } catch (err) {
+      return new Response(JSON.stringify({ error: { message: String(err?.message ?? err) } }), {
+        status: 502,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-MetaDB-Relay": route },
+      });
+    }
+  }
 
   const headers = new Headers({
     /* Same origin as the page, so this is belt and braces. */

@@ -146,13 +146,32 @@ async function info(serial) {
 
 /* ---------- the server ---------- */
 
+/* Only the site itself (and a local copy of it) may drive the headset. With "*"
+   any page open in the browser could POST /install or /push here — a plain form
+   POST needs no preflight — so the Origin is checked on every request, not just
+   reflected in the CORS headers. Requests with no Origin (curl, the shell) are
+   not from a web page and pass. More origins: METADB_ORIGINS="https://a,https://b". */
+const ORIGINS = new Set([
+  "https://metadb.toastconcern.dev",
+  "https://toastconcern.github.io",
+  ...(process.env.METADB_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean),
+]);
+const LOCAL_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+const allowedOrigin = (origin) => !origin || ORIGINS.has(origin) || LOCAL_ORIGIN.test(origin);
+
+const cors = (req) => ({
+  "Access-Control-Allow-Origin": req.headers.origin || "*",
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+  "Access-Control-Allow-Private-Network": "true",
+  Vary: "Origin",
+});
+
 const send = (res, status, body) => {
   const text = JSON.stringify(body);
   res.writeHead(status, {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "*",
-    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    ...cors(res.req),
     "Cache-Control": "no-store",
   });
   res.end(text);
@@ -178,12 +197,12 @@ const body = (req) =>
 
 http
   .createServer(async (req, res) => {
+    if (!allowedOrigin(req.headers.origin)) {
+      res.writeHead(403, { "Content-Type": "text/plain" });
+      return res.end("origin not allowed");
+    }
     if (req.method === "OPTIONS") {
-      res.writeHead(204, {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "*",
-        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
-      });
+      res.writeHead(204, cors(req));
       return res.end();
     }
 

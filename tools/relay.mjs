@@ -23,6 +23,7 @@
 
 import http from "node:http";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { readFileSync } from "node:fs";
 
 const PORT = Number(process.env.PORT) || 8788;
@@ -125,8 +126,14 @@ http
 
       /* Streamed rather than buffered: an APK is measured in gigabytes, and
          reading one as text would corrupt it on the way through. */
-      if (upstream.body) Readable.fromWeb(upstream.body).pipe(res);
-      else res.end();
+      /* pipeline, not pipe: a connection dropped mid-download on either side
+         destroys both streams instead of crashing the relay with an unhandled
+         'error' or leaving the upstream transfer running. */
+      if (upstream.body) {
+        pipeline(Readable.fromWeb(upstream.body), res).catch((err) => {
+          console.error("stream ended early:", err.message);
+        });
+      } else res.end();
     } catch (err) {
       console.error("failed:", err.message);
       res.writeHead(502, { "Content-Type": "application/json" });

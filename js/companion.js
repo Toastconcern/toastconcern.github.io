@@ -25,7 +25,7 @@
  * MetaDB is not affiliated with Meta.
  */
 
-import { deviceSecrets, loadSecrets, saveSecrets, clearSecrets } from "./check.js?v=247";
+import { deviceSecrets, loadSecrets, saveSecrets, clearSecrets } from "./check.js?v=248";
 
 /* ---------- constants ---------- */
 
@@ -40,7 +40,7 @@ const HELLO_APP_VERSION = "5.8.0";
    CompanionServer versionCode 29 (Quest OS v50). The wire format is identical —
    v50 just supports fewer methods, so it gets a proto with the newer methods
    trimmed out, which is what narrows its command list. */
-const PROTO_VERSION = "247";
+const PROTO_VERSION = "248";
 const PROTO_FILES = {
   latest: "../data/companion.proto",
   v50: "../data/companion-v50.proto",
@@ -1141,14 +1141,18 @@ class CompanionClient {
       await this.cmdChar.writeValueWithResponse(c);
     }
 
-    const raw = await this.#poll(METHOD_TIMEOUT[methodName] || REQUEST_TIMEOUT);
-    let plain = raw;
-    if (encrypted) plain = this.session.box.decrypt(raw);
-
-    const resp = deps.Response.decode(plain);
-    if (resp.seq !== seq) {
-      // A stale response — ignore and treat as an error rather than mixing wires.
-      throw new Error(`out-of-order reply (wanted ${seq}, got ${resp.seq})`);
+    /* A reply to an earlier request that timed out can still be queued ahead of
+       this one. Skip it rather than failing — failing would leave every later
+       request reading the reply before its own. A reply from the future is wrong. */
+    const deadline = Date.now() + (METHOD_TIMEOUT[methodName] || REQUEST_TIMEOUT);
+    let resp;
+    for (;;) {
+      const raw = await this.#poll(Math.max(0, deadline - Date.now()));
+      const plain = encrypted ? this.session.box.decrypt(raw) : raw;
+      resp = deps.Response.decode(plain);
+      if (resp.seq === seq) break;
+      if (resp.seq > seq) throw new Error(`out-of-order reply (wanted ${seq}, got ${resp.seq})`);
+      this.#log({ dir: "recv", method: methodName, seq: resp.seq, encrypted, stale: true });
     }
     const code = typeof resp.code === "number" ? resp.code : 0;
     this.#log({ dir: "recv", method: methodName, seq, encrypted, code, codeName: nameOf(deps.ResponseCode, code) });
@@ -1227,9 +1231,6 @@ function bytesOf(v) {
 function nameOf(enumType, value) {
   for (const [k, v] of Object.entries(enumType.values)) if (v === value) return k;
   return String(value);
-}
-function esc(s) {
-  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
 /* Turn a value from the account query into a 64-hex device secret, or null.
@@ -1335,7 +1336,7 @@ export async function initCompanion(section) {
     if (found.length === 1) {
       el.secret.value = found[0].hex;
       el.secretPick.hidden = true;
-      const who = esc(found[0].label || "your headset");
+      const who = found[0].label || "your headset";
       setState(
         remembered
           ? `Not connected — using the secret remembered for ${who}.`
@@ -1451,7 +1452,8 @@ export async function initCompanion(section) {
     // and we're not already authenticated.
     el.auth.hidden = !(ready && client.authRequired && info && /status only|failed/.test(info));
 
-    const name = client.deviceName ? ` · ${esc(client.deviceName)}` : "";
+    /* setState writes textContent, so these stay unescaped. */
+    const name = client.deviceName ? ` · ${client.deviceName}` : "";
     const label =
       s === State.CONNECTING
         ? "Connecting…"
@@ -1460,8 +1462,8 @@ export async function initCompanion(section) {
         : s === State.AUTHENTICATING
         ? "Authenticating…"
         : ready
-        ? `Connected${name}${info ? " — " + esc(info) : ""}`
-        : `Not connected${info ? " — " + esc(info) : ""}`;
+        ? `Connected${name}${info ? " — " + info : ""}`
+        : `Not connected${info ? " — " + info : ""}`;
     setState(label, ready ? "ok" : connected ? "" : "");
     if (ready && !el.panels.dataset.built) buildPanels();
   };
@@ -1594,7 +1596,9 @@ export async function initCompanion(section) {
   }
 
   function renderCommand(cmd, patches, primary) {
-    const patch = patches[cmd.methodName];
+    /* A fixed-payload command (Stop mirroring, Enable/Disable) shares its method
+       with the editable one, but not its title, button or form. */
+    const patch = cmd.fixed ? null : patches[cmd.methodName];
     const params = patch && patch.params ? patch.params : cmd.params;
     const title = (patch && patch.title) || cmd.title;
     const btnLabel = (patch && patch.buttonLabel) || cmd.buttonLabel || "Run";

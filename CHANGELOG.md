@@ -15,6 +15,73 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=248 — 2026-10-20
+
+- New **Store front** screen (Apps menu): the store as the Horizon phone app shows it. Pick a
+  headset and press Get store for the sections the store picks for it, in its own order, with
+  how the store draws each one (shelf, top chart, spotlight, sale card…). Pick a section to
+  list its apps as ordinary rows: open, check and filter them like any other list, and Load
+  more for the rest. Stores with more than one tab (Games, Apps…) get a tab picker.
+- **Top charts** on the Store front: Get store also lists the headset's top charts, under
+  their own heading in the section picker. Each lists its apps ranked, like a section.
+- New **Wishlist** screen (User menu): the apps and games on your Meta wishlist, with the
+  store's price for each, as ordinary rows. Needs your own token.
+- New **Posts** tab on an opened app: the developer's news and update posts from the app's
+  store page, with their picture and date. Fetched by its own Get posts button.
+- **Rift S** (`LAGUNA`) joins the headset picker. It is one of the headset types the phone
+  app asks the store about, and it has its own PC store.
+- **Open in store** goes to the right meta.com page for Rift and Go apps (`pcvr/` and `go/`),
+  instead of the Quest page, which never loads for them.
+- Replies that send a list in instalments (a streamed list) are put back together in full;
+  before, only the first instalment was kept.
+- A search answered after a newer one (the box cleared, the headset changed) no longer
+  replaces the newer results, and a link to a search or an app asks the store once, not twice.
+- Typing in a filter box redraws only the list on show, once typing pauses, instead of
+  every list on every screen at each key — the big win with a large library loaded.
+- Reviews, add-ons, achievements, posts, release notes and Latest Binary Info no longer
+  vanish when the row redraws while they load (a check finishing, say).
+- The Entitlement tab forgets the old account's library on sign-out or a new token, and
+  says when the library could not be read instead of "Not in your Quest library".
+- Achievements use the signed-in account's ID after a token change, not the previous one's.
+- Picking another Store front section while Load more runs no longer leaves it empty.
+- Check shown on Organizations and Default apps checks only the apps on show, and a
+  second press while it runs is ignored.
+- The page no longer scrolls under an app reopened during the closing animation.
+- A second confirm box no longer silently drops the first one's action.
+- Find store ID keeps the app open, and no longer points at a file the site does not have.
+- Worlds: Get details shows that it is loading, and a cleared Load more error goes away.
+- Test channel messages mask the serial like the Headsets table does.
+- CompanionServer: Stop mirroring is labelled as such, a late reply no longer knocks every
+  later command out of step, names with `&` show as typed, the tab strip hides when
+  disconnected, and an engine too old for the screen says so.
+- The store's own "not found" is no longer taken for a missing built-in relay, a stalled
+  request gives up after 90 seconds, and the built-in relay answers a failed upstream with
+  an error rather than Cloudflare's page.
+- `tools/adb-bridge.mjs` only answers this site and localhost (more with `METADB_ORIGINS`):
+  before, any web page could install or push files to a connected headset.
+- `tools/relay.mjs` survives a download dropped mid-transfer; `tools/serve.mjs` no longer
+  serves folders beside the repo.
+- A favicon (the browser asked for `/favicon.ico` and got the whole page), and check.js is
+  fetched alongside app.js instead of after it.
+- A lighter look: the MetaDB icon beside the name, larger screen headings and small-caps
+  column heads. The button that starts each screen (Search, Get store, Get devices…) is
+  filled blue, so it is the first thing you find. On a phone, tab strips (an opened app's,
+  Worlds') sit on one row that scrolls sideways instead of wrapping — an app's seven tabs
+  used to take three rows and run under the Expand button.
+- Every screen fits the window, checked against a real account at 360–1920px wide. The
+  library no longer runs 140–320px past the edge: long build names are cut shorter (the
+  full name is in the tooltip and on Builds), a platform with no short name shows in words
+  ("Horizon unity world") instead of an unbreakable code, and below a wide desktop it drops
+  the store's build number and date. Between phone and desktop the store lists drop the
+  device and dev-build columns. On a phone, Headsets and Purchases show each entry as a
+  small card, Worlds hides the world ID, ADB the build numbers, and column heads may wrap.
+
+## Extension 1.3 — 2026-10-20
+
+- App pages that meta.com says are not available (Horizon Worlds, Meta Quest TV and others) now show the app, in the same layout as every other app page on meta.com.
+- The app is read the way the Meta Horizon phone app reads it, from the store itself. You need to be logged in to Meta.
+- Pages that load normally are left alone, and nothing is asked of the store for them.
+
 ## Site v=247 — 2026-10-14
 
 - Settings → Sign in with Meta turns into **Sign out** once you are signed in, with a line

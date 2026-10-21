@@ -1485,6 +1485,7 @@ details.hint > p {
   margin: .25rem 0 1rem;
   border-bottom: 1px solid var(--line);
 }
+.companion-tabs[hidden] { display: none; }
 .companion-tab {
   border: 1px solid transparent;
   border-bottom: none;
@@ -2013,6 +2014,35 @@ tr.build-detail .panel { font-family: var(--sans, inherit); }
 .ach-desc { color: var(--muted); font-size: .85rem; margin-top: .15rem; }
 .ach-prog { color: var(--muted); font-size: .78rem; margin-top: .25rem; }
 
+/* ---------- developer posts tab ---------- */
+.post-list { display: grid; gap: .6rem; margin-top: .25rem; }
+.post {
+  display: flex;
+  gap: .7rem;
+  align-items: flex-start;
+  padding: .6rem;
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: var(--field);
+}
+.post-art {
+  width: 128px;
+  aspect-ratio: 16 / 9;
+  border-radius: .35rem;
+  object-fit: cover;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  flex: none;
+}
+.post-body { min-width: 0; }
+.post-title { font-weight: 600; }
+.post-meta { color: var(--muted); font-size: .78rem; margin-top: .15rem; }
+.post-text { color: var(--muted); font-size: .85rem; margin-top: .3rem; white-space: pre-line; overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .post { flex-direction: column; }
+  .post-art { width: 100%; }
+}
+
 /* ---------- release notes (Builds tab) ---------- */
 .relnotes { margin: .75rem 0; }
 .relnote-list { display: grid; gap: .75rem; }
@@ -2246,4 +2276,179 @@ tr.build-detail .panel { font-family: var(--sans, inherit); }
   border: 1px solid var(--line);
   border-radius: 6px;
   overflow-x: auto;
+}
+
+/* ---------- finish ----------
+   A light pass over the whole page, kept in one place: the icon beside the
+   name, a step up for screen headings, and column heads set like the group
+   labels elsewhere. Colours stay the theme's own. */
+
+button:hover:not(:disabled) { border-color: var(--muted); }
+input:focus, select:focus { border-color: var(--link); }
+@media (prefers-reduced-motion: no-preference) {
+  input, select, button, .gh { transition: background-color .12s, border-color .12s, color .12s; }
+}
+
+.bar > h1 {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  white-space: nowrap;
+}
+.bar > h1::before {
+  content: "";
+  width: 1.4rem;
+  height: 1.4rem;
+  flex: none;
+  border-radius: 5px;
+  background: url("../extension/icon128.png") center / contain no-repeat;
+  /* The icon is near-black; the ring keeps its edge on the dark themes. */
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.wrap > section > h2 { font-size: 1.25rem; letter-spacing: -.01em; }
+
+th {
+  font-size: .75rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+/* The one button that starts each screen (Search, Get store, Get devices…) is
+   filled with the theme's button blue, the same fill as Download, so the eye
+   finds it first among the pickers and secondary buttons beside it. Busy, it
+   dims in place rather than turning into a grey button. */
+button.primary {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+  font-weight: 600;
+}
+button.primary:hover:not(:disabled) { background: var(--blue-hi); border-color: var(--blue-hi); }
+button.primary:disabled { color: #fff; opacity: .6; }
+
+/* The corner controls float over the page, so they get a little lift off it. */
+.limitbar:not([hidden]), .gh { box-shadow: 0 2px 10px rgba(0, 0, 0, .12); }
+
+/* On a phone an app's seven tabs wrapped onto three rows, under the Expand
+   button, and the Worlds tabs left one alone on a second row. They stay on one
+   row and scroll sideways instead, fading at the edge to say there is more. The
+   strip's rule moves from a border to an inset shadow, which the open tab's fill
+   covers without the -1px overlap a scrolling box would clip. */
+@media (max-width: 640px) {
+  .panel-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Fill the space without asking for room: inside a table cell, the strip's
+       full width would otherwise stretch the whole table past the screen. */
+    width: 0;
+    min-width: 100%;
+    box-sizing: border-box;
+    border-bottom: 0;
+    box-shadow: inset 0 -1px var(--line);
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+  }
+  .panel-tabs::-webkit-scrollbar { display: none; }
+  .panel-tabs > .companion-tab { flex: none; margin-bottom: 0; }
+  /* An app's strip ends short of the Expand button in the panel's corner. */
+  .panel .panel-tabs {
+    padding-right: 5.5rem;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 8rem), transparent calc(100% - 5.5rem));
+    mask-image: linear-gradient(to right, #000 calc(100% - 8rem), transparent calc(100% - 5.5rem));
+  }
+}
+
+/* ---------- fitting a phone ----------
+   Every screen measured at 320–1280px wide; these are the tables that still ran
+   past the right edge. */
+
+/* Worlds: the ID is in the opened row as well, so it is the column to go. The
+   ADB table's two build numbers carry the shared .c-build, hidden at 720px. */
+@media (max-width: 640px) {
+  .c-wid { display: none; }
+}
+
+/* Headsets: four fixed columns (Serial 14rem, Status 13rem, PTC 11rem) cannot
+   fit a phone at any squeeze. Each headset becomes a small card instead — the
+   model across the top, serial and status under it, its test-channel switch
+   last — and the column heads, which no longer head anything, step aside. */
+@media (max-width: 640px) {
+  #view-devices table { table-layout: auto; }
+  #view-devices thead { display: none; }
+  #view-devices tbody tr {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: .25rem .9rem;
+    padding: .7rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  #view-devices td:nth-child(n) {
+    display: block;
+    width: auto;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+  #view-devices td.name { grid-column: 1 / -1; font-weight: 600; }
+  #view-devices td:nth-child(3) { color: var(--muted); }
+  #view-devices td.ptc-cell { grid-column: 1 / -1; }
+  #view-devices td.ptc-cell:empty { display: none; }
+}
+
+/* Between a phone and a desktop the store lists ran 45px wide, and the library,
+   with its eleven columns, 225px. The columns a phone already drops first —
+   device type, dev build, and the library's state and source — go here too. */
+@media (max-width: 960px) {
+  .c-dev, .c-devb, .c-state, .c-grant { display: none; }
+}
+
+/* Purchases: five columns on a phone, three of them unbreakable (amount, date,
+   masked card). Each order becomes a card — the item across the top, what was
+   paid, when, its status and how it was paid in a row under it. */
+@media (max-width: 600px) {
+  #view-purchases thead { display: none; }
+  #view-purchases tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .2rem .9rem;
+    padding: .65rem 0;
+    border-bottom: 1px solid var(--line);
+  }
+  #view-purchases tbody td { display: block; padding: 0; border: 0; }
+  #view-purchases tbody td.name { flex-basis: 100%; }
+}
+
+/* The smallest phones: a little less air either side of each cell. */
+@media (max-width: 400px) {
+  th, td { padding-left: .45rem; padding-right: .45rem; }
+}
+
+/* Measured against a real 147-app library, the version column was the widest
+   thing on the page: some builds are named like files
+   (OSE-JAPAN-20200911_09rcx.gltf.ovrscene_system_environment_ja). The cut-off
+   is tightened at every width; the full name is still in the cell's title and in
+   the opened app's build history. */
+.clip { max-width: 10rem; }
+@media (min-width: 1280px) { .clip { max-width: 12rem; } }
+@media (min-width: 1760px) { .clip { max-width: 18rem; } }
+@media (max-width: 720px)  { .clip { max-width: 7rem; } }
+@media (max-width: 520px)  { .clip { max-width: 5.5rem; } }
+
+/* The library carries four columns of its own (last played, state, source,
+   DLC), so below a wide desktop it gives up the store's build number and
+   release date — both still on the opened app's Builds tab. */
+@media (max-width: 1100px) {
+  #view-mine .c-build, #view-mine .c-date { display: none; }
+}
+
+/* On a phone the column heads may wrap: set in capitals they were wider than
+   anything under them ("ONLINE NOW" over a two-digit count), and long names
+   break rather than push the row out. */
+@media (max-width: 520px) {
+  th { white-space: normal; }
+  td.name { overflow-wrap: anywhere; }
 }

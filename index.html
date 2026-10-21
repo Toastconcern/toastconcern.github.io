@@ -19,6 +19,8 @@
 <meta property="og:url" content="https://metadb.toastconcern.dev/">
 <meta name="twitter:card" content="summary">
 <meta name="theme-color" content="#2f6fe0">
+<!-- Without one the browser asks for /favicon.ico, which the host answers with this whole page. -->
+<link rel="icon" type="image/png" href="extension/icon128.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -81,7 +83,7 @@
     });
   })();
 </script>
-<link rel="stylesheet" href="css/style.css?v=247">
+<link rel="stylesheet" href="css/style.css?v=248">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -126,6 +128,7 @@
         <button class="navtop" type="button" aria-expanded="false">Apps</button>
         <div class="navmenu" hidden>
           <a href="/apps" data-view="apps">Apps and games</a>
+          <a href="/store" data-view="store">Store front</a>
           <a href="/default" data-view="default">Default apps</a>
           <a href="/plus" data-view="plus">Horizon+</a>
           <a href="/worlds" data-view="worlds">Worlds</a>
@@ -138,6 +141,7 @@
           <a href="/devices" data-view="devices">Headsets</a>
           <a href="/mine" data-view="mine">Entitlements</a>
           <a href="/purchases" data-view="purchases">Purchases</a>
+          <a href="/wishlist" data-view="wishlist">Wishlist</a>
           <a href="/avatar" data-view="avatar">Avatar</a>
         </div>
       </div>
@@ -184,7 +188,7 @@
         <option value="priceUp">Price low to high</option>
         <option value="priceDown">Price high to low</option>
       </select>
-      <button id="searchGo" type="button">Search</button>
+      <button id="searchGo" class="primary" type="button">Search</button>
       <button id="checkAll" type="button">Check shown</button>
     </div>
 
@@ -224,7 +228,7 @@
     <p class="sub">Everything on your account, from the same library queries a headset and the desktop app run. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
-      <button type="button" data-lib="quest">Get Quest entitlements</button>
+      <button type="button" class="primary" data-lib="quest">Get Quest entitlements</button>
       <button type="button" data-lib="pc">Get PC entitlements</button>
       <button type="button" data-lib="expired">Get expired entitlements</button>
       <input id="mineQ" type="search" placeholder="Filter what you own by name, package or app ID" aria-label="Filter your entitlements" autocomplete="off" spellcheck="false">
@@ -276,7 +280,7 @@
     <p class="sub" id="purchasesSub">Everything this account has bought — apps, DLC and in-app purchases — with what was paid, when, and how. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
-      <button id="purchasesLoad" type="button">Get purchases</button>
+      <button id="purchasesLoad" class="primary" type="button">Get purchases</button>
       <input id="purchasesQ" type="search" placeholder="Filter by name" aria-label="Filter your purchases" autocomplete="off" spellcheck="false">
       <button id="purchasesShowPay" type="button">Show payment</button>
     </div>
@@ -304,6 +308,52 @@
 
   </section>
 
+  <!-- ---------- wishlist ---------- -->
+
+  <section id="view-wishlist" hidden>
+
+    <h2>Wishlist</h2>
+    <p class="sub">The apps and games on your Meta wishlist, as the Horizon phone app lists them, with the store's price for each. Open one for its channels and build history. Needs your own access token, set in Settings.</p>
+
+    <div class="controls">
+      <button id="wishGo" class="primary" type="button">Get wishlist</button>
+      <input id="wishQ" type="search" placeholder="Filter your wishlist by name or app ID" aria-label="Filter wishlist" autocomplete="off" spellcheck="false">
+      <select id="wishSort" aria-label="Sort by">
+        <option value="relevance">Wishlist order</option>
+        <option value="az">Name A–Z</option>
+        <option value="za">Name Z–A</option>
+        <option value="priceUp">Price, low to high</option>
+        <option value="priceDown">Price, high to low</option>
+      </select>
+      <button id="checkWish" type="button">Check shown</button>
+    </div>
+
+    <p class="count" id="wishCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">App</th>
+          <th scope="col" class="c-dev">Device</th>
+          <th scope="col" class="c-chan">Channel</th>
+          <th scope="col" class="c-price">Price</th>
+          <th scope="col" class="c-ver">Version</th>
+          <th scope="col" class="c-build">Build</th>
+          <th scope="col" class="c-date">Date</th>
+          <th scope="col" class="c-devb">Dev build</th>
+        </tr>
+      </thead>
+      <tbody id="wishRows"></tbody>
+    </table>
+
+    <p id="wishEmpty" class="empty" hidden></p>
+
+    <div class="controls morebar" id="wishMoreBar" hidden>
+      <button id="wishMore" type="button">Load more</button>
+    </div>
+
+  </section>
+
   <!-- ---------- your avatar ---------- -->
 
   <section id="view-avatar" hidden>
@@ -312,7 +362,7 @@
     <p class="sub">This account's avatar as the Horizon Worlds desktop editor reads it: which style it is on, whether it has to move, and every saved setting — the item chosen for each part and where each slider sits. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
-      <button id="avatarLoad" type="button">Get avatar</button>
+      <button id="avatarLoad" class="primary" type="button">Get avatar</button>
       <input id="avatarQ" type="search" placeholder="Filter settings by name" aria-label="Filter avatar settings" autocomplete="off" spellcheck="false">
     </div>
 
@@ -342,7 +392,7 @@
     <p class="sub" id="devicesSub">Headsets registered to this account. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
-      <button id="devicesLoad" type="button">Get devices</button>
+      <button id="devicesLoad" class="primary" type="button">Get devices</button>
       <input id="devicesQ" type="search" placeholder="Filter by model or serial" aria-label="Filter your devices" autocomplete="off" spellcheck="false">
       <select id="devicesSort" aria-label="Sort by">
         <option value="modelAz">Device type A–Z</option>
@@ -406,7 +456,7 @@
     <div data-world-pane="top">
       <div class="controls">
         <select id="worldShelf" aria-label="World list"></select>
-        <button id="worldShelfGo" type="button">Get worlds</button>
+        <button id="worldShelfGo" class="primary" type="button">Get worlds</button>
       </div>
     </div>
 
@@ -415,7 +465,7 @@
         <input id="creatorQ" type="search" placeholder="Creator's username or name" aria-label="Creator to find" autocomplete="off" spellcheck="false">
         <button id="creatorFind" type="button">Find creator</button>
         <select id="creatorPick" aria-label="Which creator" hidden></select>
-        <button id="creatorGo" type="button" hidden>Get their worlds</button>
+        <button id="creatorGo" class="primary" type="button" hidden>Get their worlds</button>
       </div>
       <p class="hint" id="creatorNote" role="status" hidden></p>
     </div>
@@ -423,7 +473,7 @@
     <div data-world-pane="lookup" hidden>
       <div class="controls">
         <input id="worldLookup" type="search" placeholder="World ID or horizon.meta.com world link" aria-label="World to look up" autocomplete="off" spellcheck="false">
-        <button id="worldLookupGo" type="button">Look up world</button>
+        <button id="worldLookupGo" class="primary" type="button">Look up world</button>
       </div>
       <p class="hint" id="worldLookupNote" role="status" hidden></p>
     </div>
@@ -452,7 +502,7 @@
       <thead>
         <tr>
           <th scope="col">World</th>
-          <th scope="col">World ID</th>
+          <th scope="col" class="c-wid">World ID</th>
           <th scope="col">Visits</th>
           <th scope="col">Online now</th>
           <th scope="col">Likes</th>
@@ -489,7 +539,7 @@
         <option value="418995286230469">418995286230469</option>
         <option value="221514644894706">221514644894706</option>
       </select>
-      <button id="orgGo" type="button">List apps</button>
+      <button id="orgGo" class="primary" type="button">List apps</button>
       <button id="checkOrg" type="button">Check shown</button>
     </div>
 
@@ -542,7 +592,7 @@
     <div class="controls">
       <select id="defaultHmd" aria-label="Headset"></select>
       <select id="defaultTrigger" aria-label="Install trigger"></select>
-      <button id="defaultGo" type="button">Get default apps</button>
+      <button id="defaultGo" class="primary" type="button">Get default apps</button>
       <input id="defaultQ" type="search" placeholder="Filter these apps by name or app ID" aria-label="Filter default apps" autocomplete="off" spellcheck="false">
       <select id="defaultSort" aria-label="Sort by">
         <option value="az">Name A–Z</option>
@@ -575,6 +625,57 @@
 
   </section>
 
+  <!-- ---------- store front ---------- -->
+
+  <section id="view-store" hidden>
+
+    <h2>Store front</h2>
+    <p class="sub">The store as the Horizon phone app shows it: the sections the store picks for one headset, in its own order, and the apps in each, plus its top charts. Pick a headset and press Get store, then pick a section or a chart. Open an app for its channels and build history. Needs your own access token, set in Settings.</p>
+
+    <div class="controls">
+      <select id="storeHmd" aria-label="Headset"></select>
+      <select id="storeView" aria-label="Store tab" hidden></select>
+      <button id="storeGo" class="primary" type="button">Get store</button>
+      <select id="storeSection" aria-label="Section" disabled>
+        <option value="">Sections appear here</option>
+      </select>
+      <input id="storeQ" type="search" placeholder="Filter this section by name or app ID" aria-label="Filter store apps" autocomplete="off" spellcheck="false">
+      <select id="storeSort" aria-label="Sort by">
+        <option value="relevance">Store order</option>
+        <option value="az">Name A–Z</option>
+        <option value="za">Name Z–A</option>
+        <option value="priceUp">Price, low to high</option>
+        <option value="priceDown">Price, high to low</option>
+      </select>
+      <button id="checkStore" type="button">Check shown</button>
+    </div>
+
+    <p class="count" id="storeCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">App</th>
+          <th scope="col" class="c-dev">Device</th>
+          <th scope="col" class="c-chan">Channel</th>
+          <th scope="col" class="c-price">Price</th>
+          <th scope="col" class="c-ver">Version</th>
+          <th scope="col" class="c-build">Build</th>
+          <th scope="col" class="c-date">Date</th>
+          <th scope="col" class="c-devb">Dev build</th>
+        </tr>
+      </thead>
+      <tbody id="storeRows"></tbody>
+    </table>
+
+    <p id="storeEmpty" class="empty" hidden></p>
+
+    <div class="controls morebar" id="storeMoreBar" hidden>
+      <button id="storeMore" type="button">Load more</button>
+    </div>
+
+  </section>
+
   <!-- ---------- horizon+ ---------- -->
 
   <section id="view-plus" hidden>
@@ -583,7 +684,7 @@
     <p class="sub">The games the Horizon+ subscription offers right now — this month's games to claim, and the catalog that comes and goes. Open one for its channels and build history. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
-      <button id="plusGo" type="button">Get Horizon+ games</button>
+      <button id="plusGo" class="primary" type="button">Get Horizon+ games</button>
       <input id="plusQ" type="search" placeholder="Filter these games by name or app ID" aria-label="Filter Horizon+ games" autocomplete="off" spellcheck="false">
       <select id="plusPick" aria-label="Which games">
         <option value="">Monthly and catalog</option>
@@ -712,9 +813,9 @@
         <tr>
           <th scope="col">App</th>
           <th scope="col">Installed</th>
-          <th scope="col">Build</th>
+          <th scope="col" class="c-build">Build</th>
           <th scope="col">Latest</th>
-          <th scope="col">Build</th>
+          <th scope="col" class="c-build">Build</th>
         </tr>
       </thead>
       <tbody id="adbRows"></tbody>
@@ -1360,12 +1461,21 @@
       link.href = href;
       main.parentNode.insertBefore(link, main);
     };
-    if (!flexGap) addCss("css/legacy-gap.css?v=247");
-    if (compat) addCss("css/compat.css?v=247");
+    if (!flexGap) addCss("css/legacy-gap.css?v=248");
+    if (compat) addCss("css/compat.css?v=248");
+
+    /* app.js only finds out it needs check.js once it has arrived and been read;
+       asking for both at once saves a round trip before anything can run. */
+    if (modern) {
+      var pre = document.createElement("link");
+      pre.rel = "modulepreload";
+      pre.href = "js/check.js?v=248";
+      document.head.appendChild(pre);
+    }
 
     var js = document.createElement("script");
     js.type = "module";
-    js.src = modern ? "js/app.js?v=247" : "js/app.legacy.js?v=247";
+    js.src = modern ? "js/app.js?v=248" : "js/app.legacy.js?v=248";
     document.body.appendChild(js);
   })();
 </script>

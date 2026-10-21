@@ -43,6 +43,7 @@ details.hint > summary::before { margin-right: .35rem; }
 .rev-sorts > * + * { margin-left: .35rem; }
 .review-head > * + * { margin-left: .6rem; }
 .ach > * + * { margin-left: .7rem; }
+.post > * + * { margin-left: .7rem; }
 .dg-bar > * + * { margin-left: .6rem; }
 .dg-app > * + * { margin-left: .75rem; }
 .dg-side li > * + * { margin-left: .75rem; }
@@ -56,3 +57,7 @@ details.hint > summary::before { margin-right: .35rem; }
 .dg-gh-head > * { margin-top: .5rem; }
 .dg-toggle > * + * { margin-left: .4rem; }
 .dg-head-acts > * + * { margin-left: .5rem; }
+.bar > h1 > * + * { margin-left: .5rem; }
+.bar > h1::before { margin-right: .5rem; }
+@media (max-width: 600px) { #view-purchases tbody tr > * + * { margin-left: .9rem; } }
+@media (max-width: 600px) { #view-purchases tbody tr > * { margin-top: .2rem; } }

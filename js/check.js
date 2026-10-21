@@ -329,6 +329,8 @@ function emitLog(detail) {
   } catch {}
 }
 
+const REQUEST_TIMEOUT_MS = 90_000;
+
 async function getJSON(url) {
   const { relay, log } = loadSettings();
   const started = log ? performance.now() : 0;
@@ -356,13 +358,24 @@ async function getJSON(url) {
       }
     : { headers: { Accept: "application/json" } };
 
+  /* A relay that takes the connection and then stalls would otherwise leave the
+     spinner up for good. Generous, since a long-lived app's build history is one
+     heavy query. Older engines (the Quest 1's) have no AbortSignal.timeout. */
+  if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) {
+    init.signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  }
+
   /* What the log box shows: the endpoint and every field but the token. */
   const logUrl = post ? `${ENDPOINT}?${withoutToken(query)}` : forLog(url);
 
   let res;
   try {
     res = await fetch(target, init);
-  } catch {
+  } catch (err) {
+    if (err?.name === "TimeoutError") {
+      if (log) emitLog({ url: logUrl, error: "no reply in time" });
+      throw new Error("the request timed out — the store or the relay did not answer");
+    }
     if (log) emitLog({ url: logUrl, error: "no reply — relay unreachable or blocked" });
     throw new Error(
       relay
@@ -378,8 +391,10 @@ async function getJSON(url) {
   }
 
   /* A static host has no /api, so the built-in relay 404s. Say so once rather
-     than letting it read as the store refusing the request. */
-  if (!relay && res.status === 404) {
+     than letting it read as the store refusing the request. The relay marks every
+     reply it forwards, so the store's own 404 (an ID that does not exist) is not
+     mistaken for a missing relay. */
+  if (!relay && res.status === 404 && !res.headers.has("X-MetaDB-Relay")) {
     builtInMissing = true;
     throw new Error(
       "this site has no built-in relay — set a relay URL on the Settings page"
@@ -475,8 +490,19 @@ function stitch(text) {
   if (!root?.data) return root;
 
   for (const part of parts) {
-    if (part === root || !part.data || !Array.isArray(part.path)) continue;
+    if (part === root || !Array.isArray(part.path)) continue;
 
+    /* A streamed list (@stream) sends its later entries as `items`, the path
+       ending at the index the first of them takes. */
+    if (Array.isArray(part.items)) {
+      let list = root.data;
+      for (const step of part.path.slice(0, -1)) list = list?.[step];
+      const at = part.path[part.path.length - 1];
+      if (Array.isArray(list) && Number.isInteger(at)) list.splice(at, part.items.length, ...part.items);
+      continue;
+    }
+
+    if (!part.data) continue;
     let node = root.data;
     for (const step of part.path) node = node?.[step];
     if (node && typeof node === "object") Object.assign(node, part.data);
@@ -763,9 +789,10 @@ export async function lookupApp(id) {
 const SEARCH_DOC_ID = "3928907833885295";
 
 /* hmdType picks which headset's store is searched. These are the store's own
-   codenames; EUREKA is the one confirmed working here, the rest follow Meta's
-   published device names. The raw value is shown in the picker so a wrong guess
-   is visible rather than silent. */
+   codenames: the phone app asks the store for exactly this set of headset
+   types (its paired-headsets query), so each is a value the store knows. The
+   raw value is shown in the picker so a wrong guess is visible rather than
+   silent. */
 export const HMD_TYPES = [
   ["EUREKA", "Quest 3"],
   ["PANTHER", "Quest 3S"],
@@ -774,6 +801,7 @@ export const HMD_TYPES = [
   ["MONTEREY", "Quest"],
   ["PACIFIC", "Go"],
   ["RIFT", "Rift"],
+  ["LAGUNA", "Rift S"],
   ["LOMA", "VR Glasses"],
 ];
 
@@ -783,6 +811,7 @@ export const HMD_TYPES = [
 const HMD_PLATFORM = {
   PACIFIC: "ANDROID_3DOF",
   RIFT: "PC",
+  LAGUNA: "PC",
 };
 
 /**
@@ -2187,16 +2216,26 @@ export async function releaseNotes(appId) {
 }
 
 /* RelayLocalUserQuery (from the PC client, no variables): the viewer's own user
-   ID — needed to key the per-user achievements query. Fetched once a session. */
+   ID — needed to key the per-user achievements query. Fetched once per token:
+   saving another account's token or signing out must not reuse the old ID, and
+   callers that ask at the same time share one request. */
 const VIEWER_DOC_ID = "9593089467434564";
-let _viewerId = null;
-export async function viewerId() {
-  if (_viewerId) return _viewerId;
-  const data = await relayQuery(VIEWER_DOC_ID, {}, "Account");
-  const id = data.viewer?.user?.id;
-  if (!id) throw new Error("the store would not say who this token belongs to");
-  _viewerId = String(id);
-  return _viewerId;
+let viewer = { token: null, id: null };
+export function viewerId() {
+  const { token } = loadSettings();
+  if (viewer.token !== token) {
+    const entry = { token, id: null };
+    entry.id = relayQuery(VIEWER_DOC_ID, {}, "Account").then((data) => {
+      const id = data.viewer?.user?.id;
+      if (!id) throw new Error("the store would not say who this token belongs to");
+      return String(id);
+    });
+    entry.id.catch(() => {
+      if (viewer === entry) viewer = { token: null, id: null };
+    });
+    viewer = entry;
+  }
+  return viewer.id;
 }
 
 /* AppDownloadableContentSectionQuery (from the PC client): an app's purchasable
@@ -2399,6 +2438,230 @@ export async function horizonPlus() {
     if (!out.has(String(n.id))) out.set(String(n.id), row(n, "catalog"));
   }
   return [...out.values()];
+}
+
+/* ---------- the store front, from the Horizon phone app ----------
+   The phone app's Store tab, read out of its JS bundle. The store page is a
+   list of sections the server picks for one headset — each drawn its own way
+   (a shelf, a top chart, a spotlight, a sale card), named by its
+   `rendering_strategy` — and every section pages through its apps on its own.
+   Here each section is offered by name and its apps come back as ordinary rows.
+
+   OCStoreSurfaceQuery: the sections, and the store's other views (Games,
+   Apps, …). `storeViewTypes` is what the app sends: the Quest stores ask for
+   the views with categories, the PC and Go stores for the 2D one. The four
+   `__relay_internal__pv__` flags are the app's own settings for this query. */
+const STORE_FRONT_DOC_ID = "27955155650852217";
+
+/* OCStoreSectionViewModernPaginationQuery: one section's apps, a page at a time.
+   Every filter is left out, which is the section as the store orders it. */
+const STORE_SECTION_DOC_ID = "28264408599874874";
+
+/* XOCStoreSectionRenderingStrategySpotlight -> "Spotlight". */
+const LAYOUTS = {
+  Default: "Shelf",
+  List: "List",
+  Spotlight: "Spotlight",
+  MerchEditorial: "Editorial",
+  MerchLaunch: "New release",
+  MerchTimebound: "Limited time",
+  CategoryStrip: "Categories",
+};
+const layoutName = (type) => {
+  const key = /RenderingStrategy(\w+)$/.exec(type ?? "")?.[1];
+  return key ? LAYOUTS[key] ?? key : null;
+};
+
+/**
+ * One headset's store front: { views, viewId, sections }. `views` are the
+ * store's tabs ({ id, name }); `sections` are the sections of the view asked
+ * for (the first one when `viewId` is null), in the store's order, each
+ * { id, name, layout, ordered }.
+ */
+export async function storeFront(hmdType = loadSettings().hmd, viewId = null) {
+  const quest = (HMD_PLATFORM[hmdType] ?? "ANDROID_6DOF") === "ANDROID_6DOF";
+  const data = await relayQuery(
+    STORE_FRONT_DOC_ID,
+    {
+      appStoreID: null,
+      hmdType,
+      useTestStore: false,
+      storeViewTypes: [quest ? "STORE_VIEWS_WITH_CATEGORY_CONTEXT" : "IN_2D"],
+      storeViewID: viewId,
+      seedID: null,
+      shouldShowBalance: false,
+      __relay_internal__pv__storeInitialShelvesCountrelayprovider: 60,
+      __relay_internal__pv__topChartsCardrelayprovider: false,
+      __relay_internal__pv__horizonPlusBadgerelayprovider: false,
+      __relay_internal__pv__hasTWNewMerchUnitsLaunchEnabledrelayprovider: false,
+    },
+    "The store front"
+  );
+
+  const store = data.viewer?.app_store;
+  if (!store) throw new Error("the store returned no store front for this headset");
+  const view = store.store_views?.[0] ?? null;
+
+  const sections = (view?.streamed_subsections?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.id && n.section_name)
+    .map((n) => ({
+      id: String(n.id),
+      name: n.section_name,
+      layout: layoutName(n.rendering_strategy?.__typename),
+      ordered: Boolean(n.is_ordered_list),
+    }));
+
+  return {
+    views: (store.all_store_views ?? [])
+      .filter((v) => v?.id)
+      .map((v) => ({ id: String(v.id), name: v.translated_display_name || String(v.id) })),
+    viewId: view?.id ? String(view.id) : null,
+    sections,
+  };
+}
+
+/**
+ * One page of a store section: { apps, cursor } — cursor is null on the last
+ * page. Banners, worlds and videos share the shelves with the apps; only the
+ * apps are kept, and `rank` is their place in the section.
+ */
+export async function storeSection(sectionId, hmdType = loadSettings().hmd, cursor = null, start = 0) {
+  const data = await relayQuery(
+    STORE_SECTION_DOC_ID,
+    {
+      id: String(sectionId),
+      count: 50,
+      cursor,
+      encode: "JPEG",
+      __relay_internal__pv__horizonPlusBadgerelayprovider: false,
+    },
+    "The store section"
+  );
+
+  const units = data.node?.units;
+  const platform = HMD_PLATFORM[hmdType] ?? "ANDROID_6DOF";
+  const apps = [];
+  for (const edge of units?.edges ?? []) {
+    const n = edge?.node;
+    if (n?.__typename !== "Application" || !n.id) continue;
+    const offer = n.current_offer;
+    const a = n.assets ?? {};
+    apps.push({
+      id: String(n.id),
+      name: n.display_name || n.display_unit_title || String(n.id),
+      packageName: n.package_name ?? null,
+      platform,
+      image: a.cover_square_image?.uri ?? n.cover_landscape_image?.uri ?? a.icon_image?.uri ?? null,
+      /* The store words the price itself ("Free", "$19.99", "Coming soon"),
+         so that is shown as it is. */
+      price: n.price_or_status_display?.text || offer?.price?.formatted || null,
+      offerId: offer?.id ? String(offer.id) : null,
+      free: offer?.price?.offset_amount === "0",
+      channels: [],
+      rank: start + apps.length + 1,
+    });
+  }
+
+  return {
+    apps,
+    cursor: units?.page_info?.has_next_page ? units.page_info.end_cursor : null,
+  };
+}
+
+/* OCStoreTopChartsScreenQuery: the store's top charts. The app opens them from
+   one fixed parent section (TOP_CHARTS_PARENT_SECTION_ID in its bundle); its
+   units are one banner per chart, each pointing at the section that holds the
+   chart's apps, which then pages like any other section. */
+const TOP_CHARTS_DOC_ID = "26156053534020750";
+const TOP_CHARTS_SECTION_ID = "1359505205516508";
+
+/** One headset's top charts, in the store's order: [{ id, name, layout, ordered }]. */
+export async function topCharts(hmdType = loadSettings().hmd) {
+  const data = await relayQuery(
+    TOP_CHARTS_DOC_ID,
+    { hmdType, sectionID: TOP_CHARTS_SECTION_ID },
+    "The top charts"
+  );
+  return (data.section?.units?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.banner_target?.id && n.display_unit_title)
+    .map((n) => ({
+      id: String(n.banner_target.id),
+      name: n.display_unit_title,
+      layout: "Top chart",
+      ordered: true,
+    }));
+}
+
+/* The account's wishlist is a store section too: one fixed ID
+   (STORE_WISHLIST_SECTION_ID in the app's bundle) that the store answers with
+   the asking account's own list. The app's wishlist screen pages it as a
+   section, so it is read with storeSection. */
+const WISHLIST_SECTION_ID = "1694291617673045";
+
+/** One page of the account's wishlist: { apps, cursor }. */
+export function wishlist(hmdType = loadSettings().hmd, cursor = null, start = 0) {
+  return storeSection(WISHLIST_SECTION_ID, hmdType, cursor, start);
+}
+
+/* OCPDPDiscoDeveloperPostsQueryRendererQuery: the posts on an app's store page
+   in the phone app — the developer's news and update notes. They come as story
+   collections whose previews each carry a rendering strategy; a developer post
+   is XOCTwilightDevPostStoryRenderingStrategy. The variables are what the app's
+   product page sends: the headset's store and platform, -1 for the library
+   window, and no device serials. The eight `__relay_internal__pv__` flags are
+   the app's own, all off. */
+const DEV_POSTS_DOC_ID = "28585215657832212";
+const DEV_POST_FLAGS = Object.fromEntries(
+  [
+    "showSocialContextInHzwFeeds", "shouldEnableMetaCredit", "showSocialContextInHzwFeedsThreeTiles",
+    "EnableStoryDebugInfo", "IsEnhancedUserTile", "IsCoinflipUserTile", "ArePostLikesEnabled",
+    "AreHorizonWorldsPostShown",
+  ].map((n) => [`__relay_internal__pv__${n}relayprovider`, false])
+);
+
+/**
+ * An app's developer posts in the store's order:
+ * [{ id, title, body, time, image, author }] — `time` is the store's own words
+ * ("2 days ago").
+ */
+export async function appDevPosts(appId, hmdType = loadSettings().hmd) {
+  const data = await relayQuery(
+    DEV_POSTS_DOC_ID,
+    {
+      itemID: String(appId),
+      hmdType,
+      platform: HMD_PLATFORM[hmdType] ?? "ANDROID_6DOF",
+      LIBRARY_INFO_LAST_ACTIVE_WINDOW: -1,
+      ...DEV_POST_FLAGS,
+    },
+    "Developer posts"
+  );
+  const app = data.app;
+  if (!app) throw new Error("the store has no page for this app");
+
+  const seen = new Set();
+  const posts = [];
+  for (const post of app.posts ?? []) {
+    for (const s of post?.target_object?.story_previews ?? []) {
+      const r = s?.tw_tile_rendering_strategy;
+      if (r?.__typename !== "XOCTwilightDevPostStoryRenderingStrategy" || !r.story) continue;
+      const st = r.story;
+      const id = String(st.target_object?.id ?? st.id ?? "");
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      posts.push({
+        id,
+        title: st.title || null,
+        body: st.description_plain_text || null,
+        time: st.display_time || null,
+        image: st.largeImageForSingleStoryTile?.uri ?? st.image?.uri ?? null,
+        author: st.source?.name ?? null,
+      });
+    }
+  }
+  return posts;
 }
 
 /* MostRecentPresenceQuery: when the account was last active in VR, and where.

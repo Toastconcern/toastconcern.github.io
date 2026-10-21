@@ -175,3 +175,226 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   checkUpdate().then(reply);
   return true;
 });
+
+/* ---------- store pages meta.com does not draw ----------
+   store.js runs on meta.com's /experiences/ pages. When meta.com says
+   an app is not available (or leaves the page blank) it asks here for the app,
+   and this reads it the way the Meta Horizon phone app does: the app's product-page query
+   (OCProductDetailSurfaceQuery, out of the phone app's JS bundle), asked of each
+   headset's store in turn — the store only answers for the headsets an app is
+   sold for, and a page for the wrong one is what meta.com leaves blank. The
+   request goes to Meta's own API with the oc_www_at token meta.com itself is
+   signed in with; nothing goes anywhere else. */
+const GRAPHQL = "https://graph.oculus.com/graphql";
+const PDP_DOC_ID = "28952468254442061";
+/* meta.com's own app-page query: the large hero, screenshots and trailer still. */
+const PAGE_DOC_ID = "27653348084360166";
+
+const HMD_LABEL = {
+  EUREKA: "Quest 3", PANTHER: "Quest 3S", HOLLYWOOD: "Quest 2", SEACLIFF: "Quest Pro",
+  MONTEREY: "Quest", LOMA: "VR Glasses", RIFT: "Rift", LAGUNA: "Rift S", PACIFIC: "Go",
+};
+const QUEST = ["EUREKA", "PANTHER", "HOLLYWOOD", "SEACLIFF", "MONTEREY", "LOMA"];
+const PC = ["RIFT", "LAGUNA"];
+/* The store the page's address names first, then the rest: an app linked under
+   the wrong store's path is one more page that never draws. */
+const HMD_ORDER = {
+  quest: [...QUEST, ...PC, "PACIFIC"],
+  pcvr: [...PC, ...QUEST, "PACIFIC"],
+  go: ["PACIFIC", ...QUEST, ...PC],
+};
+
+/* Replies with @defer/@stream arrive as several JSON objects back to back; each
+   later one names where it goes (`path`). Put back together into one. */
+function parts(text) {
+  const out = [];
+  let depth = 0, start = -1, inString = false, escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if (c === '"') inString = false;
+    } else if (c === '"') inString = true;
+    else if (c === "{") {
+      if (depth++ === 0) start = i;
+    } else if (c === "}" && --depth === 0 && start >= 0) {
+      try {
+        out.push(JSON.parse(text.slice(start, i + 1)));
+      } catch {
+        return out;
+      }
+      start = -1;
+    }
+  }
+  return out;
+}
+
+function stitch(text) {
+  const all = parts(text);
+  const root = all.find((p) => p.data || p.errors || p.error) ?? null;
+  if (!root?.data) return root;
+  for (const p of all) {
+    if (p === root || !Array.isArray(p.path)) continue;
+    if (Array.isArray(p.items)) {
+      let list = root.data;
+      for (const step of p.path.slice(0, -1)) list = list?.[step];
+      const at = p.path[p.path.length - 1];
+      if (Array.isArray(list) && Number.isInteger(at)) list.splice(at, p.items.length, ...p.items);
+      continue;
+    }
+    if (!p.data) continue;
+    let node = root.data;
+    for (const step of p.path) node = node?.[step];
+    if (node && typeof node === "object") Object.assign(node, p.data);
+  }
+  return root;
+}
+
+async function graphql(docId, name, variables, token) {
+  const res = await fetch(GRAPHQL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({
+      access_token: token,
+      doc_id: docId,
+      fb_api_req_friendly_name: name,
+      variables: JSON.stringify(variables),
+    }),
+  });
+  const json = stitch(await res.text());
+  if (!json) throw new Error(`the store answered ${res.status} with something that is not JSON`);
+  return json;
+}
+
+/* The phone app's product-page variables, as its product-page route fills them
+   (OCProductDetailRoute's preload). Two are fixed values in the app and the
+   store refuses the query without them ("missing_required_variable_value"):
+   the library window is -1 (any time) and the Meta Store catalog is
+   517700695939066. No headset is paired here, so the serials the app leaves
+   out when it has none are left out too, and so are the referral and UTM
+   values it only sends when a link carried them. */
+const pdpVariables = (appID, hmdType) => ({
+  appID,
+  hmdType,
+  encode: "JPEG",
+  LIBRARY_INFO_LAST_ACTIVE_WINDOW: -1,
+  SELECTED_DEVICE_SERIAL: null,
+  metaStoreCatalogID: "517700695939066",
+  shouldShowNewPostPurchaseCTAs: false,
+  shouldRenderRelatedItemsSubsection: false,
+  shouldShowUninstallAction: false,
+  __relay_internal__pv__loggingPriceTyperelayprovider: false,
+  __relay_internal__pv__showPremiumBundlerelayprovider: false,
+  __relay_internal__pv__showPreOrderBundlerelayprovider: false,
+  __relay_internal__pv__showExclusiveIapForBundlesrelayprovider: false,
+  __relay_internal__pv__horizonPlusBadgerelayprovider: false,
+  __relay_internal__pv__shouldEnableMetaCreditrelayprovider: false,
+});
+
+const gb = (bytes) => (Number(bytes) ? `${(Number(bytes) / 1024 ** 3).toFixed(2)} GB` : null);
+const words = (s) => String(s).toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+const PLAYER_MODES = { SITTING: "Sitting", STANDING: "Standing", ROOM_SCALE: "Roomscale" };
+const names = (list) => (Array.isArray(list) ? list.map((x) => (typeof x === "string" ? x : x?.name)).filter(Boolean) : []);
+
+/** The product-page item, as the plain fields store.js draws. */
+function storeItem(it, hmdType) {
+  const offer = it.current_offer ?? {};
+  const bin = it.latest_supported_binary ?? {};
+  const released = it.release_info?.display_date
+    ?? (it.release_date ? new Date(it.release_date * 1000).toISOString().slice(0, 10) : null);
+  return {
+    id: String(it.id),
+    name: it.display_name ?? String(it.id),
+    short: it.display_short_description ?? null,
+    long: it.display_long_description ?? null,
+    markdown: Boolean(it.long_description_uses_markdown),
+    publisher: it.publisher_name ?? null,
+    developer: it.developer_name && it.developer_name !== it.publisher_name ? it.developer_name : null,
+    category: it.category_name ?? null,
+    genres: it.genre_names_ranked ?? it.genre_names ?? [],
+    rating: it.quality_rating_i18n_score_string ?? null,
+    ratingCount: it.quality_rating_i18n_count_string && it.quality_rating_i18n_count_string !== "0" ? it.quality_rating_i18n_count_string : null,
+    comfort: it.comfort_rating_name ?? (it.comfort_rating ? words(it.comfort_rating) : null),
+    modes: it.user_interaction_mode_names ?? [],
+    playerModes: (it.supported_player_modes ?? []).map((m) => PLAYER_MODES[m] ?? words(m)),
+    controllers: names(it.supported_input_devices_list),
+    platforms: it.supported_platforms_i18n ?? [],
+    languages: names(it.supported_in_app_languages),
+    internet: it.internet_connection_name ?? null,
+    website: it.website_url ?? null,
+    privacyUrl: it.developer_privacy_policy_url ?? null,
+    termsUrl: it.developer_terms_of_service_url ?? null,
+    version: bin.version ?? null,
+    size: gb(bin.total_installed_space),
+    released,
+    ageImage: it.content_rating?.ageRatingImage?.uri ?? null,
+    ageText: it.content_rating?.age_rating_text ?? null,
+    price: it.price_or_status_display?.text || offer.price?.formatted || null,
+    was: offer.strikethrough_price?.formatted ?? null,
+    free: Boolean(it.is_free) || offer.price?.offset_amount === "0",
+    owned: Boolean(it.is_viewer_entitled),
+    preorder: Boolean(it.is_preorder),
+    comingSoon: Boolean(it.is_coming_soon),
+    landscape: it.coverLandscape?.uri ?? it.flag_app_img?.uri ?? null,
+    square: it.coverSquare?.uri ?? null,
+    screenshots: (it.screenshotsHighRes ?? it.screenshots ?? []).map((s) => s?.uri).filter(Boolean),
+    trailer: it.video_trailer?.uri ?? null,
+    hero: null,
+    hmd: hmdType,
+    hmdLabel: HMD_LABEL[hmdType] ?? hmdType,
+    kind: PC.includes(hmdType) ? "pcvr" : hmdType === "PACIFIC" ? "go" : "quest",
+  };
+}
+
+async function storePage(id, kind) {
+  /* The phone app's query is refused to a signed-out request ("Unauthorized
+     logged out query"), so without a login nothing is asked. */
+  const { token } = await readTokens();
+  if (!token) return { error: "Log in to Meta to see this app.", login: true };
+
+  let found = null;
+  let refusal = null;
+  for (const hmdType of HMD_ORDER[kind] ?? HMD_ORDER.quest) {
+    try {
+      const json = await graphql(PDP_DOC_ID, "OCProductDetailSurfaceQuery", pdpVariables(id, hmdType), token);
+      const it = json?.data?.item;
+      if (it?.display_name) {
+        found = storeItem(it, hmdType);
+        break;
+      }
+      refusal ??= json?.errors?.[0]?.message ?? json?.error?.message ?? null;
+    } catch (err) {
+      refusal ??= err.message;
+    }
+  }
+  if (!found) {
+    return {
+      error: refusal
+        ? `The store would not show this app on any headset (${refusal}).`
+        : "The store has no listing for this app on any headset — it may be unpublished or removed.",
+      login: /log(ged)? ?in|auth|token|session/i.test(refusal ?? ""),
+    };
+  }
+
+  /* The bigger artwork, from meta.com's own page query for the headset that
+     answered. A miss here only leaves the smaller pictures. */
+  try {
+    const page = (await graphql(PAGE_DOC_ID, "AppPage", { itemId: id, hmdType: found.hmd }, token))?.data?.app_store_item;
+    if (page) {
+      found.hero = page.hero_image?.uri ?? null;
+      const big = (page.screenshots ?? []).map((s) => s?.uri).filter(Boolean);
+      if (big.length) found.screenshots = big;
+      found.trailer ??= page.trailer?.uri ?? null;
+    }
+  } catch {}
+
+  return { item: found };
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (msg?.type !== "store-item" || !sender.tab || !/^https:\/\/www\.meta\.com\//.test(sender.url ?? "")) return;
+  if (!/^\d{6,}$/.test(String(msg.id))) return reply({ error: "That is not an app ID." });
+  storePage(String(msg.id), msg.kind).then(reply, (err) => reply({ error: err.message || "Could not read this app." }));
+  return true;
+});

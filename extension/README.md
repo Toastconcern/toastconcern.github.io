@@ -11,9 +11,25 @@ opens Meta's login in a new tab, and passes the tokens on as soon as the login s
 What it does and does not do:
 
 - It reads only `oc_www_at` and `oc_ac_at`, on `oculus.com` and `meta.com`.
-- It answers MetaDB's own pages only (`metadb.toastconcern.dev`, and `localhost` for
+- It hands them to MetaDB's own pages only (`metadb.toastconcern.dev`, and `localhost` for
   development). The tokens go from your browser to that tab, and nowhere else.
 - It never sees your password: you log in on Meta's own page.
+
+## Store pages that do not load
+
+meta.com answers "This page isn't available" for some apps the store still has: system apps
+such as Horizon Worlds and Meta Quest TV, and others its web store does not list. The Meta
+Horizon phone app shows the same apps fine.
+
+On such a page the extension shows the app itself, in meta.com's own app-page layout: the
+store's header and menu, the trailer and screenshots with the price card beside them, then
+About and Additional details. It reads the app with the phone app's own product-page query,
+trying each headset's store until one answers.
+
+- You need to be logged in to Meta: the store refuses that query to a signed-out request.
+- The request goes to Meta's own API (`graph.oculus.com`), signed in with the same
+  `oc_www_at` meta.com uses. Nothing goes anywhere else.
+- Pages that load normally are left alone, and nothing is asked of the store for them.
 
 ## Add it (Chrome or Edge)
 
@@ -23,10 +39,12 @@ What it does and does not do:
 
 ## Files
 
-- `manifest.json`: permissions: cookies on Meta's domains, and a content script on MetaDB.
-- `background.js`: reads the cookies, opens the login when needed, answers the asking tab, and
-  runs the update check.
+- `manifest.json`: permissions: cookies on Meta's domains, a content script on MetaDB, and
+  one on meta.com.
+- `background.js`: reads the cookies, opens the login when needed, answers the asking tab,
+  runs the update check, and reads an app from the store for `store.js`.
 - `content.js`: the go-between on MetaDB's pages (`window.postMessage`, own origin only).
+- `store.js`: on meta.com, notices an app page that did not load and shows the app in its place.
 - `popup.html` / `popup.js`: the toolbar button. It shows whether you are logged in to Meta,
   any update, and the update-check switch.
 

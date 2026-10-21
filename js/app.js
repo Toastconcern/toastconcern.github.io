@@ -40,6 +40,11 @@ import {
   morePurchases,
   PURCHASES_PAGE,
   horizonPlus,
+  storeFront,
+  storeSection,
+  topCharts,
+  wishlist,
+  appDevPosts,
   recentPresence,
   avatarInfo,
   devicePTCStatus,
@@ -60,9 +65,17 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=247";
+} from "./check.js?v=248";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
+
+/* A platform the map does not name (HORIZON_UNITY_WORLD and the like) is shown in
+   words rather than as the raw enum, which cannot wrap and pushed the library
+   table past the edge of the screen. */
+function deviceName(platform) {
+  if (!platform) return null;
+  return DEVICE[platform] ?? String(platform).toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
 
 /* Inside the headset app (android/), which hands the page a small bridge. There
    the Device screens have nothing to talk to — ADB wants a PC and CompanionServer
@@ -214,7 +227,7 @@ const SORTS = {
   ...alphabetical("state", (app) => (app.state ? words(app.state) : null)),
   ...alphabetical("source", (app) => (app.owned ? grantLabel(app.grant) : null)),
   ...alphabetical("device", (app) =>
-    app.platform ? (DEVICE[app.platform] ?? app.platform) : null
+    deviceName(app.platform)
   ),
 };
 
@@ -286,6 +299,29 @@ const el = {
   plusRows: document.getElementById("plusRows"),
   plusCount: document.getElementById("plusCount"),
   plusEmpty: document.getElementById("plusEmpty"),
+  viewWishlist: document.getElementById("view-wishlist"),
+  wishGo: document.getElementById("wishGo"),
+  wishQ: document.getElementById("wishQ"),
+  wishSort: document.getElementById("wishSort"),
+  checkWish: document.getElementById("checkWish"),
+  wishRows: document.getElementById("wishRows"),
+  wishCount: document.getElementById("wishCount"),
+  wishEmpty: document.getElementById("wishEmpty"),
+  wishMoreBar: document.getElementById("wishMoreBar"),
+  wishMore: document.getElementById("wishMore"),
+  viewStore: document.getElementById("view-store"),
+  storeHmd: document.getElementById("storeHmd"),
+  storeView: document.getElementById("storeView"),
+  storeGo: document.getElementById("storeGo"),
+  storeSection: document.getElementById("storeSection"),
+  storeQ: document.getElementById("storeQ"),
+  storeSort: document.getElementById("storeSort"),
+  checkStore: document.getElementById("checkStore"),
+  storeRows: document.getElementById("storeRows"),
+  storeCount: document.getElementById("storeCount"),
+  storeEmpty: document.getElementById("storeEmpty"),
+  storeMoreBar: document.getElementById("storeMoreBar"),
+  storeMore: document.getElementById("storeMore"),
   viewHeadset: document.getElementById("view-adb"),
   viewCompanion: document.getElementById("view-companion"),
   adbUsb: document.getElementById("adbUsb"),
@@ -448,6 +484,9 @@ const addonsCache = new Map();
 /* App ID -> its achievements and this account's progress once fetched. */
 const achCache = new Map();
 
+/* App ID -> its developer posts once the Posts tab has fetched them. */
+const postsCache = new Map();
+
 /* App ID -> Map(versionCode -> {version, notes}) once the Builds tab's Release
    notes button has fetched them. */
 const relNotesCache = new Map();
@@ -512,6 +551,20 @@ let defaultNote = "";
    sorted in place, like the default apps. */
 const plusState = { rows: [], asked: false, loading: false, note: "" };
 
+/* The store front: the sections the store picked for one headset, and the apps
+   of the section on show, a page at a time. `front` is what Get store fetched
+   ({ views, viewId, sections }); `charts` are that headset's top charts, which
+   page like sections; `hmd` is the headset they were fetched for, so a section
+   is always asked of the store that listed it. */
+const storeState = {
+  front: null, charts: [], hmd: null, section: null,
+  rows: [], cursor: null,
+  asked: false, loading: false, note: "",
+};
+
+/* The account's wishlist, a page at a time, then filtered and sorted in place. */
+const wishState = { rows: [], cursor: null, asked: false, loading: false, note: "" };
+
 /* When the account was last active in VR, fetched alongside Get devices. */
 const presenceState = { data: null, note: "" };
 
@@ -527,6 +580,22 @@ let adbApps = [];
    and whether the installed list has been read yet. */
 let adbSide = [];
 let headsetAsked = false;
+/* Package name -> what the store called it (null: asked, and it had no answer). */
+const packageAnswers = new Map();
+/* Every list redraws on every renderAll, and a filter keystroke on one screen
+   used to rebuild the 1,000-row library on another. A list on a hidden screen
+   is only marked stale by buildRows, and applyView redraws it when its screen
+   comes up. Up here because the first applyView() runs during setup. */
+const staleTables = new Set();
+/* A pending renderSoon() from a filter box. */
+let renderTimer = 0;
+/* Each search takes a number; a reply that comes back after a newer search has
+   started (the box cleared, the headset changed) is dropped instead of drawn. */
+let searchSeq = 0;
+/* The question on screen, if any. There is one dialog, so a second question
+   answers the first with "no" rather than leaving its caller waiting forever. */
+let dialogPending = null;
+let dialogReturnFocus = null;
 /* The Downgrade layout's own state. Up here, not beside its functions: the
    first applyView() runs during setup and opens it straight away. */
 /* Get the app: where the APK and its version file are, and whether the version
@@ -553,9 +622,9 @@ let storeArtAsking = false;
 let restoringRoute = false;
 /* The address is a path — /apps/<id>/builds, /search/<words> — read by the "links"
    section further down; what has to exist before the init block runs is here. */
-const PANEL_TABS = ["store", "builds", "reviews", "addons", "achievements", "mine"];
-const VIEWS = ["apps", "search", "mine", "purchases", "avatar", "devices", "worlds", "orgs", "default",
-  "plus", "adb", "companion", "settings", "getapp", "downgrade"];
+const PANEL_TABS = ["store", "builds", "reviews", "posts", "addons", "achievements", "mine"];
+const VIEWS = ["apps", "search", "mine", "purchases", "wishlist", "avatar", "devices", "worlds", "orgs", "default",
+  "plus", "store", "adb", "companion", "settings", "getapp", "downgrade"];
 /* The last search on Apps and games, so closing the app opened from it goes back to it. */
 let routeSearch = "";
 const routeView = () => {
@@ -643,8 +712,12 @@ const creatorState = { rows: [], cursor: null, label: "", fetchPage: null, asked
 let worldTab = "top";
 
 /* App ID -> the Quest library's record, so the Entitlement tab can say whether
-   the account owns an app. Fetched once. */
+   the account owns an app. Fetched once per token — read it through library(),
+   which forgets another account's copy — with the reason when the fetch failed,
+   so a failure does not read as "not in your library". */
 let libraryNames = null;
+let libraryToken = null;
+let libraryError = "";
 
 /* The app whose panel is filling the window, if any. Declared up here with the
    rest of the state because applyView runs before the module finishes
@@ -678,6 +751,8 @@ initAvatar();
 initAccountTabs();
 initDefault();
 initPlus();
+initStore();
+initWishlist();
 initHeadset();
 initDowngrade();
 initGetApp();
@@ -962,7 +1037,9 @@ function play(node, className, { keep = false } = {}) {
 
 const isStaged = (app) => Boolean(stagedApp) && keyOf(stagedApp) === keyOf(app);
 
-const stageEl = () => document.querySelector(".stage");
+/* A sheet on its way out is marked .leaving, so one opened during its exit
+   animation is the one these find. */
+const stageEl = () => document.querySelector(".stage:not(.leaving)");
 
 /**
  * Take the whole window for one app.
@@ -1004,9 +1081,10 @@ function closeStage({ animate = true } = {}) {
   stagedScope = null;
   const stage = stageEl();
 
+  stage?.classList.add("leaving");
   const done = () => {
     stage?.remove();
-    document.documentElement.classList.remove("staged");
+    releaseScrollLock();
   };
 
   if (!stage || !animate || !animates()) return done();
@@ -1030,7 +1108,13 @@ function refreshStage() {
 
 /* ---------- the app's pictures ---------- */
 
-const galleryEl = () => document.querySelector(".gallery");
+const galleryEl = () => document.querySelector(".gallery:not(.leaving)");
+
+/* The page stays held still while any sheet is still up — one closing must not
+   unlock the page under one opened during its exit animation. */
+function releaseScrollLock() {
+  if (!stagedApp && !stageEl() && !galleryEl()) document.documentElement.classList.remove("staged");
+}
 
 /**
  * One picture, drawn the same in the sheet over a panel and in the art tab.
@@ -1121,11 +1205,12 @@ function closeGallery({ animate = true } = {}) {
   const gallery = galleryEl();
   if (!gallery) return;
 
+  gallery.classList.add("leaving");
   const done = () => {
     gallery.remove();
     /* The panel underneath, if there is one, still wants the page held still —
        it takes the lock off itself when it goes. */
-    if (!stagedApp) document.documentElement.classList.remove("staged");
+    releaseScrollLock();
   };
 
   if (!animate || !animates()) return done();
@@ -1425,18 +1510,20 @@ function applyView() {
     }
   }
 
-  const views = ["mine", "purchases", "avatar", "devices", "worlds", "orgs", "default", "plus", "adb", "companion", "settings", "getapp"];
+  const views = ["mine", "purchases", "wishlist", "avatar", "devices", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
   const view = views.includes(hash) && !(IN_APP && (hash === "adb" || hash === "companion")) ? hash : "apps";
 
   el.viewApps.hidden = view !== "apps";
   el.viewMine.hidden = view !== "mine";
   el.viewPurchases.hidden = view !== "purchases";
+  el.viewWishlist.hidden = view !== "wishlist";
   el.viewAvatar.hidden = view !== "avatar";
   el.viewDevices.hidden = view !== "devices";
   el.viewWorlds.hidden = view !== "worlds";
   el.viewOrgs.hidden = view !== "orgs";
   el.viewDefault.hidden = view !== "default";
   el.viewPlus.hidden = view !== "plus";
+  el.viewStore.hidden = view !== "store";
   el.viewHeadset.hidden = view !== "adb";
   el.viewCompanion.hidden = view !== "companion";
   el.viewSettings.hidden = view !== "settings";
@@ -1444,13 +1531,20 @@ function applyView() {
   if (view === "getapp") showAppInfo();
 
   if (view === "companion") {
-    import("./companion.js?v=247")
+    import("./companion.js?v=248")
       .then((m) => m.initCompanion(el.viewCompanion))
-      .catch((e) => console.error("companion init failed", e));
+      .catch((e) => {
+        /* An engine that cannot even read companion.js (the Quest 1's) has no
+           Web Bluetooth either: say so rather than leaving a dead Connect button. */
+        console.error("companion init failed", e);
+        if (!navigator.bluetooth) el.viewCompanion.querySelector("#companionUnsupported")?.removeAttribute("hidden");
+      });
   }
 
   /* the limit only governs the apps list, so hide it elsewhere */
   el.limitbar.hidden = view !== "apps";
+
+  if ([...staleTables].some((t) => !onHiddenScreen(t))) renderAll();
 
   for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);
   /* A menu is marked as the current one when the screen on show is one of its own. */
@@ -1463,7 +1557,7 @@ function applyView() {
      would have to be kept on the page to be animated, and it is the arriving
      one the reader is looking for. */
   play(
-    [el.viewApps, el.viewMine, el.viewPurchases, el.viewAvatar, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
+    [el.viewApps, el.viewMine, el.viewPurchases, el.viewWishlist, el.viewAvatar, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
@@ -1555,10 +1649,10 @@ function initOrgs() {
      all work on what is already loaded, so they are instant and need no second
      request. */
   el.orgPlatform.addEventListener("change", renderAll);
-  el.orgQ.addEventListener("input", renderAll);
+  el.orgQ.addEventListener("input", renderSoon);
   el.orgSort.addEventListener("change", renderAll);
   el.checkOrg.addEventListener("click", () =>
-    checkList(orgList, el.checkOrg, "Check shown")
+    checkList(orgVisible(), el.checkOrg, "Check shown")
   );
 }
 
@@ -1571,19 +1665,20 @@ function defaultVisible() {
 }
 
 function initDefault() {
-  /* RIFT is the PC store; the default set is asked against the 6DOF store node,
-     so a Rift pick only ever comes back empty. Leave it out here — the store
-     search picker still carries it. */
+  /* RIFT and LAGUNA (Rift S) are the PC store; the default set is asked against
+     the 6DOF store node, so a Rift pick only ever comes back empty. Leave them
+     out here — the store search picker still carries them. */
+  const pc = (value) => value === "RIFT" || value === "LAGUNA";
   for (const [value, label] of HMD_TYPES) {
-    if (value === "RIFT") continue;
+    if (pc(value)) continue;
     const opt = document.createElement("option");
     opt.value = value;
     opt.textContent = `${label} (${value})`;
     el.defaultHmd.append(opt);
   }
   /* Default to the headset picked for store search, so the two tabs agree —
-     unless that is the one headset this picker drops. */
-  if (loadSettings().hmd !== "RIFT") el.defaultHmd.value = loadSettings().hmd;
+     unless that is one of the headsets this picker drops. */
+  if (!pc(loadSettings().hmd)) el.defaultHmd.value = loadSettings().hmd;
 
   for (const [value, label] of DEFAULT_APP_TRIGGERS) {
     const opt = document.createElement("option");
@@ -1596,10 +1691,10 @@ function initDefault() {
 
   el.defaultGo.addEventListener("click", runDefaultApps);
   /* The list is fetched once; the filter box and sort work on what is loaded. */
-  el.defaultQ.addEventListener("input", renderAll);
+  el.defaultQ.addEventListener("input", renderSoon);
   el.defaultSort.addEventListener("change", renderAll);
   el.checkDefault.addEventListener("click", () =>
-    checkList(defaultList, el.checkDefault, "Check shown")
+    checkList(defaultVisible(), el.checkDefault, "Check shown")
   );
 
 }
@@ -1642,7 +1737,7 @@ function plusVisible() {
 
 function initPlus() {
   el.plusGo.addEventListener("click", runHorizonPlus);
-  el.plusQ.addEventListener("input", renderAll);
+  el.plusQ.addEventListener("input", renderSoon);
   el.plusPick.addEventListener("change", renderAll);
   el.plusSort.addEventListener("change", renderAll);
   el.checkPlus.addEventListener("click", () =>
@@ -1666,6 +1761,179 @@ async function runHorizonPlus() {
     plusState.loading = false;
     el.plusGo.disabled = false;
     el.plusGo.textContent = "Get Horizon+ games";
+    renderAll();
+    syncRelayNote();
+  }
+}
+
+/* ---------- store front ---------- */
+
+/* The section on show, filtered by the box and sorted — on what is loaded. */
+function storeVisible() {
+  const q = el.storeQ.value.trim().toLowerCase();
+  return sorted(storeState.rows.filter((a) => matches(a, q)), el.storeSort.value);
+}
+
+function initStore() {
+  for (const [value, label] of HMD_TYPES) {
+    el.storeHmd.append(new Option(`${label} (${value})`, value));
+  }
+  el.storeHmd.value = loadSettings().hmd;
+
+  /* Get store asks for the front of the headset picked; the tab and section
+     pickers then work within what it listed. */
+  el.storeGo.addEventListener("click", () => runStoreFront(null));
+  el.storeView.addEventListener("change", () => runStoreFront(el.storeView.value || null));
+  el.storeSection.addEventListener("change", () => loadStoreSection(el.storeSection.value));
+  el.storeMore.addEventListener("click", moreStoreSection);
+  el.storeQ.addEventListener("input", renderSoon);
+  el.storeSort.addEventListener("change", renderAll);
+  el.checkStore.addEventListener("click", () =>
+    checkList(storeVisible(), el.checkStore, "Check shown")
+  );
+}
+
+/** Fetch the store front for the picked headset (or one of its tabs), then its first section. */
+async function runStoreFront(viewId) {
+  if (storeState.loading) return;
+  const hmd = viewId ? storeState.hmd : el.storeHmd.value;
+  Object.assign(storeState, {
+    asked: true, loading: true, note: "", rows: [], cursor: null, section: null,
+  });
+  el.storeGo.disabled = true;
+  el.storeGo.textContent = "Loading…";
+  el.storeView.disabled = true;
+  el.storeSection.disabled = true;
+  renderAll();
+
+  try {
+    /* The charts belong to the headset, not to a store tab, so switching tabs keeps them. */
+    const [front, charts] = await Promise.all([
+      storeFront(hmd, viewId),
+      viewId ? storeState.charts : topCharts(hmd).catch(() => []),
+    ]);
+    Object.assign(storeState, { front, charts, hmd });
+
+    el.storeView.replaceChildren(...front.views.map((v) => new Option(v.name, v.id)));
+    el.storeView.hidden = front.views.length < 2;
+    if (front.viewId) el.storeView.value = front.viewId;
+
+    const options = (list) => list.map((s) => new Option(s.layout ? `${s.name} — ${s.layout}` : s.name, s.id));
+    const group = (label, list) => {
+      const g = document.createElement("optgroup");
+      g.label = label;
+      g.append(...options(list));
+      return g;
+    };
+    el.storeSection.replaceChildren(
+      ...(charts.length
+        ? [group("Sections", front.sections), group("Top charts", charts)]
+        : options(front.sections))
+    );
+    if (!front.sections.length) storeState.note = "The store lists no sections for this headset.";
+  } catch (err) {
+    storeState.front = null;
+    storeState.charts = [];
+    storeState.note = err.message || "Could not load the store front.";
+  } finally {
+    storeState.loading = false;
+    el.storeGo.disabled = false;
+    el.storeGo.textContent = "Get store";
+    el.storeView.disabled = false;
+    el.storeSection.disabled = !storeState.front?.sections.length;
+    renderAll();
+    syncRelayNote();
+  }
+
+  const first = storeState.front?.sections[0];
+  if (first) loadStoreSection(first.id);
+}
+
+/** List one section's apps from the top. */
+function loadStoreSection(id) {
+  const section = [...(storeState.front?.sections ?? []), ...storeState.charts].find((s) => s.id === id);
+  if (!section) return;
+  Object.assign(storeState, { section, rows: [], cursor: null, note: "" });
+  el.storeSection.value = id;
+  fetchStorePage(el.storeSection);
+}
+
+function moreStoreSection() {
+  if (storeState.cursor) fetchStorePage(el.storeMore);
+}
+
+/* One page of the section on show, appended. `button` is the control that
+   asked, which says it is working in its own label. */
+async function fetchStorePage(button) {
+  if (storeState.loading || !storeState.section) return;
+  const { section, hmd, cursor } = storeState;
+  const label = button.tagName === "BUTTON" ? button.textContent : null;
+  storeState.loading = true;
+  /* Every control that would start another fetch waits for this one: a section
+     picked mid-page used to find the store busy and stay empty. */
+  const controls = [button, el.storeGo, el.storeView, el.storeSection];
+  const wasDisabled = controls.map((c) => c.disabled);
+  for (const c of controls) c.disabled = true;
+  if (label) button.textContent = "Loading…";
+  renderAll();
+
+  try {
+    const page = await storeSection(section.id, hmd, cursor, storeState.rows.length);
+    /* A reply for a section that is no longer on show is dropped. */
+    if (storeState.section !== section) return;
+    const have = new Set(storeState.rows.map((a) => a.id));
+    storeState.rows.push(...page.apps.filter((a) => !have.has(a.id)));
+    storeState.cursor = page.cursor;
+  } catch (err) {
+    storeState.note = err.message || "Could not load this section.";
+  } finally {
+    storeState.loading = false;
+    controls.forEach((c, i) => (c.disabled = c === button ? false : wasDisabled[i]));
+    if (label) button.textContent = label;
+    renderAll();
+    syncRelayNote();
+  }
+}
+
+/* ---------- wishlist ---------- */
+
+/* What is loaded, filtered by the box and sorted. */
+function wishVisible() {
+  const q = el.wishQ.value.trim().toLowerCase();
+  return sorted(wishState.rows.filter((a) => matches(a, q)), el.wishSort.value);
+}
+
+function initWishlist() {
+  el.wishGo.addEventListener("click", () => fetchWishPage(el.wishGo, true));
+  el.wishMore.addEventListener("click", () => wishState.cursor && fetchWishPage(el.wishMore, false));
+  el.wishQ.addEventListener("input", renderSoon);
+  el.wishSort.addEventListener("change", renderAll);
+  el.checkWish.addEventListener("click", () =>
+    checkList(wishVisible(), el.checkWish, "Check shown")
+  );
+}
+
+/* A page of the wishlist: from the top when `fresh`, else the next one. */
+async function fetchWishPage(button, fresh) {
+  if (wishState.loading) return;
+  if (fresh) Object.assign(wishState, { rows: [], cursor: null });
+  const label = button.textContent;
+  Object.assign(wishState, { asked: true, loading: true, note: "" });
+  button.disabled = true;
+  button.textContent = "Loading…";
+  renderAll();
+
+  try {
+    const page = await wishlist(undefined, wishState.cursor, wishState.rows.length);
+    const have = new Set(wishState.rows.map((a) => a.id));
+    wishState.rows.push(...page.apps.filter((a) => !have.has(a.id)));
+    wishState.cursor = page.cursor;
+  } catch (err) {
+    wishState.note = err.message || "Could not load your wishlist.";
+  } finally {
+    wishState.loading = false;
+    button.disabled = false;
+    button.textContent = label;
     renderAll();
     syncRelayNote();
   }
@@ -1695,7 +1963,7 @@ function initHeadset() {
       pairHeadset();
     }
   });
-  el.adbQ.addEventListener("input", renderAll);
+  el.adbQ.addEventListener("input", renderSoon);
   el.adbSort.addEventListener("change", renderAll);
   renderHeadset();
 }
@@ -1840,24 +2108,27 @@ async function loadHeadsetApps() {
       adbInstalled = await installedApps(adb);
     }
 
-    /* Anything the library does not cover is asked about once, and remembered
-       on the raw entry — so a later pass does not ask again. */
+    /* Anything the library does not cover is asked about once. The answers are
+       kept beside the list rather than on its entries: the list is read afresh
+       on every pass (after every install), and so would ask again each time. */
+    const owned = ownedByPackage();
     const missing = adbInstalled
-      .filter((a) => !ownedByPackage().has(a.packageName) && !a.resolved)
+      .filter((a) => !owned.has(a.packageName) && !packageAnswers.has(a.packageName))
       .map((a) => a.packageName);
 
     if (missing.length) {
       el.adbCount.textContent = `Naming ${missing.length} packages…`;
       try {
         const known = await lookupPackages(missing);
-        for (const entry of adbInstalled) {
-          const match = known.get(entry.packageName);
-          if (match) entry.resolved = match;
-        }
+        for (const pkg of missing) packageAnswers.set(pkg, known.get(pkg) ?? null);
       } catch {
         /* Without a logged-in token the names do not arrive. Those packages
            have no store ID either, so they are not listed at all. */
       }
+    }
+    for (const entry of adbInstalled) {
+      const match = packageAnswers.get(entry.packageName);
+      if (match) entry.resolved = match;
     }
     /* A store app installed from an APK is named now, but has no art: the
        library is where art comes from. Ask the store for it, in the app only. */
@@ -1951,9 +2222,9 @@ function adbRow(app) {
         : ""
     }${esc(app.name)}</td>
     <td class="num">${esc(app.installedVersion ?? "—")}</td>
-    <td class="num">${app.installedVersionCode ?? "—"}</td>
+    <td class="num c-build">${app.installedVersionCode ?? "—"}</td>
     <td class="num">${esc(latest?.version ?? "—")}</td>
-    <td class="num">${latest?.versionCode ?? "—"}</td>`;
+    <td class="num c-build">${latest?.versionCode ?? "—"}</td>`;
 
   const toggle = (e) => {
     open.has(key) ? open.delete(key) : open.add(key);
@@ -2164,6 +2435,9 @@ const appInstalls = new Map();
    In place of the browser's confirm and alert, which in a headset are a grey
    system box that does not look like anything else here. */
 function uiConfirm({ title, text, list = [], yes = "OK", no = "Cancel", danger = false }) {
+  /* Focus goes back to where it was before the first question, not to the dialog. */
+  const superseding = Boolean(dialogPending);
+  dialogPending?.(false);
   const box = document.getElementById("uiDialog");
   const yesBtn = document.getElementById("uiDialogYes");
   const noBtn = document.getElementById("uiDialogNo");
@@ -2175,15 +2449,22 @@ function uiConfirm({ title, text, list = [], yes = "OK", no = "Cancel", danger =
   yesBtn.textContent = yes;
   noBtn.textContent = no;
   yesBtn.classList.toggle("ui-danger", danger);
-  const before = document.activeElement;
+  if (!superseding) dialogReturnFocus = document.activeElement;
+  const before = dialogReturnFocus;
   box.hidden = false;
   (danger ? noBtn : yesBtn).focus();
   return new Promise((resolve) => {
     const finish = (answer) => {
+      dialogPending = null;
       box.hidden = true;
       yesBtn.onclick = noBtn.onclick = null;
       box.onkeydown = box.onclick = null;
       before?.focus?.();
+      resolve(answer);
+    };
+    /* Superseded: settle without touching the dialog the new question now owns. */
+    dialogPending = (answer) => {
+      dialogPending = null;
       resolve(answer);
     };
     yesBtn.onclick = () => finish(true);
@@ -3384,12 +3665,20 @@ const HISTORY_WORDS = {
 function dgRenderHistory(hit) {
   const all = readHistory();
   const shown = all.filter(hit);
-  const ver = (v) => (v ? `${esc(v.version ?? "—")} <span class="dg-obb">${v.code ?? ""}</span>` : "—");
+  const ver = (v) => (v ? `${esc(v.version ?? "—")} <span class="dg-obb">${esc(v.code ?? "")}</span>` : "—");
+  /* The same app fills many rows, and finding its art reads the repo list and
+     asks the headset app what is installed — once per app, not once per row. */
+  const art = new Map();
+  const artFor = (pkg, backup) => {
+    const key = `${pkg}|${backup ?? ""}`;
+    if (!art.has(key)) art.set(key, dgArt(dgArtFor(pkg, backup)));
+    return art.get(key);
+  };
   el.dgHistoryRows.innerHTML = shown
     .map(
       (h) => `<tr>
           <td class="num">${new Date(h.at).toISOString().slice(0, 16).replace("T", " ")}</td>
-          <td class="name"><span class="dg-cell">${dgArt(dgArtFor(h.packageName, h.backup ?? null))}${esc(h.name ?? h.packageName ?? "—")}</span></td>
+          <td class="name"><span class="dg-cell">${artFor(h.packageName, h.backup ?? null)}${esc(h.name ?? h.packageName ?? "—")}</span></td>
           <td${h.action === "failed" ? ` class="warn"` : ""} title="${esc(h.text ?? "")}">${esc(HISTORY_WORDS[h.action] ?? h.action)}${
             h.text && (h.action === "failed" || h.action === "cancelled") ? `: ${esc(h.text)}` : ""
           }</td>
@@ -4079,13 +4368,13 @@ function onDevicePTCClick(e) {
 async function setDevicePTCOne(serial, enabled, button) {
   const buttons = [...button.closest("tr").querySelectorAll(".ptc-btn")];
   buttons.forEach((b) => (b.disabled = true));
-  setPtcOut(`${enabled ? "Enabling" : "Disabling"} the test channel on ${serial}…`);
+  setPtcOut(`${enabled ? "Enabling" : "Disabling"} the test channel on ${headsetLabel(serial)}…`);
 
   try {
     await setDevicePTC(serial, enabled);
     loadPTCStatus(serial);
     setPtcOut(
-      `Test channel ${enabled ? "on" : "off"} for ${serial}. The headset picks
+      `Test channel ${enabled ? "on" : "off"} for ${headsetLabel(serial)}. The headset picks
        the change up when it next looks for an update.`
     );
   } catch (err) {
@@ -4619,14 +4908,16 @@ async function boot() {
     checkList(visible(), el.checkAll, "Check shown")
   );
 
-  el.mineQ.addEventListener("input", renderAll);
+  el.mineQ.addEventListener("input", renderSoon);
   el.mineSort.addEventListener("change", renderAll);
   /* One button per library: Quest, PC and expired. */
   for (const b of el.libButtons) {
     b.addEventListener("click", () => loadEntitlements(b.dataset.lib));
   }
 
-  runSearch();
+  /* The empty start-up search, unless the link already started a real one:
+     a second search would supersede it and lose the app the link opens. */
+  if (!searchSeq) runSearch();
 
   /* With the setting on, pull the library in the background so the tint is
      ready by the time a search returns. Its own errors stay on the mine tab. */
@@ -4753,12 +5044,16 @@ const PACKAGE_RE = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+){2,}$/i;
  */
 async function runSearch() {
   const raw = el.q.value.trim();
+  const seq = ++searchSeq;
   /* A new search is a new link; an app opened from the last one goes with it. */
   if (!restoringRoute && (routeView() || "apps") === "apps") setRoute({ q: raw, app: null, tab: null });
 
   if (!raw) {
     listing = [];
     listingNote = "";
+    searching = false;
+    el.searchGo.disabled = false;
+    el.searchGo.textContent = "Search";
     renderAll();
     return;
   }
@@ -4769,30 +5064,33 @@ async function runSearch() {
   listingNote = "";
   renderAll();
 
+  let found;
+  let note;
   try {
     const id = parseAppId(raw);
+    const hmdType = el.hmd.value;
 
     /* Everything here comes from the store. The Meta apps screen has its own
        file and is deliberately not consulted, so a result on this screen is
        always what the store says right now. */
     if (id) {
-      listing = [await lookupApp(id)];
-      listingNote = "fetched by ID";
+      found = [await lookupApp(id)];
+      note = "fetched by ID";
     } else if (PACKAGE_RE.test(raw)) {
-      listing = [await lookupByPackage(raw)];
-      listingNote = "resolved from package name";
+      found = [await lookupByPackage(raw)];
+      note = "resolved from package name";
     } else {
-      listing = await searchStore(raw, {
-        limit: pageSize(),
-        hmdType: el.hmd.value,
-      });
-      listingNote = `store search on ${el.hmd.value}`;
+      found = await searchStore(raw, { limit: pageSize(), hmdType });
+      note = `store search on ${hmdType}`;
     }
   } catch (err) {
-    listing = [];
-    listingNote = `search failed: ${err.message}`;
+    found = [];
+    note = `search failed: ${err.message}`;
   }
+  if (seq !== searchSeq) return;
 
+  listing = found;
+  listingNote = note;
   searching = false;
   el.searchGo.disabled = false;
   el.searchGo.textContent = "Search";
@@ -4809,7 +5107,17 @@ let focusScope = null;
    expanding a row in one should not expand its twin in the other. */
 const openKey = (scope, app) => `${scope}:${keyOf(app)}`;
 
+function onHiddenScreen(node) {
+  return Boolean(node.closest('section[id^="view-"]')?.hidden);
+}
+
 function buildRows(tbody, list, scope) {
+  if (onHiddenScreen(tbody)) {
+    staleTables.add(tbody);
+    return;
+  }
+  staleTables.delete(tbody);
+
   /* An opened row is rebuilt too, so remember where each of its tables was
      scrolled to and put them back — otherwise pressing one Get button on the
      Entitlement tab sends the DLC or build list above it back to the top. */
@@ -4856,7 +5164,14 @@ function restoreScrolls(root, saved) {
   for (const [key, v] of scrollKeys(root)) if (saved.has(key)) v.scrollTop = saved.get(key);
 }
 
+/* For filter boxes: one redraw once typing pauses, not one per keystroke. */
+function renderSoon() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(renderAll, 120);
+}
+
 function renderAll() {
+  clearTimeout(renderTimer);
   /* Only tint when the setting is on and there is a library to match against. */
   ownedKeys =
     loadSettings().autoOwned && mineKind !== "expired"
@@ -4959,6 +5274,52 @@ function renderAll() {
       : `${plusShown.length === plusAll.length ? plural(plusAll.length, "game") : `${plusShown.length} of ${plusAll.length} games`}` +
         ` — ${monthly} this month, ${plusAll.length - monthly} in the catalog; ${claimed} on this account.`;
 
+  const storeShown = storeVisible();
+  const storeAll = storeState.rows;
+  buildRows(el.storeRows, storeShown, "store");
+  el.storeEmpty.hidden = storeShown.length > 0 || storeState.loading;
+  el.storeEmpty.textContent = storeState.note
+    ? storeState.note
+    : !storeState.asked
+      ? "Pick a headset and press Get store to list the sections its store shows."
+      : storeAll.length
+        ? "Nothing matches."
+        : "This section has no apps in it — it may hold banners, worlds or videos only.";
+  el.storeEmpty.classList.toggle("warn", Boolean(storeState.note));
+  el.storeMoreBar.hidden = !storeState.cursor || !storeAll.length;
+  const section = storeState.section;
+  el.storeCount.textContent = storeState.loading
+    ? "Asking the store…"
+    : !section || !storeAll.length
+      ? storeState.front && !storeState.note
+        ? `${plural(storeState.front.sections.length, "section")}` +
+          `${storeState.charts.length ? ` and ${plural(storeState.charts.length, "top chart")}` : ""} on this store.`
+        : ""
+      : `${section.name}: ${storeShown.length === storeAll.length ? plural(storeAll.length, "app") : `${storeShown.length} of ${storeAll.length} apps`}` +
+        `${storeState.cursor ? " so far" : ""}` +
+        `${section.layout ? ` — shown in the store as ${section.layout.toLowerCase()}` : ""}` +
+        `${section.ordered ? ", ranked" : ""}.`;
+
+  const wishShown = wishVisible();
+  const wishAll = wishState.rows;
+  buildRows(el.wishRows, wishShown, "wishlist");
+  el.wishEmpty.hidden = wishShown.length > 0 || wishState.loading;
+  el.wishEmpty.textContent = wishState.note
+    ? wishState.note
+    : !wishState.asked
+      ? "Press Get wishlist to list what is on your wishlist."
+      : wishAll.length
+        ? "Nothing matches."
+        : "Your wishlist is empty.";
+  el.wishEmpty.classList.toggle("warn", Boolean(wishState.note));
+  el.wishMoreBar.hidden = !wishState.cursor || !wishAll.length;
+  el.wishCount.textContent = wishState.loading
+    ? "Asking the store…"
+    : !wishAll.length
+      ? ""
+      : `${wishShown.length === wishAll.length ? plural(wishAll.length, "app") : `${wishShown.length} of ${wishAll.length} apps`}` +
+        `${wishState.cursor ? " so far" : ""} on your wishlist.`;
+
   /* Opening a headset row calls this, not renderHeadset, so it redraws here. */
   buildAdbRows();
 
@@ -5011,7 +5372,7 @@ function appRow(app, scope) {
         ? `<img class="art" src="${esc(app.image)}" alt="" loading="lazy">`
         : ""
     }${esc(app.name)}</td>
-    <td class="c-dev">${app.platform ? (DEVICE[app.platform] ?? app.platform) : "—"}</td>
+    <td class="c-dev">${esc(deviceName(app.platform) ?? "—")}</td>
     <td class="chan c-chan">${esc(
       /* Nothing known until a check runs — the same dash every other unknown
          cell gets, rather than a label that reads as "never released" on apps
@@ -5177,7 +5538,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
            once the app has been checked. */
         ["Organization", store?.orgId],
         ["Package", app.packageName],
-        ["Device", app.platform ? (DEVICE[app.platform] ?? app.platform) : null],
+        ["Device", deviceName(app.platform)],
         ["Price", app.price],
       ],
     ],
@@ -5238,9 +5599,13 @@ function appPanel(app, { staged = false, scope = null } = {}) {
 
   const opts = loadSettings();
 
+  /* meta.com keeps each store under its own path: Rift apps under pcvr/ and Go
+     apps under go/. A Rift app sent to the Quest path is a page that never
+     renders. */
+  const storePath = app.platform === "PC" ? "pcvr/" : /3DOF|^ANDROID$/.test(app.platform ?? "") ? "go/" : "";
   const storeLink =
     app.id && opts.store
-      ? `<a href="https://www.meta.com/experiences/${app.id}/" target="_blank"
+      ? `<a href="https://www.meta.com/experiences/${storePath}${app.id}/" target="_blank"
            rel="noopener">Open in store</a>`
       : "";
 
@@ -5357,10 +5722,10 @@ function appPanel(app, { staged = false, scope = null } = {}) {
        role="tab" aria-selected="${tab === name}">${label}</button>`;
 
   /* The app's actions — check, manifest, claim, store link — sit under the
-     tabs and serve Store and Builds alike. The Reviews, Add-ons, Achievements and
-     Entitlement tabs stand on their own — their own Get button fetches them — so the shared
+     tabs and serve Store and Builds alike. The Reviews, Posts, Add-ons, Achievements
+     and Entitlement tabs stand on their own — their own Get button fetches them — so the shared
      actions step aside on those. */
-  const actionsHidden = ["mine", "reviews", "addons", "achievements"].includes(tab);
+  const actionsHidden = ["mine", "reviews", "posts", "addons", "achievements"].includes(tab);
   const sharedActions = `<div data-app-actions${actionsHidden ? " hidden" : ""}>
          ${actions ? `<div class="actions">${actions}</div>` : ""}
          <div class="claim-out"></div>
@@ -5369,7 +5734,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
        </div>`;
 
   const main = `<div class="companion-tabs panel-tabs" role="tablist" aria-label="${esc(app.name)}">
-         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${tabButton("reviews", "Reviews")}${tabButton("addons", "Add-ons")}${tabButton("achievements", "Achievements")}${tabButton("mine", "Entitlement")}
+         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${tabButton("reviews", "Reviews")}${tabButton("posts", "Posts")}${tabButton("addons", "Add-ons")}${tabButton("achievements", "Achievements")}${tabButton("mine", "Entitlement")}
        </div>
        ${sharedActions}
        <div ${pane("store")}>${storeFacts || "<p>Not checked yet — the listing arrives with Check this app.</p>"}</div>
@@ -5379,6 +5744,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
            : ""
        }<div class="versions-out"></div></div>
        <div ${pane("reviews")} class="reviews-pane">${reviewsPaneHtml(app)}</div>
+       <div ${pane("posts")} class="posts-pane">${postsPaneHtml(app)}</div>
        <div ${pane("addons")} class="addons-pane">${addonsPaneHtml(app)}</div>
        <div ${pane("achievements")} class="ach-pane">${achPaneHtml(app)}</div>
        <div ${pane("mine")}>${yourCopy(app)}</div>`;
@@ -5436,7 +5802,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
       for (const p of panel.querySelectorAll("[data-pane]")) p.hidden = p.dataset.pane !== name;
       panel.dataset.tab = name;
       const shared = panel.querySelector("[data-app-actions]");
-      if (shared) shared.hidden = ["mine", "reviews", "addons", "achievements"].includes(name);
+      if (shared) shared.hidden = ["mine", "reviews", "posts", "addons", "achievements"].includes(name);
       if (name === "mine") wantYourCopy();
     });
   }
@@ -5535,6 +5901,9 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   const achPane = panel.querySelector('[data-pane="achievements"]');
   if (achPane) wireAch(app, achPane);
 
+  const postsPane = panel.querySelector('[data-pane="posts"]');
+  if (postsPane) wirePosts(app, postsPane);
+
   const relnotesOut = panel.querySelector(".relnotes-out");
   if (relnotesOut) {
     panel.querySelector("[data-relnotes-get]")?.addEventListener("click", (e) => {
@@ -5559,6 +5928,7 @@ async function loadRelNotes(app, out, button) {
   try {
     const map = await releaseNotes(app.id);
     relNotesCache.set(app.id, map);
+    if (redrawnMeanwhile(app, out)) return;
     drawRelNotes(out, map);
     button.hidden = true;
   } catch (err) {
@@ -5764,6 +6134,7 @@ async function loadReviews(app, pane, { sort, more = false, button } = {}) {
       const page = await appReviews(app.id, { count: REVIEW_PAGE, sort });
       reviewCache.set(app.id, { summary, reviews: page.reviews, cursor: page.cursor, sort });
     }
+    if (redrawnMeanwhile(app, pane)) return;
     pane.innerHTML = renderReviews(reviewCache.get(app.id));
     wireReviews(app, pane);
   } catch (err) {
@@ -5855,6 +6226,7 @@ async function loadAddons(app, pane, { more = false, button } = {}) {
       const page = await appAddons(app.id, {});
       addonsCache.set(app.id, { items: page.items, total: page.total, cursor: page.cursor });
     }
+    if (redrawnMeanwhile(app, pane)) return;
     pane.innerHTML = renderAddons(addonsCache.get(app.id));
     wireAddons(app, pane);
   } catch (err) {
@@ -5923,6 +6295,7 @@ async function loadAch(app, pane, button) {
   try {
     const data = await appAchievements(app.id);
     achCache.set(app.id, data);
+    if (redrawnMeanwhile(app, pane)) return;
     pane.innerHTML = renderAch(data);
   } catch (err) {
     if (button) {
@@ -5931,6 +6304,71 @@ async function loadAch(app, pane, button) {
     }
     paneError(pane, "ach-error", `Could not load achievements: ${err.message}`);
   }
+}
+
+/* ---------- developer posts ----------
+   The posts on the app's store page in the phone app: the developer's news and
+   update notes. One fetch on Get, cached. A PC app is asked of the Rift store. */
+
+function postsPaneHtml(app) {
+  if (!app.id) return `<p>No store ID to read posts for.</p>`;
+  const c = postsCache.get(app.id);
+  if (c) return renderPosts(c);
+  return `<div class="controls"><button type="button" data-posts-get>Get posts</button></div>
+       <p class="hint">The developer's news and update posts on this app's store page. Needs your own access token.</p>`;
+}
+
+function renderPosts(posts) {
+  if (!posts.length) return `<p>The developer has no posts on this app's store page.</p>`;
+  const cards = posts
+    .map((p) => {
+      const art = p.image ? `<img class="post-art" src="${esc(p.image)}" alt="" loading="lazy">` : "";
+      const meta = [p.author, p.time].filter(Boolean).map(esc).join(" · ");
+      return `<article class="post">
+          ${art}
+          <div class="post-body">
+            <div class="post-title">${esc(p.title ?? "Untitled post")}</div>
+            ${meta ? `<div class="post-meta">${meta}</div>` : ""}
+            ${p.body ? `<div class="post-text">${esc(p.body)}</div>` : ""}
+          </div>
+        </article>`;
+    })
+    .join("");
+  return `<p class="count">${plural(posts.length, "post")}</p>
+     <div class="post-list">${cards}</div>`;
+}
+
+function wirePosts(app, pane) {
+  if (!app.id) return;
+  pane.querySelector("[data-posts-get]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    loadPosts(app, pane, e.currentTarget);
+  });
+}
+
+async function loadPosts(app, pane, button) {
+  button.disabled = true;
+  button.textContent = "Loading posts…";
+  try {
+    const posts = await appDevPosts(app.id, app.platform === "PC" ? "RIFT" : undefined);
+    postsCache.set(app.id, posts);
+    if (redrawnMeanwhile(app, pane)) return;
+    pane.innerHTML = renderPosts(posts);
+  } catch (err) {
+    button.disabled = false;
+    button.textContent = "Get posts";
+    paneError(pane, "posts-error", `Could not load posts: ${err.message}`);
+  }
+}
+
+/* A tab's fetch outlives its pane whenever the row is redrawn while it waits (a
+   check finishing, a filter keystroke). The redrawn panel was built before the
+   cache was filled, so it still offers the Get button: redraw it again from the
+   cache rather than filling a pane nobody can see. */
+function redrawnMeanwhile(app, pane) {
+  if (pane.isConnected) return false;
+  refreshRow(app);
+  return true;
 }
 
 /* A warning line appended under a tab pane, reused by the app-scoped tabs. */
@@ -5976,6 +6414,7 @@ async function toggleAppInfo(app, out, button) {
   try {
     const info = await appDetails(app.id);
     infoCache.set(app.id, info);
+    if (redrawnMeanwhile(app, out)) return;
     drawAppInfo(out, info);
   } catch (err) {
     /* Left open so the reason stays on screen; Hide clears it. */
@@ -6587,11 +7026,18 @@ async function resolveId(app, out, button) {
 
   try {
     const found = await lookupByPackage(app.packageName);
+    /* Gaining an ID changes the app's key (keyOf prefers the ID to the package),
+       so its open panel and chosen tab move to the new key — otherwise the
+       redraw below closes the panel the answer is shown in. */
+    const before = [...open].filter((k) => k.endsWith(`:${keyOf(app)}`));
+    const tabs = before.map((k) => layoutState.panelTabs.get(k));
     Object.assign(app, found);
-    out.innerHTML = `
-      <p>Found <strong>${esc(found.id)}</strong>. Add it to
-      <code>data/meta-apps.json</code> so it sticks:</p>
-      <pre>${esc(JSON.stringify(app, null, 2))}</pre>`;
+    before.forEach((k, i) => {
+      const moved = `${k.slice(0, k.lastIndexOf(":"))}:${keyOf(app)}`;
+      open.delete(k);
+      open.add(moved);
+      if (tabs[i]) layoutState.panelTabs.set(moved, tabs[i]);
+    });
     renderAll();
   } catch (err) {
     out.innerHTML = `<p class="warn">Could not resolve: ${esc(err.message)}</p>`;
@@ -6631,6 +7077,10 @@ function refreshRow(app) {
               ? "default"
               : tbody === el.plusRows
                 ? "plus"
+                : tbody === el.storeRows
+                  ? "store"
+                  : tbody === el.wishRows
+                    ? "wishlist"
                 : "main";
     const next = tr.nextElementSibling;
 
@@ -6770,44 +7220,48 @@ async function findObbs(channels = []) {
 }
 
 async function checkList(list, button, label) {
-  if (!list.length) return;
+  /* A second press while a sweep runs would start a second sweep beside it. */
+  if (!list.length || button.disabled) return;
 
+  button.disabled = true;
   el.checkAll.disabled = true;
   el.checkOrg.disabled = true;
-
-  /* Mark the ones with no store ID up front rather than counting them. */
-  const checkable = [];
-  for (const app of list) {
-    if (app.id) checkable.push(app);
-    else await checkOne(app);
-  }
-
-  /* The store's version query takes one app per call — an array of IDs is
-     rejected outright — so the only way to speed a long list up is to have
-     several in flight at once. Kept modest so nobody's relay gets hammered. */
-  const CONCURRENCY = 6;
-  let cursor = 0;
-  let done = 0;
-
-  async function worker() {
-    while (cursor < checkable.length) {
-      const app = checkable[cursor++];
-      /* Check shown runs the same full check as Check this app on every app —
-         build history, OBB pairings, and the store listing (organization,
-         genres, rating, …) — so nothing needs a second per-app check after. */
-      await checkOne(app);
-      done += 1;
-      button.textContent = `Checking ${done} of ${checkable.length}…`;
+  try {
+    /* Mark the ones with no store ID up front rather than counting them. */
+    const checkable = [];
+    for (const app of list) {
+      if (app.id) checkable.push(app);
+      else await checkOne(app);
     }
+
+    /* The store's version query takes one app per call — an array of IDs is
+       rejected outright — so the only way to speed a long list up is to have
+       several in flight at once. Kept modest so nobody's relay gets hammered. */
+    const CONCURRENCY = 6;
+    let cursor = 0;
+    let done = 0;
+
+    async function worker() {
+      while (cursor < checkable.length) {
+        const app = checkable[cursor++];
+        /* Check shown runs the same full check as Check this app on every app —
+           build history, OBB pairings, and the store listing (organization,
+           genres, rating, …) — so nothing needs a second per-app check after. */
+        await checkOne(app);
+        done += 1;
+        button.textContent = `Checking ${done} of ${checkable.length}…`;
+      }
+    }
+
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, checkable.length) }, worker)
+    );
+  } finally {
+    button.textContent = label;
+    button.disabled = false;
+    el.checkAll.disabled = false;
+    el.checkOrg.disabled = false;
   }
-
-  await Promise.all(
-    Array.from({ length: Math.min(CONCURRENCY, checkable.length) }, worker)
-  );
-
-  button.textContent = label;
-  el.checkAll.disabled = false;
-  el.checkOrg.disabled = false;
 }
 
 /* ---------- util ---------- */
@@ -7109,19 +7563,28 @@ async function ownedHeadsets() {
 /* Whether the account owns an app comes from the Quest library, read once —
    the Entitlements screen's copy when that is the Quest library, otherwise a
    fetch of its own that leaves the screen alone. */
+function library() {
+  return libraryToken === loadSettings().token ? libraryNames : null;
+}
+
 function appNames() {
-  if (libraryNames) return Promise.resolve(libraryNames);
+  if (library()) return Promise.resolve(libraryNames);
   /* Several lists can ask at once; they share the one fetch. */
   layoutState.names ??= (async () => {
+    const { token } = loadSettings();
     let list = mineKind === "quest" && mineList.length ? mineList : null;
+    let error = "";
     if (!list) {
       try {
         list = await myEntitlements("quest");
-      } catch {
+      } catch (err) {
         list = [];
+        error = err.message;
       }
     }
     libraryNames = new Map(list.map((a) => [a.id, a]));
+    libraryToken = token;
+    libraryError = error;
     layoutState.names = null;
     return libraryNames;
   })();
@@ -7414,6 +7877,7 @@ async function browseMore(state, button = el.worldMore) {
   if (!state || state.loading || !state.fetchPage) return;
   const label = button.textContent;
   state.loading = true;
+  state.note = "";
   button.disabled = true;
   button.textContent = "Loading…";
   renderWorlds();
@@ -7522,7 +7986,7 @@ function renderWorlds() {
       <td class="name">${
         art && w.image ? `<img class="art" src="${esc(w.image)}" alt="" loading="lazy">` : ""
       }${esc(w.name)}</td>
-      <td class="num">${esc(w.id)}</td>
+      <td class="num c-wid">${esc(w.id)}</td>
       <td class="num">${bigNumber(w.visits)}</td>
       <td class="num">${bigNumber(w.online)}</td>
       <td class="num">${bigNumber(w.likes)}</td>
@@ -7577,10 +8041,13 @@ function initSearchBar() {
 /** Ownership, release channel, DLC, playtime and backups for one app, from the account's side. */
 function yourCopy(app) {
   if (!app.id) return "<p>No store ID, so nothing on the account can be matched to it.</p>";
-  const own = libraryNames?.get(app.id);
-  const ownLine = !libraryNames
+  const names = library();
+  const own = names?.get(app.id);
+  const ownLine = !names
     ? "<p>Asking the store what this account owns…</p>"
-    : own
+    : libraryError
+      ? `<p class="warn">Could not read your Quest library: ${esc(libraryError)}</p>`
+      : own
       ? `<p class="hint">In your Quest library — ${esc(own.state ? words(own.state) : "owned")}, from ${esc(
           grantLabel(own.grant)
         )}${own.lastUsed ? `, last played ${esc(isoDay(own.lastUsed))}` : ""}.</p>`
@@ -7633,7 +8100,7 @@ function channelSection(app) {
    release channels, DLC, playtime (one request per headset) and cloud
    backups. */
 function wantYourCopy() {
-  if (!libraryNames) appNames().then(() => renderAccountTabs());
+  if (!library()) appNames().then(() => renderAccountTabs());
 }
 
 /** A Get button on the Entitlement tab: fetch that one list. */
@@ -7673,6 +8140,7 @@ async function loadWorld(id) {
   const world = anyWorld(id);
   if (!world) return;
   worldInfo.set(id, { loading: true, data: null, note: "" });
+  renderWorlds();
   try {
     worldInfo.set(id, { loading: false, data: await worldDetails(world), note: "" });
   } catch (err) {
@@ -7689,6 +8157,7 @@ async function loadWorld(id) {
 async function loadWorldFlags(id) {
   if (worldFlagInfo.has(id)) return;
   worldFlagInfo.set(id, "loading");
+  renderWorlds();
   try {
     worldFlagInfo.set(id, await worldFlags(id));
   } catch {

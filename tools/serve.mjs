@@ -6,7 +6,7 @@
 // a 404, which is why this exists. Nothing is cached, so edits show on reload.
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
-import { join, extname, normalize, resolve } from "node:path";
+import { join, extname, normalize, resolve, sep } from "node:path";
 
 const root = resolve(".");
 const port = Number(process.argv[2] ?? 8791);
@@ -33,7 +33,7 @@ async function handle(req, res) {
   }
   if (path.endsWith("/")) path += "index.html";
   const file = normalize(join(root, path));
-  if (!file.startsWith(root)) return res.writeHead(403).end();
+  if (file !== root && !file.startsWith(root + sep)) return res.writeHead(403).end();
 
   const headers = { "Cache-Control": "no-store" };
   try {
