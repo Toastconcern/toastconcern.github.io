@@ -65,7 +65,7 @@ import {
   saveSettings,
   clearSettings,
   needsRelay,
-} from "./check.js?v=248";
+} from "./check.js?v=254";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -252,6 +252,27 @@ const el = {
   limitbar: document.querySelector(".limitbar"),
 
   viewApps: document.getElementById("view-apps"),
+  viewWatchlist: document.getElementById("view-watchlist"),
+  watchRows: document.getElementById("watchRows"),
+  watchEmpty: document.getElementById("watchEmpty"),
+  watchCount: document.getElementById("watchCount"),
+  watchCheck: document.getElementById("watchCheck"),
+  watchMarkAll: document.getElementById("watchMarkAll"),
+  watchAuto: document.getElementById("watchAuto"),
+  watchButtons: document.getElementById("watchButtons"),
+  watchNotify: document.getElementById("watchNotify"),
+  notifyLinger: document.getElementById("notifyLinger"),
+  watchThrottle: document.getElementById("watchThrottle"),
+  density: document.getElementById("density"),
+  watchBadge: document.getElementById("watchBadge"),
+  toasts: document.getElementById("toasts"),
+  setupOverlay: document.getElementById("setupOverlay"),
+  setupSections: document.getElementById("setupSections"),
+  setupPanels: document.getElementById("setupPanels"),
+  setupData: document.getElementById("setupData"),
+  setupSave: document.getElementById("setupSave"),
+  setupAll: document.getElementById("setupAll"),
+  openSetup: document.getElementById("openSetup"),
   viewOrgs: document.getElementById("view-orgs"),
   viewDefault: document.getElementById("view-default"),
   viewDevices: document.getElementById("view-devices"),
@@ -457,6 +478,16 @@ const el = {
 };
 
 /** id -> { state, latest, error } */
+/* Watchlist storage keys live up here, not beside the watchlist code below:
+   the first applyView() runs during module setup (above the init block) and can
+   render the Watchlist screen on a deep link, so these must be initialized
+   before then (the init-order rule in CLAUDE.md). */
+const WATCH_KEY = "metadb.watchlist";
+const WATCH_LAST_KEY = "metadb.watchLast";
+/* Guard against hammering the store on quick reloads while still checking on
+   essentially every visit. "Check now" ignores it. */
+const WATCH_THROTTLE = 15 * 60 * 1000;
+
 const results = new Map();
 
 /** id -> the store's own listing, filled in by a check. */
@@ -739,6 +770,7 @@ let tour = null;
 initTheme();
 initFontSize();
 initMotion();
+applyDensity();
 initStage();
 initNav();
 initSearchBar();
@@ -753,6 +785,8 @@ initDefault();
 initPlus();
 initStore();
 initWishlist();
+initWatch();
+initSetup();
 initHeadset();
 initDowngrade();
 initGetApp();
@@ -1001,6 +1035,12 @@ function initMotion() {
 
 function applySpeed() {
   document.documentElement.style.setProperty("--speed", `${speed()}ms`);
+}
+
+/** Row spacing across the lists: a class on <html> the CSS keys off, so one
+    switch tightens every table and the Watchlist cards at once. */
+function applyDensity() {
+  document.documentElement.classList.toggle("density-compact", loadSettings().density === "compact");
 }
 
 /**
@@ -1486,6 +1526,28 @@ async function restoreRoute() {
   }
 }
 
+/* The first screen still switched on, in menu order, for when a disabled one is
+   asked for. Settings is the last resort and is never switchable. */
+function firstEnabledSection(off) {
+  const order = ["apps", "store", "default", "plus", "worlds", "orgs", "watchlist", "devices", "mine", "purchases", "wishlist", "avatar", "adb", "companion"];
+  return order.find((v) => !off.includes(v)) ?? "settings";
+}
+
+/* Hide the nav links (and any menu left with nothing in it) for screens turned
+   off in the setup guide. Settings and Get the app are never hidden. */
+function applyFeatureVisibility() {
+  const off = new Set(loadSettings().sectionsOff);
+  for (const a of el.navLinks) {
+    const v = a.dataset.view;
+    if (v === "settings" || v === "getapp") continue;
+    a.hidden = off.has(v);
+  }
+  for (const g of el.navGroups) {
+    const links = [...g.querySelectorAll("a[data-view]")];
+    g.hidden = links.length > 0 && links.every((a) => a.hidden);
+  }
+}
+
 function applyView() {
   /* Back, Forward or a tab in the nav — the panel belongs to the screen it was
      opened from, and its row is about to be hidden along with that screen.
@@ -1510,13 +1572,21 @@ function applyView() {
     }
   }
 
-  const views = ["mine", "purchases", "wishlist", "avatar", "devices", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
-  const view = views.includes(hash) && !(IN_APP && (hash === "adb" || hash === "companion")) ? hash : "apps";
+  const views = ["mine", "purchases", "wishlist", "watchlist", "avatar", "devices", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
+  let view = views.includes(hash) && !(IN_APP && (hash === "adb" || hash === "companion")) ? hash : "apps";
+
+  /* A screen switched off in the setup guide is not shown. Settings and Get the
+     app are never switchable, so this always lands somewhere. */
+  const sectionsOff = loadSettings().sectionsOff;
+  if (view !== "settings" && view !== "getapp" && sectionsOff.includes(view)) {
+    view = firstEnabledSection(sectionsOff);
+  }
 
   el.viewApps.hidden = view !== "apps";
   el.viewMine.hidden = view !== "mine";
   el.viewPurchases.hidden = view !== "purchases";
   el.viewWishlist.hidden = view !== "wishlist";
+  el.viewWatchlist.hidden = view !== "watchlist";
   el.viewAvatar.hidden = view !== "avatar";
   el.viewDevices.hidden = view !== "devices";
   el.viewWorlds.hidden = view !== "worlds";
@@ -1529,9 +1599,10 @@ function applyView() {
   el.viewSettings.hidden = view !== "settings";
   el.viewGetapp.hidden = view !== "getapp";
   if (view === "getapp") showAppInfo();
+  if (view === "watchlist") renderWatch();
 
   if (view === "companion") {
-    import("./companion.js?v=248")
+    import("./companion.js?v=254")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => {
         /* An engine that cannot even read companion.js (the Quest 1's) has no
@@ -1546,6 +1617,7 @@ function applyView() {
 
   if ([...staleTables].some((t) => !onHiddenScreen(t))) renderAll();
 
+  applyFeatureVisibility();
   for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);
   /* A menu is marked as the current one when the screen on show is one of its own. */
   for (const g of el.navGroups) {
@@ -1557,7 +1629,7 @@ function applyView() {
      would have to be kept on the page to be animated, and it is the arriving
      one the reader is looking for. */
   play(
-    [el.viewApps, el.viewMine, el.viewPurchases, el.viewWishlist, el.viewAvatar, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
+    [el.viewApps, el.viewMine, el.viewPurchases, el.viewWishlist, el.viewWatchlist, el.viewAvatar, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
@@ -2993,6 +3065,560 @@ function saveRepos(repos) {
 
 /** The repo an app is linked to, if any. */
 const repoOf = (app) => (app.repoOnly ? app.repo : app.packageName ? readRepos()[app.packageName]?.repo ?? null : null);
+
+/* ---------- pop-up notifications ----------
+   A small stack of dismissible cards, bottom-right, for things worth surfacing
+   without taking over the screen — currently a watched app getting a new build
+   (see sweepWatch). No library: one node per toast, removed after a while unless
+   the pointer is on it, and capped so a big sweep cannot bury the page. Square
+   and theme-coloured like the rest of the UI; its fade follows the site's motion
+   setting, and how long it lingers is a Settings choice. Hoisted functions, so
+   the watchlist sweep can call them regardless of source order. */
+const TOAST_LIMIT = 4; // most shown at once; older ones fall off the top
+
+function toast({ title, body, actionLabel, onAction } = {}) {
+  if (!el.toasts) return;
+  const node = document.createElement("div");
+  node.className = "toast";
+  node.setAttribute("role", "group");
+  node.innerHTML =
+    `<button type="button" class="toast__close" aria-label="Dismiss">×</button>` +
+    `<div class="toast__title">${esc(title ?? "")}</div>` +
+    (body ? `<div class="toast__body">${esc(body)}</div>` : "") +
+    (actionLabel
+      ? `<div class="toast__actions"><button type="button" class="linkbtn toast__action">${esc(actionLabel)}</button></div>`
+      : "");
+
+  const close = () => dismissToast(node);
+  node.querySelector(".toast__close").addEventListener("click", close);
+  if (actionLabel) {
+    node.querySelector(".toast__action").addEventListener("click", () => {
+      try {
+        onAction?.();
+      } finally {
+        close();
+      }
+    });
+  }
+
+  /* Linger is a setting; "0" means wait for a dismiss and never time out. The
+     timer pauses while the pointer is over the card, so a toast being read — or
+     reached for — does not vanish mid-reach. */
+  const linger = Number(loadSettings().notifyLinger) || 0;
+  let timer = linger ? setTimeout(close, linger) : null;
+  node.addEventListener("mouseenter", () => {
+    if (timer) clearTimeout(timer);
+  });
+  node.addEventListener("mouseleave", () => {
+    if (linger) timer = setTimeout(close, linger);
+  });
+
+  el.toasts.appendChild(node);
+  /* Flip to the shown state on the next frame, so the entrance transition runs
+     from the off-screen start rather than being skipped on first paint. */
+  requestAnimationFrame(() => node.classList.add("is-shown"));
+
+  /* Cap the stack: drop the oldest beyond the limit. */
+  const all = el.toasts.querySelectorAll(".toast");
+  for (let i = 0; i < all.length - TOAST_LIMIT; i++) dismissToast(all[i]);
+}
+
+/** Fade a toast out and remove it once the transition ends — or at once when
+    motion is off, so it is never left sitting there invisible. */
+function dismissToast(node) {
+  if (!node || node.dataset.going) return;
+  node.dataset.going = "1";
+  node.classList.remove("is-shown");
+  node.classList.add("is-going");
+  const motion =
+    loadSettings().motion && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!motion) {
+    node.remove();
+    return;
+  }
+  let done = false;
+  const end = () => {
+    if (done) return;
+    done = true;
+    node.remove();
+  };
+  node.addEventListener("transitionend", end, { once: true });
+  setTimeout(end, 500); // fallback in case transitionend never fires
+}
+
+/** The pop-up a watchlist sweep raises when an app's live build changes. The
+    "Open" link jumps to the Watchlist so the reader sees it in context. */
+function notifyWatchUpdate(w, prevLatest) {
+  const from = prevLatest ?? w.seen;
+  const jump =
+    from != null && w.latest != null ? `build ${from} → ${w.latest}` : `build ${w.latest}`;
+  toast({
+    title: `${w.name} — new build`,
+    body: jump,
+    actionLabel: "View watchlist",
+    onAction: () => go("/watchlist"),
+  });
+}
+
+/* ---------- watchlist ----------
+   Apps the reader is tracking for new builds. Kept in this browser's
+   localStorage (a convenience, like the GitHub repo links above): a list of
+   small records, each remembering the live build last acknowledged ("seen")
+   and the newest one a sweep has found ("latest"). An app is "updated" when
+   those differ. The sweep reuses check.js's checkApp — no new network code.
+   The WATCH_* keys are declared with the top-of-file state (init-order rule). */
+function readWatch() {
+  try {
+    const v = JSON.parse(localStorage.getItem(WATCH_KEY));
+    if (!Array.isArray(v)) return [];
+    /* Legacy entries tracked seen/latest as version NAMES (no seenVer field).
+       Null them so the next check re-baselines on build numbers instead of
+       reporting a spurious "new build" from the name↔number type mismatch. */
+    return v.map((w) =>
+      w && !("seenVer" in w) ? { ...w, seen: null, latest: null, seenVer: null, latestVer: null } : w
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveWatch(list) {
+  try {
+    localStorage.setItem(WATCH_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+/** An app object for the shared appPanel/detailRow, from a stored watch entry.
+    The panel fills the rest in lazily (Check this app, the Store/Builds tabs). */
+function appFromWatch(w) {
+  return {
+    id: w.id,
+    name: w.name,
+    image: w.image ?? null,
+    platform: w.platform ?? null,
+    slug: w.slug ?? null,
+    packageName: w.packageName ?? null,
+  };
+}
+
+/* Declared as hoisted functions (not const arrows): updateWatchBadge runs
+   during the init sweep, which fires while this module is still being set up,
+   so a const here would be in its TDZ (see the init-order note in CLAUDE.md). */
+function isWatched(app) {
+  return Boolean(app?.id) && readWatch().some((w) => w.id === String(app.id));
+}
+function watchUpdated(w) {
+  return w.latest != null && w.seen != null && w.latest !== w.seen;
+}
+
+/** The faded add/remove-from-watchlist square shown at the left of an app row:
+    "+" to watch, "−" to unwatch. Styling and alignment live in .watch-toggle. */
+function watchToggle(app) {
+  const on = isWatched(app);
+  return `<button type="button" class="watch-toggle${on ? " is-on" : ""}" data-watch-toggle="${esc(keyOf(app))}" aria-pressed="${on}" title="${on ? "Remove from" : "Add to"} your watchlist" aria-label="${on ? "Remove" : "Add"} ${esc(app.name)} ${on ? "from" : "to"} your watchlist"></button>`;
+}
+
+function addWatch(app) {
+  if (!app?.id) return;
+  const list = readWatch();
+  if (list.some((w) => w.id === String(app.id))) return;
+  /* If this app has already been checked this session, seed from that so a
+     fresh watch does not immediately claim an update. */
+  const head = results.get(keyOf(app))?.latest;
+  /* seen/latest track the build number (versionCode), not the version name —
+     Meta ships new builds under the same name, so a name compare misses them.
+     The matching name is kept (…Ver) only to show on the build cell. */
+  list.push({
+    id: String(app.id),
+    name: app.name ?? String(app.id),
+    slug: app.slug ?? null,
+    platform: app.platform ?? null,
+    image: app.image ?? null,
+    seen: head?.versionCode ?? null,
+    seenVer: head?.version ?? null,
+    seenAt: head?.releasedAt ?? null,
+    latest: head?.versionCode ?? null,
+    latestVer: head?.version ?? null,
+    latestAt: head?.releasedAt ?? null,
+    checkedAt: head ? Date.now() : 0,
+    error: null,
+  });
+  saveWatch(list);
+}
+
+function removeWatch(id) {
+  saveWatch(readWatch().filter((w) => w.id !== String(id)));
+}
+
+function toggleWatch(app) {
+  if (isWatched(app)) removeWatch(app.id);
+  else addWatch(app);
+}
+
+/** Set an entry's acknowledged build to the latest found, clearing its flag. */
+function markWatchSeen(id) {
+  const list = readWatch();
+  const w = list.find((x) => x.id === String(id));
+  if (!w) return;
+  w.seen = w.latest;
+  w.seenVer = w.latestVer;
+  w.seenAt = w.latestAt;
+  saveWatch(list);
+}
+
+/** How many watched apps currently have an unacknowledged new build. */
+function watchUpdateCount() {
+  return readWatch().filter(watchUpdated).length;
+}
+
+function updateWatchBadge() {
+  if (!el.watchBadge) return;
+  /* No badge if the whole screen is switched off in the setup guide. */
+  if (loadSettings().sectionsOff.includes("watchlist")) {
+    el.watchBadge.textContent = "";
+    el.watchBadge.hidden = true;
+    return;
+  }
+  const n = watchUpdateCount();
+  el.watchBadge.textContent = n ? String(n) : "";
+  el.watchBadge.hidden = n === 0;
+}
+
+/* Check every watched app's live build. Reuses checkApp (check.js). Throttled
+   unless forced; writes results back as it goes so the screen fills in. */
+async function sweepWatch({ force = false } = {}) {
+  const list = readWatch();
+  if (!list.length || sweepWatch.busy) return;
+  /* Watchlist switched off in the setup guide: do not fetch anything for it. */
+  if (loadSettings().sectionsOff.includes("watchlist")) return;
+  const last = Number(localStorage.getItem(WATCH_LAST_KEY) || 0);
+  /* The gap between auto-checks is a Settings choice (watchThrottle); fall back
+     to the built-in default if it is unset or unparseable. Check now forces. */
+  const throttle = Number(loadSettings().watchThrottle);
+  const gap = Number.isFinite(throttle) ? throttle : WATCH_THROTTLE;
+  if (!force && Date.now() - last < gap) return;
+
+  sweepWatch.busy = true;
+  if (!el.viewWatchlist.hidden) renderWatch();
+  try {
+    for (const entry of list) {
+      try {
+        const head = await checkApp({ id: entry.id, name: entry.name });
+        const cur = readWatch();
+        const w = cur.find((x) => x.id === entry.id);
+        if (!w) continue;
+        /* The build known before this check, so a pop-up fires only on a build
+           that genuinely appeared in this sweep — not every load that re-confirms
+           an already-known new build. */
+        const prevLatest = w.latest;
+        w.latest = head?.versionCode ?? null;
+        w.latestVer = head?.version ?? null;
+        w.latestAt = head?.releasedAt ?? null;
+        w.checkedAt = Date.now();
+        w.error = null;
+        /* Cache the check the way checkOne does, so an expanded row shows the
+           same channels and builds the row reflects — not "Not checked yet". */
+        if (head) {
+          results.set(keyOf({ id: entry.id }), { state: "info", latest: head });
+          if (head.builds) versionCache.set(entry.id, head.builds);
+        }
+        /* First successful check sets the baseline, so an app added without a
+           prior check does not show as "updated" the instant it is first seen. */
+        if (w.seen == null) {
+          w.seen = w.latest;
+          w.seenVer = w.latestVer;
+          w.seenAt = w.latestAt;
+        }
+        saveWatch(cur);
+        /* A new build appeared this sweep (the live build moved off what we last
+           saw) and is not yet acknowledged — pop it up, if that is on. The
+           baseline case above sets seen = latest, so watchUpdated is false there
+           and a freshly added app never announces itself. */
+        if (loadSettings().watchNotify && prevLatest !== w.latest && watchUpdated(w)) {
+          notifyWatchUpdate(w, prevLatest);
+        }
+      } catch (err) {
+        const cur = readWatch();
+        const w = cur.find((x) => x.id === entry.id);
+        if (w) {
+          w.error = String(err?.message ?? err);
+          w.checkedAt = Date.now();
+          saveWatch(cur);
+        }
+      }
+      updateWatchBadge();
+      if (!el.viewWatchlist.hidden) renderWatch();
+    }
+    localStorage.setItem(WATCH_LAST_KEY, String(Date.now()));
+  } finally {
+    sweepWatch.busy = false;
+    updateWatchBadge();
+    if (!el.viewWatchlist.hidden) renderWatch();
+  }
+}
+sweepWatch.busy = false;
+
+/* One row per watched app: its icon and name, the build last seen (version +
+   release date), and the new build (version + date) once one turns up. Clicking
+   a row opens the shared app drop-down (detailRow → appPanel) with its channels
+   and build history. An app with no new build simply shows nothing in the New
+   build column — it is just an app on the list, not a status to read. */
+function renderWatch() {
+  if (!el.watchRows) return;
+  const list = readWatch();
+  const busy = sweepWatch.busy;
+  const showArt = loadSettings().images;
+
+  /* Keep any open drop-down's live node across the rebuild, so a background
+     check (or Mark seen) doesn't collapse a panel the reader has open. */
+  const livePanels = new Map();
+  for (const d of el.watchRows.querySelectorAll(":scope > tr.detail")) {
+    const id = d.previousElementSibling?.dataset.id;
+    if (id) livePanels.set(id, d);
+  }
+
+  const icon = (w) =>
+    showArt && w.image
+      ? `<img class="wl-ic" src="${esc(w.image)}" alt="" loading="lazy">`
+      : `<span class="wl-ic wl-ic--ph" aria-hidden="true">${esc((w.name || "?").trim().charAt(0).toUpperCase())}</span>`;
+  /* A build cell: the version (monospace) over its release date (muted). */
+  const buildCell = (ver, date, cls = "") =>
+    ver == null && date == null
+      ? `<span class="wl-dash">—</span>`
+      : `<span class="wl-b ${cls}"><span class="wl-bv mono">${ver ? `v${esc(ver)}` : "—"}</span><span class="wl-bd">${date ? esc(date) : ""}</span></span>`;
+
+  el.watchRows.innerHTML = list
+    .map((w) => {
+      const up = watchUpdated(w);
+      const newCell = up
+        ? buildCell(w.latestVer, w.latestAt, "wl-new")
+        : w.error
+          ? `<span class="wl-fail">Couldn't check</span>`
+          : `<span class="wl-dash">—</span>`;
+      return `<tr class="watch-row${up ? " is-updated" : ""}" data-id="${esc(w.id)}" tabindex="0" aria-expanded="false">
+        <td class="wl-app"><span class="wl-appwrap">${icon(w)}<span class="wl-nm">${esc(w.name)}</span></span></td>
+        <td>${buildCell(w.seenVer, w.seenAt)}</td>
+        <td>${newCell}</td>
+        <td class="wl-act">
+          ${up ? `<button type="button" class="linkbtn" data-watch-seen="${esc(w.id)}">Mark seen</button>` : ""}
+          <button type="button" class="wl-rm" data-watch-remove="${esc(w.id)}" title="Remove ${esc(w.name)} from your watchlist" aria-label="Remove ${esc(w.name)} from your watchlist">×</button>
+        </td>
+      </tr>`;
+    })
+    .join("");
+
+  /* Re-insert any drop-down that was open before this redraw (reuse the live
+     node where we kept it, else rebuild from the stored entry). */
+  for (const tr of el.watchRows.querySelectorAll("tr.watch-row")) {
+    const w = list.find((x) => x.id === tr.dataset.id);
+    if (w && open.has("watchlist:" + w.id)) {
+      tr.after(livePanels.get(w.id) ?? detailRow(appFromWatch(w), 4, "watchlist"));
+      tr.setAttribute("aria-expanded", "true");
+    }
+  }
+
+  el.watchEmpty.hidden = list.length > 0;
+  el.watchEmpty.textContent = "Nothing on your watchlist yet. Open any app and press Watch to track its builds.";
+
+  const updates = watchUpdateCount();
+  el.watchCount.textContent = busy
+    ? "Checking your watchlist…"
+    : !list.length
+      ? ""
+      : `${list.length} app${list.length === 1 ? "" : "s"} watched` +
+        (updates ? ` — ${updates} with a new build` : "");
+  el.watchCount.classList.toggle("has-updates", !busy && updates > 0);
+  el.watchCheck.disabled = busy || !list.length;
+  el.watchMarkAll.disabled = busy || updates === 0;
+}
+
+/** Open or close the app drop-down under a watch row — the same panel the main
+    app list expands (detailRow → appPanel), spanning the table's 4 columns. The
+    open state lives in the shared `open` set (scope "watchlist") so a panel
+    survives a re-render. A plain string key, not openKey(), because renderWatch
+    can run during module setup before openKey's const is initialised (TDZ). */
+function toggleWatchDetail(row) {
+  const w = readWatch().find((x) => x.id === row.dataset.id);
+  if (!w) return;
+  const key = "watchlist:" + w.id;
+  const next = row.nextElementSibling;
+  if (next?.classList.contains("detail")) {
+    open.delete(key);
+    next.remove();
+    row.setAttribute("aria-expanded", "false");
+  } else {
+    open.add(key);
+    row.after(detailRow(appFromWatch(w), 4, "watchlist"));
+    row.setAttribute("aria-expanded", "true");
+  }
+}
+
+/** A compact "x ago" for the last-checked line. */
+function relTime(ms) {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  return `${Math.round(h / 24)} d ago`;
+}
+
+function initWatch() {
+  el.watchCheck?.addEventListener("click", () => sweepWatch({ force: true }));
+  el.watchMarkAll?.addEventListener("click", () => {
+    for (const w of readWatch()) markWatchSeen(w.id);
+    updateWatchBadge();
+    renderWatch();
+  });
+  el.watchRows?.addEventListener("click", (e) => {
+    const seen = e.target.closest("[data-watch-seen]");
+    if (seen) {
+      markWatchSeen(seen.dataset.watchSeen);
+      updateWatchBadge();
+      renderWatch();
+      return;
+    }
+    const rm = e.target.closest("[data-watch-remove]");
+    if (rm) {
+      removeWatch(rm.dataset.watchRemove);
+      updateWatchBadge();
+      renderWatch();
+      return;
+    }
+    /* Anywhere else on the row toggles its drop-down — the shared app panel. */
+    const row = e.target.closest("tr.watch-row");
+    if (row) toggleWatchDetail(row);
+  });
+  el.watchRows?.addEventListener("keydown", (e) => {
+    const row = e.target.closest?.("tr.watch-row");
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      toggleWatchDetail(row);
+    }
+  });
+
+  updateWatchBadge();
+  /* The first applyView() renders during setup; if the reader deep-linked into
+     the Watchlist, re-render it once setup is done so it shows the stored list
+     (deferred, like openDowngrade). */
+  setTimeout(() => {
+    if (!el.viewWatchlist.hidden) renderWatch();
+  }, 0);
+  /* Check on open, throttled — also deferred past module setup. The toggle for
+     this lives in Settings ("Check the watchlist when the site opens"). */
+  if (loadSettings().watchAuto) {
+    setTimeout(() => sweepWatch(), 0);
+  }
+}
+
+/* ---------- setup guide ----------
+   A first-run (and re-openable) wizard for choosing what MetaDB shows and
+   fetches: top-level screens, the per-app panels, and the data toggles that
+   otherwise live in Settings. Everything off is both hidden and never
+   requested, enforced by sectionsOff (applyView/applyFeatureVisibility),
+   panelsOff (detailRow) and the existing per-setting gates for the data bits. */
+const SETUP_PANELS = [
+  ["reviews", "Reviews"],
+  ["posts", "Posts"],
+  ["addons", "Add-ons"],
+  ["achievements", "Achievements"],
+];
+/* Existing settings keys, surfaced in the guide. They stay booleans in the
+   settings schema, so the guide writes them straight through saveSettings. */
+const SETUP_DATA = [
+  ["images", "App art in search results"],
+  ["store", "“Open in store” links"],
+  ["details", "“Latest Binary Info” button"],
+  ["devDownloads", "Developer (non-channel) builds"],
+  ["obb", "Fetch OBB files for builds that need them"],
+  ["autoOwned", "Fetch your library on load to mark owned apps"],
+  ["autoDlc", "Fetch your DLC automatically"],
+  ["autoPlaytime", "Fetch your playtime automatically"],
+  ["autoBackups", "Fetch your cloud backups automatically"],
+];
+
+const setupCheckbox = (kind, name, label, checked) =>
+  `<label class="check"><input type="checkbox" data-kind="${kind}" data-feat="${esc(name)}"${checked ? " checked" : ""}> ${esc(label)}</label>`;
+
+/** Fill the three lists from the current settings. */
+function buildSetup() {
+  const opts = loadSettings();
+  const secOff = new Set(opts.sectionsOff);
+  const panOff = new Set(opts.panelsOff);
+
+  el.setupSections.innerHTML = [...el.navLinks]
+    .filter((a) => a.dataset.view !== "settings" && a.dataset.view !== "getapp")
+    .map((a) => setupCheckbox("section", a.dataset.view, a.textContent.replace(/\s+/g, " ").trim(), !secOff.has(a.dataset.view)))
+    .join("");
+
+  el.setupPanels.innerHTML = SETUP_PANELS.map(([name, label]) => setupCheckbox("panel", name, label, !panOff.has(name))).join("");
+
+  el.setupData.innerHTML = SETUP_DATA.map(([name, label]) => setupCheckbox("data", name, label, Boolean(opts[name]))).join("");
+}
+
+function openSetup() {
+  buildSetup();
+  el.setupOverlay.hidden = false;
+  document.documentElement.classList.add("setup-open");
+  el.setupSave?.focus();
+}
+
+function closeSetup() {
+  el.setupOverlay.hidden = true;
+  document.documentElement.classList.remove("setup-open");
+}
+
+function saveSetup() {
+  const sectionsOff = [];
+  const panelsOff = [];
+  const dataPatch = {};
+  for (const input of el.setupOverlay.querySelectorAll("input[data-feat]")) {
+    const { kind, feat } = input.dataset;
+    if (kind === "section") {
+      if (!input.checked) sectionsOff.push(feat);
+    } else if (kind === "panel") {
+      if (!input.checked) panelsOff.push(feat);
+    } else if (kind === "data") {
+      dataPatch[feat] = input.checked;
+    }
+  }
+  saveSettings({ ...dataPatch, sectionsOff, panelsOff, setupDone: true });
+
+  /* Keep the Settings page's own copies of the data toggles in step, since it
+     was wired once at load and would otherwise show stale values. */
+  for (const [name] of SETUP_DATA) {
+    const node = document.getElementById(name);
+    if (node) node.checked = dataPatch[name];
+  }
+
+  closeSetup();
+  applyFeatureVisibility();
+  applyColumns();
+  updateWatchBadge();
+  renderAll();
+  applyView();
+}
+
+function initSetup() {
+  el.openSetup?.addEventListener("click", openSetup);
+  el.setupSave?.addEventListener("click", saveSetup);
+  el.setupAll?.addEventListener("click", () => {
+    for (const input of el.setupOverlay.querySelectorAll("input[data-feat]")) input.checked = true;
+  });
+  /* Escape on the open guide does the same as Save and continue — it keeps the
+     current ticks rather than discarding them, since every box already reflects
+     a real setting. */
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && el.setupOverlay && !el.setupOverlay.hidden) {
+      e.preventDefault();
+      saveSetup();
+    }
+  });
+  /* Show it unprompted the first time, once setup has not yet been done.
+     Deferred past module setup like the other first-run screens. */
+  if (!loadSettings().setupDone) setTimeout(openSetup, 0);
+}
 
 /** Ask GitHub for a repo's releases, once a visit; Refresh asks again. */
 async function ghLoad(repo, again = false) {
@@ -4646,6 +5272,58 @@ function initSettings() {
     renderAll();
   });
 
+  /* Defaults to on, like the store button, so it stores "0"/"1". Lives in
+     Settings with the other behaviour toggles, not on the Watchlist page. */
+  el.watchAuto.checked = saved.watchAuto;
+  el.watchAuto.addEventListener("change", () => {
+    saveSettings({ watchAuto: el.watchAuto.checked ? "1" : "0" });
+  });
+
+  /* Shortest gap between automatic checks. A plain value save — sweepWatch reads
+     it live, so nothing else needs doing on change. */
+  if (el.watchThrottle) {
+    el.watchThrottle.value = saved.watchThrottle;
+    el.watchThrottle.addEventListener("change", () => {
+      saveSettings({ watchThrottle: el.watchThrottle.value });
+    });
+  }
+
+  /* Defaults to on, so it stores "0"/"1" like the toggles above. Gates only the
+     pop-up — the nav badge and the card states are unaffected. */
+  if (el.watchNotify) {
+    el.watchNotify.checked = saved.watchNotify;
+    el.watchNotify.addEventListener("change", () => {
+      saveSettings({ watchNotify: el.watchNotify.checked ? "1" : "0" });
+    });
+  }
+
+  /* How long a pop-up lingers; toast() reads it live when it raises one. */
+  if (el.notifyLinger) {
+    el.notifyLinger.value = saved.notifyLinger;
+    el.notifyLinger.addEventListener("change", () => {
+      saveSettings({ notifyLinger: el.notifyLinger.value });
+    });
+  }
+
+  /* Row spacing across the lists. Applied as a class on <html> (applyDensity),
+     so it takes effect at once without a redraw. */
+  if (el.density) {
+    el.density.value = saved.density;
+    el.density.addEventListener("change", () => {
+      saveSettings({ density: el.density.value });
+      applyDensity();
+    });
+  }
+
+  /* The watch column on the main list. Toggling it re-applies the body class and
+     redraws so the column appears or disappears without a reload. */
+  el.watchButtons.checked = saved.watchButtons;
+  el.watchButtons.addEventListener("change", () => {
+    saveSettings({ watchButtons: el.watchButtons.checked ? "1" : "0" });
+    applyColumns();
+    renderAll();
+  });
+
   /* Turning it on fetches the library there and then, so the tint appears
      without waiting for the next reload; turning it off just drops the tint. */
   el.autoOwned.checked = saved.autoOwned;
@@ -4715,6 +5393,14 @@ function initSettings() {
     el.defHmd.value = el.hmd.value = fresh.hmd;
     el.defSort.value = el.sort.value = fresh.searchSort;
     el.defBuildSort.value = fresh.buildSort;
+    /* Watchlist + notification + density controls back to their defaults too. */
+    if (el.watchThrottle) el.watchThrottle.value = fresh.watchThrottle;
+    if (el.watchNotify) el.watchNotify.checked = fresh.watchNotify;
+    if (el.notifyLinger) el.notifyLinger.value = fresh.notifyLinger;
+    if (el.density) {
+      el.density.value = fresh.density;
+      applyDensity();
+    }
     syncRelayNote();
     syncExtSignIn();
     say(IN_APP ? "Cleared, and signed out of Meta." : "Cleared. Back to the built-in token and no relay.", "ok");
@@ -4835,6 +5521,13 @@ function applyColumns() {
   for (const [cls] of COLUMNS) {
     document.body.classList.toggle(`hide-${cls}`, hidden.has(cls));
   }
+  /* The watch control is shown only when asked for AND the Watchlist screen is
+     switched on — with no watchlist to add to, the + has nowhere to go. */
+  const s = loadSettings();
+  document.body.classList.toggle(
+    "watch-on",
+    s.watchButtons && !s.sectionsOff.includes("watchlist")
+  );
 }
 
 /* The site may relay through its own /api, in which case there is nothing to
@@ -5367,7 +6060,7 @@ function appRow(app, scope) {
   tr.tabIndex = 0;
   tr.setAttribute("aria-expanded", String(open.has(key)));
   tr.innerHTML = `
-    <td class="name">${
+    <td class="name">${watchToggle(app)}${
       showArt && app.image
         ? `<img class="art" src="${esc(app.image)}" alt="" loading="lazy">`
         : ""
@@ -5419,6 +6112,22 @@ function appRow(app, scope) {
       toggle(e);
     }
   });
+
+  /* The watch control carries the add/remove itself and must not also open the
+     row, so it stops the click here before it reaches the row toggle. */
+  const wbtn = tr.querySelector("[data-watch-toggle]");
+  if (wbtn) {
+    wbtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleWatch(app);
+      const on = isWatched(app);
+      wbtn.classList.toggle("is-on", on);
+      wbtn.setAttribute("aria-pressed", String(on));
+      wbtn.title = `${on ? "Remove from" : "Add to"} your watchlist`;
+      updateWatchBadge();
+      if (!el.viewWatchlist.hidden) renderWatch();
+    });
+  }
 
   return tr;
 }
@@ -5707,7 +6416,12 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   /* The panel's parts, grouped into Store, Builds and Entitlement tabs. Every
      app opens on Store, and comes back on whichever tab it was left on. */
   const tabKey = `${staged ? "stage" : scope}:${keyOf(app)}`;
-  const tab = layoutState.panelTabs.get(tabKey) ?? "store";
+  /* Panels the reader turned off in the setup guide are not drawn and never
+     fetched; a deep link to one falls back to Store. */
+  const panelsOff = loadSettings().panelsOff;
+  const panelOn = (n) => !panelsOff.includes(n);
+  let tab = layoutState.panelTabs.get(tabKey) ?? "store";
+  if (!panelOn(tab)) tab = "store";
   if (tab === "mine") setTimeout(() => wantYourCopy());
 
   const storeFacts = `${factGroups(groups)}${
@@ -5734,7 +6448,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
        </div>`;
 
   const main = `<div class="companion-tabs panel-tabs" role="tablist" aria-label="${esc(app.name)}">
-         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${tabButton("reviews", "Reviews")}${tabButton("posts", "Posts")}${tabButton("addons", "Add-ons")}${tabButton("achievements", "Achievements")}${tabButton("mine", "Entitlement")}
+         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${panelOn("reviews") ? tabButton("reviews", "Reviews") : ""}${panelOn("posts") ? tabButton("posts", "Posts") : ""}${panelOn("addons") ? tabButton("addons", "Add-ons") : ""}${panelOn("achievements") ? tabButton("achievements", "Achievements") : ""}${tabButton("mine", "Entitlement")}
        </div>
        ${sharedActions}
        <div ${pane("store")}>${storeFacts || "<p>Not checked yet — the listing arrives with Check this app.</p>"}</div>
@@ -5743,10 +6457,10 @@ function appPanel(app, { staged = false, scope = null } = {}) {
            ? `<div class="relnotes"><div class="controls"><button type="button" data-relnotes-get>Release notes</button></div><div class="relnotes-out"></div></div>`
            : ""
        }<div class="versions-out"></div></div>
-       <div ${pane("reviews")} class="reviews-pane">${reviewsPaneHtml(app)}</div>
-       <div ${pane("posts")} class="posts-pane">${postsPaneHtml(app)}</div>
-       <div ${pane("addons")} class="addons-pane">${addonsPaneHtml(app)}</div>
-       <div ${pane("achievements")} class="ach-pane">${achPaneHtml(app)}</div>
+       ${panelOn("reviews") ? `<div ${pane("reviews")} class="reviews-pane">${reviewsPaneHtml(app)}</div>` : ""}
+       ${panelOn("posts") ? `<div ${pane("posts")} class="posts-pane">${postsPaneHtml(app)}</div>` : ""}
+       ${panelOn("addons") ? `<div ${pane("addons")} class="addons-pane">${addonsPaneHtml(app)}</div>` : ""}
+       ${panelOn("achievements") ? `<div ${pane("achievements")} class="ach-pane">${achPaneHtml(app)}</div>` : ""}
        <div ${pane("mine")}>${yourCopy(app)}</div>`;
 
   /* Which tab is showing, for the stylesheet: Latest Binary Info belongs to
@@ -7092,6 +7806,16 @@ function refreshRow(app) {
 
   /* The overlay holds its own copy of the same panel, so it needs the news. */
   if (isStaged(app)) refreshStage();
+
+  /* Watchlist rows are deliberately not tr.app (so the loop above cannot rebuild
+     them with the wrong columns), so a check wouldn't reach an open watchlist
+     panel. Rebuild it here — this is what makes its "Check this app" button work. */
+  const wrow = el.watchRows?.querySelector(`tr.watch-row[data-id="${keyOf(app)}"]`);
+  const wnext = wrow?.nextElementSibling;
+  if (wnext?.classList.contains("detail")) {
+    const w = readWatch().find((x) => x.id === String(keyOf(app)));
+    if (w) wnext.replaceWith(detailRow(appFromWatch(w), 4, "watchlist"));
+  }
 }
 
 async function checkOne(app, { listing: wantListing = true, channel = false } = {}) {

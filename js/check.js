@@ -101,10 +101,38 @@ function readSettings() {
       dgAll: localStorage.getItem("metadb.dgAll") === "1",
       /* On unless explicitly turned off, so it keeps its old behaviour. */
       store: localStorage.getItem("metadb.store") !== "0",
+      /* Check the watchlist automatically when the site opens. On by default. */
+      watchAuto: localStorage.getItem("metadb.watchAuto") !== "0",
+      /* Show a watch/unwatch control at the left of each app row. On by default. */
+      watchButtons: localStorage.getItem("metadb.watchButtons") !== "0",
+      /* Pop up a notification when a watched app's build changes during a check.
+         On by default; the nav badge and the list still update when it is off. */
+      watchNotify: localStorage.getItem("metadb.watchNotify") !== "0",
+      /* How long a pop-up stays before it fades, in ms. "0" means it waits for
+         a dismiss and never times out. */
+      notifyLinger: localStorage.getItem("metadb.notifyLinger") || "9000",
+      /* Shortest gap between automatic watchlist checks, in ms — an auto-check
+         that lands inside this window of the last one is skipped. "0" checks on
+         every open. Default: 15 minutes. (Check now always runs regardless.) */
+      watchThrottle: localStorage.getItem("metadb.watchThrottle") || "900000",
+      /* Row spacing across the lists: "comfortable" (default) or "compact". */
+      density: localStorage.getItem("metadb.density") || "comfortable",
       /* Developer: log every request to the console. Off by default. */
       log: localStorage.getItem("metadb.log") === "1",
       /* Column classes the user has switched off. */
       hidden: (localStorage.getItem("metadb.hidden") ?? "")
+        .split(",")
+        .filter(Boolean),
+      /* Set once the setup guide has been completed (or skipped). */
+      setupDone: localStorage.getItem("metadb.setupDone") === "1",
+      /* Top-level screens the reader turned off in the setup guide: each is
+         hidden from the nav and never fetched until switched back on. */
+      sectionsOff: (localStorage.getItem("metadb.sectionsOff") ?? "")
+        .split(",")
+        .filter(Boolean),
+      /* Per-app panel tabs turned off the same way (reviews, posts, add-ons,
+         achievements). */
+      panelsOff: (localStorage.getItem("metadb.panelsOff") ?? "")
         .split(",")
         .filter(Boolean),
     };
@@ -134,7 +162,16 @@ function readSettings() {
       buildSort: "released",
       defaultTrigger: "AUTO_UPDATER",
       store: true,
+      watchAuto: true,
+      watchButtons: true,
+      watchNotify: true,
+      notifyLinger: "9000",
+      watchThrottle: "900000",
+      density: "comfortable",
       hidden: [],
+      setupDone: false,
+      sectionsOff: [],
+      panelsOff: [],
     };
   }
 }
@@ -171,7 +208,7 @@ export function saveSettings(patch) {
 export function clearSettings() {
   settingsCache = null;
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "watchAuto", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll", "watchButtons", "setupDone", "sectionsOff", "panelsOff"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -411,6 +448,22 @@ async function getJSON(url) {
   }
 
   if (!json) {
+    /* The built-in /api relay is same-origin, so on a host that has no such
+       endpoint the request falls through to the page router and comes back as the
+       SPA's index.html — with a 200, not the 404 handled above (serve.mjs and
+       other SPA-fallback hosts answer any extensionless path with index.html).
+       Recognise that and give the same "set a relay" guidance, rather than a
+       baffling "the reply was not JSON — got <!doctype html>". */
+    const looksHtml =
+      /^\s*<(?:!doctype|html)[\s>]/i.test(text) ||
+      (res.headers.get("content-type") || "").includes("text/html");
+    if (!relay && looksHtml) {
+      builtInMissing = true;
+      throw new Error(
+        "this site has no built-in relay — set a relay URL on the Settings page"
+      );
+    }
+
     /* Quote the start of the body. "Not JSON" on its own is a dead end — an
        empty reply, a relay error page and a login redirect all look the same
        from here, and they need different fixes. */
@@ -3121,6 +3174,45 @@ export async function deviceSecrets() {
   if (json.errors?.length) throw new Error(json.errors[0].message ?? "query refused");
   if (json.error) throw new Error(json.error.message ?? "request rejected");
   return json.data ?? {};
+}
+
+/* ---------- headset account sign-in: minting the app-scoped token ----------
+   The headset's auth service will not accept a plain web access token (oc_www_at).
+   During setup the Meta app first MINTS a short-lived, app-scoped ("second-party")
+   token from the account and sends THAT. This reproduces that mint with the signed-in
+   token as the bearer — the same GraphQL backend MetaDB already uses. The mint is
+   account-scoped (no device binding), so a web client can do it with just the token.
+
+   The persisted-query doc_id and the input shape were recovered by reverse-engineering
+   the app and are NOT independently verified; Meta keeps the input schema server-side,
+   so if the request shape is off, Meta's own error is surfaced verbatim to correct the
+   exact field name / app id. A wrong doc_id simply fails the request — it cannot do
+   anything else. Used only for signing a reader's OWN headset into their OWN account. */
+const HEADSET_LOGIN_APP_ID = "625733718350566"; // the companion app id the BLE HELLO reports
+const MINT_TOKEN_DOC_ID = "9736340426408688"; // OCAuthAuthenticateApplicationMutation (unverified)
+
+/** Mint the app-scoped login token the CompanionServer auth service accepts.
+ *  Resolves to the token string, or throws with Meta's error so the shape can be fixed. */
+export async function mintHeadsetToken(appId = HEADSET_LOGIN_APP_ID) {
+  const { token } = loadSettings();
+  if (!token) throw new Error("no signed-in token — set yours in Settings first");
+  const variables = { input: { application_id: appId } };
+  const json = await getJSON(
+    `${ENDPOINT}?` +
+      new URLSearchParams({ access_token: token, doc_id: MINT_TOKEN_DOC_ID, variables: JSON.stringify(variables) })
+  );
+  if (json.errors?.length) throw new Error("Meta refused the token mint: " + json.errors.map((e) => e.message).join("; "));
+  if (json.error) throw new Error("token mint rejected: " + (json.error.message ?? "unknown"));
+  const minted =
+    json.data?.application_generate_user_token?.user_token ||
+    json.data?.xfr_accounts_get_session_for_app?.access_token;
+  if (!minted) {
+    throw new Error(
+      "The token mint returned no token — the request shape is probably wrong. Meta replied: " +
+        JSON.stringify(json.data ?? json).slice(0, 400)
+    );
+  }
+  return minted;
 }
 
 /** Pull an app ID out of a bare ID or a store URL. */

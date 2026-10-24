@@ -2,9 +2,12 @@
 @supports not (inset: 0) {
 .tour-ring--none { top: 0; right: 0; bottom: 0; left: 0; }
 .ui-dialog { top: 0; right: 0; bottom: 0; left: 0; }
+.setup-overlay { top: 0; right: 0; bottom: 0; left: 0; }
 }
 .no-focus-visible :focus { outline: 2px solid var(--link); outline-offset: 1px; }
 .no-focus-visible tbody tr.app:focus { outline: 2px solid var(--link); outline-offset: -2px; }
+.no-focus-visible tbody tr.watch-row:focus { outline: 2px solid var(--link); outline-offset: -2px; }
+.no-focus-visible tbody tr.watch-row:focus { outline: 2px solid var(--link); outline-offset: -2px; }
 @supports not (color: color-mix(in srgb, red 50%, blue)) {
 tbody tr.app.owned td, .vtable tr.installed td, .addons-pane tr.owned td { background: rgba(76, 175, 106, .12); }
 tbody tr.app.owned:hover td { background: rgba(76, 175, 106, .2); }

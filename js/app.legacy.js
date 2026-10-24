@@ -2379,7 +2379,7 @@ function loadSettings() {
   return { ...settingsCache, hidden: [...settingsCache.hidden] };
 }
 function readSettings() {
-  var _a2;
+  var _a2, _b2, _c;
   try {
     return {
       token: localStorage.getItem("metadb.token") || DEFAULT_TOKEN,
@@ -2421,10 +2421,34 @@ function readSettings() {
       dgAll: localStorage.getItem("metadb.dgAll") === "1",
       /* On unless explicitly turned off, so it keeps its old behaviour. */
       store: localStorage.getItem("metadb.store") !== "0",
+      /* Check the watchlist automatically when the site opens. On by default. */
+      watchAuto: localStorage.getItem("metadb.watchAuto") !== "0",
+      /* Show a watch/unwatch control at the left of each app row. On by default. */
+      watchButtons: localStorage.getItem("metadb.watchButtons") !== "0",
+      /* Pop up a notification when a watched app's build changes during a check.
+         On by default; the nav badge and the list still update when it is off. */
+      watchNotify: localStorage.getItem("metadb.watchNotify") !== "0",
+      /* How long a pop-up stays before it fades, in ms. "0" means it waits for
+         a dismiss and never times out. */
+      notifyLinger: localStorage.getItem("metadb.notifyLinger") || "9000",
+      /* Shortest gap between automatic watchlist checks, in ms — an auto-check
+         that lands inside this window of the last one is skipped. "0" checks on
+         every open. Default: 15 minutes. (Check now always runs regardless.) */
+      watchThrottle: localStorage.getItem("metadb.watchThrottle") || "900000",
+      /* Row spacing across the lists: "comfortable" (default) or "compact". */
+      density: localStorage.getItem("metadb.density") || "comfortable",
       /* Developer: log every request to the console. Off by default. */
       log: localStorage.getItem("metadb.log") === "1",
       /* Column classes the user has switched off. */
-      hidden: ((_a2 = localStorage.getItem("metadb.hidden")) != null ? _a2 : "").split(",").filter(Boolean)
+      hidden: ((_a2 = localStorage.getItem("metadb.hidden")) != null ? _a2 : "").split(",").filter(Boolean),
+      /* Set once the setup guide has been completed (or skipped). */
+      setupDone: localStorage.getItem("metadb.setupDone") === "1",
+      /* Top-level screens the reader turned off in the setup guide: each is
+         hidden from the nav and never fetched until switched back on. */
+      sectionsOff: ((_b2 = localStorage.getItem("metadb.sectionsOff")) != null ? _b2 : "").split(",").filter(Boolean),
+      /* Per-app panel tabs turned off the same way (reviews, posts, add-ons,
+         achievements). */
+      panelsOff: ((_c = localStorage.getItem("metadb.panelsOff")) != null ? _c : "").split(",").filter(Boolean)
     };
   } catch {
     return {
@@ -2452,7 +2476,16 @@ function readSettings() {
       buildSort: "released",
       defaultTrigger: "AUTO_UPDATER",
       store: true,
-      hidden: []
+      watchAuto: true,
+      watchButtons: true,
+      watchNotify: true,
+      notifyLinger: "9000",
+      watchThrottle: "900000",
+      density: "comfortable",
+      hidden: [],
+      setupDone: false,
+      sectionsOff: [],
+      panelsOff: []
     };
   }
 }
@@ -2476,7 +2509,7 @@ function saveSettings(patch) {
 function clearSettings() {
   settingsCache = null;
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll"]) {
+    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "watchAuto", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll", "watchButtons", "setupDone", "sectionsOff", "panelsOff"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {
@@ -2571,6 +2604,13 @@ async function getJSON(url) {
     json = stitch(text);
   }
   if (!json) {
+    const looksHtml = /^\s*<(?:!doctype|html)[\s>]/i.test(text) || (res.headers.get("content-type") || "").includes("text/html");
+    if (!relay && looksHtml) {
+      builtInMissing = true;
+      throw new Error(
+        "this site has no built-in relay \u2014 set a relay URL on the Settings page"
+      );
+    }
     const snippet = text.trim() ? `${res.status}: ${text.trim().replace(/\s+/g, " ").slice(0, 120)}` : `${res.status} with an empty body`;
     throw new Error(
       res.ok ? `the reply was not JSON \u2014 got ${snippet}` : `store returned ${snippet}`
@@ -4468,6 +4508,27 @@ var el = {
   limit: document.getElementById("limit"),
   limitbar: document.querySelector(".limitbar"),
   viewApps: document.getElementById("view-apps"),
+  viewWatchlist: document.getElementById("view-watchlist"),
+  watchRows: document.getElementById("watchRows"),
+  watchEmpty: document.getElementById("watchEmpty"),
+  watchCount: document.getElementById("watchCount"),
+  watchCheck: document.getElementById("watchCheck"),
+  watchMarkAll: document.getElementById("watchMarkAll"),
+  watchAuto: document.getElementById("watchAuto"),
+  watchButtons: document.getElementById("watchButtons"),
+  watchNotify: document.getElementById("watchNotify"),
+  notifyLinger: document.getElementById("notifyLinger"),
+  watchThrottle: document.getElementById("watchThrottle"),
+  density: document.getElementById("density"),
+  watchBadge: document.getElementById("watchBadge"),
+  toasts: document.getElementById("toasts"),
+  setupOverlay: document.getElementById("setupOverlay"),
+  setupSections: document.getElementById("setupSections"),
+  setupPanels: document.getElementById("setupPanels"),
+  setupData: document.getElementById("setupData"),
+  setupSave: document.getElementById("setupSave"),
+  setupAll: document.getElementById("setupAll"),
+  openSetup: document.getElementById("openSetup"),
   viewOrgs: document.getElementById("view-orgs"),
   viewDefault: document.getElementById("view-default"),
   viewDevices: document.getElementById("view-devices"),
@@ -4662,6 +4723,9 @@ var el = {
   navGroups: document.querySelectorAll(".navgroup"),
   libButtons: document.querySelectorAll("#view-mine [data-lib]")
 };
+var WATCH_KEY = "metadb.watchlist";
+var WATCH_LAST_KEY = "metadb.watchLast";
+var WATCH_THROTTLE = 15 * 60 * 1e3;
 var results = /* @__PURE__ */ new Map();
 var listings = /* @__PURE__ */ new Map();
 var media = /* @__PURE__ */ new Map();
@@ -4813,6 +4877,7 @@ var tour = null;
 initTheme();
 initFontSize();
 initMotion();
+applyDensity();
 initStage();
 initNav();
 initSearchBar();
@@ -4827,6 +4892,8 @@ initDefault();
 initPlus();
 initStore();
 initWishlist();
+initWatch();
+initSetup();
 initHeadset();
 initDowngrade();
 initGetApp();
@@ -4987,6 +5054,9 @@ function initMotion() {
 }
 function applySpeed() {
   document.documentElement.style.setProperty("--speed", `${speed()}ms`);
+}
+function applyDensity() {
+  document.documentElement.classList.toggle("density-compact", loadSettings().density === "compact");
 }
 function play(node, className, { keep = false } = {}) {
   if (!node || !animates()) return;
@@ -5276,6 +5346,23 @@ async function restoreRoute() {
     runOrgApps();
   }
 }
+function firstEnabledSection(off) {
+  var _a2;
+  const order = ["apps", "store", "default", "plus", "worlds", "orgs", "watchlist", "devices", "mine", "purchases", "wishlist", "avatar", "adb", "companion"];
+  return (_a2 = order.find((v) => !off.includes(v))) != null ? _a2 : "settings";
+}
+function applyFeatureVisibility() {
+  const off = new Set(loadSettings().sectionsOff);
+  for (const a of el.navLinks) {
+    const v = a.dataset.view;
+    if (v === "settings" || v === "getapp") continue;
+    a.hidden = off.has(v);
+  }
+  for (const g of el.navGroups) {
+    const links = [...g.querySelectorAll("a[data-view]")];
+    g.hidden = links.length > 0 && links.every((a) => a.hidden);
+  }
+}
 function applyView() {
   closeStage({ animate: false });
   const hash = routeView();
@@ -5289,12 +5376,17 @@ function applyView() {
       return;
     }
   }
-  const views = ["mine", "purchases", "wishlist", "avatar", "devices", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
-  const view = views.includes(hash) && !(IN_APP && (hash === "adb" || hash === "companion")) ? hash : "apps";
+  const views = ["mine", "purchases", "wishlist", "watchlist", "avatar", "devices", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
+  let view = views.includes(hash) && !(IN_APP && (hash === "adb" || hash === "companion")) ? hash : "apps";
+  const sectionsOff = loadSettings().sectionsOff;
+  if (view !== "settings" && view !== "getapp" && sectionsOff.includes(view)) {
+    view = firstEnabledSection(sectionsOff);
+  }
   el.viewApps.hidden = view !== "apps";
   el.viewMine.hidden = view !== "mine";
   el.viewPurchases.hidden = view !== "purchases";
   el.viewWishlist.hidden = view !== "wishlist";
+  el.viewWatchlist.hidden = view !== "watchlist";
   el.viewAvatar.hidden = view !== "avatar";
   el.viewDevices.hidden = view !== "devices";
   el.viewWorlds.hidden = view !== "worlds";
@@ -5307,8 +5399,9 @@ function applyView() {
   el.viewSettings.hidden = view !== "settings";
   el.viewGetapp.hidden = view !== "getapp";
   if (view === "getapp") showAppInfo();
+  if (view === "watchlist") renderWatch();
   if (view === "companion") {
-    import("./companion.js?v=248").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
+    import("./companion.js?v=254").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
       var _a2;
       console.error("companion init failed", e);
       if (!navigator.bluetooth) (_a2 = el.viewCompanion.querySelector("#companionUnsupported")) == null ? void 0 : _a2.removeAttribute("hidden");
@@ -5316,13 +5409,14 @@ function applyView() {
   }
   el.limitbar.hidden = view !== "apps";
   if ([...staleTables].some((t) => !onHiddenScreen(t))) renderAll();
+  applyFeatureVisibility();
   for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);
   for (const g of el.navGroups) {
     g.querySelector(".navtop").classList.toggle("on", !!g.querySelector("a.on"));
   }
   window.scrollTo(0, 0);
   play(
-    [el.viewApps, el.viewMine, el.viewPurchases, el.viewWishlist, el.viewAvatar, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
+    [el.viewApps, el.viewMine, el.viewPurchases, el.viewWishlist, el.viewWatchlist, el.viewAvatar, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
@@ -6454,6 +6548,390 @@ var repoOf = (app) => {
   var _a2, _b2;
   return app.repoOnly ? app.repo : app.packageName ? (_b2 = (_a2 = readRepos()[app.packageName]) == null ? void 0 : _a2.repo) != null ? _b2 : null : null;
 };
+var TOAST_LIMIT = 4;
+function toast({ title, body, actionLabel, onAction } = {}) {
+  if (!el.toasts) return;
+  const node = document.createElement("div");
+  node.className = "toast";
+  node.setAttribute("role", "group");
+  node.innerHTML = `<button type="button" class="toast__close" aria-label="Dismiss">\xD7</button><div class="toast__title">${esc(title != null ? title : "")}</div>` + (body ? `<div class="toast__body">${esc(body)}</div>` : "") + (actionLabel ? `<div class="toast__actions"><button type="button" class="linkbtn toast__action">${esc(actionLabel)}</button></div>` : "");
+  const close = () => dismissToast(node);
+  node.querySelector(".toast__close").addEventListener("click", close);
+  if (actionLabel) {
+    node.querySelector(".toast__action").addEventListener("click", () => {
+      try {
+        onAction == null ? void 0 : onAction();
+      } finally {
+        close();
+      }
+    });
+  }
+  const linger = Number(loadSettings().notifyLinger) || 0;
+  let timer = linger ? setTimeout(close, linger) : null;
+  node.addEventListener("mouseenter", () => {
+    if (timer) clearTimeout(timer);
+  });
+  node.addEventListener("mouseleave", () => {
+    if (linger) timer = setTimeout(close, linger);
+  });
+  el.toasts.appendChild(node);
+  requestAnimationFrame(() => node.classList.add("is-shown"));
+  const all = el.toasts.querySelectorAll(".toast");
+  for (let i = 0; i < all.length - TOAST_LIMIT; i++) dismissToast(all[i]);
+}
+function dismissToast(node) {
+  if (!node || node.dataset.going) return;
+  node.dataset.going = "1";
+  node.classList.remove("is-shown");
+  node.classList.add("is-going");
+  const motion = loadSettings().motion && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!motion) {
+    node.remove();
+    return;
+  }
+  let done = false;
+  const end = () => {
+    if (done) return;
+    done = true;
+    node.remove();
+  };
+  node.addEventListener("transitionend", end, { once: true });
+  setTimeout(end, 500);
+}
+function notifyWatchUpdate(w, prevLatest) {
+  const from = prevLatest != null ? prevLatest : w.seen;
+  const jump = from != null && w.latest != null ? `build ${from} \u2192 ${w.latest}` : `build ${w.latest}`;
+  toast({
+    title: `${w.name} \u2014 new build`,
+    body: jump,
+    actionLabel: "View watchlist",
+    onAction: () => go("/watchlist")
+  });
+}
+function readWatch() {
+  try {
+    const v = JSON.parse(localStorage.getItem(WATCH_KEY));
+    if (!Array.isArray(v)) return [];
+    return v.map(
+      (w) => w && !("seenVer" in w) ? { ...w, seen: null, latest: null, seenVer: null, latestVer: null } : w
+    );
+  } catch {
+    return [];
+  }
+}
+function saveWatch(list) {
+  try {
+    localStorage.setItem(WATCH_KEY, JSON.stringify(list));
+  } catch {
+  }
+}
+function appFromWatch(w) {
+  var _a2, _b2, _c, _d;
+  return {
+    id: w.id,
+    name: w.name,
+    image: (_a2 = w.image) != null ? _a2 : null,
+    platform: (_b2 = w.platform) != null ? _b2 : null,
+    slug: (_c = w.slug) != null ? _c : null,
+    packageName: (_d = w.packageName) != null ? _d : null
+  };
+}
+function isWatched(app) {
+  return Boolean(app == null ? void 0 : app.id) && readWatch().some((w) => w.id === String(app.id));
+}
+function watchUpdated(w) {
+  return w.latest != null && w.seen != null && w.latest !== w.seen;
+}
+function watchToggle(app) {
+  const on = isWatched(app);
+  return `<button type="button" class="watch-toggle${on ? " is-on" : ""}" data-watch-toggle="${esc(keyOf(app))}" aria-pressed="${on}" title="${on ? "Remove from" : "Add to"} your watchlist" aria-label="${on ? "Remove" : "Add"} ${esc(app.name)} ${on ? "from" : "to"} your watchlist"></button>`;
+}
+function addWatch(app) {
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  if (!(app == null ? void 0 : app.id)) return;
+  const list = readWatch();
+  if (list.some((w) => w.id === String(app.id))) return;
+  const head = (_a2 = results.get(keyOf(app))) == null ? void 0 : _a2.latest;
+  list.push({
+    id: String(app.id),
+    name: (_b2 = app.name) != null ? _b2 : String(app.id),
+    slug: (_c = app.slug) != null ? _c : null,
+    platform: (_d = app.platform) != null ? _d : null,
+    image: (_e = app.image) != null ? _e : null,
+    seen: (_f = head == null ? void 0 : head.versionCode) != null ? _f : null,
+    seenVer: (_g = head == null ? void 0 : head.version) != null ? _g : null,
+    seenAt: (_h = head == null ? void 0 : head.releasedAt) != null ? _h : null,
+    latest: (_i = head == null ? void 0 : head.versionCode) != null ? _i : null,
+    latestVer: (_j = head == null ? void 0 : head.version) != null ? _j : null,
+    latestAt: (_k = head == null ? void 0 : head.releasedAt) != null ? _k : null,
+    checkedAt: head ? Date.now() : 0,
+    error: null
+  });
+  saveWatch(list);
+}
+function removeWatch(id) {
+  saveWatch(readWatch().filter((w) => w.id !== String(id)));
+}
+function toggleWatch(app) {
+  if (isWatched(app)) removeWatch(app.id);
+  else addWatch(app);
+}
+function markWatchSeen(id) {
+  const list = readWatch();
+  const w = list.find((x) => x.id === String(id));
+  if (!w) return;
+  w.seen = w.latest;
+  w.seenVer = w.latestVer;
+  w.seenAt = w.latestAt;
+  saveWatch(list);
+}
+function watchUpdateCount() {
+  return readWatch().filter(watchUpdated).length;
+}
+function updateWatchBadge() {
+  if (!el.watchBadge) return;
+  if (loadSettings().sectionsOff.includes("watchlist")) {
+    el.watchBadge.textContent = "";
+    el.watchBadge.hidden = true;
+    return;
+  }
+  const n = watchUpdateCount();
+  el.watchBadge.textContent = n ? String(n) : "";
+  el.watchBadge.hidden = n === 0;
+}
+async function sweepWatch({ force = false } = {}) {
+  var _a2, _b2, _c, _d;
+  const list = readWatch();
+  if (!list.length || sweepWatch.busy) return;
+  if (loadSettings().sectionsOff.includes("watchlist")) return;
+  const last = Number(localStorage.getItem(WATCH_LAST_KEY) || 0);
+  const throttle = Number(loadSettings().watchThrottle);
+  const gap = Number.isFinite(throttle) ? throttle : WATCH_THROTTLE;
+  if (!force && Date.now() - last < gap) return;
+  sweepWatch.busy = true;
+  if (!el.viewWatchlist.hidden) renderWatch();
+  try {
+    for (const entry of list) {
+      try {
+        const head = await checkApp({ id: entry.id, name: entry.name });
+        const cur = readWatch();
+        const w = cur.find((x) => x.id === entry.id);
+        if (!w) continue;
+        const prevLatest = w.latest;
+        w.latest = (_a2 = head == null ? void 0 : head.versionCode) != null ? _a2 : null;
+        w.latestVer = (_b2 = head == null ? void 0 : head.version) != null ? _b2 : null;
+        w.latestAt = (_c = head == null ? void 0 : head.releasedAt) != null ? _c : null;
+        w.checkedAt = Date.now();
+        w.error = null;
+        if (head) {
+          results.set(keyOf({ id: entry.id }), { state: "info", latest: head });
+          if (head.builds) versionCache.set(entry.id, head.builds);
+        }
+        if (w.seen == null) {
+          w.seen = w.latest;
+          w.seenVer = w.latestVer;
+          w.seenAt = w.latestAt;
+        }
+        saveWatch(cur);
+        if (loadSettings().watchNotify && prevLatest !== w.latest && watchUpdated(w)) {
+          notifyWatchUpdate(w, prevLatest);
+        }
+      } catch (err2) {
+        const cur = readWatch();
+        const w = cur.find((x) => x.id === entry.id);
+        if (w) {
+          w.error = String((_d = err2 == null ? void 0 : err2.message) != null ? _d : err2);
+          w.checkedAt = Date.now();
+          saveWatch(cur);
+        }
+      }
+      updateWatchBadge();
+      if (!el.viewWatchlist.hidden) renderWatch();
+    }
+    localStorage.setItem(WATCH_LAST_KEY, String(Date.now()));
+  } finally {
+    sweepWatch.busy = false;
+    updateWatchBadge();
+    if (!el.viewWatchlist.hidden) renderWatch();
+  }
+}
+sweepWatch.busy = false;
+function renderWatch() {
+  var _a2, _b2;
+  if (!el.watchRows) return;
+  const list = readWatch();
+  const busy = sweepWatch.busy;
+  const showArt = loadSettings().images;
+  const livePanels = /* @__PURE__ */ new Map();
+  for (const d of el.watchRows.querySelectorAll(":scope > tr.detail")) {
+    const id = (_a2 = d.previousElementSibling) == null ? void 0 : _a2.dataset.id;
+    if (id) livePanels.set(id, d);
+  }
+  const icon = (w) => showArt && w.image ? `<img class="wl-ic" src="${esc(w.image)}" alt="" loading="lazy">` : `<span class="wl-ic wl-ic--ph" aria-hidden="true">${esc((w.name || "?").trim().charAt(0).toUpperCase())}</span>`;
+  const buildCell = (ver, date, cls = "") => ver == null && date == null ? `<span class="wl-dash">\u2014</span>` : `<span class="wl-b ${cls}"><span class="wl-bv mono">${ver ? `v${esc(ver)}` : "\u2014"}</span><span class="wl-bd">${date ? esc(date) : ""}</span></span>`;
+  el.watchRows.innerHTML = list.map((w) => {
+    const up = watchUpdated(w);
+    const newCell = up ? buildCell(w.latestVer, w.latestAt, "wl-new") : w.error ? `<span class="wl-fail">Couldn't check</span>` : `<span class="wl-dash">\u2014</span>`;
+    return `<tr class="watch-row${up ? " is-updated" : ""}" data-id="${esc(w.id)}" tabindex="0" aria-expanded="false">
+        <td class="wl-app"><span class="wl-appwrap">${icon(w)}<span class="wl-nm">${esc(w.name)}</span></span></td>
+        <td>${buildCell(w.seenVer, w.seenAt)}</td>
+        <td>${newCell}</td>
+        <td class="wl-act">
+          ${up ? `<button type="button" class="linkbtn" data-watch-seen="${esc(w.id)}">Mark seen</button>` : ""}
+          <button type="button" class="wl-rm" data-watch-remove="${esc(w.id)}" title="Remove ${esc(w.name)} from your watchlist" aria-label="Remove ${esc(w.name)} from your watchlist">\xD7</button>
+        </td>
+      </tr>`;
+  }).join("");
+  for (const tr of el.watchRows.querySelectorAll("tr.watch-row")) {
+    const w = list.find((x) => x.id === tr.dataset.id);
+    if (w && open.has("watchlist:" + w.id)) {
+      tr.after((_b2 = livePanels.get(w.id)) != null ? _b2 : detailRow(appFromWatch(w), 4, "watchlist"));
+      tr.setAttribute("aria-expanded", "true");
+    }
+  }
+  el.watchEmpty.hidden = list.length > 0;
+  el.watchEmpty.textContent = "Nothing on your watchlist yet. Open any app and press Watch to track its builds.";
+  const updates = watchUpdateCount();
+  el.watchCount.textContent = busy ? "Checking your watchlist\u2026" : !list.length ? "" : `${list.length} app${list.length === 1 ? "" : "s"} watched` + (updates ? ` \u2014 ${updates} with a new build` : "");
+  el.watchCount.classList.toggle("has-updates", !busy && updates > 0);
+  el.watchCheck.disabled = busy || !list.length;
+  el.watchMarkAll.disabled = busy || updates === 0;
+}
+function toggleWatchDetail(row) {
+  const w = readWatch().find((x) => x.id === row.dataset.id);
+  if (!w) return;
+  const key = "watchlist:" + w.id;
+  const next = row.nextElementSibling;
+  if (next == null ? void 0 : next.classList.contains("detail")) {
+    open.delete(key);
+    next.remove();
+    row.setAttribute("aria-expanded", "false");
+  } else {
+    open.add(key);
+    row.after(detailRow(appFromWatch(w), 4, "watchlist"));
+    row.setAttribute("aria-expanded", "true");
+  }
+}
+function initWatch() {
+  var _a2, _b2, _c, _d;
+  (_a2 = el.watchCheck) == null ? void 0 : _a2.addEventListener("click", () => sweepWatch({ force: true }));
+  (_b2 = el.watchMarkAll) == null ? void 0 : _b2.addEventListener("click", () => {
+    for (const w of readWatch()) markWatchSeen(w.id);
+    updateWatchBadge();
+    renderWatch();
+  });
+  (_c = el.watchRows) == null ? void 0 : _c.addEventListener("click", (e) => {
+    const seen = e.target.closest("[data-watch-seen]");
+    if (seen) {
+      markWatchSeen(seen.dataset.watchSeen);
+      updateWatchBadge();
+      renderWatch();
+      return;
+    }
+    const rm = e.target.closest("[data-watch-remove]");
+    if (rm) {
+      removeWatch(rm.dataset.watchRemove);
+      updateWatchBadge();
+      renderWatch();
+      return;
+    }
+    const row = e.target.closest("tr.watch-row");
+    if (row) toggleWatchDetail(row);
+  });
+  (_d = el.watchRows) == null ? void 0 : _d.addEventListener("keydown", (e) => {
+    var _a3, _b3;
+    const row = (_b3 = (_a3 = e.target).closest) == null ? void 0 : _b3.call(_a3, "tr.watch-row");
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      toggleWatchDetail(row);
+    }
+  });
+  updateWatchBadge();
+  setTimeout(() => {
+    if (!el.viewWatchlist.hidden) renderWatch();
+  }, 0);
+  if (loadSettings().watchAuto) {
+    setTimeout(() => sweepWatch(), 0);
+  }
+}
+var SETUP_PANELS = [
+  ["reviews", "Reviews"],
+  ["posts", "Posts"],
+  ["addons", "Add-ons"],
+  ["achievements", "Achievements"]
+];
+var SETUP_DATA = [
+  ["images", "App art in search results"],
+  ["store", "\u201COpen in store\u201D links"],
+  ["details", "\u201CLatest Binary Info\u201D button"],
+  ["devDownloads", "Developer (non-channel) builds"],
+  ["obb", "Fetch OBB files for builds that need them"],
+  ["autoOwned", "Fetch your library on load to mark owned apps"],
+  ["autoDlc", "Fetch your DLC automatically"],
+  ["autoPlaytime", "Fetch your playtime automatically"],
+  ["autoBackups", "Fetch your cloud backups automatically"]
+];
+var setupCheckbox = (kind, name, label, checked) => `<label class="check"><input type="checkbox" data-kind="${kind}" data-feat="${esc(name)}"${checked ? " checked" : ""}> ${esc(label)}</label>`;
+function buildSetup() {
+  const opts = loadSettings();
+  const secOff = new Set(opts.sectionsOff);
+  const panOff = new Set(opts.panelsOff);
+  el.setupSections.innerHTML = [...el.navLinks].filter((a) => a.dataset.view !== "settings" && a.dataset.view !== "getapp").map((a) => setupCheckbox("section", a.dataset.view, a.textContent.replace(/\s+/g, " ").trim(), !secOff.has(a.dataset.view))).join("");
+  el.setupPanels.innerHTML = SETUP_PANELS.map(([name, label]) => setupCheckbox("panel", name, label, !panOff.has(name))).join("");
+  el.setupData.innerHTML = SETUP_DATA.map(([name, label]) => setupCheckbox("data", name, label, Boolean(opts[name]))).join("");
+}
+function openSetup() {
+  var _a2;
+  buildSetup();
+  el.setupOverlay.hidden = false;
+  document.documentElement.classList.add("setup-open");
+  (_a2 = el.setupSave) == null ? void 0 : _a2.focus();
+}
+function closeSetup() {
+  el.setupOverlay.hidden = true;
+  document.documentElement.classList.remove("setup-open");
+}
+function saveSetup() {
+  const sectionsOff = [];
+  const panelsOff = [];
+  const dataPatch = {};
+  for (const input of el.setupOverlay.querySelectorAll("input[data-feat]")) {
+    const { kind, feat } = input.dataset;
+    if (kind === "section") {
+      if (!input.checked) sectionsOff.push(feat);
+    } else if (kind === "panel") {
+      if (!input.checked) panelsOff.push(feat);
+    } else if (kind === "data") {
+      dataPatch[feat] = input.checked;
+    }
+  }
+  saveSettings({ ...dataPatch, sectionsOff, panelsOff, setupDone: true });
+  for (const [name] of SETUP_DATA) {
+    const node = document.getElementById(name);
+    if (node) node.checked = dataPatch[name];
+  }
+  closeSetup();
+  applyFeatureVisibility();
+  applyColumns();
+  updateWatchBadge();
+  renderAll();
+  applyView();
+}
+function initSetup() {
+  var _a2, _b2, _c;
+  (_a2 = el.openSetup) == null ? void 0 : _a2.addEventListener("click", openSetup);
+  (_b2 = el.setupSave) == null ? void 0 : _b2.addEventListener("click", saveSetup);
+  (_c = el.setupAll) == null ? void 0 : _c.addEventListener("click", () => {
+    for (const input of el.setupOverlay.querySelectorAll("input[data-feat]")) input.checked = true;
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && el.setupOverlay && !el.setupOverlay.hidden) {
+      e.preventDefault();
+      saveSetup();
+    }
+  });
+  if (!loadSettings().setupDone) setTimeout(openSetup, 0);
+}
 async function ghLoad(repo, again = false) {
   const had = dgState.releases.get(repo);
   if ((had == null ? void 0 : had.loading) || (had == null ? void 0 : had.items) && !again) return;
@@ -7724,6 +8202,41 @@ function initSettings() {
     saveSettings({ store: el.store.checked ? "1" : "0" });
     renderAll();
   });
+  el.watchAuto.checked = saved.watchAuto;
+  el.watchAuto.addEventListener("change", () => {
+    saveSettings({ watchAuto: el.watchAuto.checked ? "1" : "0" });
+  });
+  if (el.watchThrottle) {
+    el.watchThrottle.value = saved.watchThrottle;
+    el.watchThrottle.addEventListener("change", () => {
+      saveSettings({ watchThrottle: el.watchThrottle.value });
+    });
+  }
+  if (el.watchNotify) {
+    el.watchNotify.checked = saved.watchNotify;
+    el.watchNotify.addEventListener("change", () => {
+      saveSettings({ watchNotify: el.watchNotify.checked ? "1" : "0" });
+    });
+  }
+  if (el.notifyLinger) {
+    el.notifyLinger.value = saved.notifyLinger;
+    el.notifyLinger.addEventListener("change", () => {
+      saveSettings({ notifyLinger: el.notifyLinger.value });
+    });
+  }
+  if (el.density) {
+    el.density.value = saved.density;
+    el.density.addEventListener("change", () => {
+      saveSettings({ density: el.density.value });
+      applyDensity();
+    });
+  }
+  el.watchButtons.checked = saved.watchButtons;
+  el.watchButtons.addEventListener("change", () => {
+    saveSettings({ watchButtons: el.watchButtons.checked ? "1" : "0" });
+    applyColumns();
+    renderAll();
+  });
   el.autoOwned.checked = saved.autoOwned;
   el.autoOwned.addEventListener("change", () => {
     saveSettings({ autoOwned: el.autoOwned.checked });
@@ -7780,6 +8293,13 @@ function initSettings() {
     el.defHmd.value = el.hmd.value = fresh.hmd;
     el.defSort.value = el.sort.value = fresh.searchSort;
     el.defBuildSort.value = fresh.buildSort;
+    if (el.watchThrottle) el.watchThrottle.value = fresh.watchThrottle;
+    if (el.watchNotify) el.watchNotify.checked = fresh.watchNotify;
+    if (el.notifyLinger) el.notifyLinger.value = fresh.notifyLinger;
+    if (el.density) {
+      el.density.value = fresh.density;
+      applyDensity();
+    }
     syncRelayNote();
     syncExtSignIn();
     say(IN_APP ? "Cleared, and signed out of Meta." : "Cleared. Back to the built-in token and no relay.", "ok");
@@ -7872,6 +8392,11 @@ function applyColumns() {
   for (const [cls] of COLUMNS) {
     document.body.classList.toggle(`hide-${cls}`, hidden.has(cls));
   }
+  const s = loadSettings();
+  document.body.classList.toggle(
+    "watch-on",
+    s.watchButtons && !s.sectionsOff.includes("watchlist")
+  );
 }
 function syncRelayNote() {
   el.relayNote.hidden = !needsRelay();
@@ -8186,7 +8711,7 @@ function appRow(app, scope) {
   tr.tabIndex = 0;
   tr.setAttribute("aria-expanded", String(open.has(key)));
   tr.innerHTML = `
-    <td class="name">${showArt && app.image ? `<img class="art" src="${esc(app.image)}" alt="" loading="lazy">` : ""}${esc(app.name)}</td>
+    <td class="name">${watchToggle(app)}${showArt && app.image ? `<img class="art" src="${esc(app.image)}" alt="" loading="lazy">` : ""}${esc(app.name)}</td>
     <td class="c-dev">${esc((_e = deviceName(app.platform)) != null ? _e : "\u2014")}</td>
     <td class="chan c-chan">${esc(
     /* Nothing known until a check runs — the same dash every other unknown
@@ -8226,6 +8751,19 @@ function appRow(app, scope) {
       toggle(e);
     }
   });
+  const wbtn = tr.querySelector("[data-watch-toggle]");
+  if (wbtn) {
+    wbtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleWatch(app);
+      const on = isWatched(app);
+      wbtn.classList.toggle("is-on", on);
+      wbtn.setAttribute("aria-pressed", String(on));
+      wbtn.title = `${on ? "Remove from" : "Add to"} your watchlist`;
+      updateWatchBadge();
+      if (!el.viewWatchlist.hidden) renderWatch();
+    });
+  }
   return tr;
 }
 var words2 = (s) => String(s).toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -8393,7 +8931,10 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   const panel = document.createElement("div");
   panel.className = "panel";
   const tabKey = `${staged ? "stage" : scope}:${keyOf(app)}`;
-  const tab = (_h = layoutState.panelTabs.get(tabKey)) != null ? _h : "store";
+  const panelsOff = loadSettings().panelsOff;
+  const panelOn = (n) => !panelsOff.includes(n);
+  let tab = (_h = layoutState.panelTabs.get(tabKey)) != null ? _h : "store";
+  if (!panelOn(tab)) tab = "store";
   if (tab === "mine") setTimeout(() => wantYourCopy());
   const storeFacts = `${factGroups(groups)}${(listed == null ? void 0 : listed.error) ? `<p class="warn">No store listing: ${esc(listed.error)}</p>` : ""}`;
   const channelBlock = revisionTable ? `<div class="chan-rev"><div class="chans-col">${channelTable}</div>${revisionTable}</div>` : channelTable;
@@ -8408,15 +8949,15 @@ function appPanel(app, { staged = false, scope = null } = {}) {
          <div class="info-out"></div>
        </div>`;
   const main = `<div class="companion-tabs panel-tabs" role="tablist" aria-label="${esc(app.name)}">
-         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${tabButton("reviews", "Reviews")}${tabButton("posts", "Posts")}${tabButton("addons", "Add-ons")}${tabButton("achievements", "Achievements")}${tabButton("mine", "Entitlement")}
+         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${panelOn("reviews") ? tabButton("reviews", "Reviews") : ""}${panelOn("posts") ? tabButton("posts", "Posts") : ""}${panelOn("addons") ? tabButton("addons", "Add-ons") : ""}${panelOn("achievements") ? tabButton("achievements", "Achievements") : ""}${tabButton("mine", "Entitlement")}
        </div>
        ${sharedActions}
        <div ${pane("store")}>${storeFacts || "<p>Not checked yet \u2014 the listing arrives with Check this app.</p>"}</div>
        <div ${pane("builds")}>${channelBlock}${app.id && app.platform !== "PC" ? `<div class="relnotes"><div class="controls"><button type="button" data-relnotes-get>Release notes</button></div><div class="relnotes-out"></div></div>` : ""}<div class="versions-out"></div></div>
-       <div ${pane("reviews")} class="reviews-pane">${reviewsPaneHtml(app)}</div>
-       <div ${pane("posts")} class="posts-pane">${postsPaneHtml(app)}</div>
-       <div ${pane("addons")} class="addons-pane">${addonsPaneHtml(app)}</div>
-       <div ${pane("achievements")} class="ach-pane">${achPaneHtml(app)}</div>
+       ${panelOn("reviews") ? `<div ${pane("reviews")} class="reviews-pane">${reviewsPaneHtml(app)}</div>` : ""}
+       ${panelOn("posts") ? `<div ${pane("posts")} class="posts-pane">${postsPaneHtml(app)}</div>` : ""}
+       ${panelOn("addons") ? `<div ${pane("addons")} class="addons-pane">${addonsPaneHtml(app)}</div>` : ""}
+       ${panelOn("achievements") ? `<div ${pane("achievements")} class="ach-pane">${achPaneHtml(app)}</div>` : ""}
        <div ${pane("mine")}>${yourCopy(app)}</div>`;
   panel.dataset.tab = tab;
   panel.innerHTML = `
@@ -9335,6 +9876,7 @@ function note(found) {
   return "";
 }
 function refreshRow(app) {
+  var _a2;
   for (const tr of document.querySelectorAll(`tr.app[data-id="${keyOf(app)}"]`)) {
     const tbody = tr.closest("tbody");
     const scope = tbody === el.adbRows ? "adb" : tbody === el.mineRows ? "mine" : tbody === el.orgRows ? "orgs" : tbody === el.defaultRows ? "default" : tbody === el.plusRows ? "plus" : tbody === el.storeRows ? "store" : tbody === el.wishRows ? "wishlist" : "main";
@@ -9345,6 +9887,12 @@ function refreshRow(app) {
     }
   }
   if (isStaged(app)) refreshStage();
+  const wrow = (_a2 = el.watchRows) == null ? void 0 : _a2.querySelector(`tr.watch-row[data-id="${keyOf(app)}"]`);
+  const wnext = wrow == null ? void 0 : wrow.nextElementSibling;
+  if (wnext == null ? void 0 : wnext.classList.contains("detail")) {
+    const w = readWatch().find((x) => x.id === String(keyOf(app)));
+    if (w) wnext.replaceWith(detailRow(appFromWatch(w), 4, "watchlist"));
+  }
 }
 async function checkOne(app, { listing: wantListing = true, channel = false } = {}) {
   const key = keyOf(app);

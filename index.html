@@ -83,7 +83,7 @@
     });
   })();
 </script>
-<link rel="stylesheet" href="css/style.css?v=248">
+<link rel="stylesheet" href="css/style.css?v=254">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -133,6 +133,7 @@
           <a href="/plus" data-view="plus">Horizon+</a>
           <a href="/worlds" data-view="worlds">Worlds</a>
           <a href="/orgs" data-view="orgs">Organizations</a>
+          <a href="/watchlist" data-view="watchlist">Watchlist<span id="watchBadge" class="navbadge" hidden></span></a>
         </div>
       </div>
       <div class="navgroup">
@@ -161,6 +162,45 @@
 </header>
 
 <div class="wrap">
+
+  <!-- Setup guide: shown on a first visit and re-openable from Settings. The
+       three lists are filled in by app.js so their labels stay in one place. -->
+  <div id="setupOverlay" class="setup-overlay" hidden>
+    <div class="setup-card" role="dialog" aria-modal="true" aria-labelledby="setupTitle">
+      <div class="setup-head">
+        <h2 id="setupTitle">Set up MetaDB</h2>
+        <p class="sub">Pick what MetaDB shows you. Anything you switch off is hidden from the nav and never requested from the store until you turn it back on.</p>
+      </div>
+      <div class="setup-body">
+        <fieldset class="setup-group">
+          <legend>Screens</legend>
+          <p class="setup-hint">The tabs across the top of the site.</p>
+          <div class="setup-grid" id="setupSections"></div>
+        </fieldset>
+        <fieldset class="setup-group">
+          <legend>Per-app information</legend>
+          <p class="setup-hint">Extra tabs inside an opened app. Each is one more request when you expand that app.</p>
+          <div class="setup-grid" id="setupPanels"></div>
+        </fieldset>
+        <fieldset class="setup-group">
+          <legend>Data and extras</legend>
+          <p class="setup-hint">Cover art and the account-wide lookups. The ones that fetch on load need your own token and cost a request each time the page opens.</p>
+          <div class="setup-grid" id="setupData"></div>
+        </fieldset>
+      </div>
+      <div class="controls setup-actions">
+        <button id="setupSave" class="primary" type="button">Save and continue</button>
+        <button id="setupAll" type="button">Turn everything on</button>
+        <span class="setup-foot">You can change all of this later in Settings.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pop-up notifications, stacked bottom-right. Filled by app.js (toast()):
+       a watched app getting a new build drops one in here. aria-live so a
+       screen reader announces each as it arrives; off to the side of the
+       layout so an arriving toast never shifts the page under the pointer. -->
+  <div id="toasts" class="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
 
   <p id="relayNote" class="notice" hidden>
     This copy has no relay of its own, and the browser is refused the store's reply
@@ -351,6 +391,40 @@
     <div class="controls morebar" id="wishMoreBar" hidden>
       <button id="wishMore" type="button">Load more</button>
     </div>
+
+  </section>
+
+  <!-- ---------- watchlist ---------- -->
+
+  <section id="view-watchlist" hidden>
+
+    <h2>Watchlist</h2>
+    <p class="sub">Apps you are tracking for new builds. MetaDB checks them when you open the site and whenever you press Check now, and marks the ones whose live build changed since you last looked. Add an app from its panel with the Watch button. Kept only in this browser.</p>
+
+    <div class="controls watch-controls">
+      <button id="watchCheck" type="button">Check now</button>
+      <button id="watchMarkAll" type="button">Mark all seen</button>
+      <p class="count" id="watchCount"></p>
+    </div>
+
+    <!-- One row per watched app: its icon and name, the build you last saw
+         (version + date), and the new build (version + date) when one has turned
+         up. Clicking a row opens a drop-down with the app's channels and build
+         history — the same panel the main app list expands. Built by renderWatch;
+         the tbody id stays watchRows so the render/update plumbing is unchanged. -->
+    <table class="wl-table">
+      <thead>
+        <tr>
+          <th scope="col">App</th>
+          <th scope="col">Build</th>
+          <th scope="col">New build</th>
+          <th scope="col"></th>
+        </tr>
+      </thead>
+      <tbody id="watchRows"></tbody>
+    </table>
+
+    <p id="watchEmpty" class="empty" hidden></p>
 
   </section>
 
@@ -835,6 +909,7 @@
 
     <h2>CompanionServer</h2>
     <p class="sub">Talk to a headset's on-device CompanionServer straight from this page over Bluetooth — the same service the Meta phone app drives, with the browser standing in for the phone. Pairs with a libsodium key exchange; claimed headsets need their device secret to do anything beyond a few status reads. Nothing here goes through Meta's servers. Chrome or Edge, on desktop or Android. A secret you fetch or authenticate with is kept in a cookie so it is here next time — unlike the tokens in Settings, a cookie is sent to whoever serves this page on every request. Forget secret takes it back.</p>
+    <p class="sub">Setting up a new or just-reset headset? Connect below, then open the <strong>Setup</strong> tab — it walks the one-time steps in order and explains what each box wants and where to get it. Everything else the headset can do is under the other tabs.</p>
 
     <p id="companionUnsupported" class="empty" hidden>This browser has no Web Bluetooth. Use Chrome or Edge on desktop or Android.</p>
 
@@ -866,39 +941,58 @@
     <h2>Get the app</h2>
     <p class="sub">MetaDB for Quest is this site as an app on your headset. It opens on Downgrade: every app installed, every build of each one, and an Install, Update or Downgrade on each. It keeps a copy of anything it downloads, backs up the version you are on, signs in through Meta's own login, and needs no relay. It is open source, and not on the store.</p>
 
-    <p class="count" id="getappInfo"></p>
+    <!-- Three install/sign-in methods as cards. The two ways to put the app on a
+         headset sit side by side; the browser sign-in extension is its own card
+         below. All ids are unchanged so the existing JS hooks on as before. -->
+    <div class="getapp-grid">
+      <div class="getapp-card">
+        <div class="getapp-card__head">
+          <span class="getapp-eyebrow">On the headset</span>
+          <h3>Install from the Quest browser</h3>
+          <span class="getapp-meta" id="getappInfo"></span>
+        </div>
+        <ol class="getapp-steps">
+          <li>Open <strong>metadb.toastconcern.dev</strong> in the Quest Browser, come to this screen, and press <strong>Download MetaDB.apk</strong> below.</li>
+          <li>Open the <strong>Files</strong> app and go to your downloads.</li>
+          <li>On <strong>MetaDB.apk</strong>, press the <strong>⋯</strong> menu, then <strong>Open with</strong> → <strong>Package installer</strong>, and choose <strong>Install</strong>.</li>
+          <li>MetaDB is in your library, under <strong>Unknown sources</strong>.</li>
+        </ol>
+        <div class="actions">
+          <a id="getappDownload" class="getapp-dl" href="downloads/MetaDB.apk" download="MetaDB.apk">Download MetaDB.apk</a>
+        </div>
+      </div>
 
-    <h3 class="devices-sub-h">On the headset</h3>
-    <ol class="getapp-steps">
-      <li>Open <strong>metadb.toastconcern.dev</strong> in the Quest Browser, come to this screen, and press <strong>Download MetaDB.apk</strong> below.</li>
-      <li>Open the <strong>Files</strong> app and go to your downloads.</li>
-      <li>On <strong>MetaDB.apk</strong>, press the <strong>⋯</strong> menu, then <strong>Open with</strong> → <strong>Package installer</strong>, and choose <strong>Install</strong>.</li>
-      <li>MetaDB is in your library, under <strong>Unknown sources</strong>.</li>
-    </ol>
-    <div class="actions">
-      <a id="getappDownload" href="downloads/MetaDB.apk" download="MetaDB.apk">Download MetaDB.apk</a>
-    </div>
+      <div class="getapp-card">
+        <div class="getapp-card__head">
+          <span class="getapp-eyebrow">From a PC</span>
+          <h3>Install over a cable</h3>
+        </div>
+        <p class="getapp-text">With the headset plugged in and connected on the <a href="/adb">ADB</a> screen, one press puts it on:</p>
+        <div class="actions">
+          <button type="button" id="getappAdb">Install over ADB</button>
+        </div>
+        <p class="hint" id="getappOut" role="status"></p>
+        <p class="getapp-text">Or download it here and install it yourself, with <a href="https://sidequestvr.com/" target="_blank" rel="noopener">SideQuest</a> or with adb:</p>
+        <pre class="getapp-cmd"><code>adb install -r MetaDB.apk</code></pre>
+        <p class="hint">Either way the headset needs developer mode, which is a switch in the Meta Horizon phone app under the headset's settings.</p>
+      </div>
 
-    <h3 class="devices-sub-h">From a PC</h3>
-    <p class="getapp-text">With the headset plugged in and connected on the <a href="/adb">ADB</a> screen, one press puts it on:</p>
-    <div class="actions">
-      <button type="button" id="getappAdb">Install over ADB</button>
-    </div>
-    <p class="hint" id="getappOut" role="status"></p>
-    <p class="getapp-text">Or download it here and install it yourself, with <a href="https://sidequestvr.com/" target="_blank" rel="noopener">SideQuest</a> or with adb:</p>
-    <pre class="getapp-cmd"><code>adb install -r MetaDB.apk</code></pre>
-    <p class="hint">Either way the headset needs developer mode, which is a switch in the Meta Horizon phone app under the headset's settings.</p>
-
-    <h3 class="devices-sub-h" id="getext">Sign-in extension, for Chrome and Edge</h3>
-    <p class="getapp-text">On a computer, the extension signs this site in with your Meta account: press <strong>Sign in with Meta</strong> in Settings and both tokens are filled in from your Meta login. It reads Meta's two login cookies and hands them to this site only, when the site asks. Nothing is sent anywhere else. It is open source, and not in the extension stores yet, so it is added by hand:</p>
-    <ol class="getapp-steps">
-      <li>Download <strong>MetaDB-extension.zip</strong> and unzip it.</li>
-      <li>Open <strong>chrome://extensions</strong> (or <strong>edge://extensions</strong>) and turn on <strong>Developer mode</strong>.</li>
-      <li>Press <strong>Load unpacked</strong> and choose the unzipped folder.</li>
-      <li>Come back to <a href="/settings">Settings</a> and press <strong>Sign in with Meta</strong>. If you are not logged in to Meta in this browser, Meta's login opens in a new tab, and Settings fills in once you finish.</li>
-    </ol>
-    <div class="actions">
-      <a href="downloads/MetaDB-extension.zip" download="MetaDB-extension.zip">Download MetaDB-extension.zip</a>
+      <div class="getapp-card getapp-card--wide">
+        <div class="getapp-card__head">
+          <span class="getapp-eyebrow" id="getext">Browser · Chrome &amp; Edge</span>
+          <h3>Sign-in extension</h3>
+        </div>
+        <p class="getapp-text">On a computer, the extension signs this site in with your Meta account: press <strong>Sign in with Meta</strong> in Settings and both tokens are filled in from your Meta login. It reads Meta's two login cookies and hands them to this site only, when the site asks. Nothing is sent anywhere else. It is open source, and not in the extension stores yet, so it is added by hand:</p>
+        <ol class="getapp-steps">
+          <li>Download <strong>MetaDB-extension.zip</strong> and unzip it.</li>
+          <li>Open <strong>chrome://extensions</strong> (or <strong>edge://extensions</strong>) and turn on <strong>Developer mode</strong>.</li>
+          <li>Press <strong>Load unpacked</strong> and choose the unzipped folder.</li>
+          <li>Come back to <a href="/settings">Settings</a> and press <strong>Sign in with Meta</strong>. If you are not logged in to Meta in this browser, Meta's login opens in a new tab, and Settings fills in once you finish.</li>
+        </ol>
+        <div class="actions">
+          <a href="downloads/MetaDB-extension.zip" download="MetaDB-extension.zip">Download MetaDB-extension.zip</a>
+        </div>
+      </div>
     </div>
 
   </section>
@@ -910,8 +1004,13 @@
     <h2>Settings</h2>
     <p class="sub">Kept in this browser only. Nothing is sent anywhere but the store.</p>
 
+    <div class="controls">
+      <button type="button" id="openSetup">Choose what shows (setup guide)</button>
+    </div>
+
     <form id="settingsForm" class="form" autocomplete="off">
 
+      <section class="settings-section">
       <h3 class="form__group">Getting in</h3>
 
       <!-- Only inside the headset app, which can read the tokens off Meta's own login. -->
@@ -975,6 +1074,9 @@
         <p id="tokensOut" class="settings-out" role="status"></p>
       </div>
 
+      </section>
+
+      <section class="settings-section">
       <h3 class="form__group">The lists</h3>
 
       <div class="field">
@@ -1013,6 +1115,22 @@
       </div>
 
       <div class="field">
+        <label for="density">Row spacing</label>
+        <select id="density">
+          <option value="comfortable">Comfortable</option>
+          <option value="compact">Compact</option>
+        </select>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            How much breathing room every list gives its rows. Compact tightens
+            the padding so more fits on screen at once; Comfortable is the roomier
+            default. Applies to all the tables and to the Watchlist cards.
+          </p>
+        </details>
+      </div>
+
+      <div class="field">
         <span class="field__label">Columns</span>
         <div id="cols" class="cols-grid"></div>
         <details class="hint">
@@ -1037,6 +1155,90 @@
           <p>
             Store results include cover art. Off by default, since it means loading an
             image per result straight from Meta's CDN.
+          </p>
+        </details>
+      </div>
+
+      <div class="field field--toggle">
+        <label class="check">
+          <input id="watchButtons" type="checkbox" checked>
+          Show watch buttons on app rows
+        </label>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            On by default. Adds a small + at the left of every row on Apps and games to
+            add that app to your Watchlist (− to remove). Off, you add apps from the
+            Watch button inside an app's panel instead.
+          </p>
+        </details>
+      </div>
+
+      <div class="field field--toggle">
+        <label class="check">
+          <input id="watchAuto" type="checkbox" checked>
+          Check the watchlist when the site opens
+        </label>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            On by default. Each time you open the site, MetaDB checks every app on your
+            Watchlist for a new build (throttled, so a quick reload does not re-check).
+            Off, the Watchlist only checks when you press Check now.
+          </p>
+        </details>
+      </div>
+
+      <div class="field">
+        <label for="watchThrottle">Auto-check no more often than</label>
+        <select id="watchThrottle">
+          <option value="0">Every time the site opens</option>
+          <option value="900000">Every 15 minutes</option>
+          <option value="3600000">Every hour</option>
+          <option value="21600000">Every 6 hours</option>
+          <option value="86400000">Once a day</option>
+        </select>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Only limits the automatic check above: an auto-check landing inside
+            this window of the last one is skipped, so opening the site twice in a
+            row does not spend a second round of requests. <strong>Check now</strong>
+            on the Watchlist always runs regardless.
+          </p>
+        </details>
+      </div>
+
+      <div class="field field--toggle">
+        <label class="check">
+          <input id="watchNotify" type="checkbox" checked>
+          Pop up a notification when a watched app updates
+        </label>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            On by default. When a check finds a new build of an app on your
+            Watchlist, a small card slides in at the corner with its name and the
+            build it jumped to, and a link to the Watchlist. Off, new builds still
+            show on the Watchlist and its nav badge — you are just not interrupted.
+          </p>
+        </details>
+      </div>
+
+      <div class="field">
+        <label for="notifyLinger">Keep notifications on screen for</label>
+        <select id="notifyLinger">
+          <option value="5000">5 seconds</option>
+          <option value="9000">9 seconds</option>
+          <option value="15000">15 seconds</option>
+          <option value="0">Until I dismiss them</option>
+        </select>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            How long each pop-up stays before it fades on its own. Hovering a
+            pop-up always pauses its timer. <strong>Until I dismiss them</strong>
+            leaves them up until you close each one.
           </p>
         </details>
       </div>
@@ -1075,6 +1277,9 @@
         </details>
       </div>
 
+      </section>
+
+      <section class="settings-section">
       <h3 class="form__group">Inside an app</h3>
 
       <div class="field field--toggle">
@@ -1211,6 +1416,9 @@
         </details>
       </div>
 
+      </section>
+
+      <section class="settings-section">
       <h3 class="form__group">Motion</h3>
 
       <div class="field field--toggle">
@@ -1237,6 +1445,9 @@
         </div>
       </div>
 
+      </section>
+
+      <section class="settings-section">
       <h3 class="form__group">Developer</h3>
 
       <div class="field field--toggle">
@@ -1264,7 +1475,10 @@
         <div id="logBox" class="logbox" role="log" aria-live="polite" tabindex="0"></div>
       </div>
 
-      <h3 class="form__group" data-not-in-app>The relay</h3>
+      </section>
+
+      <section class="settings-section" data-not-in-app>
+      <h3 class="form__group">The relay</h3>
 
       <div class="field" data-not-in-app>
         <label for="relay">Relay URL</label>
@@ -1287,13 +1501,14 @@
         </details>
       </div>
 
-      <div class="actions">
+      </section>
+
+      <div class="actions settings-bar">
         <button type="submit">Save</button>
         <button type="button" id="testBtn">Test connection</button>
         <button type="button" id="clearBtn">Reset</button>
+        <p id="settingsOut" class="settings-out" role="status"></p>
       </div>
-
-      <p id="settingsOut" class="settings-out" role="status"></p>
 
     </form>
 
@@ -1461,21 +1676,21 @@
       link.href = href;
       main.parentNode.insertBefore(link, main);
     };
-    if (!flexGap) addCss("css/legacy-gap.css?v=248");
-    if (compat) addCss("css/compat.css?v=248");
+    if (!flexGap) addCss("css/legacy-gap.css?v=254");
+    if (compat) addCss("css/compat.css?v=254");
 
     /* app.js only finds out it needs check.js once it has arrived and been read;
        asking for both at once saves a round trip before anything can run. */
     if (modern) {
       var pre = document.createElement("link");
       pre.rel = "modulepreload";
-      pre.href = "js/check.js?v=248";
+      pre.href = "js/check.js?v=254";
       document.head.appendChild(pre);
     }
 
     var js = document.createElement("script");
     js.type = "module";
-    js.src = modern ? "js/app.js?v=248" : "js/app.legacy.js?v=248";
+    js.src = modern ? "js/app.js?v=254" : "js/app.legacy.js?v=254";
     document.body.appendChild(js);
   })();
 </script>

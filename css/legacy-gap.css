@@ -57,7 +57,17 @@ details.hint > summary::before { margin-right: .35rem; }
 .dg-gh-head > * { margin-top: .5rem; }
 .dg-toggle > * + * { margin-left: .4rem; }
 .dg-head-acts > * + * { margin-left: .5rem; }
+.getapp-card > * + * { margin-top: .85rem; }
+.getapp-card__head > * + * { margin-top: .15rem; }
 .bar > h1 > * + * { margin-left: .5rem; }
 .bar > h1::before { margin-right: .5rem; }
 @media (max-width: 600px) { #view-purchases tbody tr > * + * { margin-left: .9rem; } }
 @media (max-width: 600px) { #view-purchases tbody tr > * { margin-top: .2rem; } }
+.watch-actions > * + * { margin-left: .6rem; }
+.watch-actions > * { margin-top: .6rem; }
+.setup-body > * + * { margin-top: 1.4rem; }
+.setup-grid .check > * + * { margin-left: .5rem; }
+.setup-actions > * + * { margin-left: .5rem; }
+.setup-actions > * { margin-top: .5rem; }
+.toasts > * + * { margin-top: .5rem; }
+.wl-appwrap > * + * { margin-left: .6rem; }

@@ -62,9 +62,9 @@ const POLYFILLS = `/* MetaDB legacy build (tools/legacy-build.mjs) for Chrome 74
 `;
 
 /* The site imports with cache-busting queries (./check.js?v=241). Same files, so the
-   query is dropped for bundling. companion.js and adb.js are loaded on demand for
-   Web Bluetooth and USB, which an old headset engine has neither of: left as they
-   are, so those screens say they cannot start rather than taking the site down. */
+   query is dropped for bundling. companion.js and adb.js are loaded on demand for Web
+   Bluetooth and USB, neither of which an old headset engine has: left external, so
+   those screens say they cannot start rather than taking the site down. */
 const queries = {
   name: "strip-queries",
   setup(build) {

@@ -53,6 +53,7 @@ enum Method {
   // @@priority: 1
   // @@title: "Scan Networks"
   // @@response: WifiScanResponse
+  // @@help: "Lists the Wi-Fi networks the headset can currently see, each with its SSID, signal strength and security type. Nothing to fill in."
   WIFI_SCAN = 1001;
   // @@request: WifiConnectRequest
   // @@tab: "NETWORK"
@@ -61,12 +62,17 @@ enum Method {
   // @@title: "Connect to Wi-Fi Network"
   // @@buttonLabel: "Connect"
   // @@primary
+  // @@help: "Joins the headset to a Wi-Fi network and confirms it can reach the internet. Use the auth/hidden options only for enterprise or hidden networks."
+  // @@field.ssid: "The exact network name to join, e.g. one returned by Scan Networks."
+  // @@field.password: "The network's password; leave empty for an open network."
+  // @@field.username: "Login name for enterprise (EAP) networks only; leave empty otherwise."
   WIFI_CONNECT = 1002;
   // @@tab: "NETWORK"
   // @@group: "WI-FI STATUS & STATE"
   // @@priority: 1
   // @@title: "Get Status"
   // @@response: WifiStatusResponse
+  // @@help: "Reports whether Wi-Fi is on, the current network, whether Oculus servers are reachable, and the list of saved networks. Nothing to fill in."
   WIFI_STATUS = 1003;
   // @@request: WifiForgetRequest
   // @@tab: "NETWORK"
@@ -76,28 +82,34 @@ enum Method {
   // @@buttonLabel: "Forget"
   // @@confirm: "ARE YOU SURE YOU WANT TO FORGET THIS WI-FI NETWORK?"
   // @@primary
+  // @@help: "Removes a saved Wi-Fi network so the headset stops auto-joining it. The network is identified by its SSID (from Get Status's known networks)."
   WIFI_FORGET = 1004;
   // @@tab: "NETWORK"
   // @@group: "WI-FI STATUS & STATE"
   // @@priority: 1
   // @@title: "Enable Wi-Fi"
+  // @@help: "Turns the headset's Wi-Fi radio on and waits up to 30s for it to come up. Nothing to fill in."
   WIFI_ENABLE = 1005;
   // @@tab: "NETWORK"
   // @@group: "WI-FI STATUS & STATE"
   // @@priority: 1
   // @@title: "Disable Wi-Fi"
+  // @@help: "Turns the headset's Wi-Fi radio off. Nothing to fill in."
   WIFI_DISABLE = 1006;
   // @@request: WifiReconnectRequest
   // @@tab: "NETWORK"
   // @@group: "RECONNECT / FORGET"
   // @@priority: 3
   // @@title: "Reconnect"
+  // @@help: "Reconnects the headset to a network it has already saved, selected by name."
+  // @@field.ssid: "The SSID of a network the headset already has saved."
   WIFI_RECONNECT = 1007;
   OCULUS_LOGIN_DEPRECATED = 2001;
   // @@tab: "SECURITY"
   // @@group: "ACCOUNT TOKENS"
   // @@priority: 4
   // @@title: "Oculus Logout"
+  // @@help: "Signs the headset out of its Meta/Oculus account; the account is removed from the device until it signs in again."
   OCULUS_LOGOUT = 2002;
   // @@request: OculusSetUserSecretRequest
   // @@tab: "SECURITY"
@@ -105,8 +117,19 @@ enum Method {
   // @@priority: 6
   // @@title: "Set User Secret Key"
   // @@confirm: "SEND CURRENT DEVICE SECRET TO HEADSET AS NEW USER SECRET KEY? (USED AFTER FACTORY RESET). CONTINUE?"
+  // @@help: "Claims a freshly factory-reset headset by storing a user secret on it; works only once, on an unclaimed device, as the primary user."
+  // @@field.user_secret_key: "The 64-character hex device secret from the box at the top of the page."
   OCULUS_SET_USER_SECRET = 2003;
   // @@request: OculusSetAccessTokenRequest
+  // @@tab: "SECURITY"
+  // @@group: "ACCOUNT TOKENS"
+  // @@priority: 3
+  // @@title: "Sign the headset into your account"
+  // @@buttonLabel: "Sign in"
+  // @@primary
+  // @@help: "Signs the headset into your Oculus/Horizon account with your access token and account ID. This is the account MetaDB can fill from your own login; the headset must be unlocked and on the primary user."
+  // @@field.access_token: "Your access token — the one MetaDB signs you in with (your Settings token). Filled in for you."
+  // @@field.user_id: "Your account's numeric ID, from your signed-in session. Filled in for you."
   OCULUS_SET_ACCESS_TOKEN = 2004;
   // @@request: OculusSecondaryAccountLoginRequest
   OCULUS_SECONDARY_ACCOUNT_LOGIN = 2005;
@@ -115,6 +138,7 @@ enum Method {
   // @@group: "SECONDARY USER MANAGEMENT"
   // @@priority: 5
   // @@title: "Add Secondary User"
+  // @@help: "Creates a new secondary (guest) user on the headset; needs multi-user enabled and the primary user in front. Nothing to fill in."
   OCULUS_SECONDARY_USER_ADD = 2201;
   // @@request: OculusSecondaryUserRemoveRequest
   // @@tab: "SECURITY"
@@ -124,12 +148,15 @@ enum Method {
   // @@buttonLabel: "Remove"
   // @@confirm: "ARE YOU SURE YOU WANT TO REMOVE THIS SECONDARY USER?"
   // @@primary
+  // @@help: "Removes a secondary user from the headset, deleting that user and their data; the primary user cannot be removed."
+  // @@field.user_id: "The numeric id of the secondary user to remove, as listed by the headset's user list."
   OCULUS_SECONDARY_USER_REMOVE = 2202;
   // @@tab: "SECURITY"
   // @@group: "SECONDARY USER MANAGEMENT"
   // @@priority: 5
   // @@title: "Get Device Code"
   // @@response: OculusSecondaryUserGetDeviceCoderesponse
+  // @@help: "Returns a short device code a secondary user enters at the Meta activation page to sign a secondary account onto the headset. Nothing to fill in."
   OCULUS_SECONDARY_USER_GET_DEVICE_CODE = 2203;
   // @@request: MetaSetAccessTokenRequest
   META_SET_ACCESS_TOKEN = 2301;
@@ -137,8 +164,14 @@ enum Method {
   // @@tab: "SECURITY"
   // @@group: "ACCOUNT TOKENS"
   // @@priority: 4
-  // @@title: "Set Combined Token"
-  // @@primary
+  // @@title: "Set Combined Token (advanced)"
+  // @@help: "Advanced: signs in BOTH a Meta (com.meta) and a Horizon (com.oculus) account at once. The Meta slot needs a genuine Meta-account token, which MetaDB usually does not have — for a normal sign-in use Sign the headset into your account above. Device must be unlocked, primary user."
+  // @@field.access_token_meta: "The Meta (com.meta) account access token from the account-login flow."
+  // @@field.access_token_horizon_profile: "The Horizon profile (com.oculus) access token from the same login flow."
+  // @@field.user_id: "The Oculus/Horizon account user id that goes with the Horizon token."
+  // @@field.user_id_meta: "The Meta account user id."
+  // @@field.salsa_account: "Internal Guardian flag; leave off unless the login flow told you to set it."
+  // @@field.salsa_status: "Internal Guardian status int; leave blank unless the login flow gave you a value."
   META_SET_ACCESS_TOKEN_COMBINED = 2302;
   // @@request: MetaSecondaryAccountLoginRequest
   META_SECONDARY_ACCOUNT_LOGIN = 2401;
@@ -154,6 +187,7 @@ enum Method {
   // @@title: "Get Controller Status"
   // @@primary
   // @@response: ControllerStatusResponse
+  // @@help: "Lists the headset's paired controllers with battery, firmware, model and connection state. Nothing to fill in."
   CONTROLLER_STATUS = 3003;
   // @@request: ControllerUnpairRequest
   // @@tab: "CONTROL"
@@ -162,6 +196,7 @@ enum Method {
   // @@title: "Unpair Controller"
   // @@confirm: "ARE YOU SURE YOU WANT TO UNPAIR THIS CONTROLLER?"
   // @@primary
+  // @@help: "Unpairs a controller: an Oculus controller by its type (primary/secondary/none), or a third-party one by its id, given in the nested controller field."
   CONTROLLER_UNPAIR = 3004;
   // @@request: ControllerSetHandednessRequest
   // @@tab: "CONTROL"
@@ -169,6 +204,8 @@ enum Method {
   // @@priority: 6
   // @@title: "Set Handedness"
   // @@primary
+  // @@help: "Meant to set which hand is primary, but this build ships no worker for it, so the call does nothing."
+  // @@field.handedness: "Left, right, or unspecified; the intended primary hand (no effect in this build)."
   CONTROLLER_SET_HANDEDNESS = 3005;
   // @@request: ControllerScanAndPairRequest
   // @@tab: "CONTROL"
@@ -176,12 +213,14 @@ enum Method {
   // @@priority: 9
   // @@title: "Scan & Pair"
   // @@primary
+  // @@help: "Scans for and pairs a controller. Set type to THIRD_PARTY; optionally give a MAC address (addr) and model to target one specific device."
   CONTROLLER_SCAN_AND_PAIR = 3006;
   // @@request: ControllerVerifyConnectableRequest
   // @@tab: "CONTROL"
   // @@group: "CONTROLLER STATUS"
   // @@priority: 5
   // @@title: "Verify Connectable"
+  // @@help: "Checks whether a controller of the given type can currently connect. Set the controller type; the timeout and recency fields are optional."
   CONTROLLER_VERIFY_CONNECTABLE = 3007;
   // @@request: VerifyMultipleControllersConnectableRequest
   // @@response: VerifyMultipleControllersConnectableResponse
@@ -191,6 +230,7 @@ enum Method {
   // @@group: "CONTROLLER SETTINGS"
   // @@priority: 6
   // @@title: "Check for Update"
+  // @@help: "Checks whether a firmware update is available for a controller, identified by its type in the nested controller field."
   CONTROLLER_CHECK_FOR_UPDATE = 3009;
   // @@request: PinSetRequest
   // @@tab: "SECURITY"
@@ -198,17 +238,23 @@ enum Method {
   // @@priority: 3
   // @@title: "Set/Change PIN"
   // @@primary
+  // @@help: "Sets or changes the headset's screen-lock credential; leave Old PIN blank when setting one for the first time."
+  // @@field.new_pin: "The new unlock PIN (or password/pattern) to set on the headset."
+  // @@field.old_pin: "The current unlock PIN; leave blank when none is set, required when changing an existing one."
+  // @@field.method: "Lock type for the new credential: 0 pattern, 1 password, 2 PIN."
   PIN_SET = 4001;
   // @@tab: "SECURITY"
   // @@group: "SET / CHANGE PIN"
   // @@priority: 3
   // @@title: "Get PIN Status"
   // @@response: PinStatusResponse
+  // @@help: "Reads whether a screen-lock credential is set, whether the headset is locked, and the lock method. Nothing to fill in."
   PIN_STATUS = 4002;
   // @@tab: "SECURITY"
   // @@group: "LOCK / RESET"
   // @@priority: 2
   // @@title: "Lock Device"
+  // @@help: "Locks the headset's screen immediately, as if the lock timeout had elapsed. Nothing to fill in."
   PIN_LOCK = 4003;
   // @@request: PinUnlockRequest
   // @@tab: "SECURITY"
@@ -216,6 +262,8 @@ enum Method {
   // @@priority: 1
   // @@title: "Unlock"
   // @@response: PinUnlockResponse
+  // @@help: "Unlocks the headset with the PIN and dismisses the lock screen; reports whether it was correct and any lockout cooldown."
+  // @@field.pin: "The current unlock PIN set on the headset."
   PIN_UNLOCK = 4004;
   // @@request: PinVerifyRequest
   // @@tab: "SECURITY"
@@ -224,18 +272,23 @@ enum Method {
   // @@title: "Verify PIN"
   // @@primary
   // @@response: PinVerifyResponse
+  // @@help: "Checks a PIN against the headset's lock without unlocking it, and reports whether it was correct plus any cooldown from too many tries."
+  // @@field.pin: "The unlock PIN to check against the headset."
+  // @@field.session_id: "The re-auth session id to answer, from Get Re-auth Status; leave blank for a plain check."
   PIN_VERIFY = 4005;
   // @@tab: "SECURITY"
   // @@group: "LOCK / RESET"
   // @@priority: 2
   // @@title: "Reset PIN"
   // @@confirm: "ARE YOU SURE YOU WANT TO RESET THE PIN?"
+  // @@help: "Removes the screen-lock credential and turns the lock screen off on the headset. Nothing to fill in."
   PIN_RESET = 4006;
   // @@tab: "SECURITY"
   // @@group: "LOCK / RESET"
   // @@priority: 2
   // @@title: "Get Re-auth Status"
   // @@response: PinReauthStatusResponse
+  // @@help: "Reads whether a phone-driven re-authentication session is active, and its title, description and session id. Nothing to fill in."
   PIN_REAUTH_STATUS = 4007;
   // @@request: WipeDataRequest
   // @@tab: "SYSTEM"
@@ -244,6 +297,7 @@ enum Method {
   // @@title: "Factory Reset (Wipe Data)"
   // @@confirm: "ARE YOU ABSOLUTELY SURE YOU WANT TO FACTORY RESET THIS DEVICE? THIS CANNOT BE UNDONE."
   // @@primary
+  // @@help: "Factory-resets the headset, erasing all data and accounts; it runs immediately and cannot be undone."
   WIPE_DATA = 5001;
   // @@request: OtaCheckAvailabilityRequest
   // @@tab: "DEVELOPER"
@@ -251,36 +305,45 @@ enum Method {
   // @@priority: 6
   // @@title: "Check Availability"
   // @@response: OtaCheckAvailabilityResponse
+  // @@help: "Asks the headset to check its update server for an available system update; the result reports the updater's state. Developer tool."
+  // @@field.full_ota: "Check to query for a full OS image update, uncheck for an incremental update."
   OTA_CHECK_AVAILABILITY = 5002;
   // @@request: OtaManualUpdateRequest
   // @@tab: "DEVELOPER"
   // @@group: "UPDATE ACTIONS"
   // @@priority: 6
   // @@title: "Manual Update"
+  // @@help: "Tells the headset to download and apply an available system update now. Developer tool."
+  // @@field.full_ota: "Check to request a full OS image update, uncheck for an incremental update."
   OTA_MANUAL_UPDATE = 5003;
   // @@tab: "DEVELOPER"
   // @@group: "UPDATE ACTIONS"
   // @@priority: 6
   // @@title: "Reboot for Upgrade"
   // @@confirm: "ARE YOU SURE YOU WANT TO REBOOT FOR UPGRADE?"
+  // @@help: "Reboots the headset into the pending system update to install it; interrupts whatever is running. Nothing to fill in."
   REBOOT_UPGRADE = 5004;
   // @@tab: "DEVELOPER"
   // @@group: "UPDATE ACTIONS"
   // @@priority: 6
   // @@title: "Get Updater Status"
   // @@response: GetOtaStatusResponse
+  // @@help: "Reads the current system-update status and progress (in progress, verifying, ready to reboot, error, etc.). Nothing to fill in."
   GET_OTA_STATUS = 5005;
   // @@request: DevModeRequest
   // @@tab: "DEVELOPER"
   // @@group: "DEVELOPER FEATURES"
   // @@priority: 1
   // @@title: "Enable Developer Mode"
+  // @@help: "Turns developer mode (ADB over USB) on or off. Enabling needs internet, both a Meta and an Oculus login, and no pending required update."
+  // @@field.mode: "Put 1 to enable developer mode, 0 to disable it."
   DEV_MODE_SET = 6001;
   // @@tab: "DEVELOPER"
   // @@group: "DEVELOPER FEATURES"
   // @@priority: 1
   // @@title: "Get Dev Mode Status"
   // @@response: DevModeResponse
+  // @@help: "Reads whether developer mode (ADB over USB) is currently enabled on this headset. Nothing to fill in."
   DEV_MODE_STATUS = 6002;
   // @@request: MtpModeRequest
   // @@tab: "DEVELOPER"
@@ -288,12 +351,15 @@ enum Method {
   // @@priority: 4
   // @@title: "MTP Mode"
   // @@ui: "toggle"
+  // @@help: "Turns USB file transfer (MTP) on or off over the USB cable."
+  // @@field.enable: "Check to turn USB file transfer on, uncheck to turn it off."
   MTP_MODE_SET = 6003;
   // @@tab: "DEVELOPER"
   // @@group: "MTP (FILE TRANSFER)"
   // @@priority: 4
   // @@title: "Get MTP Status"
   // @@response: MtpModeResponse
+  // @@help: "Reads whether USB file transfer (MTP) is currently enabled. Nothing to fill in."
   MTP_MODE_STATUS = 6004;
   // @@request: AdbModeRequest
   // @@tab: "DEVELOPER"
@@ -301,12 +367,14 @@ enum Method {
   // @@priority: 2
   // @@title: "ADB Mode"
   // @@ui: "toggle"
+  // @@help: "Deprecated: the headset rejects this command over BLE. Use DEV_MODE_SET to turn ADB over USB on or off instead."
   ADB_MODE_SET = 6005;
   // @@tab: "DEVELOPER"
   // @@group: "ADB (USB)"
   // @@priority: 2
   // @@title: "Get ADB Status"
   // @@response: AdbModeResponse
+  // @@help: "Deprecated: the headset rejects this command over BLE. Use DEV_MODE_STATUS to read ADB status instead."
   ADB_MODE_STATUS = 6006;
   // @@request: OtaEnabledRequest
   // @@tab: "DEVELOPER"
@@ -314,12 +382,14 @@ enum Method {
   // @@priority: 5
   // @@title: "OTA Updates"
   // @@ui: "toggle"
+  // @@help: "Deprecated: the headset rejects this command over BLE and it no longer changes whether over-the-air updates are allowed."
   OTA_ENABLED_SET = 6007;
   // @@tab: "DEVELOPER"
   // @@group: "OTA (OVER-THE-AIR UPDATES)"
   // @@priority: 5
   // @@title: "Get OTA Status"
   // @@response: OtaEnabledResponse
+  // @@help: "Reads whether over-the-air system updates are allowed on this headset (system property, default on). Nothing to fill in."
   OTA_ENABLED_STATUS = 6008;
   // @@request: CrashReportsEnabledRequest
   // @@tab: "SYSTEM"
@@ -327,12 +397,15 @@ enum Method {
   // @@priority: 4
   // @@title: "Crash Reporting"
   // @@ui: "toggle"
+  // @@help: "Turns submission of crash reports from the headset on or off."
+  // @@field.enable: "On to let the headset send crash reports, off to stop them."
   CRASH_REPORTS_ENABLED_SET = 6009;
   // @@tab: "SYSTEM"
   // @@group: "CRASH REPORTS"
   // @@priority: 4
   // @@title: "Get Crash Report Status"
   // @@response: CrashReportsEnabledResponse
+  // @@help: "Reads whether crash-report submission is enabled on the headset. Nothing to fill in."
   CRASH_REPORTS_ENABLED_STATUS = 6010;
   // @@request: AutowakeRequest
   // @@tab: "SYSTEM"
@@ -340,12 +413,15 @@ enum Method {
   // @@priority: 1
   // @@title: "Autowake"
   // @@ui: "toggle"
+  // @@help: "Turns the headset's auto-wake (wake when you put it on) on or off."
+  // @@field.enable: "On to wake the headset automatically when worn, off to leave it asleep."
   AUTOWAKE_SET = 6011;
   // @@tab: "SYSTEM"
   // @@group: "SYSTEM SETTINGS (POWER/MISC)"
   // @@priority: 1
   // @@title: "Get Autowake Status"
   // @@response: AutowakeResponse
+  // @@help: "Reads whether auto-wake (wake when the headset is worn) is enabled. Nothing to fill in."
   AUTOWAKE_STATUS = 6012;
   // @@request: AutosleepTimeRequest
   // @@tab: "SYSTEM"
@@ -353,12 +429,15 @@ enum Method {
   // @@priority: 1
   // @@title: "Set Autosleep"
   // @@primary
+  // @@help: "Sets how long the headset stays idle before going to sleep."
+  // @@field.interval: "The idle time in seconds before the headset sleeps (default 15)."
   AUTOSLEEP_TIME_SET = 6013;
   // @@tab: "SYSTEM"
   // @@group: "SYSTEM SETTINGS (POWER/MISC)"
   // @@priority: 1
   // @@title: "Get Autosleep Status"
   // @@response: AutosleepTimeResponse
+  // @@help: "Reads the headset's idle-before-sleep time in seconds. Nothing to fill in."
   AUTOSLEEP_TIME_STATUS = 6014;
   // @@request: NameSetRequest
   // @@tab: "CONTROL"
@@ -367,6 +446,8 @@ enum Method {
   // @@title: "Set Device Name"
   // @@buttonLabel: "Set Name"
   // @@primary
+  // @@help: "Sets the headset's device name, used for Bluetooth, Wi-Fi Direct and casting; rejects empty names or names over 248 bytes."
+  // @@field.name: "The new device name, 1 to 248 UTF-8 bytes."
   NAME_SET = 6015;
   // @@request: LineFrequencyRequest
   // @@tab: "SYSTEM"
@@ -374,30 +455,36 @@ enum Method {
   // @@priority: 2
   // @@title: "Set Line Frequency"
   // @@primary
+  // @@help: "Sets the local mains line frequency the headset uses to avoid camera flicker under artificial light."
+  // @@field.line_frequency: "The mains frequency in Hz for your region: 50 or 60. Use -1 to leave it unset."
   LINE_FREQUENCY_SET = 6016;
   // @@tab: "SYSTEM"
   // @@group: "MISC & ADVANCED"
   // @@priority: 2
   // @@title: "Get Line Frequency Status"
   // @@response: LineFrequencyResponse
+  // @@help: "Reads the configured mains line frequency in Hz (-1 if unset). Nothing to fill in."
   LINE_FREQUENCY_STATUS = 6017;
   // @@tab: "DEVELOPER"
   // @@group: "ADB OVER TCP (WI-FI)"
   // @@priority: 3
   // @@title: "Start Server"
   // @@response: StartWirelessPairingServerResponse
+  // @@help: "Starts the ADB-over-Wi-Fi pairing server and returns its IP, pairing port, pairing code, and connection port. Developer only. Nothing to fill in."
   START_WIRELESS_PAIRING_SERVER = 6018;
   // @@tab: "DEVELOPER"
   // @@group: "ADB OVER TCP (WI-FI)"
   // @@priority: 3
   // @@title: "Get Info"
   // @@response: StartWirelessPairingServerResponse
+  // @@help: "Reads the running ADB-over-Wi-Fi pairing server's IP, ports, and pairing code. Developer only. Nothing to fill in."
   GET_WIRELESS_PAIRING_DETAILS = 6019;
   // @@tab: "CONTROL"
   // @@group: "GENERAL CONTROL & INFO"
   // @@priority: 1
   // @@title: "Reboot Device"
   // @@confirm: "ARE YOU SURE YOU WANT TO REBOOT THE QUEST DEVICE?"
+  // @@help: "Reboots the headset immediately (to the bootloader only during initial setup); interrupts whatever is running. Nothing to fill in."
   REBOOT_DEVICE = 6020;
   // @@request: AppLaunchRequest
   // @@tab: "CONTROL"
@@ -406,35 +493,43 @@ enum Method {
   // @@title: "Launch App"
   // @@primary
   // @@response: AppLaunchResponse
+  // @@help: "Launches an installed app on the headset. Blocked until first-time setup is complete."
+  // @@field.app_id: "The app's package/store id to launch, e.g. com.oculus.browser."
+  // @@field.launch_parameters_json: "Optional JSON of launch parameters to pass the app; leave empty if none."
   APP_LAUNCH = 7001;
   // @@tab: "CONTROL"
   // @@group: "APPLICATION CONTROL"
   // @@priority: 2
   // @@title: "Handle Remote Ops"
+  // @@help: "Tells the headset to fetch and run any pending remote app operations (queued installs and updates). Nothing to fill in."
   APP_HANDLE_REMOTE_OPERATIONS = 7002;
   // @@tab: "CONTROL"
   // @@group: "GENERAL CONTROL & INFO"
   // @@priority: 1
   // @@title: "Get HMD Status"
   // @@response: HmdStatusResponse
+  // @@help: "Reports the headset's live status: battery, Wi-Fi, controllers, OTA, PIN, login and headset state. Nothing to fill in."
   HMD_STATUS = 8001;
   // @@tab: "CONTROL"
   // @@group: "GENERAL CONTROL & INFO"
   // @@priority: 1
   // @@title: "Get HMD Version"
   // @@response: HmdVersionResponse
+  // @@help: "Reports build and version info read from the headset: model, serial, fingerprint, OS SDK and display name. Nothing to fill in."
   HMD_VERSION = 8002;
   // @@tab: "CONTROL"
   // @@group: "GENERAL CONTROL & INFO"
   // @@priority: 1
   // @@title: "Get HMD Capabilities"
   // @@response: HmdCapabilitiesResponse
+  // @@help: "Reports which features the headset supports, such as Chromecast, multi-user and manual OTA. Nothing to fill in."
   HMD_CAPABILITIES = 8003;
   // @@tab: "CONTROL"
   // @@group: "GENERAL CONTROL & INFO"
   // @@priority: 1
   // @@title: "Get Ext. Battery Status"
   // @@response: HmdExternalBatteryStatusResponse
+  // @@help: "Reports the attached external battery's level, the combined level, and whether it is charging. Nothing to fill in."
   HMD_EXTERNAL_BATTERY_STATUS = 8004;
   // @@request: LocaleSet
   // @@tab: "SYSTEM"
@@ -442,12 +537,18 @@ enum Method {
   // @@priority: 2
   // @@title: "Set Locale"
   // @@primary
+  // @@help: "Sets the headset's system language and region, then reboots the headset if first-time setup is already finished."
+  // @@field.language: "A two-letter ISO language code, e.g. en for English (required)."
+  // @@field.country: "A two-letter ISO country/region code, e.g. US; optional, refines the locale."
   LOCALE_SET = 9001;
   // @@request: TimeSet
   // @@tab: "CONTROL"
   // @@group: "DEVICE CONFIGURATION"
   // @@priority: 7
   // @@title: "Set System Time"
+  // @@help: "Sets the headset's system clock and/or time zone; fill either field, but at least one must be valid."
+  // @@field.time_ms: "The time to set, as Unix epoch milliseconds; leave blank to keep the current clock."
+  // @@field.timezone: "An Android time-zone id such as America/New_York; must be valid. Leave blank to keep the current zone."
   TIME_SET = 9002;
   // @@request: HealthAndSafetyWarningRequest
   HEALTH_AND_SAFETY_WARNING_SET = 9101;
@@ -455,6 +556,7 @@ enum Method {
   // @@group: "NUX ACTIONS"
   // @@priority: 6
   // @@title: "Mark NUX Completed"
+  // @@help: "Marks the headset's first-time setup (NUX) as completed. Nothing to fill in."
   NUX_COMPLETED = 9201;
   // @@request: MirrorRequest
   // @@tab: "CONTROL"
@@ -463,6 +565,7 @@ enum Method {
   // @@title: "Start/Stop Mirroring"
   // @@primary
   // @@response: MirrorResponse
+  // @@help: "Starts or stops mirroring the headset screen to the phone and returns the stream's host, port and URL. The app sets the flags; nothing for you to fill in."
   MIRROR_REQUEST = 10001;
   // @@request: ManagedModeSet
   // @@tab: "DEVELOPER"
@@ -470,12 +573,15 @@ enum Method {
   // @@priority: 8
   // @@title: "Set Managed Mode"
   // @@primary
+  // @@help: "Sets the MDM enrollment level in secure storage and device prefs; 3 marks the headset fully managed. Enterprise/MDM use only."
+  // @@field.level: "Enrollment level: put 3 for fully managed, 0 for unmanaged."
   MANAGED_MODE_SET = 11001;
   // @@tab: "DEVELOPER"
   // @@group: "MANAGED MODE & AUTO PROVISIONING"
   // @@priority: 8
   // @@title: "Get Managed Mode Status"
   // @@response: ManagedModeResponse
+  // @@help: "Reads the stored MDM enrollment level from secure storage. Nothing to fill in."
   MANAGED_MODE_STATUS = 11002;
   // @@request: TextSend
   // @@tab: "CONTROL"
@@ -484,24 +590,30 @@ enum Method {
   // @@title: "Send Text to Field"
   // @@buttonLabel: "Send Text"
   // @@primary
+  // @@help: "Types text into the field currently focused on the headset."
+  // @@field.text: "The text to type into the focused field on the headset."
   TEXT_SEND = 12001;
   // @@request: CloudSyncSignalSend
   // @@tab: "NETWORK"
   // @@group: "CLOUD SYNCHRONIZATION"
   // @@priority: 5
   // @@title: "Send Cloud Sync Signal"
+  // @@help: "Turns cloud media sync on or off by setting the headset's media_sync_enabled preference."
+  // @@field.signal: "On enables cloud media sync; off disables it."
   CLOUD_SYNC_SIGNAL_SEND = 12002;
   // @@request: CloudMediaOneTimeSync
   // @@tab: "NETWORK"
   // @@group: "CLOUD SYNCHRONIZATION"
   // @@priority: 5
   // @@title: "One-Time Media Sync"
+  // @@help: "Requests a single cloud media sync. This build ships no worker for it, so the call currently does nothing. Nothing to fill in."
   CLOUD_MEDIA_ONE_TIME_SYNC = 12003;
   // @@tab: "NETWORK"
   // @@group: "CASTING CONTROL"
   // @@priority: 4
   // @@title: "Discover Devices"
   // @@response: DiscoverCastingDevicesResponse
+  // @@help: "Lists the Chromecast devices the headset can currently see for casting. Nothing to fill in."
   DISCOVER_CASTING_DEVICES = 13001;
   // @@request: StartCastingRequest
   // @@tab: "NETWORK"
@@ -510,28 +622,34 @@ enum Method {
   // @@title: "Start Casting"
   // @@primary
   // @@response: StartCastingResponse
+  // @@help: "Meant to start casting to a device, but in this build it only checks the id is non-empty and returns without actually casting."
+  // @@field.device_id: "A device id from Discover Casting Devices."
   START_CASTING = 13002;
   // @@tab: "NETWORK"
   // @@group: "CASTING CONTROL"
   // @@priority: 4
   // @@title: "Stop Casting"
+  // @@help: "Stops any casting session in progress on the headset. Nothing to fill in."
   STOP_CASTING = 13003;
   // @@tab: "NETWORK"
   // @@group: "CASTING CONTROL"
   // @@priority: 4
   // @@title: "Get Casting Status"
   // @@response: CastingStatusResponse
+  // @@help: "Reports the device the headset is currently casting to, if any. Nothing to fill in."
   CASTING_STATUS = 13004;
   // @@tab: "NETWORK"
   // @@group: "CASTING CONTROL"
   // @@priority: 4
   // @@title: "Get Dialog Status"
   // @@response: CastingDialogStatusResponse
+  // @@help: "Reports whether the headset's casting dialog is showing, and its session id and serial number. Nothing to fill in."
   CASTING_DIALOG_STATUS = 13005;
   // @@tab: "SECURITY"
   // @@group: "NUX ACTIONS"
   // @@priority: 6
   // @@title: "Skip High-Pri Apps"
+  // @@help: "Tells first-time setup to skip downloading high-priority apps. Setup/NUX action. Nothing to fill in."
   SKIP_HIGH_PRI_APPS_DOWNLOAD = 14001;
   // @@request: SkipNuxAndLoginRequest
   // @@tab: "SECURITY"
@@ -540,30 +658,42 @@ enum Method {
   // @@title: "Retail Skip NUX"
   // @@primary
   // @@response: SkipNuxAndLoginResponse
+  // @@help: "Skips first-time setup and signs in, for retail/demo units; RETAIL needs a @tfbnw.net email, DEFAULT needs an already-logged-in account."
+  // @@field.email: "Login email for the skip-NUX account; in RETAIL mode it must end in @tfbnw.net."
+  // @@field.password: "Password for that login email."
+  // @@field.disable_guardian: "Turn Guardian off after setup."
+  // @@field.get_status: "Only report the current skip-NUX status instead of running it."
+  // @@field.do_not_disturb: "Enable Do Not Disturb after setup."
+  // @@field.skip_nux_type: "Which flow to run: 0 DEFAULT, 1 RETAIL."
+  // @@field.reboot: "Reboot the headset when the skip completes."
   RETAIL_SKIP_FIRST_TIME_NUX = 14002;
   // @@request: ResetGuardian
   // @@tab: "CONTROL"
   // @@group: "GENERAL CONTROL & INFO"
   // @@priority: 1
   // @@title: "Reset Guardian"
+  // @@help: "Launches the Guardian (play-boundary) room-setup flow on the headset; errors if a setup is already running. Nothing to fill in."
   RESET_GUARDIAN = 15001;
   // @@request: ResetHeadsetView
   // @@tab: "CONTROL"
   // @@group: "GENERAL CONTROL & INFO"
   // @@priority: 1
   // @@title: "Reset View"
+  // @@help: "Recenters the headset's view and orientation, as the Reset View button does. Nothing to fill in."
   RESET_HEADSET_VIEW = 15002;
   // @@tab: "DEVELOPER"
   // @@group: "DEVELOPMENT LICENSE"
   // @@priority: 7
   // @@title: "Get Details"
   // @@response: DevelopmentLicenseDetailsResponse
+  // @@help: "Reads this device's developer-license issue/expiry time and whether it was revoked; needs the on-device license package. Developer only."
   DEVELOPMENT_LICENSE_DETAILS = 16001;
   // @@tab: "DEVELOPER"
   // @@group: "DEVELOPMENT LICENSE"
   // @@priority: 7
   // @@title: "Refresh"
   // @@response: DevelopmentLicenseRefreshResponse
+  // @@help: "Forces the headset to refresh its developer license from the server; requires an internet connection. Developer only. Nothing to fill in."
   DEVELOPMENT_LICENSE_REFRESH = 16002;
   // @@request: PhoneNotificationRequest
   // @@tab: "CONTROL"
@@ -572,12 +702,14 @@ enum Method {
   // @@title: "Set Phone Notification Settings"
   // @@buttonLabel: "Set Settings"
   // @@primary
+  // @@help: "Deprecated: the headset rejects this command over BLE and it no longer changes phone-notification forwarding settings."
   PHONE_NOTIFICATION_SET = 17001;
   // @@tab: "CONTROL"
   // @@group: "PHONE NOTIFICATIONS"
   // @@priority: 8
   // @@title: "Get Status"
   // @@response: PhoneNotificationResponse
+  // @@help: "Deprecated: the headset rejects this command over BLE and it no longer reports phone-notification settings."
   PHONE_NOTIFICATION_STATUS = 17002;
   // @@request: InputEventSend
   INPUT_EVENT_SEND = 19001;
@@ -586,19 +718,28 @@ enum Method {
   // @@group: "GENERAL CONTROL & INFO"
   // @@priority: 1
   // @@title: "Toggle Passthrough"
+  // @@help: "Toggles full passthrough (the real-world camera view) on the headset. Nothing to fill in."
   TOGGLE_PASSTHROUGH = 20001;
   // @@request: ChangeBatteryLedTempRequest
   // @@tab: "CONTROL"
   // @@group: "TEMPORARY LED CONTROL"
   // @@priority: 11
-  // @@title: "Set Temporary LED"
+  // @@title: "Change Battery LED"
   // @@primary
+  // @@help: "Temporarily sets the battery LED to a color, optionally blinking; the headset restores its normal LED afterward."
+  // @@field.red_value: "Red component, 0 to 255."
+  // @@field.green_value: "Green component, 0 to 255."
+  // @@field.blue_value: "Blue component, 0 to 255."
+  // @@field.alpha_value: "Alpha/brightness, 0 to 255; defaults to 255."
+  // @@field.blink_light: "Turn on to make the LED blink instead of staying solid."
+  // @@field.blink_duration_in_ms: "Blink interval in milliseconds; defaults to 500."
   CHANGE_BATTERY_LED_TEMPORARILY = 20002;
   // @@tab: "SYSTEM"
   // @@group: "MANAGED DEVICE"
   // @@priority: 5
   // @@title: "Get Managed Device Status"
   // @@response: ManagedDeviceStatusResponse
+  // @@help: "Reads whether this headset is under mobile-device management (MDM). Nothing to fill in."
   MANAGED_DEVICE_STATUS = 22001;
   // @@request: FontSizeRequest
   // @@tab: "SYSTEM"
@@ -606,6 +747,8 @@ enum Method {
   // @@priority: 3
   // @@title: "Set Font Size"
   // @@primary
+  // @@help: "Sets the headset's system font size from a fixed scale."
+  // @@field.font: "Font step: -1 smaller (0.875x), 0 default (1.0x), 1 large (1.15x), 2 larger (1.3x), 3 largest (1.5x)."
   AX_FONT_SIZE_REQUEST = 23001;
   // @@response: FontSizeResponse
   AX_FONT_SIZE_RESPONSE = 23002;
@@ -652,18 +795,27 @@ enum Method {
   // @@priority: 9
   // @@title: "Start Auto Provisioning"
   // @@primary
+  // @@help: "Enterprise (MDM) use: starts managed auto-provisioning and launches the enrollment setup flow on the headset."
+  // @@field.enrollment_token: "The MDM enrollment token for this device, issued by your management console."
+  // @@field.install_mdm: "Also install the MDM agent as part of enrollment."
+  // @@field.pause_guardian: "Pause the Guardian boundary during enrollment."
+  // @@field.shared_mode_wait: "Wait for shared-mode setup to finish."
+  // @@field.skip_ota: "Skip the system-update step during enrollment."
+  // @@field.launch_nux_directly: "Jump straight into the first-time-setup flow."
   MANAGED_AUTO_PROVISIONING_START = 24001;
   // @@tab: "DEVELOPER"
   // @@group: "MANAGED AUTO PROVISIONING"
   // @@priority: 9
   // @@title: "Get MAP Status"
   // @@response: ManagedAutoProvisioningStatusResponse
+  // @@help: "Reads the managed auto-provisioning state, MDM install state and any error codes. Nothing to fill in."
   MANAGED_AUTO_PROVISIONING_STATUS = 24002;
   // @@tab: "DEVELOPER"
   // @@group: "MANAGED AUTO PROVISIONING"
   // @@priority: 9
   // @@title: "Get MAP Apps Status"
   // @@response: ManagedAutoProvisioningAppsStatusResponse
+  // @@help: "Lists the apps the MDM policy is installing and each one's download and install progress. Nothing to fill in."
   MANAGED_AUTO_PROVISIONING_APPS_STATUS = 24003;
   // @@request: ManagedAutoProvisioningFinishRequest
   // @@tab: "DEVELOPER"
@@ -671,11 +823,310 @@ enum Method {
   // @@priority: 10
   // @@title: "Finish MAP"
   // @@primary
+  // @@help: "Enterprise (MDM) use: finishes managed provisioning, then reboots or shuts the headset down."
+  // @@field.action: "What to do when done: reboot, shut down, or nothing."
+  // @@field.unpause_guardian: "Re-enable the Guardian boundary that enrollment paused."
   MANAGED_AUTO_PROVISIONING_FINISH = 24004;
   // @@request: LocationSignal
   LOCATION_SIGNAL = 24005;
   // @@response: SecondaryUserSupportedMethodsResponse
   SECONDARY_USER_SUPPORTED_METHODS_RESPONSE = 25000;
+
+  // ===================================================================
+  // Added from CompanionServer versionCode 34 (Horizon OS v14). These 30
+  // methods are present in the current firmware but were not in the earlier
+  // map. Bodies reverse-engineered from the firmware's own Protocol.java.
+  // ===================================================================
+
+  // ---- media volume ----
+  // @@request: SetMediaVolumeRequest
+  // @@response: SetMediaVolumeResponse
+  // @@tab: "CONTROL"
+  // @@group: "MEDIA VOLUME"
+  // @@priority: 2
+  // @@title: "Set Media Volume"
+  // @@buttonLabel: "Set"
+  // @@primary
+  // @@help: "Sets the headset's media (app/game) volume. Read the current level and the maximum with Get Media Volume first."
+  // @@field.volume: "A number from 0 to the max shown by Get Media Volume. Anything higher is clamped to the max."
+  SET_MEDIA_VOLUME = 29001;
+  // @@response: GetMediaVolumeResponse
+  // @@tab: "CONTROL"
+  // @@group: "MEDIA VOLUME"
+  // @@priority: 1
+  // @@title: "Get Media Volume"
+  // @@help: "Reads the current media volume and the maximum the headset allows, so you know the range Set Media Volume accepts."
+  GET_MEDIA_VOLUME = 29002;
+
+  // ---- apps & navigation ----
+  // @@tab: "CONTROL"
+  // @@group: "APPS & NAVIGATION"
+  // @@priority: 2
+  // @@title: "Close All Apps"
+  // @@buttonLabel: "Close all"
+  // @@confirm: "CLOSE EVERY RUNNING APP ON THE HEADSET?"
+  // @@help: "Force-closes every running app and sends the headset back to Home. Nothing to fill in."
+  KILL_ALL_APPS = 20009;
+  // @@tab: "CONTROL"
+  // @@group: "APPS & NAVIGATION"
+  // @@priority: 1
+  // @@title: "Open Navigator"
+  // @@buttonLabel: "Open"
+  // @@help: "Opens the system navigator (the universal menu / launcher) in the headset. Nothing to fill in."
+  OPEN_NAVIGATOR = 20010;
+
+  // ---- passthrough (read-only) ----
+  // @@response: PassthroughStatusResponse
+  // @@tab: "CONTROL"
+  // @@group: "PASSTHROUGH"
+  // @@priority: 1
+  // @@title: "Passthrough Status"
+  // @@help: "Reads whether passthrough (the camera view of your room) is on screen right now. Read-only."
+  PASSTHROUGH_STATUS = 20004;
+  // @@response: PassAndTryStatusResponse
+  // @@tab: "CONTROL"
+  // @@group: "PASSTHROUGH"
+  // @@priority: 2
+  // @@title: "Pass-and-Try Status"
+  // @@help: "Reads whether a pass-and-try (store demo try-before-buy) session is active. Read-only."
+  PASS_AND_TRY_STATUS = 20003;
+
+  // ---- Wi-Fi Easy Connect (DPP) ----
+  // @@request: WifiEasyConnectRequest
+  // @@response: WifiEasyConnectResponse
+  // @@tab: "NETWORK"
+  // @@group: "CONNECT TO NETWORK"
+  // @@priority: 5
+  // @@title: "Wi-Fi Easy Connect (QR)"
+  // @@buttonLabel: "Start"
+  // @@help: "Starts Wi-Fi Easy Connect (DPP). The headset becomes a QR enrollee and returns a bootstrap link your router or phone scans to hand it the network. Most people should use the Scan picker above instead."
+  // @@field.device_info: "A short label for the headset in the QR, such as Quest 3. Optional — defaults to VR_Device."
+  // @@field.cryptography_curve: "DPP curve: leave 0 (prime256v1) unless your configurator needs another. 1=secp384r1, 2=secp521r1, 3=brainpoolP256r1."
+  WIFI_EASY_CONNECT = 1008;
+
+  // ---- phone Bluetooth auto-pairing ----
+  // @@request: PhoneBtEnableAutoPairingRequest
+  // @@response: PhoneBtEnableAutoPairingResponse
+  // @@tab: "NETWORK"
+  // @@group: "BLUETOOTH PAIRING"
+  // @@priority: 1
+  // @@title: "Enable Classic-BT Auto-Pairing"
+  // @@buttonLabel: "Enable"
+  // @@help: "Arms the headset to auto-accept a Bluetooth Classic pairing from this phone and returns the headset's BR/EDR MAC address. Only works when classic-BT NUX pairing is turned on in firmware; otherwise it reports unsupported."
+  PHONE_BT_ENABLE_AUTO_PAIRING = 17003;
+
+  // ---- first-time setup (NUX) ----
+  // @@tab: "SYSTEM"
+  // @@group: "FIRST-TIME SETUP (NUX)"
+  // @@priority: 3
+  // @@title: "Show Eye-Tracking Setup"
+  // @@buttonLabel: "Show"
+  // @@help: "Launches the eye-tracking calibration flow in the headset. Nothing to fill in."
+  SHOW_EYE_TRACKING_NUX = 20016;
+  // @@response: NuxHmdStatusResponse
+  // @@tab: "SYSTEM"
+  // @@group: "FIRST-TIME SETUP (NUX)"
+  // @@priority: 1
+  // @@title: "First-Time Setup Status"
+  // @@help: "A full read-only snapshot of where the headset is in first-time setup — Wi-Fi, OTA, battery, locale, provisioning and which step it is on. Nothing to fill in."
+  NUX_HMD_STATUS = 9203;
+  // @@request: NuxSetTwfExperimentGroupRequest
+  // @@tab: "SYSTEM"
+  // @@group: "FIRST-TIME SETUP (NUX)"
+  // @@priority: 4
+  // @@title: "Set TWF Experiment Group"
+  // @@buttonLabel: "Set"
+  // @@help: "Developer knob: records a take-wireless-further experiment-group name on the headset. You won't need this for a normal setup."
+  // @@field.name: "An experiment-arm name supplied by test tooling. Leave this alone unless you were given a specific value."
+  NUX_SET_TWF_EXPERIMENT_GROUP = 9202;
+  // @@request: NuxTwfSetupRequest
+  // @@tab: "SYSTEM"
+  // @@group: "FIRST-TIME SETUP (NUX)"
+  // @@priority: 5
+  // @@title: "Run TWF Setup"
+  // @@buttonLabel: "Run"
+  // @@help: "Advanced: drives the take-wireless-further setup in one shot — applies a locale, joins Wi-Fi, and optionally uses OTA gold cores. The locale and Wi-Fi fields are nested messages, so this takes a pasted JSON body; the Setup tab's ordinary Wi-Fi and locale steps are easier."
+  NUX_TWF_SETUP = 9204;
+
+  // ---- prescription lenses ----
+  // @@request: PrescriptionLensPairRequest
+  // @@response: PrescriptionLensPairResponse
+  // @@tab: "SYSTEM"
+  // @@group: "PRESCRIPTION LENSES"
+  // @@priority: 2
+  // @@title: "Pair Prescription Lenses"
+  // @@buttonLabel: "Pair"
+  // @@primary
+  // @@help: "Pairs a set of prescription lens inserts to the headset by their serial numbers. Use the single serial for a one-piece insert, or the left/right serials for a two-lens pair."
+  // @@field.serial_number: "The serial printed on a single-piece prescription insert. Leave blank if you are using the left/right serials below."
+  // @@field.lens_model: "The lens model code from the insert's packaging. Optional."
+  // @@field.serial_number_os: "Left-eye (OS) lens serial — 13 digits, read off the left lens."
+  // @@field.serial_number_od: "Right-eye (OD) lens serial — 13 digits, read off the right lens."
+  PRESCRIPTION_LENS_PAIR = 30001;
+  // @@request: PrescriptionLensUnpairRequest
+  // @@response: PrescriptionLensUnpairResponse
+  // @@tab: "SYSTEM"
+  // @@group: "PRESCRIPTION LENSES"
+  // @@priority: 3
+  // @@title: "Unpair Prescription Lenses"
+  // @@buttonLabel: "Unpair"
+  // @@help: "Removes a prescription-lens pairing from the headset."
+  // @@field.serial_number: "Serial of the lens to unpair — the same one you paired. Leave blank to clear whatever is currently paired."
+  PRESCRIPTION_LENS_UNPAIR = 30002;
+  // @@response: PrescriptionLensStatusResponse
+  // @@tab: "SYSTEM"
+  // @@group: "PRESCRIPTION LENSES"
+  // @@priority: 1
+  // @@title: "Prescription Lens Status"
+  // @@help: "Reads which prescription lenses are currently paired (state, serial and model). Read-only."
+  PRESCRIPTION_LENS_STATUS_QUERY = 30003;
+  // @@response: PrescriptionLensCancelResponse
+  // @@tab: "SYSTEM"
+  // @@group: "PRESCRIPTION LENSES"
+  // @@priority: 4
+  // @@title: "Cancel Lens Pairing"
+  // @@buttonLabel: "Cancel"
+  // @@help: "Cancels a prescription-lens pairing that is in progress. Nothing to fill in."
+  PRESCRIPTION_LENS_CANCEL = 30004;
+
+  // ---- security: backup PIN ----
+  // @@request: SyncBackupPinRequest
+  // @@tab: "SECURITY"
+  // @@group: "PIN"
+  // @@priority: 8
+  // @@title: "Verify Backup PIN"
+  // @@buttonLabel: "Verify"
+  // @@help: "Checks a device PIN against the one set on the headset. Succeeds if it matches, errors if not."
+  // @@field.pin: "The unlock PIN currently set on the headset."
+  SYNC_BACKUP_PIN = 9102;
+
+  // ---- security: credential transfer (sensitive) ----
+  // @@request: CredentialImportRequest
+  // @@response: CredentialImportResponse
+  // @@tab: "SECURITY"
+  // @@group: "CREDENTIAL TRANSFER"
+  // @@priority: 2
+  // @@title: "Import Credentials"
+  // @@buttonLabel: "Import"
+  // @@confirm: "WRITE THESE SAVED PASSWORDS AND PASSKEYS ONTO THE HEADSET?"
+  // @@help: "Writes saved passwords and passkeys into the headset's credential manager. The body is a JSON list of credential entries, each carrying a cleartext password or a passkey private key — handle it like the secrets it is."
+  // @@field.credentials: "A JSON array of credential entries (see the CredentialEntry message). Each holds real secrets; only paste credentials you own."
+  CREDENTIAL_IMPORT = 27001;
+  // @@request: CredentialExportRequest
+  // @@response: CredentialExportResponse
+  // @@tab: "SECURITY"
+  // @@group: "CREDENTIAL TRANSFER"
+  // @@priority: 1
+  // @@title: "Export Credentials"
+  // @@buttonLabel: "Export"
+  // @@confirm: "EXPORT EVERY SAVED PASSWORD AND PASSKEY OFF THE HEADSET TO THIS PAGE? THIS IS THE FULL CREDENTIAL VAULT."
+  // @@help: "Pulls every saved password and passkey off the headset and shows them here — the whole credential vault leaves the device in cleartext. Nothing to fill in, but treat the result as highly sensitive."
+  CREDENTIAL_EXPORT = 27002;
+
+  // ---- developer: OTA gold cores ----
+  // @@tab: "DEVELOPER"
+  // @@group: "OTA (OVER-THE-AIR UPDATES)"
+  // @@priority: 9
+  // @@title: "Use OTA Gold Cores"
+  // @@buttonLabel: "Enable"
+  // @@help: "Engineering knob: tells the next OTA to use gold CPU cores. Nothing to fill in; no normal reason to touch this."
+  OTA_USE_GOLD_CORES = 5006;
+
+  // ---- developer: retail demo ----
+  // @@request: DemoStartRequest
+  // @@response: DemoStartResponse
+  // @@tab: "DEVELOPER"
+  // @@group: "RETAIL DEMO"
+  // @@priority: 2
+  // @@title: "Start Demo"
+  // @@buttonLabel: "Start"
+  // @@help: "Starts a retail-demo session. For store demo units — not something a normal setup needs."
+  // @@field.demo_id: "Identifier of the demo experience to launch, from the demo tooling."
+  // @@field.config_json: "Optional JSON configuration for the demo. Leave blank unless you were given one."
+  // @@field.reset_on_start: "Reset any existing demo state before starting."
+  DEMO_START = 20005;
+  // @@request: DemoResetRequest
+  // @@response: DemoResetResponse
+  // @@tab: "DEVELOPER"
+  // @@group: "RETAIL DEMO"
+  // @@priority: 3
+  // @@title: "Reset Demo"
+  // @@buttonLabel: "Reset"
+  // @@help: "Stops and resets a retail-demo session."
+  // @@field.session_id: "The session id returned by Start Demo. Leave blank to reset the current session."
+  // @@field.force: "Force the reset even if the session can't be matched cleanly."
+  DEMO_RESET = 20006;
+  // @@request: DemoStatusQuery
+  // @@response: DemoStatusUpdate
+  // @@tab: "DEVELOPER"
+  // @@group: "RETAIL DEMO"
+  // @@priority: 1
+  // @@title: "Demo Status"
+  // @@help: "Reads the current retail-demo session status — state, which demo, uptime and demo-NUX phase."
+  // @@field.session_id: "Which demo session to report on. Leave blank for the active one."
+  DEMO_STATUS_QUERY = 20007;
+  // @@response: DemoAppFilterResponse
+  // @@tab: "DEVELOPER"
+  // @@group: "RETAIL DEMO"
+  // @@priority: 4
+  // @@title: "Get Demo App Filter"
+  // @@help: "Reads the demo app-filtering policy (mode plus the package allow/block list). Read-only."
+  GET_DEMO_APP_FILTER = 20008;
+
+  // ---- developer: managed (enterprise) provisioning ----
+  // @@request: ManagedAutoProvisioningPrepareRequest
+  // @@tab: "DEVELOPER"
+  // @@group: "MANAGED AUTO PROVISIONING"
+  // @@priority: 1
+  // @@title: "Prepare Managed Provisioning"
+  // @@buttonLabel: "Prepare"
+  // @@help: "Enterprise (MDM) use: prepares the headset for managed auto-provisioning. Takes no input."
+  MANAGED_AUTO_PROVISIONING_PREPARE = 24006;
+
+  // ---- developer: device provisioning / certificates (sensitive) ----
+  // @@response: DeviceGenerationIdResponse
+  // @@tab: "DEVELOPER"
+  // @@group: "DEVICE PROVISIONING"
+  // @@priority: 1
+  // @@title: "Get Device Generation ID"
+  // @@help: "Reads the headset's persistent device-generation identifier. Read-only."
+  DEVICE_GENERATION_ID = 25001;
+  // @@response: DeviceProvisionStateResponse
+  // @@tab: "DEVELOPER"
+  // @@group: "DEVICE PROVISIONING"
+  // @@priority: 2
+  // @@title: "Device Provision State"
+  // @@help: "Reads whether the headset's device certificate and key are provisioned (1 = not provisioned, 2 = provisioned). Read-only."
+  DEVICE_PROVISION_STATE = 26004;
+  // @@response: DeviceRegistrationChallengeResponse
+  // @@tab: "DEVELOPER"
+  // @@group: "DEVICE PROVISIONING"
+  // @@priority: 3
+  // @@title: "Device Registration Challenge"
+  // @@help: "Asks an unprovisioned headset to generate a registration-challenge package for the cloud. Attestation material — handle with care. Takes no input."
+  DEVICE_REGISTRATION_CHALLENGE = 26003;
+  // @@request: DeviceProvisionRequest
+  // @@response: DeviceProvisionResponse
+  // @@tab: "DEVELOPER"
+  // @@group: "DEVICE PROVISIONING"
+  // @@priority: 4
+  // @@title: "Device Provision"
+  // @@buttonLabel: "Provision"
+  // @@confirm: "SEND A DEVICE-PROVISIONING CHALLENGE PACKAGE TO THE HEADSET?"
+  // @@help: "Hands the headset a cloud-issued challenge package and gets back a signed registration package for enrollment. Provisioning/attestation material — not part of a normal setup."
+  // @@field.registration_challenge_pkg: "The challenge package produced earlier by the registration cloud flow. You need a real value from that flow; there is nothing to make up here."
+  DEVICE_PROVISION = 26001;
+  // @@request: DeviceCertificateInstallerRequest
+  // @@response: DeviceCertificateInstallerResponse
+  // @@tab: "DEVELOPER"
+  // @@group: "DEVICE PROVISIONING"
+  // @@priority: 5
+  // @@title: "Install Device Certificate"
+  // @@buttonLabel: "Install"
+  // @@confirm: "INSTALL A DEVICE CERTIFICATE ONTO THE HEADSET? A WRONG CERTIFICATE CAN BREAK PROVISIONING."
+  // @@help: "Installs a cloud-issued device certificate chain onto the headset and re-checks provisioning. Certificate material — only use a certificate genuinely issued for this headset."
+  // @@field.certificate: "The issued device certificate chain for this headset, from the provisioning cloud. Do not paste anything else here."
+  DEVICE_CERTIFICATE_INSTALLER = 26002;
 }
 
 enum ResponseCode {
@@ -1695,4 +2146,269 @@ message CloudMediaOneTimeSync {
 
 message ManagedDeviceStatusResponse {
   optional bool is_device_managed = 1;
+}
+
+// ===================================================================
+// Message bodies for the versionCode-34 methods added above.
+// Reverse-engineered from the firmware's Protocol.java (field numbers and
+// types read from the generated *_FIELD_NUMBER constants and descriptors).
+// ===================================================================
+
+// ---- media volume ----
+message SetMediaVolumeRequest {
+  optional int32 volume = 1;
+}
+message SetMediaVolumeResponse {
+  optional int32 volume = 1;
+  optional int32 max_volume = 2;
+}
+message GetMediaVolumeResponse {
+  optional int32 volume = 1;
+  optional int32 max_volume = 2;
+}
+
+// ---- passthrough (read-only) ----
+message PassthroughStatusResponse {
+  optional bool is_displaying_passthrough_content = 1;
+}
+message PassAndTryStatusResponse {
+  optional bool is_active = 1;
+}
+
+// ---- Wi-Fi Easy Connect (DPP) ----
+// cryptography_curve is a plain int32 on the wire (Android EASY_CONNECT_
+// CRYPTOGRAPHY_CURVE_*): 0=prime256v1, 1=secp384r1, 2=secp521r1, 3=brainpoolP256r1.
+message WifiEasyConnectRequest {
+  optional string device_info = 1;
+  optional int32 cryptography_curve = 2;
+}
+message WifiEasyConnectResponse {
+  optional string bootstrap_uri = 1;
+}
+
+// ---- phone Bluetooth auto-pairing ----
+message PhoneBtEnableAutoPairingRequest {
+}
+message PhoneBtEnableAutoPairingResponse {
+  optional string br_edr_address = 1;
+}
+
+// ---- security: backup PIN (request only; success/failure is the base Response) ----
+message SyncBackupPinRequest {
+  optional string pin = 1;
+}
+
+// ---- first-time setup (NUX) ----
+message NuxSetTwfExperimentGroupRequest {
+  optional string name = 1;
+}
+message NuxTwfSetupRequest {
+  optional LocaleSet set_locale = 1;
+  optional WifiConnectRequest wifi_connect = 2;
+  optional bool use_ota_gold_cores = 3;
+}
+message NuxHmdStatusResponse {
+  optional NuxStatus nux_status = 1;
+  optional bool wifi_connected = 2;
+  optional bool wifi_oculus_reachable = 3;
+  optional uint32 hmd_update_percentage_complete = 4;
+  optional uint32 battery_level = 5;
+  optional bool charger_connected = 6;
+  optional bool charging = 7;
+  optional bool first_time_nux_cycles_locale = 8;
+  optional string first_time_nux_country = 9;
+  optional string first_time_nux_language = 10;
+  optional bool nux_twf_active = 11;
+  optional int32 ota_time_estimation = 12;
+  optional string first_time_nux_selected_locale = 13;
+  optional string first_time_nux_current_flow = 14;
+  optional string first_time_nux_current_step = 15;
+  optional string first_time_nux_active_setup_phase = 16;
+  optional bool twf_nux_locale_setup_complete = 17;
+  optional bool twf_nux_wifi_setup_complete = 18;
+  optional string device_id = 19;
+  optional bool first_time_nux_is_foreground = 20;
+  optional bool first_time_nux_wifi_setup_complete = 21;
+  optional ProvisionType provision_type = 22;
+  optional string provisioned_serial = 23;
+  optional bool ota_available = 24;
+  optional bool ota_ready = 25;
+}
+
+// ---- prescription lenses ----
+message PrescriptionLensPairRequest {
+  optional string serial_number = 1;
+  optional string lens_model = 2;
+  optional string serial_number_os = 3;
+  optional string serial_number_od = 4;
+}
+message PrescriptionLensPairResponse {
+  optional PrescriptionLensState state = 1;
+  optional PrescriptionLensError error = 2;
+  optional string serial_number = 3;
+}
+message PrescriptionLensUnpairRequest {
+  optional string serial_number = 1;
+}
+message PrescriptionLensUnpairResponse {
+  optional PrescriptionLensState state = 1;
+  optional PrescriptionLensError error = 2;
+}
+message PrescriptionLensStatusResponse {
+  optional PrescriptionLensState state = 1;
+  optional string serial_number = 2;
+  optional string lens_model = 3;
+}
+message PrescriptionLensCancelResponse {
+  optional PrescriptionLensState state = 1;
+  optional PrescriptionLensError error = 2;
+}
+enum PrescriptionLensState {
+  LENS_STATE_UNKNOWN = 0;
+  LENS_STATE_UNPAIRED = 1;
+  LENS_STATE_PAIRING = 2;
+  LENS_STATE_PAIRED = 3;
+  LENS_STATE_ERROR = 4;
+}
+enum PrescriptionLensError {
+  LENS_ERROR_NONE = 0;
+  LENS_ERROR_INVALID_SERIAL = 1;
+  LENS_ERROR_ALREADY_PAIRED = 2;
+  LENS_ERROR_NOT_PAIRED = 3;
+  LENS_ERROR_PAIRING_IN_PROGRESS = 4;
+  LENS_ERROR_INCOMPATIBLE = 5;
+  LENS_ERROR_SERVICE_UNAVAILABLE = 6;
+  LENS_ERROR_INTERNAL = 7;
+  LENS_ERROR_NETWORK = 8;
+  LENS_ERROR_DATA_NOT_FOUND = 9;
+  LENS_ERROR_NOT_PAIRING = 10;
+}
+
+// ---- retail demo ----
+message DemoStartRequest {
+  optional string demo_id = 1;
+  optional string config_json = 2;
+  optional bool reset_on_start = 3;
+}
+message DemoStartResponse {
+  optional DemoState state = 1;
+  optional DemoError error = 2;
+  optional string session_id = 3;
+}
+message DemoResetRequest {
+  optional string session_id = 1;
+  optional bool force = 2;
+}
+message DemoResetResponse {
+  optional DemoState state = 1;
+  optional DemoError error = 2;
+}
+message DemoStatusQuery {
+  optional string session_id = 1;
+}
+message DemoStatusUpdate {
+  optional DemoState state = 1;
+  optional DemoError error = 2;
+  optional string session_id = 3;
+  optional string demo_id = 4;
+  optional uint64 uptime_ms = 5;
+  optional DemoNuxState nux_state = 6;
+}
+message DemoAppFilterResponse {
+  optional string mode = 1;
+  repeated string packages = 2;
+}
+enum DemoState {
+  DEMO_STATE_IDLE = 0;
+  DEMO_STATE_STARTING = 1;
+  DEMO_STATE_RUNNING = 2;
+  DEMO_STATE_STOPPING = 3;
+  DEMO_STATE_ERROR = 4;
+}
+enum DemoError {
+  DEMO_ERROR_NONE = 0;
+  DEMO_ERROR_ALREADY_RUNNING = 1;
+  DEMO_ERROR_DEVICE_NOT_READY = 4;
+  DEMO_ERROR_TIMEOUT = 5;
+  DEMO_ERROR_INTERNAL = 6;
+}
+enum DemoNuxState {
+  DEMO_NUX_STATE_UNKNOWN = 0;
+  DEMO_NUX_STATE_WELCOME = 1;
+  DEMO_NUX_STATE_ADVANCED = 2;
+}
+
+// ---- managed (enterprise) provisioning ----
+message ManagedAutoProvisioningPrepareRequest {
+}
+
+// ---- device provisioning / certificates (provision_state: 1=not provisioned,
+//      2=provisioned) ----
+message DeviceGenerationIdResponse {
+  optional string device_generation_id = 1;
+}
+message DeviceProvisionRequest {
+  optional string registration_challenge_pkg = 1;
+}
+message DeviceProvisionResponse {
+  optional string registration_package = 1;
+  optional string registration_signer = 2;
+  optional int32 provision_state = 3;
+}
+message DeviceProvisionStateResponse {
+  optional int32 provision_state = 1;
+}
+message DeviceRegistrationChallengeResponse {
+  optional int32 provision_state = 1;
+  optional string registration_challenge_request_package = 2;
+}
+message DeviceCertificateInstallerRequest {
+  optional string certificate = 1;
+}
+message DeviceCertificateInstallerResponse {
+  optional int32 provision_state = 1;
+  optional int32 provision_state_final = 2;
+}
+
+// ---- credential transfer (every credential field is a real secret) ----
+message CredentialImportRequest {
+  repeated CredentialEntry credentials = 1;
+}
+message CredentialImportResponse {
+  optional bool success = 1;
+  optional string error_message = 2;
+}
+message CredentialExportRequest {
+}
+message CredentialExportResponse {
+  optional bool success = 1;
+  repeated CredentialEntry credentials = 2;
+  optional string error_message = 3;
+}
+message CredentialEntry {
+  optional CredentialEntityType entity_type = 1;
+  optional string domain = 2;
+  optional string package_name = 3;
+  optional string display_name = 4;
+  optional int64 created_at = 5;
+  optional int64 updated_at = 6;
+  oneof credential_data {
+    PasswordData password_data = 7;
+    PasskeyData passkey_data = 8;
+  }
+}
+message PasswordData {
+  optional string username = 1;
+  optional string password = 2;
+}
+message PasskeyData {
+  optional string username = 1;
+  optional bytes private_key = 2;
+  optional string credential_id = 3;
+  optional string rp_id = 4;
+  optional string user_id = 5;
+}
+enum CredentialEntityType {
+  CREDENTIAL_PASSWORD = 0;
+  CREDENTIAL_PASSKEY = 1;
 }

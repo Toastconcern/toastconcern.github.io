@@ -15,6 +15,92 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=254 — 2026-10-24
+
+- **Watchlist rebuilt.** One row per watched app: its icon and name, the build you last saw
+  (version + release date), and the **new build** (version + date, in green) once one turns
+  up — an app with nothing new leaves that column blank, a check that errored shows a quiet
+  **Couldn't check**. Click a row to open a drop-down with the app's channels and build
+  history (the same panel the app lists expand). **Mark seen** and remove appear on hover.
+- **Update notifications.** When a check finds a new build of a watched app, a small card
+  slides in at the corner with the app's name and the build it jumped to, and a link to the
+  Watchlist. New under Settings: turn the pop-ups on or off, and choose how long they stay
+  (5s / 9s / 15s / until dismissed).
+- **Settings tidied and expanded.** The form is grouped into panels that fill the width
+  instead of a single narrow column. New controls: **Auto-check frequency** (how often the
+  Watchlist re-checks when you open the site), the notification options above, and **Row
+  spacing** (Comfortable or Compact across every list).
+- **Clearer message when no relay is set.** On a host without a built-in relay, a check now
+  says "set a relay URL on the Settings page" instead of a confusing "the reply was not JSON"
+  error.
+- **Setup guide redesigned.** The first-run chooser is now a proper dialog — a fixed header and
+  an anchored footer (Save is always in reach), labelled sections with a one-line description
+  each, and every option a selectable row that fills in when ticked. **Esc** now saves and
+  closes it, same as Save and continue.
+- **Get the app redesigned.** The install instructions are now three cards — on the headset,
+  from a PC, and the browser sign-in extension — each with its steps and download, instead of
+  one long column of text.
+
+## Site v=253 — 2026-10-23
+
+- **New setup guide (first visit, and Settings → Choose what shows).** A short wizard to pick
+  what MetaDB shows you: the top-level screens, the per-app tabs (Reviews, Posts, Add-ons,
+  Achievements) and the data toggles (app art, store links, binary info, developer builds, OBB
+  lookups, auto library/DLC/playtime/backups). Anything you switch off is hidden from the nav
+  **and never requested from the store** until you switch it back on. It shows once on a first
+  visit and is re-openable any time from Settings; choices are kept in this browser.
+- **New Watchlist screen (Apps → Watchlist).** Track any app for new builds: press the **+** at
+  the left of its row, and it joins a list MetaDB checks when you open the site and whenever you
+  press **Check now**. Apps whose live build changed since you last looked are flagged with a
+  **New build** marker and a count on the nav link; **Mark seen** clears a flag once you've
+  looked, and the watch control drops an app. Its rows match the main app list — bold names,
+  mono build columns, the same drop-down app panel on click — and compare the live **build
+  number** (not just the version name, which Meta often keeps the same across builds). The list
+  is kept only in your own browser, and checks reuse the normal build lookup, so no extra store
+  load beyond the apps you chose to watch.
+- **Watch a build from anywhere.** A faded **+** sits in the gutter to the left of every app
+  row — Apps and games, your library, store, wishlist and the rest — adds that app to your
+  Watchlist (**−** to remove). It hangs outside the table, so the columns line up exactly as on
+  every other screen. It shows only when the Watchlist screen is switched on, is on by default,
+  and can be turned off under Settings → *Show watch buttons on app rows*. The watchlist's own
+  rows carry the same control, and the old Watch button inside the app drop-down is gone now
+  that the row control is everywhere.
+- **Watchlist's auto-check moved into Settings** (*Check the watchlist when the site opens*),
+  with the other behaviour toggles, instead of sitting on the Watchlist page.
+
+## Site v=250 — 2026-10-22
+
+- **The Setup tab no longer has an account sign-in step.** No web-drivable method actually signs
+  the headset in: the headset's auth service rejects a plain web token (returns -7), and the
+  short-lived app-scoped token the Meta app sends is minted inside Meta's app from an input
+  shape that isn't recoverable from the web. Rather than show a step that can't work, sign-in is
+  out of the guided flow (claim → Wi-Fi → set time → finish). The token command stays in the
+  Security tab as "advanced" for anyone who already holds a real app-scoped token.
+
+## Site v=249 — 2026-10-21
+
+- **CompanionServer gets the full command set from the current firmware.** Thirty methods
+  that shipped in CompanionServer versionCode 34 (Horizon OS v14) but were missing from the
+  map are now in `data/companion.proto` and show up in the panel: media volume get/set, close
+  all apps, open navigator, passthrough and pass-and-try status, Wi-Fi Easy Connect (QR / DPP),
+  classic-Bluetooth auto-pairing, the first-time-setup (NUX) status and TWF setup reads, the
+  prescription-lens pair/unpair/status/cancel group, backup-PIN verify, retail demo
+  start/reset/status/app-filter, managed-provisioning prepare, device provisioning / state /
+  registration-challenge / certificate installer, and credential import/export. Their request
+  and response bodies were read from the firmware's own protobuf. The destructive or
+  secret-handling ones (close all apps, credential export/import, device provision, install
+  certificate) ask before they run.
+- **The Setup tab walks you through it.** Setting up a new or just-reset headset is now a
+  short numbered list — get it onto Wi-Fi, sign in to your account, finish first-time setup,
+  and (for a factory-reset headset) claim it — each step saying in plain words what it does.
+  Sign in to your account has a **Fill from my account** button that borrows the token and ID
+  from the account you're signed into under Settings, so you don't hand-type them.
+- **Every command now says exactly what it does, and what each box is for.** Descriptions were
+  written from the headset's own decompiled CompanionServer — what the request actually does, what
+  goes in each field and where to get it, and honest notes where a command is deprecated or a no-op
+  in this firmware. Every button says its action (Get, Set, Pair, Check, Enable) rather than a wall
+  of identical Run buttons.
+
 ## Site v=248 — 2026-10-20
 
 - New **Store front** screen (Apps menu): the store as the Horizon phone app shows it. Pick a

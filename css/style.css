@@ -1583,6 +1583,47 @@ details.hint > p {
    sets display, which beats the [hidden] the UA stylesheet gives it. */
 .companion-field[hidden] { display: none; }
 
+/* ---------- help text: what a slot wants and where to get it ----------
+   A per-command line under the title, and a per-field line under an input. Both
+   stay muted so they read as guidance, not as another control. The field help
+   breaks to its own row (flex-basis 100%) so it never pinches the input width. */
+.companion-cmd-help {
+  margin: .1rem 0 .35rem;
+  font-size: .75rem;
+  line-height: 1.5;
+  color: var(--muted);
+  max-width: 60ch;
+}
+.companion-field .companion-help {
+  flex-basis: 100%;
+  margin-top: .1rem;
+  font-size: .6875rem;
+  line-height: 1.45;
+  font-weight: 400;
+  color: var(--muted);
+  max-width: 34ch;
+}
+.companion-field.is-check .companion-help { margin-left: 1.6rem; }
+
+/* ---------- the Setup tab's numbered steps ----------
+   Each step is an ordinary command group whose heading is numbered ("1. …") and
+   carries a line of plain guidance, so a reader works straight down the list. No
+   special chrome — it reads like every other group on the site. */
+.companion-setup-intro {
+  margin: 0 0 1rem;
+  font-size: .8125rem;
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: 68ch;
+}
+.companion-step-note {
+  margin: 0 0 .7rem;
+  font-size: .78125rem;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 64ch;
+}
+
 /* ---------- the Wi-Fi picker ----------
    Scan, then Join: a list of what the headset can actually see, so the name and
    the security type are never typed. The row is a row, not a control — the one
@@ -2261,22 +2302,60 @@ tr.build-detail .panel { font-family: var(--sans, inherit); }
 .dg-head-acts { margin-left: auto; align-self: center; flex: none; display: flex; gap: .5rem; }
 
 /* ---------- Get the app ---------- */
-#view-getapp .sub { max-width: 68ch; }
-.getapp-steps { max-width: 62ch; margin: .25rem 0 0; padding-left: 1.25rem; line-height: 1.65; }
-.getapp-steps li + li { margin-top: .3rem; }
-.getapp-text { max-width: 62ch; margin: 1.25rem 0 0; }
-#view-getapp .actions { margin-top: 1rem; }
-.getapp-cmd {
-  max-width: 34rem;
-  margin: .75rem 0 0;
-  padding: .7rem .9rem;
-  font-family: var(--mono);
-  font-size: .875rem;
+#view-getapp .sub { max-width: 68ch; margin-bottom: 0; }
+
+/* Each way to get the app is a card. The two headset methods sit side by side;
+   the browser extension spans the full width below them. */
+.getapp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(23rem, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+  align-items: start;
+}
+.getapp-card {
+  display: flex;
+  flex-direction: column;
+  gap: .85rem;
+  padding: 1.25rem 1.4rem;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 6px;
+}
+/* The extension card runs the full width on its own row under the two above. */
+.getapp-card--wide { grid-column: 1 / -1; }
+
+/* Flex gap owns the spacing inside a card, so the children drop their own
+   vertical margins. */
+.getapp-card > * { margin: 0; max-width: none; }
+
+.getapp-card__head { display: flex; flex-direction: column; gap: .15rem; }
+.getapp-eyebrow {
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.getapp-card__head h3 { margin: 0; font-size: 1.0625rem; }
+.getapp-meta { margin-top: .2rem; font-size: .75rem; color: var(--muted); font-family: var(--mono); }
+
+.getapp-steps { margin: 0; padding-left: 1.2rem; line-height: 1.6; font-size: .9375rem; }
+.getapp-steps li + li { margin-top: .35rem; }
+.getapp-text { margin: 0; }
+.getapp-cmd {
+  margin: 0;
+  padding: .7rem .9rem;
+  font-family: var(--mono);
+  font-size: .875rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
   overflow-x: auto;
 }
+/* The card's action row sits flush under its steps — no extra top gap on top of
+   the flex gap already there. */
+.getapp-card .actions { margin-top: .15rem; }
 
 /* ---------- finish ----------
    A light pass over the whole page, kept in one place: the icon beside the
@@ -2452,3 +2531,437 @@ button.primary:disabled { color: #fff; opacity: .6; }
   th { white-space: normal; }
   td.name { overflow-wrap: anywhere; }
 }
+
+/* ---------- watchlist ----------
+   A square count marker on the Watchlist nav link (kept square, per the
+   site's no-pill rule), plus the new-build highlight in the list. */
+.navbadge {
+  display: inline-block;
+  min-width: 1.15em;
+  margin-left: .4em;
+  padding: 0 .3em;
+  font-size: .8em;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  /* --bg (not a fixed white) so the text stays legible on the green fill in the
+     dark themes, where --green lightens. 3px to match the site's small controls. */
+  color: var(--bg);
+  background: var(--green);
+  border-radius: 3px;
+}
+/* The same look as the main list's tr.app rows, but NOT the "app" class — that
+   would make refreshRow()'s `tr.app[data-id]` rebuild a watch row as an 8-column
+   main row inside this 7-column table. So the appearance is replicated here. */
+tbody tr.watch-row { cursor: pointer; }
+tbody tr.watch-row:hover td { background: var(--hover); }
+tbody tr.watch-row:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
+tbody tr.watch-row > td { font-weight: 500; font-size: .875rem; }
+tbody tr.watch-row > td.name { font-weight: 600; font-size: .9375rem; }
+/* Own column classes, not the shared c-* ones: those are toggled by the Columns
+   settings and hidden at phone breakpoints for the main tables, which would
+   silently drop or shift the watchlist's (differently-meaning) columns. */
+/* A blank art slot (panel-coloured, like the downgrade list) when an entry has
+   no stored image, so every row is the same height whether or not art loaded. */
+.art-ph { display: inline-block; }
+
+/* The watch control hangs in the gutter just to the left of each app row —
+   outside the table columns (no reserved cell, no header slot), so the columns
+   line up exactly as on every other tab. The name cell is its anchor. */
+td.name { position: relative; }
+
+/* A faded square: "+" to watch, "−" to unwatch. Faint until the row is hovered,
+   then full; adding greens, removing warns. Square like the rest of the UI. */
+.watch-toggle {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.25rem;
+  height: 1.25rem;
+  min-height: 0;
+  padding: 0;
+  /* The +/− are drawn as two bars rather than text glyphs, so they sit dead
+     centre in the square regardless of the font's own glyph metrics. */
+  font-size: 0;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  opacity: .4;
+  transition: opacity .12s, color .12s, border-color .12s;
+}
+.watch-toggle::before,
+.watch-toggle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: currentColor;
+}
+.watch-toggle::before { width: .625rem; height: 1.5px; }         /* horizontal bar */
+.watch-toggle::after  { width: 1.5px; height: .625rem; }         /* vertical bar → plus */
+.watch-toggle.is-on::after { display: none; }                    /* watched: just the minus */
+.watch-toggle.is-on { opacity: .55; }
+tr:hover .watch-toggle { opacity: .85; }
+.watch-toggle:hover { opacity: 1; }
+.watch-toggle:not(.is-on):hover { color: var(--green); border-color: var(--green); }
+.watch-toggle.is-on:hover { color: var(--warn); border-color: var(--warn); }
+
+/* On the app lists the control shows only when the setting is on; the watchlist
+   always shows its own (you always need a way to unwatch there). */
+body:not(.watch-on) tr.app .watch-toggle { display: none; }
+
+/* Once the layout is wide enough to have real margin beside the content, nudge
+   the control further out into that gutter. Narrow screens keep it tucked
+   against the edge so it is never clipped off-screen. */
+@media (min-width: 72rem) {
+  .watch-toggle { margin-right: .45rem; }
+}
+.watch-row.is-updated .wl-latest { color: var(--green); font-weight: 600; }
+.watch-new { color: var(--green); }
+.watch-arrow { color: var(--green); font-weight: 700; }
+/* Text-link actions (the site's .linkbtn), not boxed buttons — kept light and
+   small like the rest of the in-row actions. Separated by a thin divider. */
+.watch-actions { display: flex; gap: .6rem; flex-wrap: wrap; align-items: baseline; }
+.watch-actions .linkbtn { white-space: nowrap; }
+.watch-actions .linkbtn + .linkbtn { border-left: 1px solid var(--line); padding-left: .6rem; }
+
+/* ---------- setup guide overlay ----------
+   A centered dialog over a dimmed page. Square corners throughout (the site's
+   no-pill rule); colors from the theme tokens. */
+html.setup-open { overflow: hidden; }
+.setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  padding: 2rem 1rem;
+  overflow: auto;
+  /* A heavier dim than a plain popover: this takes over the page, so the page
+     behind should read as clearly dismissed. */
+  background: color-mix(in srgb, var(--bg) 35%, rgb(0 0 0 / .6));
+}
+/* Only lay it out when shown — a bare display:flex on the class would beat the
+   [hidden] attribute's display:none and leave it covering the page. */
+.setup-overlay:not([hidden]) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* A three-part dialog: a fixed head, the choices scrolling in the middle, and
+   the actions anchored at the foot so Save is always in reach however long the
+   list runs. The card itself never grows past the viewport. */
+.setup-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  max-height: calc(100vh - 4rem);
+  margin: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / .4);
+  overflow: hidden;
+}
+.setup-head {
+  flex: 0 0 auto;
+  padding: 1.4rem 1.5rem 1.1rem;
+  border-bottom: 1px solid var(--line);
+}
+.setup-head h2 { margin: 0; }
+.setup-head .sub { margin: .35rem 0 0; max-width: 60ch; }
+
+.setup-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+/* Groups are headed by an uppercase label (the site's section-label treatment)
+   and a short line, not boxed in a fieldset border — lighter, and consistent
+   with Settings. */
+.setup-group { margin: 0; padding: 0; border: 0; min-width: 0; }
+.setup-group legend {
+  padding: 0;
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.setup-hint { margin: .3rem 0 .7rem; font-size: .8125rem; color: var(--muted); max-width: 60ch; }
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: .3rem .75rem;
+}
+/* Each choice is a selectable row: faint until hovered, tinted when ticked, so
+   the card reads as a set of switches rather than a bare checkbox list. Square
+   (3px) like the rest of the small controls. */
+.setup-grid .check {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .4rem .55rem;
+  font-size: .875rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  transition: background .12s, border-color .12s;
+}
+.setup-grid .check:hover { background: var(--hover); border-color: var(--line); }
+/* Ticked rows get a neutral raised fill and a solid edge — a clear "on" state
+   without borrowing the accent blue (reserved for the download action). */
+.setup-grid .check:has(input:checked) {
+  background: color-mix(in srgb, var(--text) 6%, var(--panel));
+  border-color: var(--border);
+}
+.setup-grid .check input { flex: 0 0 auto; width: auto; min-height: 0; margin: 0; accent-color: var(--link); }
+@supports not (selector(:has(*))) {
+  .setup-grid .check { border-color: var(--line); }
+}
+
+.setup-actions {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+.setup-foot { margin-left: auto; font-size: .8125rem; color: var(--muted); }
+
+/* The dim uses color-mix; on engines without it (handled in compat.css) the
+   background token still gives a solid, readable backdrop. */
+@supports not (background: color-mix(in srgb, red, blue)) {
+  .setup-overlay { background: var(--bg); }
+}
+
+/* ======================================================================
+   Pop-up notifications, settings cards, watchlist cards, row density
+   ====================================================================== */
+
+/* ---------- pop-up notifications ----------
+   A fixed stack in the bottom-right corner. Off to the side of the layout, so a
+   toast arriving never reflows the page under the reader's hands. On a phone it
+   spans the width instead, pinned to the bottom. */
+.toasts {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none; /* only the cards take the pointer, not the gaps */
+}
+.toast {
+  position: relative;
+  pointer-events: auto;
+  padding: .7rem 1.9rem .7rem .8rem; /* room for the close × on the right */
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / .28);
+  /* Start just off-screen and clear; toast() adds .is-shown next frame. */
+  opacity: 0;
+  transform: translateY(.5rem);
+  transition: opacity .18s ease, transform .18s ease;
+}
+.toast.is-shown { opacity: 1; transform: none; }
+.toast.is-going { opacity: 0; transform: translateY(.5rem); }
+.toast__title { font-weight: 600; font-size: .875rem; }
+.toast__body { margin-top: .15rem; font-size: .8125rem; color: var(--muted); }
+.toast__actions { margin-top: .4rem; }
+.toast__action { font-size: .8125rem; }
+.toast__close {
+  position: absolute;
+  top: .3rem;
+  right: .3rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  min-height: 0;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: 0;
+}
+.toast__close:hover { color: var(--text); background: none; }
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: none; }
+}
+
+/* ---------- settings cards ----------
+   The flat form is grouped into bordered cards, one per heading, and fills the
+   whole content width (not the narrow reading column the other forms keep) so it
+   does not sit short of the page edge the rest of the site reaches. Once there is
+   room, the switches inside pack several abreast instead of running down one
+   column with an empty right half. */
+#settingsForm.form { max-width: none; }
+/* Long text boxes do not stretch the full card width with it. */
+.settings-section input:not([type="checkbox"]):not([type="number"]) { max-width: 34rem; }
+
+.settings-section {
+  margin: 0 0 1rem;
+  padding: 1.1rem 1.25rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+/* The old divider heading is now the card's title: no big top margin, no rule. */
+.settings-section > .form__group {
+  margin: 0 0 1rem;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+.settings-section > .form__group:first-child { margin-top: 0; }
+
+@media (min-width: 38rem) {
+  .settings-section {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 1.75rem;
+    row-gap: .35rem;
+    align-items: start;
+  }
+  .settings-section > .field,
+  .settings-section > .field--toggle { margin-bottom: 0; }
+  .settings-section > .field--toggle { padding: .35rem 0; align-self: start; }
+  /* Headings and any field with its own control (a text box, select or textarea)
+     take the full row; a bare toggle takes one cell. */
+  .settings-section > .form__group,
+  .settings-section > .field:not(.field--toggle),
+  .settings-section > .field--toggle:has(input:not([type="checkbox"])),
+  .settings-section > .field--toggle:has(select),
+  .settings-section > .field--toggle:has(textarea) { grid-column: 1 / -1; }
+}
+@media (min-width: 58rem) {
+  .settings-section { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 74rem) {
+  .settings-section { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+/* Without :has, fall back to the plain single stack rather than mis-column. */
+@supports not (selector(:has(*))) {
+  .settings-section { display: block; }
+}
+
+/* The save row sticks to the bottom of the viewport as the long form scrolls, so
+   Save is always one reach away; the status message rides along on its right. */
+.settings-bar {
+  position: sticky;
+  bottom: 0;
+  margin-top: 1.25rem;
+  padding: .75rem 0;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  align-items: center;
+}
+.settings-bar .settings-out { margin: 0 0 0 auto; }
+
+/* ---------- watchlist ----------
+   A table, one row per watched app: icon + name, the build last seen (version
+   over its release date), and the new build (version + date) once one turns up.
+   Clicking a row opens the shared app drop-down below it. No cards, no left-edge
+   bars; the only colour is the green new-build cell. */
+.watch-controls { align-items: baseline; }
+.watch-controls .count { margin: 0 0 0 auto; }
+#watchCount.has-updates { color: var(--text); font-weight: 600; }
+
+.wl-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+.wl-table thead th {
+  text-align: left;
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+tbody tr.watch-row { cursor: pointer; }
+tbody tr.watch-row > td { padding: .5rem .6rem; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tbody tr.watch-row:hover > td { background: var(--hover); }
+tbody tr.watch-row:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
+
+/* App cell: a small square icon (cover art, or a tile with the initial) + name.
+   The flex lives on an inner wrapper, not the <td> — a display:flex cell stops
+   behaving as a table cell and its bottom border steps out of line with the
+   others, breaking the row divider in the middle. */
+.wl-app { min-width: 0; }
+.wl-appwrap { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+.wl-ic {
+  flex: 0 0 auto;
+  width: 1.9rem;
+  height: 1.9rem;
+  object-fit: cover;
+  border-radius: 3px;
+  background: var(--hover);
+}
+.wl-ic--ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: .85rem;
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+.wl-nm { font-weight: 600; font-size: .9375rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Build cell: the version (monospace) over its release date (muted, smaller). */
+.wl-b { display: flex; flex-direction: column; line-height: 1.35; }
+.wl-bv { font-family: var(--mono); font-size: .8125rem; }
+.wl-bd { font-size: .72rem; color: var(--muted); }
+.wl-new .wl-bv { color: var(--green); font-weight: 600; }
+.wl-dash { color: var(--muted); }
+.wl-fail { color: var(--warn); font-size: .8125rem; }
+
+/* Actions: faint until the row is hovered or focused, so the table reads calm. */
+.wl-act { white-space: nowrap; text-align: right; }
+.wl-act .linkbtn { white-space: nowrap; margin-right: .5rem; }
+.wl-act .linkbtn,
+.wl-rm { opacity: 0; transition: opacity .12s; }
+tr.watch-row:hover .linkbtn,
+tr.watch-row:hover .wl-rm,
+tr.watch-row:focus-within .linkbtn,
+tr.watch-row:focus-within .wl-rm { opacity: 1; }
+.wl-rm {
+  width: 1.3rem;
+  height: 1.3rem;
+  min-height: 0;
+  padding: 0;
+  font-size: .95rem;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.wl-rm:hover { color: var(--warn); border-color: var(--warn); background: none; }
+/* Touch screens have no hover — keep the controls visible there. */
+@media (hover: none) {
+  .wl-act .linkbtn, .wl-rm { opacity: 1; }
+}
+
+/* ---------- row density ----------
+   Compact tightens every list's rows and the watchlist cards; comfortable (the
+   default, i.e. no class) leaves the existing spacing alone. */
+html.density-compact td,
+html.density-compact th { padding-top: .3rem; padding-bottom: .3rem; }
+html.density-compact .vtable td,
+html.density-compact .vtable th { padding-top: .25rem; padding-bottom: .25rem; }

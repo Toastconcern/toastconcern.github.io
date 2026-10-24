@@ -25,7 +25,7 @@
  * MetaDB is not affiliated with Meta.
  */
 
-import { deviceSecrets, loadSecrets, saveSecrets, clearSecrets } from "./check.js?v=248";
+import { deviceSecrets, loadSecrets, saveSecrets, clearSecrets, loadSettings, viewerId, mintHeadsetToken } from "./check.js?v=254";
 
 /* ---------- constants ---------- */
 
@@ -40,7 +40,7 @@ const HELLO_APP_VERSION = "5.8.0";
    CompanionServer versionCode 29 (Quest OS v50). The wire format is identical —
    v50 just supports fewer methods, so it gets a proto with the newer methods
    trimmed out, which is what narrows its command list. */
-const PROTO_VERSION = "248";
+const PROTO_VERSION = "254";
 const PROTO_FILES = {
   latest: "../data/companion.proto",
   v50: "../data/companion-v50.proto",
@@ -170,11 +170,26 @@ function parseMethods(protoText, root) {
       ui: get("ui"),
       buttonLabel: get("buttonLabel"),
       confirm: get("confirm"),
+      /* Plain-words help shown under the command, and per-field help keyed by the
+         proto field name — @@help: "…" and @@field.<name>: "…". These are what
+         tell a reader what a slot wants and where to get it. */
+      help: get("help"),
+      fieldHelp: parseFieldHelp(block),
       requestType: requestType ? requestType.name : null,
       responseType: responseType ? responseType.name : null,
     });
   }
   return out;
+}
+
+/* Pull @@field.<name>: "…" lines out of an annotation block into a {name: help}
+   map. The field name matches a proto field, so the help lands under that input. */
+function parseFieldHelp(block) {
+  const map = {};
+  const re = /@@field\.([A-Za-z0-9_]+):\s*"([^"]+)"/g;
+  let m;
+  while ((m = re.exec(block))) map[m[1]] = m[2];
+  return map;
 }
 
 function safeLookup(root, name) {
@@ -214,6 +229,25 @@ function labelFor(name) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/* The button should say what pressing it does. Most command titles start with the
+   verb ("Set Media Volume", "Pair Prescription Lenses", "Install Device
+   Certificate"), so the button borrows that verb; a "… Status" read becomes
+   "Check"; anything else falls back to "Run". Beats a wall of identical "Run"s. */
+const ACTION_VERBS = new Set([
+  "get", "set", "enable", "disable", "show", "hide", "pair", "unpair", "cancel",
+  "reset", "verify", "unlock", "lock", "install", "export", "import", "open",
+  "close", "mark", "run", "start", "stop", "reboot", "launch", "connect",
+  "forget", "reconnect", "scan", "send", "sync", "check", "prepare", "provision",
+  "claim", "sign", "add", "remove", "kill", "wipe", "refresh", "toggle", "change", "use",
+]);
+function defaultBtnLabel(title) {
+  const first = (title || "").trim().split(/\s+/)[0] || "";
+  if (ACTION_VERBS.has(first.toLowerCase())) return first;
+  if (/status$/i.test(title || "")) return "Check";
+  return "Run";
+}
+
+
 function buildFeatures(methods, type) {
   const byTab = {};
   for (const cmd of methods) {
@@ -226,6 +260,7 @@ function buildFeatures(methods, type) {
       title: cmd.title,
       buttonLabel: cmd.buttonLabel,
       confirm: cmd.confirm,
+      help: cmd.help,
       requestType: cmd.requestType,
       responseType: cmd.responseType,
       params: [],
@@ -242,6 +277,7 @@ function buildFeatures(methods, type) {
         for (const f of reqType.fieldsArray) {
           const p = paramForField(f);
           p.label = labelFor(f.name);
+          if (cmd.fieldHelp && cmd.fieldHelp[f.name]) p.help = cmd.fieldHelp[f.name];
           if (p.custom) base.custom = true;
           base.params.push(p);
         }
@@ -365,6 +401,37 @@ function customPayloads(client) {
         return { user_secret_key: s };
       },
     },
+    /* Signing the headset into your account. The headset will NOT accept a plain
+       web token — its auth service wants a short-lived app-scoped token, the kind
+       the Meta app mints during setup. So on Sign in, check.js mints that token
+       from the signed-in account (mintHeadsetToken) and we send it with the
+       account id. The raw token is only the bearer for the mint; it never reaches
+       the headset. If Meta rejects the mint shape, its error surfaces in the row. */
+    OCULUS_SET_ACCESS_TOKEN: {
+      title: "Sign the headset into your account",
+      buttonLabel: "Sign in",
+      help:
+        "Signs the headset into your Oculus/Horizon account. Your plain token won't work — the headset rejects it — so, like the Meta app, MetaDB mints a short-lived app-scoped login token from your signed-in account and sends that with your account ID. Press Sign in. The headset must be on Wi-Fi and unlocked. If Meta rejects the mint, the exact error shows below.",
+      params: [
+        { name: "user_id", type: "text", label: "Your account ID", help: "Your account's numeric ID, from your signed-in session. Filled in for you." },
+      ],
+      onForm: (inputs) => {
+        (async () => {
+          let uid = null;
+          try { uid = await viewerId(); } catch {}
+          if (uid) inputs.user_id.input.value = uid;
+        })();
+      },
+      // Async: mint the app-scoped token first (the raw Settings token is only the
+      // bearer, inside check.js), then build the request the headset accepts.
+      build: async (f) => {
+        const token = await mintHeadsetToken();
+        const req = { access_token: token };
+        const uid = (f.user_id || "").trim();
+        if (uid) req.user_id = uid;
+        return req;
+      },
+    },
     MIRROR_REQUEST: {
       title: "Start mirroring",
       buttonLabel: "Start",
@@ -473,6 +540,29 @@ const WIFI_HINTS = {
 function wifiHint(res) {
   const code = (res && ((res.error && res.error.code) || res.codeName)) || "";
   return WIFI_HINTS[code] || null;
+}
+
+/* Account sign-in failures, read off AccountUtil.processHorizonLoginResponseCode:
+   the headset runs the token through Meta's auth and maps the result to a code and
+   an "Oculus Authentication Failed (…)" debug string. Turn each into a next step. */
+function authHint(res) {
+  const code = (res && ((res.error && res.error.code) || res.codeName)) || "";
+  const detail = (res && res.error && res.error.debug_details) || "";
+  if (code === "BAD_ACCESS_TOKEN" || /Invalid Credentials/i.test(detail))
+    return "The headset rejected your token as invalid or expired. In Settings, sign in with Meta again (or paste a fresh token), then come back and press Sign in. The public app token that MetaDB ships with will not work — you need your own.";
+  if (code === "USER_PIN_REQUIRED")
+    return "The headset is locked. Wake it and unlock it (enter its PIN if it has one), then press Sign in.";
+  if (/Network Error|Timed Out/i.test(detail))
+    return "The headset could not reach Meta's servers. Finish Step 1 (Wi-Fi) and make sure the headset is actually online, then try again.";
+  if (/Oculus Authentication Failed/i.test(detail))
+    return "Meta's auth refused the sign-in. Check that you used your own personal token (not the public app token), that the headset is unlocked and online, then try again.";
+  return null;
+}
+
+/* A usable login token has a user part after OC|appId| — the public app token
+   MetaDB falls back to ends right after the second bar and can never sign in. */
+function isPlaceholderToken(token) {
+  return !token || /^OC\|\d+\|$/.test(token.trim());
 }
 
 /* The plain-words line, then the code and the server's own debug string under
@@ -1336,13 +1426,11 @@ export async function initCompanion(section) {
     if (found.length === 1) {
       el.secret.value = found[0].hex;
       el.secretPick.hidden = true;
-      const who = found[0].label || "your headset";
-      setState(
-        remembered
-          ? `Not connected — using the secret remembered for ${who}.`
-          : `Filled the secret for ${who}.`,
-        remembered ? "" : "ok"
-      );
+      // A remembered secret fills the box silently; only a fetch announces itself.
+      if (!remembered) {
+        const who = found[0].label || "your headset";
+        setState(`Filled the secret for ${who}.`, "ok");
+      }
       return;
     }
 
@@ -1557,34 +1645,102 @@ export async function initCompanion(section) {
     // the network step is just that group rendered here too.
     const wifiGroup = deps.methods.some((m) => m.name === "WIFI_CONNECT") ? findGroup("WIFI_CONNECT") : null;
     const secret = findCmd("OCULUS_SET_USER_SECRET");
-    const combined = findCmd("META_SET_ACCESS_TOKEN_COMBINED");
+    const time = findCmd("TIME_SET");
     const nux = findCmd("NUX_COMPLETED");
 
-    if (!wifiGroup && !secret && !combined && !nux) return null;
+    if (!wifiGroup && !secret && !time && !nux) return null;
 
-    // One command under a heading of our choosing, as a normal (non-primary) row.
-    const solo = (title, cmd) => renderGroup({ title, primary: null, secondary: [cmd] }, patches);
     // A shallow retitle so a row can read the way this tab frames it, without
     // touching the shared command object.
     const retitled = (cmd, title) => ({ ...cmd, title });
 
+    /* One numbered step: an ordinary group whose heading is prefixed with its
+       number ("1. …"), a line of plain guidance, then the controls. No badge or
+       other chrome — it reads like every other group. */
+    let stepNo = 0;
+    const step = (title, note, ...nodes) => {
+      const n = ++stepNo;
+      const wrap = document.createElement("section");
+      wrap.className = "companion-group companion-step";
+      const h = document.createElement("h3");
+      h.textContent = n + ". " + title;
+      wrap.appendChild(h);
+      if (note) {
+        const p = document.createElement("p");
+        p.className = "companion-step-note";
+        p.textContent = note;
+        wrap.appendChild(p);
+      }
+      for (const node of nodes) if (node) wrap.appendChild(node);
+      return wrap;
+    };
+
     return {
       label: "Setup",
       fill: (panel) => {
-        if (secret) panel.appendChild(solo("DEVICE SECRET", retitled(secret, "Set device secret on the headset")));
-        if (combined) panel.appendChild(solo("COMBINED ACCOUNT TOKEN", combined));
-        if (nux) panel.appendChild(solo("SKIP FIRST-TIME SETUP", retitled(nux, "Skip NUX (mark completed)")));
-        if (wifiGroup) panel.appendChild(renderGroup(wifiGroup, patches));
+        const intro = document.createElement("p");
+        intro.className = "companion-setup-intro";
+        intro.textContent =
+          "The same first-time setup the Meta app walks a new headset through, in the same order. Connect at the top of the page first, then work down these. Each step says what the app does at that point. Skip any that doesn't apply.";
+        panel.appendChild(intro);
+
+        // Claim is first and required for a new/factory-reset headset: until it is
+        // claimed the headset accepts nothing but OCULUS_SET_USER_SECRET, exactly
+        // as the app does it during pairing. An already-claimed headset skips it.
+        if (secret) {
+          panel.appendChild(
+            step(
+              "Claim the headset (set its device secret)",
+              "First, like the app does while pairing a brand-new or just-factory-reset headset: a headset that isn't tied to anyone yet accepts nothing else until you claim it. Put a 64-character secret in the box at the top of the page, then press Set — it becomes the key the headset trusts, and the one you'll authenticate with from now on. An already-claimed headset ignores this; skip to Wi-Fi.",
+              renderCommand(retitled(secret, "Set device secret"), patches, false)
+            )
+          );
+        }
+
+        // The app's order after pairing/claim: Wi-Fi → account → set time → finish.
+        // Wi-Fi is a hard prerequisite — the account cannot sign in and the headset
+        // cannot update until it is online.
+        if (wifiGroup) {
+          const wifiBody = document.createElement("div");
+          renderGroupInto(wifiBody, wifiGroup, patches, { headless: true });
+          panel.appendChild(
+            step(
+              "Get it onto Wi-Fi",
+              "The headset must be online before it can sign in or update. Press Scan, pick your network, and type the password. A network it has joined before rejoins with no password.",
+              wifiBody
+            )
+          );
+        }
+        if (time) {
+          panel.appendChild(
+            step(
+              "Set the time",
+              "Same as the app near the end of setup: set the headset's clock to your phone/computer's time and time zone. One press — nothing to fill in.",
+              renderCommand(retitled(time, "Set time now"), patches, false)
+            )
+          );
+        }
+        if (nux) {
+          panel.appendChild(
+            step(
+              "Finish setup",
+              "Marks the in-headset first-time setup complete — the app's “You're all set” — so the headset lands on Home instead of walking the welcome flow again. (The app then does consents, controllers and an avatar; those are not over Bluetooth.)",
+              renderCommand(retitled(nux, "Finish"), patches, false)
+            )
+          );
+        }
       },
     };
   }
 
-  function renderGroup(group, patches) {
-    const wrap = document.createElement("section");
-    wrap.className = "companion-group";
-    const h = document.createElement("h3");
-    h.textContent = group.title;
-    wrap.appendChild(h);
+  /* Fill a container with a group's commands. headless skips the group's own
+     heading, which the Setup tab does because its step already has one. */
+  function renderGroupInto(wrap, group, patches, opts = {}) {
+    if (!opts.headless) {
+      const h = document.createElement("h3");
+      h.textContent = group.title;
+      wrap.appendChild(h);
+    }
     const cmds = [];
     if (group.primary) cmds.push([group.primary, true]);
     for (const c of group.secondary) cmds.push([c, false]);
@@ -1592,6 +1748,12 @@ export async function initCompanion(section) {
        the typed-in row sits underneath as the fallback. */
     if (cmds.some(([c]) => c.methodName === "WIFI_CONNECT")) wrap.appendChild(wifiPicker(client));
     for (const [c, primary] of cmds) wrap.appendChild(renderCommand(c, patches, primary));
+  }
+
+  function renderGroup(group, patches) {
+    const wrap = document.createElement("section");
+    wrap.className = "companion-group";
+    renderGroupInto(wrap, group, patches);
     return wrap;
   }
 
@@ -1601,7 +1763,8 @@ export async function initCompanion(section) {
     const patch = cmd.fixed ? null : patches[cmd.methodName];
     const params = patch && patch.params ? patch.params : cmd.params;
     const title = (patch && patch.title) || cmd.title;
-    const btnLabel = (patch && patch.buttonLabel) || cmd.buttonLabel || "Run";
+    const btnLabel = (patch && patch.buttonLabel) || cmd.buttonLabel || defaultBtnLabel(title);
+    const help = (patch && patch.help) || cmd.help;
 
     const row = document.createElement("div");
     row.className = "companion-cmd" + (primary ? " is-primary" : "");
@@ -1634,26 +1797,30 @@ export async function initCompanion(section) {
       e.preventDefault();
       if (cmd.confirm && !confirm(cmd.confirm)) return;
 
+      btn.disabled = true;
+      const was = btn.textContent;
+      btn.textContent = "…";
+
       let payload;
       try {
+        // build may be async (e.g. the account sign-in mints a token first).
         if (cmd.fixed) payload = cmd.fixed;
         else if (patch && patch.build) {
-          payload = patch.build(readForm(params, inputs));
-          if (payload === null) return; // cancelled / invalid
+          payload = await patch.build(readForm(params, inputs));
+          if (payload === null) { btn.disabled = false; btn.textContent = was; return; } // cancelled / invalid
         } else if (cmd.custom) {
           payload = readForm(params, inputs, true);
         } else {
           payload = params.length ? readForm(params, inputs) : null;
         }
       } catch (err) {
-        // A payload that will not build says why here rather than on the wire.
+        // A payload that will not build (or a mint Meta refused) says why here.
         showResult(out, { code: -1, error: { message: err.message } }, true);
+        btn.disabled = false;
+        btn.textContent = was;
         return;
       }
 
-      btn.disabled = true;
-      const was = btn.textContent;
-      btn.textContent = "…";
       try {
         const res = await client.execute(cmd.methodName, payload);
         if (cmd.methodName === "WIFI_STATUS" && res.code === 0) rememberWifi(client, res.decoded);
@@ -1665,6 +1832,15 @@ export async function initCompanion(section) {
         btn.textContent = was;
       }
     });
+
+    /* A sentence under the row saying what this command does and what it needs,
+       so the row reads on its own without the schema open beside it. */
+    if (help) {
+      const h = document.createElement("p");
+      h.className = "companion-cmd-help";
+      h.textContent = help;
+      row.appendChild(h);
+    }
 
     row.appendChild(form);
     row.appendChild(out);
@@ -1718,6 +1894,14 @@ export async function initCompanion(section) {
       wrap.appendChild(cap);
       wrap.appendChild(input);
     }
+    /* The per-slot "what goes here / where to get it" line, dropped under the
+       input. It breaks to its own row so it never squeezes the field's width. */
+    if (p.help) {
+      const hint = document.createElement("span");
+      hint.className = "companion-help";
+      hint.textContent = p.help;
+      wrap.appendChild(hint);
+    }
     return wrap;
   }
 
@@ -1752,10 +1936,10 @@ export async function initCompanion(section) {
       if (res.decoded && Object.keys(res.decoded).length) out.textContent = JSON.stringify(res.decoded, null, 2);
       else out.textContent = "OK";
     } else {
+      const hint = authHint(res) || wifiHint(res);
       let msg = "Failed: " + (res.codeName || res.code);
-      if (res.error) msg += "\n" + JSON.stringify(res.error, null, 2);
-      const hint = wifiHint(res);
       if (hint) msg += "\n\n" + hint;
+      if (res.error) msg += "\n\n" + JSON.stringify(res.error, null, 2);
       out.textContent = msg;
     }
   }
