@@ -3398,7 +3398,14 @@ function renderWatch() {
       ? `<span class="wl-dash">—</span>`
       : `<span class="wl-b ${cls}"><span class="wl-bv mono">${ver ? `v${esc(ver)}` : "—"}</span><span class="wl-bd">${date ? esc(date) : ""}</span></span>`;
 
-  el.watchRows.innerHTML = list
+  /* Apps with a new build float to the top, so what needs attention is seen
+     first; everything else keeps its order. Display-only — the stored list is
+     left untouched. (Array.sort is stable, so the groups keep their order.) */
+  const ordered = [...list].sort(
+    (a, b) => (watchUpdated(b) ? 1 : 0) - (watchUpdated(a) ? 1 : 0)
+  );
+
+  el.watchRows.innerHTML = ordered
     .map((w) => {
       const up = watchUpdated(w);
       /* The New build column: green with the new version + date once an update

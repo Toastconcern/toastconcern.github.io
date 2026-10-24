@@ -6779,7 +6779,10 @@ function renderWatch() {
   }
   const icon = (w) => showArt && w.image ? `<img class="wl-ic" src="${esc(w.image)}" alt="" loading="lazy">` : `<span class="wl-ic wl-ic--ph" aria-hidden="true">${esc((w.name || "?").trim().charAt(0).toUpperCase())}</span>`;
   const buildCell = (ver, date, cls = "") => ver == null && date == null ? `<span class="wl-dash">\u2014</span>` : `<span class="wl-b ${cls}"><span class="wl-bv mono">${ver ? `v${esc(ver)}` : "\u2014"}</span><span class="wl-bd">${date ? esc(date) : ""}</span></span>`;
-  el.watchRows.innerHTML = list.map((w) => {
+  const ordered = [...list].sort(
+    (a, b) => (watchUpdated(b) ? 1 : 0) - (watchUpdated(a) ? 1 : 0)
+  );
+  el.watchRows.innerHTML = ordered.map((w) => {
     const up = watchUpdated(w);
     const newCell = up ? buildCell(w.latestVer, w.latestAt, "wl-new") : w.error ? `<span class="wl-fail">Couldn't check</span>` : w.latest == null ? `<span class="wl-dash">Not checked yet</span>` : `<span class="wl-stale">Not updated${w.seenAt ? ` since <span class="wl-ver">${esc(w.seenAt)}</span>` : ""}</span>`;
     return `<tr class="watch-row${up ? " is-updated" : ""}" data-id="${esc(w.id)}" tabindex="0" aria-expanded="false">

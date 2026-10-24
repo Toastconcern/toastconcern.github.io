@@ -42,6 +42,7 @@ Newest first. Every update gets an entry before it is pushed.
   one long column of text.
 - **Watchlist "New build" column reads at a glance.** Red **Not updated since <date>** while
   an app has had nothing new, turning green with the new version + date once a build lands.
+  Apps with a new build sort to the top of the list.
 - **Choose which tab opens.** Settings → Lists & columns → **Open on** sets the screen the
   site lands on. (Also fixed the Watchlist nav link doing a full reload instead of switching
   in place.)
