@@ -262,6 +262,7 @@ const el = {
   watchButtons: document.getElementById("watchButtons"),
   watchNotify: document.getElementById("watchNotify"),
   notifyLinger: document.getElementById("notifyLinger"),
+  notifyTest: document.getElementById("notifyTest"),
   watchThrottle: document.getElementById("watchThrottle"),
   density: document.getElementById("density"),
   watchBadge: document.getElementById("watchBadge"),
@@ -415,6 +416,7 @@ const el = {
   logBox: document.getElementById("logBox"),
   logClear: document.getElementById("logClear"),
   cols: document.getElementById("cols"),
+  defView: document.getElementById("defView"),
   defHmd: document.getElementById("defHmd"),
   defSort: document.getElementById("defSort"),
   defMineSort: document.getElementById("defMineSort"),
@@ -654,7 +656,7 @@ let restoringRoute = false;
 /* The address is a path — /apps/<id>/builds, /search/<words> — read by the "links"
    section further down; what has to exist before the init block runs is here. */
 const PANEL_TABS = ["store", "builds", "reviews", "posts", "addons", "achievements", "mine"];
-const VIEWS = ["apps", "search", "mine", "purchases", "wishlist", "avatar", "devices", "worlds", "orgs", "default",
+const VIEWS = ["apps", "search", "mine", "purchases", "wishlist", "watchlist", "avatar", "devices", "worlds", "orgs", "default",
   "plus", "store", "adb", "companion", "settings", "getapp", "downgrade"];
 /* The last search on Apps and games, so closing the app opened from it goes back to it. */
 let routeSearch = "";
@@ -1413,6 +1415,15 @@ function initViews() {
       }
     }
   });
+  /* The reader's chosen landing screen: when the site opens on the bare home
+     page (no deep link) — and not inside the headset app, where "/" is the
+     Downgrade home — send them to it before the first paint. A screen turned off
+     in the setup guide is handled by applyView, which redirects to the first
+     enabled one. */
+  const def = loadSettings().defaultView;
+  if (!IN_APP && routeParts().length === 0 && def && def !== "apps" && VIEWS.includes(def)) {
+    history.replaceState(null, "", "/" + def);
+  }
   applyView();
 }
 
@@ -3390,11 +3401,17 @@ function renderWatch() {
   el.watchRows.innerHTML = list
     .map((w) => {
       const up = watchUpdated(w);
+      /* The New build column: green with the new version + date once an update
+         lands; red "Not updated since <date>" the rest of the time, naming the
+         release date of the build it is still sitting on. A failed check and a
+         never-checked app are their own states. */
       const newCell = up
         ? buildCell(w.latestVer, w.latestAt, "wl-new")
         : w.error
           ? `<span class="wl-fail">Couldn't check</span>`
-          : `<span class="wl-dash">—</span>`;
+          : w.latest == null
+            ? `<span class="wl-dash">Not checked yet</span>`
+            : `<span class="wl-stale">Not updated${w.seenAt ? ` since <span class="wl-ver">${esc(w.seenAt)}</span>` : ""}</span>`;
       return `<tr class="watch-row${up ? " is-updated" : ""}" data-id="${esc(w.id)}" tabindex="0" aria-expanded="false">
         <td class="wl-app"><span class="wl-appwrap">${icon(w)}<span class="wl-nm">${esc(w.name)}</span></span></td>
         <td>${buildCell(w.seenVer, w.seenAt)}</td>
@@ -5305,6 +5322,17 @@ function initSettings() {
     });
   }
 
+  /* Fire a sample pop-up through the real notification path, so the reader can
+     see exactly what a new build looks like (and check the linger setting). */
+  el.notifyTest?.addEventListener("click", () => {
+    toast({
+      title: "Beat Saber — new build",
+      body: "build 51 → 54",
+      actionLabel: "View watchlist",
+      onAction: () => go("/watchlist"),
+    });
+  });
+
   /* Row spacing across the lists. Applied as a class on <html> (applyDensity),
      so it takes effect at once without a redraw. */
   if (el.density) {
@@ -5393,6 +5421,7 @@ function initSettings() {
     el.defHmd.value = el.hmd.value = fresh.hmd;
     el.defSort.value = el.sort.value = fresh.searchSort;
     el.defBuildSort.value = fresh.buildSort;
+    if (el.defView) el.defView.value = fresh.defaultView;
     /* Watchlist + notification + density controls back to their defaults too. */
     if (el.watchThrottle) el.watchThrottle.value = fresh.watchThrottle;
     if (el.watchNotify) el.watchNotify.checked = fresh.watchNotify;
@@ -5445,6 +5474,15 @@ function initSettings() {
 function initDefaults() {
   const saved = loadSettings();
 
+  /* Which screen opens on the bare home page. Options are the nav screens, by
+     their own labels and in nav order (Get the app excepted — it is a utility,
+     not a landing place). */
+  fillOptions(
+    el.defView,
+    [...el.navLinks]
+      .filter((a) => a.dataset.view !== "getapp")
+      .map((a) => [a.dataset.view, a.textContent.replace(/\s+/g, " ").trim()])
+  );
   fillOptions(el.defHmd, HMD_TYPES.map(([v, label]) => [v, `${label} (${v})`]));
   fillOptions(el.defSort, [...el.sort.options].map((o) => [o.value, o.textContent]));
   fillOptions(
@@ -5455,6 +5493,7 @@ function initDefaults() {
   fillOptions(el.defTrigger, DEFAULT_APP_TRIGGERS);
 
   const pairs = [
+    [el.defView, "defaultView", saved.defaultView, null],
     [el.defHmd, "hmd", saved.hmd, el.hmd],
     [el.defSort, "searchSort", saved.searchSort, el.sort],
     [el.defMineSort, "mineSort", saved.mineSort, el.mineSort],

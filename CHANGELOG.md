@@ -40,6 +40,16 @@ Newest first. Every update gets an entry before it is pushed.
 - **Get the app redesigned.** The install instructions are now three cards — on the headset,
   from a PC, and the browser sign-in extension — each with its steps and download, instead of
   one long column of text.
+- **Watchlist "New build" column reads at a glance.** Red **Not updated since <date>** while
+  an app has had nothing new, turning green with the new version + date once a build lands.
+- **Choose which tab opens.** Settings → Lists & columns → **Open on** sets the screen the
+  site lands on. (Also fixed the Watchlist nav link doing a full reload instead of switching
+  in place.)
+- **Test the notification.** Settings has a **Show a test notification** button that fires a
+  sample pop-up.
+- **Settings reorganised.** Regrouped into clearer, labelled sections — Account, Appearance,
+  Watchlist & notifications, Lists & columns, Inside an app, Your data (loaded on open), and
+  Developer (which now holds the relay) — each with a one-line description.
 
 ## Site v=253 — 2026-10-23
 

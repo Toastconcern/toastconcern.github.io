@@ -1011,9 +1011,9 @@
     <form id="settingsForm" class="form" autocomplete="off">
 
       <section class="settings-section">
-      <h3 class="form__group">Getting in</h3>
+      <h3 class="form__group">Account</h3>
+      <p class="settings-desc">Sign in, and the tokens MetaDB uses to talk to the store.</p>
 
-      <!-- Only inside the headset app, which can read the tokens off Meta's own login. -->
       <div class="field" id="appVersionField" data-in-app>
         <label for="appCheck">App version</label>
         <p class="hint" id="appVersionText"></p>
@@ -1077,25 +1077,8 @@
       </section>
 
       <section class="settings-section">
-      <h3 class="form__group">The lists</h3>
-
-      <div class="field">
-        <span class="field__label">Defaults</span>
-        <div class="defaults-grid">
-          <label>Headset <select id="defHmd"></select></label>
-          <label>Search order <select id="defSort"></select></label>
-          <label>Entitlements order <select id="defMineSort"></select></label>
-          <label>Build history order <select id="defBuildSort"></select></label>
-          <label>Default apps trigger <select id="defTrigger"></select></label>
-        </div>
-        <details class="hint">
-          <summary>What this does</summary>
-          <p>
-            What the pickers start on. Changing one on a list is just for that visit;
-            these are what it goes back to.
-          </p>
-        </details>
-      </div>
+      <h3 class="form__group">Appearance</h3>
+      <p class="settings-desc">How the site looks.</p>
 
       <div class="field">
         <label for="fontSize">Text size</label>
@@ -1130,17 +1113,20 @@
         </details>
       </div>
 
-      <div class="field">
-        <span class="field__label">Columns</span>
-        <div id="cols" class="cols-grid"></div>
+      <div class="field field--toggle">
+        <label class="check">
+          <input id="wide" type="checkbox" checked>
+          Large display mode
+        </label>
         <details class="hint">
           <summary>What this does</summary>
           <p>
-            Applies to every list, but a column only shows where there is something
-            to put in it: Price is skipped on Meta apps and on your entitlements,
-            and Last played, State and Source exist only on your entitlements.
-            Narrow screens still drop the secondary columns to fit, whatever is
-            ticked here.
+            On to begin with: puts an Expand button in the top right of each
+            opened app, and switching this off takes it away. Pressing it
+            gives that one app the whole browser window and lays it out properly:
+            cover art top left with the app's details under it, and the channels,
+            manifest and build history down the right. Narrow screens keep the
+            same panel in one column. Escape or Close puts it back.
           </p>
         </details>
       </div>
@@ -1158,6 +1144,36 @@
           </p>
         </details>
       </div>
+
+      <div class="field field--toggle">
+        <label class="check">
+          <input id="motion" type="checkbox" checked>
+          Animate screen changes
+        </label>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            A short fade as a tab comes in, and as an app's panel opens or closes
+            over the window. On by default, and off automatically whenever the
+            system asks for reduced motion, whatever this says.
+          </p>
+        </details>
+        <div class="defaults-grid">
+          <label>Speed
+            <select id="motionSpeed">
+              <option value="120">Fast</option>
+              <option value="180">Normal</option>
+              <option value="300">Slow</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      </section>
+
+      <section class="settings-section">
+      <h3 class="form__group">Watchlist &amp; notifications</h3>
+      <p class="settings-desc">Tracking apps for new builds, and the pop-ups when they update.</p>
 
       <div class="field field--toggle">
         <label class="check">
@@ -1241,6 +1257,49 @@
             leaves them up until you close each one.
           </p>
         </details>
+        <div class="actions">
+          <button type="button" id="notifyTest">Show a test notification</button>
+        </div>
+      </div>
+
+      </section>
+
+      <section class="settings-section">
+      <h3 class="form__group">Lists &amp; columns</h3>
+      <p class="settings-desc">What the lists default to, which columns show, and the download-by-ID box.</p>
+
+      <div class="field">
+        <span class="field__label">Defaults</span>
+        <div class="defaults-grid">
+          <label>Open on <select id="defView"></select></label>
+          <label>Headset <select id="defHmd"></select></label>
+          <label>Search order <select id="defSort"></select></label>
+          <label>Entitlements order <select id="defMineSort"></select></label>
+          <label>Build history order <select id="defBuildSort"></select></label>
+          <label>Default apps trigger <select id="defTrigger"></select></label>
+        </div>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            What the pickers start on. Changing one on a list is just for that visit;
+            these are what it goes back to.
+          </p>
+        </details>
+      </div>
+
+      <div class="field">
+        <span class="field__label">Columns</span>
+        <div id="cols" class="cols-grid"></div>
+        <details class="hint">
+          <summary>What this does</summary>
+          <p>
+            Applies to every list, but a column only shows where there is something
+            to put in it: Price is skipped on Meta apps and on your entitlements,
+            and Last played, State and Source exist only on your entitlements.
+            Narrow screens still drop the secondary columns to fit, whatever is
+            ticked here.
+          </p>
+        </details>
       </div>
 
       <div class="field field--toggle">
@@ -1259,28 +1318,11 @@
         </details>
       </div>
 
-      <div class="field field--toggle">
-        <label class="check">
-          <input id="wide" type="checkbox" checked>
-          Large display mode
-        </label>
-        <details class="hint">
-          <summary>What this does</summary>
-          <p>
-            On to begin with: puts an Expand button in the top right of each
-            opened app, and switching this off takes it away. Pressing it
-            gives that one app the whole browser window and lays it out properly:
-            cover art top left with the app's details under it, and the channels,
-            manifest and build history down the right. Narrow screens keep the
-            same panel in one column. Escape or Close puts it back.
-          </p>
-        </details>
-      </div>
-
       </section>
 
       <section class="settings-section">
       <h3 class="form__group">Inside an app</h3>
+      <p class="settings-desc">What each opened app shows and offers.</p>
 
       <div class="field field--toggle">
         <label class="check">
@@ -1348,6 +1390,11 @@
         </details>
       </div>
 
+      </section>
+
+      <section class="settings-section">
+      <h3 class="form__group">Your data, loaded on open</h3>
+      <p class="settings-desc">Fetch your account-wide data when the page opens, rather than on a button. Each costs a request and needs your token.</p>
 
       <div class="field field--toggle">
         <label class="check">
@@ -1419,36 +1466,8 @@
       </section>
 
       <section class="settings-section">
-      <h3 class="form__group">Motion</h3>
-
-      <div class="field field--toggle">
-        <label class="check">
-          <input id="motion" type="checkbox" checked>
-          Animate screen changes
-        </label>
-        <details class="hint">
-          <summary>What this does</summary>
-          <p>
-            A short fade as a tab comes in, and as an app's panel opens or closes
-            over the window. On by default, and off automatically whenever the
-            system asks for reduced motion, whatever this says.
-          </p>
-        </details>
-        <div class="defaults-grid">
-          <label>Speed
-            <select id="motionSpeed">
-              <option value="120">Fast</option>
-              <option value="180">Normal</option>
-              <option value="300">Slow</option>
-            </select>
-          </label>
-        </div>
-      </div>
-
-      </section>
-
-      <section class="settings-section">
       <h3 class="form__group">Developer</h3>
+      <p class="settings-desc">Request logging, and the relay the browser routes store requests through.</p>
 
       <div class="field field--toggle">
         <label class="check">
@@ -1474,11 +1493,6 @@
         </div>
         <div id="logBox" class="logbox" role="log" aria-live="polite" tabindex="0"></div>
       </div>
-
-      </section>
-
-      <section class="settings-section" data-not-in-app>
-      <h3 class="form__group">The relay</h3>
 
       <div class="field" data-not-in-app>
         <label for="relay">Relay URL</label>

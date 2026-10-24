@@ -2821,11 +2821,18 @@ html.setup-open { overflow: hidden; }
 }
 /* The old divider heading is now the card's title: no big top margin, no rule. */
 .settings-section > .form__group {
-  margin: 0 0 1rem;
+  margin: 0 0 .5rem;
   padding-bottom: 0;
   border-bottom: 0;
 }
 .settings-section > .form__group:first-child { margin-top: 0; }
+/* A one-line orientation note under each section's heading. */
+.settings-desc {
+  margin: 0 0 1rem;
+  font-size: .8125rem;
+  color: var(--muted);
+  max-width: 60ch;
+}
 
 @media (min-width: 38rem) {
   .settings-section {
@@ -2841,6 +2848,7 @@ html.setup-open { overflow: hidden; }
   /* Headings and any field with its own control (a text box, select or textarea)
      take the full row; a bare toggle takes one cell. */
   .settings-section > .form__group,
+  .settings-section > .settings-desc,
   .settings-section > .field:not(.field--toggle),
   .settings-section > .field--toggle:has(input:not([type="checkbox"])),
   .settings-section > .field--toggle:has(select),
@@ -2929,6 +2937,10 @@ tbody tr.watch-row:focus-visible { outline: 2px solid var(--link); outline-offse
 .wl-new .wl-bv { color: var(--green); font-weight: 600; }
 .wl-dash { color: var(--muted); }
 .wl-fail { color: var(--warn); font-size: .8125rem; }
+/* No new build yet: red, and naming the date it was last updated. --red is the
+   token meant for red text (--warn is for white-on-fill). */
+.wl-stale { color: var(--red); font-size: .8125rem; }
+.wl-stale .wl-ver { font-family: var(--mono); }
 
 /* Actions: faint until the row is hovered or focused, so the table reads calm. */
 .wl-act { white-space: nowrap; text-align: right; }

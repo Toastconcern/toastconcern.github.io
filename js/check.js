@@ -95,6 +95,8 @@ function readSettings() {
       buildSort: localStorage.getItem("metadb.buildSort") || "released",
       /* Which install trigger the Default apps tab starts on. */
       defaultTrigger: localStorage.getItem("metadb.defaultTrigger") || "AUTO_UPDATER",
+      /* Which screen opens when the site is loaded on the bare home page. */
+      defaultView: localStorage.getItem("metadb.defaultView") || "apps",
       /* Inside the headset app: "downgrade" (its home layout) or "site". */
       layout: localStorage.getItem("metadb.layout") || "downgrade",
       /* Downgrade's "Show apps not installed". */
@@ -161,6 +163,7 @@ function readSettings() {
       mineSort: "az",
       buildSort: "released",
       defaultTrigger: "AUTO_UPDATER",
+      defaultView: "apps",
       store: true,
       watchAuto: true,
       watchButtons: true,

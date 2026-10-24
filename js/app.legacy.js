@@ -2415,6 +2415,8 @@ function readSettings() {
       buildSort: localStorage.getItem("metadb.buildSort") || "released",
       /* Which install trigger the Default apps tab starts on. */
       defaultTrigger: localStorage.getItem("metadb.defaultTrigger") || "AUTO_UPDATER",
+      /* Which screen opens when the site is loaded on the bare home page. */
+      defaultView: localStorage.getItem("metadb.defaultView") || "apps",
       /* Inside the headset app: "downgrade" (its home layout) or "site". */
       layout: localStorage.getItem("metadb.layout") || "downgrade",
       /* Downgrade's "Show apps not installed". */
@@ -2475,6 +2477,7 @@ function readSettings() {
       mineSort: "az",
       buildSort: "released",
       defaultTrigger: "AUTO_UPDATER",
+      defaultView: "apps",
       store: true,
       watchAuto: true,
       watchButtons: true,
@@ -4518,6 +4521,7 @@ var el = {
   watchButtons: document.getElementById("watchButtons"),
   watchNotify: document.getElementById("watchNotify"),
   notifyLinger: document.getElementById("notifyLinger"),
+  notifyTest: document.getElementById("notifyTest"),
   watchThrottle: document.getElementById("watchThrottle"),
   density: document.getElementById("density"),
   watchBadge: document.getElementById("watchBadge"),
@@ -4668,6 +4672,7 @@ var el = {
   logBox: document.getElementById("logBox"),
   logClear: document.getElementById("logClear"),
   cols: document.getElementById("cols"),
+  defView: document.getElementById("defView"),
   defHmd: document.getElementById("defHmd"),
   defSort: document.getElementById("defSort"),
   defMineSort: document.getElementById("defMineSort"),
@@ -4805,6 +4810,7 @@ var VIEWS = [
   "mine",
   "purchases",
   "wishlist",
+  "watchlist",
   "avatar",
   "devices",
   "worlds",
@@ -5263,6 +5269,10 @@ function initViews() {
       }
     }
   });
+  const def = loadSettings().defaultView;
+  if (!IN_APP && routeParts().length === 0 && def && def !== "apps" && VIEWS.includes(def)) {
+    history.replaceState(null, "", "/" + def);
+  }
   applyView();
 }
 function go(path) {
@@ -6771,7 +6781,7 @@ function renderWatch() {
   const buildCell = (ver, date, cls = "") => ver == null && date == null ? `<span class="wl-dash">\u2014</span>` : `<span class="wl-b ${cls}"><span class="wl-bv mono">${ver ? `v${esc(ver)}` : "\u2014"}</span><span class="wl-bd">${date ? esc(date) : ""}</span></span>`;
   el.watchRows.innerHTML = list.map((w) => {
     const up = watchUpdated(w);
-    const newCell = up ? buildCell(w.latestVer, w.latestAt, "wl-new") : w.error ? `<span class="wl-fail">Couldn't check</span>` : `<span class="wl-dash">\u2014</span>`;
+    const newCell = up ? buildCell(w.latestVer, w.latestAt, "wl-new") : w.error ? `<span class="wl-fail">Couldn't check</span>` : w.latest == null ? `<span class="wl-dash">Not checked yet</span>` : `<span class="wl-stale">Not updated${w.seenAt ? ` since <span class="wl-ver">${esc(w.seenAt)}</span>` : ""}</span>`;
     return `<tr class="watch-row${up ? " is-updated" : ""}" data-id="${esc(w.id)}" tabindex="0" aria-expanded="false">
         <td class="wl-app"><span class="wl-appwrap">${icon(w)}<span class="wl-nm">${esc(w.name)}</span></span></td>
         <td>${buildCell(w.seenVer, w.seenAt)}</td>
@@ -8132,7 +8142,7 @@ function syncExtSignIn() {
   document.getElementById("extSignedIn").hidden = !signed;
 }
 function initSettings() {
-  var _a2;
+  var _a2, _b2;
   if (IN_APP) {
     document.getElementById("appSignInField").hidden = false;
     document.getElementById("appSignIn").addEventListener("click", () => window.MetaDBApp.signIn("settings"));
@@ -8224,6 +8234,14 @@ function initSettings() {
       saveSettings({ notifyLinger: el.notifyLinger.value });
     });
   }
+  (_b2 = el.notifyTest) == null ? void 0 : _b2.addEventListener("click", () => {
+    toast({
+      title: "Beat Saber \u2014 new build",
+      body: "build 51 \u2192 54",
+      actionLabel: "View watchlist",
+      onAction: () => go("/watchlist")
+    });
+  });
   if (el.density) {
     el.density.value = saved.density;
     el.density.addEventListener("change", () => {
@@ -8293,6 +8311,7 @@ function initSettings() {
     el.defHmd.value = el.hmd.value = fresh.hmd;
     el.defSort.value = el.sort.value = fresh.searchSort;
     el.defBuildSort.value = fresh.buildSort;
+    if (el.defView) el.defView.value = fresh.defaultView;
     if (el.watchThrottle) el.watchThrottle.value = fresh.watchThrottle;
     if (el.watchNotify) el.watchNotify.checked = fresh.watchNotify;
     if (el.notifyLinger) el.notifyLinger.value = fresh.notifyLinger;
@@ -8332,6 +8351,10 @@ function initSettings() {
 }
 function initDefaults() {
   const saved = loadSettings();
+  fillOptions(
+    el.defView,
+    [...el.navLinks].filter((a) => a.dataset.view !== "getapp").map((a) => [a.dataset.view, a.textContent.replace(/\s+/g, " ").trim()])
+  );
   fillOptions(el.defHmd, HMD_TYPES.map(([v, label]) => [v, `${label} (${v})`]));
   fillOptions(el.defSort, [...el.sort.options].map((o) => [o.value, o.textContent]));
   fillOptions(
@@ -8341,6 +8364,7 @@ function initDefaults() {
   fillOptions(el.defBuildSort, BUILD_SORT_LABELS);
   fillOptions(el.defTrigger, DEFAULT_APP_TRIGGERS);
   const pairs = [
+    [el.defView, "defaultView", saved.defaultView, null],
     [el.defHmd, "hmd", saved.hmd, el.hmd],
     [el.defSort, "searchSort", saved.searchSort, el.sort],
     [el.defMineSort, "mineSort", saved.mineSort, el.mineSort],
