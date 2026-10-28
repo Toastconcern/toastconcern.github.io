@@ -35,6 +35,14 @@ const ALLOWED = /^https:\/\/(graph|www|securecdn(-[a-z0-9-]+)?)\.oculus\.com\//;
    data/ocms-headers.json. Read once, at start. */
 const OCMS_HEADERS = JSON.parse(readFileSync(new URL("../data/ocms-headers.json", import.meta.url), "utf8"));
 
+/* Some builds are only served to the headset they were made for: the CDN reads
+   the device out of the User-Agent and refuses the rest. Build records do not say
+   which headset that is, so a refused download is asked again as each headset in
+   data/ocms-devices.json in turn — the same User-Agent with the device swapped in. */
+const OCMS_DEVICES = JSON.parse(readFileSync(new URL("../data/ocms-devices.json", import.meta.url), "utf8"));
+const asDevice = (ua, device) =>
+  ua.replace(/(; )[^;]+?( Build\/)/, `$1${device}$2`).replace(/FBDV\/[^;]*/, `FBDV/${device}`);
+
 /* Content-Disposition is what makes the browser save an APK under its own name
    rather than calling it after this endpoint.
 
@@ -82,7 +90,7 @@ http
     }
 
     try {
-      const upstream = await fetch(target, {
+      const init = {
         method: isPost ? "POST" : "GET",
         headers: {
           ...OCMS_HEADERS,
@@ -97,7 +105,20 @@ http
               : { Accept: "application/json" }),
         },
         body: isPost ? inBody : undefined,
-      });
+      };
+      let upstream = await fetch(target, init);
+      if (download) {
+        const tried = new Set([OCMS_HEADERS["User-Agent"]]);
+        for (const device of OCMS_DEVICES) {
+          if (upstream.ok) break;
+          const ua = asDevice(OCMS_HEADERS["User-Agent"], device);
+          if (tried.has(ua)) continue;
+          tried.add(ua);
+          console.log(upstream.status, "refused; asking again as", device);
+          await upstream.body?.cancel();
+          upstream = await fetch(target, { ...init, headers: { ...init.headers, "User-Agent": ua } });
+        }
+      }
 
       /* Log the path only. The query string carries the access token and this
          output tends to end up pasted into chats and issues. */

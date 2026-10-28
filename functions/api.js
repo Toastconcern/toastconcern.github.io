@@ -19,6 +19,14 @@
    than going straight to the CDN. */
 import OCMS_HEADERS from "../data/ocms-headers.json";
 
+/* Some builds are only served to the headset they were made for: the CDN reads
+   the device out of the User-Agent and refuses the rest. Build records do not say
+   which headset that is, so a refused download is asked again as each headset in
+   data/ocms-devices.json in turn — the same User-Agent with the device swapped in. */
+import OCMS_DEVICES from "../data/ocms-devices.json";
+const asDevice = (ua, device) =>
+  ua.replace(/(; )[^;]+?( Build\/)/, `$1${device}$2`).replace(/FBDV\/[^;]*/, `FBDV/${device}`);
+
 /* Only these hosts are forwarded. Without the check this is an open proxy that
    anyone who finds the address can fetch arbitrary sites through. */
 const ALLOWED = /^(graph|securecdn(-[a-z0-9-]+)?)\.oculus\.com$/;
@@ -87,6 +95,17 @@ export async function onRequest({ request, env }) {
        throw become Cloudflare's own HTML error page. */
     try {
       upstream = await fetch(target, init);
+      if (download) {
+        const tried = new Set([OCMS_HEADERS["User-Agent"]]);
+        for (const device of OCMS_DEVICES) {
+          if (upstream.ok) break;
+          const ua = asDevice(OCMS_HEADERS["User-Agent"], device);
+          if (tried.has(ua)) continue;
+          tried.add(ua);
+          await upstream.body?.cancel();
+          upstream = await fetch(target, { ...init, headers: { ...init.headers, "User-Agent": ua } });
+        }
+      }
     } catch (err) {
       return new Response(JSON.stringify({ error: { message: String(err?.message ?? err) } }), {
         status: 502,

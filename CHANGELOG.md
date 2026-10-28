@@ -15,6 +15,13 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=254 — 2026-10-28
+
+- **Builds made for one headset now download.** Some APKs are only served to the headset
+  they were built for, and the store's CDN refused them when asked as a Quest 3. A refused
+  download is now asked again as a Quest 2, Quest 3S, Quest Pro and Quest in turn, until one
+  is served.
+
 ## Site v=254 — 2026-10-24
 
 - **Watchlist rebuilt.** One row per watched app: its icon and name, the build you last saw
