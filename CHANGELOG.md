@@ -15,6 +15,24 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=265 — 2026-11-07
+
+- **Rift (PC) downloads are fast and light now.** A build used to come down a piece at a
+  time and be held whole in memory before the .zip was saved, which on a big game ate
+  gigabytes of RAM and froze the page. Now 8 pieces download at once and each is written
+  straight into the .zip as it arrives, so memory stays flat however big the game is.
+  Chrome and Edge ask where to save the .zip first; Firefox saves it through its normal
+  downloads. The whole download — fetching, unpacking, checksumming and writing — runs in a
+  background worker, so the page never lags while it runs. The .zip is ZIP64, so games with files over 4 GB open
+  correctly too.
+- Rift (PC) manifests and segments go out with no headers added by the relay — no Quest
+  User-Agent, no OCMS headers. Quest APK downloads are unchanged.
+- A Rift download signs with your oc tokens first (the account token, then the access
+  token) and falls back to the FRL token from Sign in with Meta, then no token — first on
+  the address the store gave, then on the plain one community downloaders use (the build
+  id and get_manifest=1 only). The build's segments use whichever answered; if none does,
+  the notice lists what each attempt got back.
+
 ## Site v=264 — 2026-11-07
 
 - The sweep no longer lists "Or one already found" builds under **Sweep a build**.

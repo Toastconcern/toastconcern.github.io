@@ -4355,11 +4355,6 @@ function routePc(url) {
   const r = route(url);
   return `${r}${r.includes("?") ? "&" : "?"}pc=1`;
 }
-function withAcToken(url) {
-  const { acToken } = loadSettings();
-  const sep = url.includes("?") ? "&" : "?";
-  return `${url}${sep}access_token=${encodeURIComponent(acToken)}`;
-}
 async function cdnRefusal(what, url, res) {
   var _a2;
   const text = (await res.text().catch(() => "")).replace(/\s+/g, " ").trim();
@@ -4371,19 +4366,66 @@ async function cdnRefusal(what, url, res) {
   }
   return new Error(`${what} was refused (HTTP ${res.status}${host ? ` from ${host}` : ""})${msg ? `: ${msg}` : ""}`);
 }
-async function riftManifestBytes(manifestUri) {
-  const res = await fetch(routePc(withAcToken(manifestUri))).catch(() => null);
-  if (!res) throw new Error("could not reach the manifest through the relay");
-  if (!res.ok) throw await cdnRefusal("the build's manifest", manifestUri, res);
-  return new Uint8Array(await res.arrayBuffer());
+function urlShape(url) {
+  try {
+    const u = new URL(url);
+    const names = [.../* @__PURE__ */ new Set([...u.searchParams.keys()])];
+    return `${u.hostname}${u.pathname}${names.length ? `?${names.join("&")}` : ""}`;
+  } catch {
+    return "";
+  }
 }
-async function riftSegmentBytes(segmentsBaseUri, sha256) {
-  const res = await fetch(
-    routePc(`${withAcToken(segmentsBaseUri)}&segment_sha256=${encodeURIComponent(sha256)}`)
-  ).catch(() => null);
-  if (!res) throw new Error("could not reach a segment through the relay");
-  if (!res.ok) throw await cdnRefusal("a segment", segmentsBaseUri, res);
-  return new Uint8Array(await res.arrayBuffer());
+var RIFT_WAYS = [
+  { token: "acToken", pc: true, label: "account token" },
+  { token: "token", pc: true, label: "access token" },
+  { token: "frlToken", pc: true, label: "FRL token" },
+  { token: null, pc: true, label: "no token" }
+];
+var riftWay = RIFT_WAYS[0];
+function riftFetchUrl(url, way) {
+  const value = way.token ? (loadSettings()[way.token] || "").trim() : "";
+  const u = value ? `${url}${url.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(value)}` : url;
+  return way.pc ? routePc(u) : route(u);
+}
+function riftPlainManifestUrl(manifestUri) {
+  try {
+    const u = new URL(manifestUri);
+    const id = u.searchParams.get("id");
+    if (!id) return null;
+    const plain = `https://${u.hostname}/binaries/download/?id=${encodeURIComponent(id)}&get_manifest=1`;
+    return plain === manifestUri ? null : plain;
+  } catch {
+    return null;
+  }
+}
+async function riftManifestBytes(manifestUri) {
+  const addresses = [["as given", manifestUri]];
+  const plain = riftPlainManifestUrl(manifestUri);
+  if (plain) addresses.push(["plain", plain]);
+  const tried = [];
+  let last = null;
+  for (const [name, address] of addresses) {
+    const results2 = [];
+    for (const way of RIFT_WAYS) {
+      if (way.token && !(loadSettings()[way.token] || "").trim()) continue;
+      const res = await fetch(riftFetchUrl(address, way)).catch(() => null);
+      if (res == null ? void 0 : res.ok) {
+        riftWay = way;
+        return new Uint8Array(await res.arrayBuffer());
+      }
+      results2.push(`${way.label} ${res ? res.status : "unreachable"}`);
+      if (res) last = res;
+    }
+    tried.push(`${name} (${urlShape(address)}): ${results2.join(", ")}`);
+  }
+  if (!last) throw new Error("could not reach the manifest through the relay");
+  const err2 = await cdnRefusal("the build's manifest", manifestUri, last);
+  err2.message += ` \u2014 tried ${tried.join("; ")}`;
+  throw err2;
+}
+function riftSegmentUrl(segmentsBaseUri, sha256) {
+  const sep = segmentsBaseUri.includes("?") ? "&" : "?";
+  return new URL(riftFetchUrl(`${segmentsBaseUri}${sep}segment_sha256=${encodeURIComponent(sha256)}`, riftWay), document.baseURI).href;
 }
 var canDownload = () => Boolean(loadSettings().acToken);
 var UPDATER_APP_ID = "1556285957737177";
@@ -5568,7 +5610,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
   if (view === "watchlist") renderWatch();
   if (view === "companion") {
-    import("./companion.js?v=264").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
+    import("./companion.js?v=265").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
       var _a2;
       console.error("companion init failed", e);
       if (!navigator.bluetooth) (_a2 = el.viewCompanion.querySelector("#companionUnsupported")) == null ? void 0 : _a2.removeAttribute("hidden");
@@ -10992,28 +11034,66 @@ async function loadFflate() {
   return _fflate;
 }
 var RIFT_PARALLEL = 8;
-async function downloadRiftBuild(app, data, button, opts = {}) {
+function siteVersion() {
+  var _a2;
+  const v = (((_a2 = document.querySelector('link[href*="style.css"]')) == null ? void 0 : _a2.getAttribute("href").match(/v=(\d+)/)) || [])[1];
+  return v ? `?v=${v}` : "";
+}
+async function riftZipTarget(fileName) {
+  if (typeof window.showSaveFilePicker === "function") {
+    const handle = await window.showSaveFilePicker({
+      id: "metadb-rift",
+      suggestedName: fileName,
+      types: [{ description: "Zip archive", accept: { "application/zip": [".zip"] } }]
+    });
+    return { kind: "file", handle, where: "file", cleanup() {
+    } };
+  }
+  if (!navigator.serviceWorker) throw new Error("this browser cannot save a large download as it arrives \u2014 use Chrome, Edge or Firefox");
+  const reg = await navigator.serviceWorker.register(new URL(`js/download-sw.js${siteVersion()}`, document.baseURI), {
+    scope: new URL("js/dl/", document.baseURI).pathname
+  });
+  const sw = await new Promise((resolve) => {
+    const w = reg.active || reg.waiting || reg.installing;
+    if (w.state === "activated") return resolve(w);
+    w.addEventListener("statechange", () => w.state === "activated" && resolve(w));
+  });
+  const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const ch3 = new MessageChannel();
+  await new Promise((resolve) => {
+    ch3.port1.onmessage = ({ data }) => data === "ready" && resolve();
+    sw.postMessage({ type: "download", id, name: fileName }, [ch3.port2]);
+  });
+  ch3.port1.onmessage = null;
+  const frame = document.createElement("iframe");
+  frame.hidden = true;
+  frame.src = new URL(`js/dl/${id}/${encodeURIComponent(fileName)}`, document.baseURI).href;
+  document.body.appendChild(frame);
+  const ping = setInterval(() => sw.postMessage({ type: "ping" }), 1e4);
+  return {
+    kind: "port",
+    port: ch3.port1,
+    where: "download",
+    cleanup() {
+      clearInterval(ping);
+      setTimeout(() => frame.remove(), 6e4);
+    }
+  };
+}
+async function downloadRiftBuild(app, data, button) {
   const { riftBuild: binaryId, version } = data;
   if (!canDownload()) {
     go("/settings");
     return;
   }
   const safe = (app.name || "rift-build").replace(/[^\w.-]+/g, "_");
-  const folderName = `${safe}_${version || binaryId}`.replace(/[^\w.-]+/g, "_");
-  const asZip = () => downloadRiftBuild(app, data, button, { zip: true });
-  let root = null;
-  if (!opts.zip && typeof window.showDirectoryPicker === "function") {
-    try {
-      root = await window.showDirectoryPicker({ id: "metadb-rift", mode: "readwrite" });
-    } catch (err2) {
-      toast({
-        title: (err2 == null ? void 0 : err2.name) === "AbortError" ? "No folder picked" : "Could not use that folder",
-        body: `${app.name || "This build"} downloads into a folder you choose. Chrome won't let a site use Downloads, Desktop or Documents themselves \u2014 make a new folder inside one and pick that.` + ((err2 == null ? void 0 : err2.name) === "AbortError" ? "" : ` (${(err2 == null ? void 0 : err2.message) || err2})`),
-        actionLabel: "Save as a .zip instead",
-        onAction: asZip
-      });
-      return;
-    }
+  const zipName = `${safe}_${version || binaryId}`.replace(/[^\w.-]+/g, "_") + ".zip";
+  let target;
+  try {
+    target = await riftZipTarget(zipName);
+  } catch (err2) {
+    if ((err2 == null ? void 0 : err2.name) !== "AbortError") toast({ title: `${app.name || "Rift build"}: could not start the download`, body: (err2 == null ? void 0 : err2.message) || String(err2) });
+    return;
   }
   const label = button.textContent;
   button.disabled = true;
@@ -11021,136 +11101,57 @@ async function downloadRiftBuild(app, data, button, opts = {}) {
     button.textContent = t;
     button.title = `${app.name}: ${t}`;
   };
-  const open2 = /* @__PURE__ */ new Map();
+  let worker = null;
   try {
     say2("Finding build\u2026");
     const { manifestUri, segmentsBaseUri, platform } = await riftMetadata(binaryId);
     if (platform === "ANDROID") throw new Error("this is a Quest build, not a Rift one");
     if (!manifestUri || !segmentsBaseUri) throw new Error("no PC manifest for this build");
-    const f = await loadFflate();
     say2("Fetching manifest\u2026");
-    const manifest = JSON.parse(riftManifestText(f, await riftManifestBytes(manifestUri)));
-    const files = manifest.files || {};
-    const names = Object.keys(files);
-    if (!names.length) throw new Error("the manifest listed no files");
-    const totalBytes = names.reduce((sum, n) => sum + (files[n].size || 0), 0) || 1;
-    const jobs = [];
-    const left = /* @__PURE__ */ new Map();
-    for (const name of names) {
-      const file = files[name];
-      const segs = file.segments || [];
-      left.set(name, segs.length);
-      segs.forEach((seg, i) => {
+    const manifest = JSON.parse(riftManifestText(await loadFflate(), await riftManifestBytes(manifestUri)));
+    const entries = Object.entries(manifest.files || {});
+    if (!entries.length) throw new Error("the manifest listed no files");
+    const files = entries.map(([name, file], i) => ({
+      path: String(name).split(/[\\/]+/).filter((p) => p && p !== "." && p !== "..").join("/") || `file${i}`,
+      size: file.size || 0,
+      urls: (file.segments || []).map((seg) => {
         var _a2;
-        jobs.push({ name, offset: i * (file.segmentSize || 0), sha: Array.isArray(seg) ? seg[1] : (_a2 = seg.sha256) != null ? _a2 : seg });
-      });
-    }
-    let doneBytes = 0;
-    let filesDone = 0;
-    const progress = () => say2(`Downloading ${Math.min(99, Math.floor(doneBytes / totalBytes * 100))}% \xB7 ${filesDone} of ${names.length} files`);
-    progress();
-    let dir = null;
-    const buffers = /* @__PURE__ */ new Map();
-    const zipChunks = [];
-    const zip2 = root ? null : new f.Zip((err2, data2) => data2 && zipChunks.push(data2));
-    if (root) dir = await root.getDirectoryHandle(folderName, { create: true });
-    const target = async (name) => {
-      if (open2.has(name)) return open2.get(name);
-      const pending = (async () => {
-        if (!root) {
-          const buf = new Uint8Array(files[name].size || 0);
-          buffers.set(name, buf);
-          return { write: async (offset, data2) => buf.set(data2, offset), close: async () => {
-          } };
-        }
-        const parts = String(name).split(/[\\/]+/).filter((p) => p && p !== "." && p !== "..");
-        let d = dir;
-        for (const p of parts.slice(0, -1)) d = await d.getDirectoryHandle(p, { create: true });
-        const handle = await d.getFileHandle(parts[parts.length - 1] || "file", { create: true });
-        const w = await handle.createWritable();
-        return { write: (offset, data2) => w.write({ type: "write", position: offset, data: data2 }), close: () => w.close(), abort: () => w.abort() };
-      })();
-      open2.set(name, pending);
-      return pending;
-    };
-    const finish = async (name) => {
-      const t = await target(name);
-      await t.close();
-      open2.delete(name);
-      if (zip2) {
-        const entry = new f.ZipPassThrough(name);
-        zip2.add(entry);
-        entry.push(buffers.get(name), true);
-        buffers.delete(name);
-      }
-      filesDone++;
-    };
-    for (const name of names) if (!left.get(name)) await finish(name);
-    let failed = null;
-    const worker = async () => {
-      while (jobs.length && !failed) {
-        const job = jobs.shift();
-        let raw;
-        for (let attempt = 1; ; attempt++) {
-          try {
-            raw = await riftSegmentBytes(segmentsBaseUri, job.sha);
-            break;
-          } catch (err2) {
-            if (attempt >= 3) throw err2;
-            await new Promise((r) => setTimeout(r, 1e3 * attempt));
-          }
-        }
-        const data2 = riftInflate(f, raw);
-        const t = await target(job.name);
-        await t.write(job.offset, data2);
-        doneBytes += data2.length;
-        const n = left.get(job.name) - 1;
-        left.set(job.name, n);
-        if (n === 0) await finish(job.name);
-        progress();
-      }
-    };
-    await Promise.all(
-      Array.from(
-        { length: RIFT_PARALLEL },
-        () => worker().catch((err2) => {
-          failed != null ? failed : failed = err2;
-        })
-      )
-    );
-    if (failed) throw failed;
-    if (root) {
-      button.textContent = "Downloaded";
-      button.title = `${app.name}: wrote ${names.length} files to the folder ${folderName}`;
-    } else {
-      zip2.end();
-      say2("Packaging\u2026");
-      const url = URL.createObjectURL(new Blob(zipChunks, { type: "application/zip" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${folderName}.zip`;
-      document.body.append(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 3e4);
-      button.textContent = "Downloaded";
-      button.title = `${app.name}: saved ${names.length} files as ${a.download}`;
-    }
-  } catch (err2) {
-    for (const pending of open2.values()) pending.then((t) => {
-      var _a2;
-      return (_a2 = t.abort) == null ? void 0 : _a2.call(t);
-    }).catch(() => {
+        return riftSegmentUrl(segmentsBaseUri, Array.isArray(seg) ? seg[1] : (_a2 = seg.sha256) != null ? _a2 : seg);
+      })
+    }));
+    say2("Downloading 0%");
+    worker = new Worker(new URL(`js/rift-worker.js${siteVersion()}`, document.baseURI), { type: "module" });
+    await new Promise((resolve, reject) => {
+      worker.onmessage = ({ data: m }) => {
+        if (m.type === "progress") say2(`Downloading ${Math.min(99, Math.floor(m.done / m.total * 100))}% \xB7 ${m.file} of ${m.files} files`);
+        else if (m.type === "done") resolve();
+        else if (m.type === "error") reject(new Error(m.message));
+      };
+      worker.onerror = (e) => reject(new Error(e.message || "the download worker could not start"));
+      worker.postMessage(
+        {
+          type: "start",
+          files,
+          parallel: RIFT_PARALLEL,
+          fflateUrl: new URL("js/vendor/fflate.module.js?v=149", document.baseURI).href,
+          target: target.kind === "file" ? { kind: "file", handle: target.handle } : { kind: "port", port: target.port }
+        },
+        target.kind === "port" ? [target.port] : []
+      );
     });
+    button.textContent = "Downloaded";
+    button.title = target.where === "file" ? `${app.name}: saved ${files.length} files as ${zipName}` : `${app.name}: ${zipName} is in your downloads`;
+  } catch (err2) {
+    if (!worker && target.kind === "port") target.port.postMessage({ abort: true });
     button.textContent = "Failed";
     button.title = `${app.name}: ${err2.message}`;
     toast({ title: `${app.name || "Rift build"}: download failed`, body: err2.message });
   } finally {
+    worker == null ? void 0 : worker.terminate();
+    target.cleanup();
     button.disabled = false;
     setTimeout(() => {
-      if (button.isConnected && (button.textContent === "Downloaded" || button.textContent === "Failed")) {
-        button.textContent = label;
-      }
+      if (button.isConnected && (button.textContent === "Downloaded" || button.textContent === "Failed")) button.textContent = label;
     }, 6e3);
   }
 }
@@ -11167,17 +11168,6 @@ function riftManifestText(f, bytes) {
       return new TextDecoder().decode(f.gunzipSync(bytes));
     } catch {
       return new TextDecoder().decode(bytes);
-    }
-  }
-}
-function riftInflate(f, raw) {
-  try {
-    return f.unzlibSync(raw);
-  } catch {
-    try {
-      return f.gunzipSync(raw);
-    } catch {
-      return f.inflateSync(raw);
     }
   }
 }
@@ -11217,7 +11207,7 @@ function downloadCell(v, offerDev, app = null) {
               data-rift-build="${esc(v.id)}"
               data-version="${esc(v.version)}"
               title="${esc(
-      dev ? `${v.version} \u2014 never released to a channel; downloads the build's files into a folder you pick` : `Download ${v.version} \u2014 writes the build's files into a folder you pick (a new one inside Downloads works; Downloads itself is refused)`
+      dev ? `${v.version} \u2014 never released to a channel; saved as a .zip as it downloads` : `Download ${v.version} \u2014 saved as a .zip as it downloads`
     )}">Download</button>`;
   }
   if (!canDownload()) {

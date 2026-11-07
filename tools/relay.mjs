@@ -78,7 +78,7 @@ http
 
     const download = new URL(target).hostname.startsWith("securecdn");
     const isPost = req.method === "POST";
-    /* pc=1: a Rift (PC) build fetch — sent as before the OCMS headers, as functions/api.js does. */
+    /* pc=1: a Rift (PC) build fetch — no headers added at all, as functions/api.js does. */
     const pc = download && new URL(req.url, "http://localhost").searchParams.get("pc") === "1";
 
     /* Read the form body for a POST so it can be handed on. GraphQL requests
@@ -94,7 +94,7 @@ http
     try {
       const init = {
         method: isPost ? "POST" : "GET",
-        headers: pc ? { "User-Agent": OCMS_HEADERS["User-Agent"], Accept: "*/*" } : {
+        headers: pc ? {} : {
           ...OCMS_HEADERS,
           ...(download
             ? { Accept: "*/*" }

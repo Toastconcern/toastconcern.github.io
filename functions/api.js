@@ -56,9 +56,9 @@ export async function onRequest({ request, env }) {
 
   const download = host.startsWith("securecdn");
   const isPost = request.method === "POST";
-  /* pc=1: a Rift (PC) manifest or segment. Sent as downloads were before the OCMS
-     headers (Oct 13): the Quest User-Agent and Accept, nothing else, and not asked
-     again as other headsets — with the full set, PC manifests came back 404. */
+  /* pc=1: a Rift (PC) manifest or segment. A PC build is not a headset's, so none of
+     the headset's headers go with it — no User-Agent, no OCMS headers, nothing added at
+     all — and it is not asked for again as other headsets. */
   const pc = download && new URL(request.url).searchParams.get("pc") === "1";
 
   /* Store queries go through the US relay when it is bound (workers/relay-us):
@@ -68,7 +68,7 @@ export async function onRequest({ request, env }) {
   const viaUs = !download && host === "graph.oculus.com" && env?.US_RELAY;
   const init = {
     method: isPost ? "POST" : "GET",
-    headers: pc ? { "User-Agent": OCMS_HEADERS["User-Agent"], Accept: "*/*" } : {
+    headers: pc ? {} : {
       ...OCMS_HEADERS,
       ...(download
         ? { Accept: "*/*" }

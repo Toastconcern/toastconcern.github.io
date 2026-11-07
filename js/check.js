@@ -3141,20 +3141,12 @@ export async function riftMetadata(binaryId) {
   return { manifestUri: manifest_uri, segmentsBaseUri: segments_base_uri, platform };
 }
 
-/* A Rift (PC) build fetch, marked for the relay with pc=1: it is then sent the way it
-   was before the relays took on the headset's full OCMS identity (Oct 13) — the
-   Quest User-Agent and Accept only, no X-Build-Version-Incremental, no language, no
-   asking again as other headsets. With those, every PC manifest came back 404. */
+/* A Rift (PC) build fetch, marked for the relay with pc=1: the relay then adds no
+   headers of its own — no Quest User-Agent, no OCMS headers, not even Accept — and does
+   not ask again as other headsets. Without the mark it goes out as every other download. */
 function routePc(url) {
   const r = route(url);
   return `${r}${r.includes("?") ? "&" : "?"}pc=1`;
-}
-
-/* Append the account token to a signed CDN url that already has a query string. */
-function withAcToken(url) {
-  const { acToken } = loadSettings();
-  const sep = url.includes("?") ? "&" : "?";
-  return `${url}${sep}access_token=${encodeURIComponent(acToken)}`;
 }
 
 /* Why a CDN fetch was refused, in the words that came back: the status, which host,
@@ -3172,13 +3164,6 @@ async function cdnRefusal(what, url, res) {
   return new Error(`${what} was refused (HTTP ${res.status}${host ? ` from ${host}` : ""})${msg ? `: ${msg}` : ""}`);
 }
 
-/* The manifest and segment addresses come back from the store already signed. They
-   have always gone out with the account token added on top; if Meta answers that
-   with a 404, the address is asked for again exactly as the store gave it, and the
-   segments then follow whichever form worked. */
-let riftAddToken = true;
-const riftUrl = (url) => (riftAddToken ? withAcToken(url) : url);
-
 /** An address's shape for an error: host, path and the names of its parameters —
     never their values, which hold the account token and the signature. */
 function urlShape(url) {
@@ -3191,33 +3176,75 @@ function urlShape(url) {
   }
 }
 
-/** The manifest for a Rift build — a zip whose one entry is manifest.json. */
-export async function riftManifestBytes(manifestUri) {
-  riftAddToken = true;
-  let res = await fetch(routePc(riftUrl(manifestUri))).catch(() => null);
-  if (res?.status === 404) {
-    riftAddToken = false;
-    res = await fetch(routePc(riftUrl(manifestUri))).catch(() => null);
-  }
-  if (!res) throw new Error("could not reach the manifest through the relay");
-  if (!res.ok) {
-    riftAddToken = true;
-    const err = await cdnRefusal("the build's manifest", manifestUri, res);
-    err.message += ` — asked for ${urlShape(manifestUri)}, with and without the account token`;
-    throw err;
-  }
-  return new Uint8Array(await res.arrayBuffer());
+/* The credentials a Rift manifest is asked for with, in order, all with no headers
+   added (pc). The manifest address is the same binaries/download endpoint a Quest APK
+   comes from (…?id=…&get_manifest=…). The oc tokens go first — the account token
+   (oc_ac_at, what Rift downloads have always signed with), then the access token
+   (oc_www_at). The Meta account (FRL) token that Sign in with Meta saves is the
+   fallback: when the oc tokens have got a 404 (signed in, but no build), it has been
+   served. The first that answers is kept for the build's segments. */
+const RIFT_WAYS = [
+  { token: "acToken", pc: true, label: "account token" },
+  { token: "token", pc: true, label: "access token" },
+  { token: "frlToken", pc: true, label: "FRL token" },
+  { token: null, pc: true, label: "no token" },
+];
+let riftWay = RIFT_WAYS[0];
+
+function riftFetchUrl(url, way) {
+  const value = way.token ? (loadSettings()[way.token] || "").trim() : "";
+  const u = value ? `${url}${url.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(value)}` : url;
+  return way.pc ? routePc(u) : route(u);
 }
 
-/** One build segment, still compressed — the caller inflates it. */
-export async function riftSegmentBytes(segmentsBaseUri, sha256) {
-  const base = riftUrl(segmentsBaseUri);
-  const res = await fetch(
-    routePc(`${base}${base.includes("?") ? "&" : "?"}segment_sha256=${encodeURIComponent(sha256)}`)
-  ).catch(() => null);
-  if (!res) throw new Error("could not reach a segment through the relay");
-  if (!res.ok) throw await cdnRefusal("a segment", segmentsBaseUri, res);
-  return new Uint8Array(await res.arrayBuffer());
+/** The manifest address the way community Rift downloaders build it — the build id
+    and get_manifest=1 and nothing else — for when the one the store gives (lately with
+    extra parameters such as fcl) answers a signed-in request with 404. */
+function riftPlainManifestUrl(manifestUri) {
+  try {
+    const u = new URL(manifestUri);
+    const id = u.searchParams.get("id");
+    if (!id) return null;
+    const plain = `https://${u.hostname}/binaries/download/?id=${encodeURIComponent(id)}&get_manifest=1`;
+    return plain === manifestUri ? null : plain;
+  } catch {
+    return null;
+  }
+}
+
+/** The manifest for a Rift build — a zip whose one entry is manifest.json. Every way
+    is tried on the address the store gave, then on the plain one. */
+export async function riftManifestBytes(manifestUri) {
+  const addresses = [["as given", manifestUri]];
+  const plain = riftPlainManifestUrl(manifestUri);
+  if (plain) addresses.push(["plain", plain]);
+  const tried = [];
+  let last = null;
+  for (const [name, address] of addresses) {
+    const results = [];
+    for (const way of RIFT_WAYS) {
+      if (way.token && !(loadSettings()[way.token] || "").trim()) continue;
+      const res = await fetch(riftFetchUrl(address, way)).catch(() => null);
+      if (res?.ok) {
+        riftWay = way;
+        return new Uint8Array(await res.arrayBuffer());
+      }
+      results.push(`${way.label} ${res ? res.status : "unreachable"}`);
+      if (res) last = res;
+    }
+    tried.push(`${name} (${urlShape(address)}): ${results.join(", ")}`);
+  }
+  if (!last) throw new Error("could not reach the manifest through the relay");
+  const err = await cdnRefusal("the build's manifest", manifestUri, last);
+  err.message += ` — tried ${tried.join("; ")}`;
+  throw err;
+}
+
+/** A build segment's URL — routed through the relay and signed the way the manifest
+    last answered — for js/rift-worker.js, which fetches and inflates it off the page. */
+export function riftSegmentUrl(segmentsBaseUri, sha256) {
+  const sep = segmentsBaseUri.includes("?") ? "&" : "?";
+  return new URL(riftFetchUrl(`${segmentsBaseUri}${sep}segment_sha256=${encodeURIComponent(sha256)}`, riftWay), document.baseURI).href;
 }
 
 export const canDownload = () => Boolean(loadSettings().acToken);

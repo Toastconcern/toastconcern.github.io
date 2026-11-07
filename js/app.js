@@ -55,7 +55,7 @@ import {
   canDownload,
   riftMetadata,
   riftManifestBytes,
-  riftSegmentBytes,
+  riftSegmentUrl,
   searchStore,
   defaultApps,
   DEFAULT_APP_TRIGGERS,
@@ -71,7 +71,7 @@ import {
   OTA_PUBLIC_TOKEN,
   OTA_SELECTION,
   otaParams,
-} from "./check.js?v=264";
+} from "./check.js?v=265";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -1676,7 +1676,7 @@ function applyView() {
   if (view === "watchlist") renderWatch();
 
   if (view === "companion") {
-    import("./companion.js?v=264")
+    import("./companion.js?v=265")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => {
         /* An engine that cannot even read companion.js (the Quest 1's) has no
@@ -8883,62 +8883,97 @@ async function loadFflate() {
   return _fflate;
 }
 
-/* Segments in flight at once. Each is a separate CDN request, so this is what
-   makes a large build come down at line speed rather than one round trip at a time. */
+/* Segments fetched ahead of the one being written. Each is a separate CDN request, so
+   this is what makes a large build come down at line speed — and, as only this many
+   are ever held, what keeps memory flat however big the build is. */
 const RIFT_PARALLEL = 8;
 
+/* The site's cache-buster, read off the stylesheet the way index.html's loader does,
+   so the download workers follow it without being another number to bump. */
+function siteVersion() {
+  const v = (document.querySelector('link[href*="style.css"]')?.getAttribute("href").match(/v=(\d+)/) || [])[1];
+  return v ? `?v=${v}` : "";
+}
+
+/** Where a Rift .zip goes, chosen before anything is fetched. Chrome and Edge: a file
+    picked in a save dialog — called straight from the click, which the dialog needs;
+    cancelling it throws AbortError. Elsewhere: a stream into the browser's own download
+    through js/download-sw.js, handed over as a MessageChannel port the download worker
+    writes into. */
+async function riftZipTarget(fileName) {
+  if (typeof window.showSaveFilePicker === "function") {
+    const handle = await window.showSaveFilePicker({
+      id: "metadb-rift",
+      suggestedName: fileName,
+      types: [{ description: "Zip archive", accept: { "application/zip": [".zip"] } }],
+    });
+    return { kind: "file", handle, where: "file", cleanup() {} };
+  }
+  if (!navigator.serviceWorker) throw new Error("this browser cannot save a large download as it arrives — use Chrome, Edge or Firefox");
+
+  const reg = await navigator.serviceWorker.register(new URL(`js/download-sw.js${siteVersion()}`, document.baseURI), {
+    scope: new URL("js/dl/", document.baseURI).pathname,
+  });
+  const sw = await new Promise((resolve) => {
+    const w = reg.active || reg.waiting || reg.installing;
+    if (w.state === "activated") return resolve(w);
+    w.addEventListener("statechange", () => w.state === "activated" && resolve(w));
+  });
+  const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  const ch = new MessageChannel();
+  await new Promise((resolve) => {
+    ch.port1.onmessage = ({ data }) => data === "ready" && resolve();
+    sw.postMessage({ type: "download", id, name: fileName }, [ch.port2]);
+  });
+  ch.port1.onmessage = null;
+  /* The download starts now: a hidden frame asks the worker for the stream. A ping every
+     few seconds keeps that worker awake for as long as the download runs. */
+  const frame = document.createElement("iframe");
+  frame.hidden = true;
+  frame.src = new URL(`js/dl/${id}/${encodeURIComponent(fileName)}`, document.baseURI).href;
+  document.body.appendChild(frame);
+  const ping = setInterval(() => sw.postMessage({ type: "ping" }), 10000);
+  return {
+    kind: "port",
+    port: ch.port1,
+    where: "download",
+    cleanup() {
+      clearInterval(ping);
+      setTimeout(() => frame.remove(), 60000);
+    },
+  };
+}
+
 /**
- * Download a Rift build as the files it is made of.
+ * Download a Rift build as a .zip, written to disk as it is made.
  *
- * The store gives a manifest and a segment base; the build is a tree of files,
- * each cut into fixed-size, content-addressed, zlib-compressed segments. This
- * fetches the manifest, then every segment of every file RIFT_PARALLEL at a time,
- * inflates each and writes it at its place in its file.
+ * The store gives a manifest and a segment base; the build is a tree of files, each
+ * cut into fixed-size, content-addressed, zlib-compressed segments. The page fetches
+ * the manifest and works out every segment's URL; js/rift-worker.js does the rest off
+ * the page's thread — fetching RIFT_PARALLEL ahead, inflating, CRC and writing the .zip
+ * in order — so the page only shows progress and never lags. Where it is written is
+ * chosen first (riftZipTarget): a save dialog in Chrome and Edge, the browser's own
+ * download elsewhere.
  *
- * Where the browser can write to a folder (Chrome and Edge on a computer:
- * showDirectoryPicker), the build is written straight into the folder picked, in
- * its own subfolder, one real file per manifest entry — the game as it installs,
- * nothing held in memory but the segments in flight. Elsewhere it falls back to a
- * single .zip assembled in memory, which a very large build can outgrow.
- *
- * The button is the status line: it names each phase and re-enables when done,
- * per the build-row button convention. A failure also pops up a notice saying why,
- * so it is never only in the button's tooltip.
- *
- * opts.zip skips the folder and saves the .zip — what the notice offers when no
- * folder was picked.
+ * The button is the status line: it names each phase and re-enables when done, per the
+ * build-row button convention. A failure also pops up a notice saying why.
  */
-async function downloadRiftBuild(app, data, button, opts = {}) {
+async function downloadRiftBuild(app, data, button) {
   const { riftBuild: binaryId, version } = data;
   if (!canDownload()) {
     go("/settings");
     return;
   }
   const safe = (app.name || "rift-build").replace(/[^\w.-]+/g, "_");
-  const folderName = `${safe}_${version || binaryId}`.replace(/[^\w.-]+/g, "_");
-  const asZip = () => downloadRiftBuild(app, data, button, { zip: true });
+  const zipName = `${safe}_${version || binaryId}`.replace(/[^\w.-]+/g, "_") + ".zip";
 
-  /* The folder is asked for first: the picker needs the click that started this,
-     and that is spent by the first request. Chrome will not hand a site the
-     Downloads, Desktop or Documents folders themselves ("contains system files"),
-     only a folder inside them — so a cancelled or refused pick says so, and offers
-     the .zip instead, rather than doing nothing. */
-  let root = null;
-  if (!opts.zip && typeof window.showDirectoryPicker === "function") {
-    try {
-      root = await window.showDirectoryPicker({ id: "metadb-rift", mode: "readwrite" });
-    } catch (err) {
-      toast({
-        title: err?.name === "AbortError" ? "No folder picked" : "Could not use that folder",
-        body:
-          `${app.name || "This build"} downloads into a folder you choose. Chrome won't let a site use Downloads, ` +
-          "Desktop or Documents themselves — make a new folder inside one and pick that." +
-          (err?.name === "AbortError" ? "" : ` (${err?.message || err})`),
-        actionLabel: "Save as a .zip instead",
-        onAction: asZip,
-      });
-      return;
-    }
+  /* Asked first: the save dialog needs the click that started this. */
+  let target;
+  try {
+    target = await riftZipTarget(zipName);
+  } catch (err) {
+    if (err?.name !== "AbortError") toast({ title: `${app.name || "Rift build"}: could not start the download`, body: err?.message || String(err) });
+    return;
   }
 
   const label = button.textContent;
@@ -8948,144 +8983,57 @@ async function downloadRiftBuild(app, data, button, opts = {}) {
     button.title = `${app.name}: ${t}`;
   };
 
-  /* Open file handles, closed on failure so no half-written file stays locked. */
-  const open = new Map();
+  let worker = null;
   try {
     say("Finding build…");
     const { manifestUri, segmentsBaseUri, platform } = await riftMetadata(binaryId);
     if (platform === "ANDROID") throw new Error("this is a Quest build, not a Rift one");
     if (!manifestUri || !segmentsBaseUri) throw new Error("no PC manifest for this build");
 
-    const f = await loadFflate();
-
     say("Fetching manifest…");
-    const manifest = JSON.parse(riftManifestText(f, await riftManifestBytes(manifestUri)));
-    const files = manifest.files || {};
-    const names = Object.keys(files);
-    if (!names.length) throw new Error("the manifest listed no files");
-    const totalBytes = names.reduce((sum, n) => sum + (files[n].size || 0), 0) || 1;
+    const manifest = JSON.parse(riftManifestText(await loadFflate(), await riftManifestBytes(manifestUri)));
+    const entries = Object.entries(manifest.files || {});
+    if (!entries.length) throw new Error("the manifest listed no files");
+    const files = entries.map(([name, file], i) => ({
+      path: String(name).split(/[\\/]+/).filter((p) => p && p !== "." && p !== "..").join("/") || `file${i}`,
+      size: file.size || 0,
+      urls: (file.segments || []).map((seg) => riftSegmentUrl(segmentsBaseUri, Array.isArray(seg) ? seg[1] : seg.sha256 ?? seg)),
+    }));
 
-    /* Every segment of every file, in file order, as one queue. */
-    const jobs = [];
-    const left = new Map();
-    for (const name of names) {
-      const file = files[name];
-      const segs = file.segments || [];
-      left.set(name, segs.length);
-      segs.forEach((seg, i) => {
-        jobs.push({ name, offset: i * (file.segmentSize || 0), sha: Array.isArray(seg) ? seg[1] : seg.sha256 ?? seg });
-      });
-    }
-
-    let doneBytes = 0;
-    let filesDone = 0;
-    const progress = () =>
-      say(`Downloading ${Math.min(99, Math.floor((doneBytes / totalBytes) * 100))}% · ${filesDone} of ${names.length} files`);
-    progress();
-
-    /* Where each file's bytes go: a writable on disk, or a buffer for the zip. */
-    let dir = null;
-    const buffers = new Map();
-    const zipChunks = [];
-    const zip = root ? null : new f.Zip((err, data) => data && zipChunks.push(data));
-    if (root) dir = await root.getDirectoryHandle(folderName, { create: true });
-
-    const target = async (name) => {
-      if (open.has(name)) return open.get(name);
-      const pending = (async () => {
-        if (!root) {
-          const buf = new Uint8Array(files[name].size || 0);
-          buffers.set(name, buf);
-          return { write: async (offset, data) => buf.set(data, offset), close: async () => {} };
-        }
-        const parts = String(name).split(/[\\/]+/).filter((p) => p && p !== "." && p !== "..");
-        let d = dir;
-        for (const p of parts.slice(0, -1)) d = await d.getDirectoryHandle(p, { create: true });
-        const handle = await d.getFileHandle(parts[parts.length - 1] || "file", { create: true });
-        const w = await handle.createWritable();
-        return { write: (offset, data) => w.write({ type: "write", position: offset, data }), close: () => w.close(), abort: () => w.abort() };
-      })();
-      open.set(name, pending);
-      return pending;
-    };
-
-    const finish = async (name) => {
-      const t = await target(name);
-      await t.close();
-      open.delete(name);
-      if (zip) {
-        const entry = new f.ZipPassThrough(name);
-        zip.add(entry);
-        entry.push(buffers.get(name), true);
-        buffers.delete(name);
-      }
-      filesDone++;
-    };
-
-    /* Files with no segments are empty files; make them now. */
-    for (const name of names) if (!left.get(name)) await finish(name);
-
-    let failed = null;
-    const worker = async () => {
-      while (jobs.length && !failed) {
-        const job = jobs.shift();
-        let raw;
-        for (let attempt = 1; ; attempt++) {
-          try {
-            raw = await riftSegmentBytes(segmentsBaseUri, job.sha);
-            break;
-          } catch (err) {
-            if (attempt >= 3) throw err;
-            await new Promise((r) => setTimeout(r, 1000 * attempt));
-          }
-        }
-        const data = riftInflate(f, raw);
-        const t = await target(job.name);
-        await t.write(job.offset, data);
-        doneBytes += data.length;
-        const n = left.get(job.name) - 1;
-        left.set(job.name, n);
-        if (n === 0) await finish(job.name);
-        progress();
-      }
-    };
-    await Promise.all(
-      Array.from({ length: RIFT_PARALLEL }, () =>
-        worker().catch((err) => {
-          failed ??= err;
-        })
-      )
-    );
-    if (failed) throw failed;
-
-    if (root) {
-      button.textContent = "Downloaded";
-      button.title = `${app.name}: wrote ${names.length} files to the folder ${folderName}`;
-    } else {
-      zip.end();
-      say("Packaging…");
-      const url = URL.createObjectURL(new Blob(zipChunks, { type: "application/zip" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${folderName}.zip`;
-      document.body.append(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-      button.textContent = "Downloaded";
-      button.title = `${app.name}: saved ${names.length} files as ${a.download}`;
-    }
+    say("Downloading 0%");
+    worker = new Worker(new URL(`js/rift-worker.js${siteVersion()}`, document.baseURI), { type: "module" });
+    await new Promise((resolve, reject) => {
+      worker.onmessage = ({ data: m }) => {
+        if (m.type === "progress") say(`Downloading ${Math.min(99, Math.floor((m.done / m.total) * 100))}% · ${m.file} of ${m.files} files`);
+        else if (m.type === "done") resolve();
+        else if (m.type === "error") reject(new Error(m.message));
+      };
+      worker.onerror = (e) => reject(new Error(e.message || "the download worker could not start"));
+      worker.postMessage(
+        {
+          type: "start",
+          files,
+          parallel: RIFT_PARALLEL,
+          fflateUrl: new URL("js/vendor/fflate.module.js?v=149", document.baseURI).href,
+          target: target.kind === "file" ? { kind: "file", handle: target.handle } : { kind: "port", port: target.port },
+        },
+        target.kind === "port" ? [target.port] : []
+      );
+    });
+    button.textContent = "Downloaded";
+    button.title = target.where === "file" ? `${app.name}: saved ${files.length} files as ${zipName}` : `${app.name}: ${zipName} is in your downloads`;
   } catch (err) {
-    for (const pending of open.values()) pending.then((t) => t.abort?.()).catch(() => {});
+    /* Nothing was handed to the worker yet: the stream it would have written is shut. */
+    if (!worker && target.kind === "port") target.port.postMessage({ abort: true });
     button.textContent = "Failed";
     button.title = `${app.name}: ${err.message}`;
     toast({ title: `${app.name || "Rift build"}: download failed`, body: err.message });
   } finally {
+    worker?.terminate();
+    target.cleanup();
     button.disabled = false;
     setTimeout(() => {
-      if (button.isConnected && (button.textContent === "Downloaded" || button.textContent === "Failed")) {
-        button.textContent = label;
-      }
+      if (button.isConnected && (button.textContent === "Downloaded" || button.textContent === "Failed")) button.textContent = label;
     }, 6000);
   }
 }
@@ -9104,19 +9052,6 @@ function riftManifestText(f, bytes) {
       return new TextDecoder().decode(f.gunzipSync(bytes));
     } catch {
       return new TextDecoder().decode(bytes);
-    }
-  }
-}
-
-/** One segment inflated: zlib, or failing that gzip or raw deflate. */
-function riftInflate(f, raw) {
-  try {
-    return f.unzlibSync(raw);
-  } catch {
-    try {
-      return f.gunzipSync(raw);
-    } catch {
-      return f.inflateSync(raw);
     }
   }
 }
@@ -9159,7 +9094,7 @@ function downloadCell(v, offerDev, app = null) {
   }
 
   /* Rift/PC builds are not a single file — the button pulls the segments down and
-     writes the build's files into a folder (or a .zip), so it is a real control, not a link. */
+     writes them into a .zip as they arrive, so it is a real control, not a link. */
   if (isRift(app)) {
     if (!canDownload()) {
       return `<a class="dl dl-off" href="/settings"
@@ -9170,8 +9105,8 @@ function downloadCell(v, offerDev, app = null) {
               data-version="${esc(v.version)}"
               title="${esc(
                 dev
-                  ? `${v.version} — never released to a channel; downloads the build's files into a folder you pick`
-                  : `Download ${v.version} — writes the build's files into a folder you pick (a new one inside Downloads works; Downloads itself is refused)`
+                  ? `${v.version} — never released to a channel; saved as a .zip as it downloads`
+                  : `Download ${v.version} — saved as a .zip as it downloads`
               )}">Download</button>`;
   }
 
