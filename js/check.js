@@ -3405,7 +3405,10 @@ export async function otaRequest({ host = "graph.oculus.com", path = "/firmware_
   if (!/^[a-z0-9.-]+\.oculus\.com$/i.test(h)) throw new Error("the relay only forwards oculus.com hosts");
   const p = `/${String(path || "/firmware_ota_update").trim().replace(/^\/+/, "")}`;
   const t = String(token).trim();
-  const access = t === "public" ? OTA_PUBLIC_TOKEN : t || (await otaToken({}));
+  /* "frl" sends the saved FRL token itself — the token quest_ota_enum.py signs with. */
+  const frl = t === "frl" ? (loadSettings().frlToken || "").trim() : "";
+  if (t === "frl" && !frl) throw new Error("no FRL token saved — press Sign in with Meta in Settings first");
+  const access = t === "public" ? OTA_PUBLIC_TOKEN : frl || t || (await otaToken({}));
   const qs = new URLSearchParams({ access_token: access, ...params });
   const res = await fetch(route(`https://${h}${p}?${qs}`), { headers: { Accept: "application/json" } }).catch(() => null);
   if (res?.status === 403 && !(res.headers.get("content-type") || "").includes("json")) {

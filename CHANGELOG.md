@@ -15,6 +15,13 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=262 — 2026-11-07
+
+- **Specific build works again.** Meta was answering every Ask and sweep with
+  "An unknown error has occurred": the check went out without a `version`, which Meta needs.
+  It now sends `version=1` (as the headset and the sweep script do) unless you type another.
+- The Advanced token box takes **frl** too, to sign a check with your FRL token itself.
+
 ## Site v=261 — 2026-11-07
 
 - **Updater is its own screen now (User → Updater).** OS updates moved out of the

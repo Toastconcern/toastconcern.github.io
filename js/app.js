@@ -71,7 +71,7 @@ import {
   OTA_PUBLIC_TOKEN,
   OTA_SELECTION,
   otaParams,
-} from "./check.js?v=261";
+} from "./check.js?v=262";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -1676,7 +1676,7 @@ function applyView() {
   if (view === "watchlist") renderWatch();
 
   if (view === "companion") {
-    import("./companion.js?v=261")
+    import("./companion.js?v=262")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => {
         /* An engine that cannot even read companion.js (the Quest 1's) has no
@@ -4586,7 +4586,7 @@ const UPD_GROUPS = [
   ["sent", "Sent as written"],
 ];
 const UPD_WHERE = [
-  updBox("token", "access_token", "where", { secret: true, placeholder: "your updater token", hint: "Empty sends your saved updater token (made from your FRL token if there is none). public sends the updater app's own token." }),
+  updBox("token", "access_token", "where", { secret: true, placeholder: "your updater token", hint: "Empty sends your saved updater token (made from your FRL token if there is none). frl sends your FRL token itself; public sends the updater app's own token." }),
 ];
 const UPD_DEVICE = [
   updBox("device_serial", "device_serial", "device", { param: true, area: true, hint: "One a line, or comma-separated, to check several." }),
@@ -4619,7 +4619,7 @@ const UPD_ADV = {
     boxes: [
       ...UPD_WHERE,
       ...UPD_DEVICE.map((b) => (b.key === "device_serial" ? { ...b, area: false, hint: "One serial." } : b)),
-      updBox("version", "version", "device", { param: true, fill: "1", hint: "The build the headset is on. The script sends 1." }),
+      updBox("version", "version", "device", { param: true, fill: "1", hint: "The build the headset is on. Empty sends 1 — Meta refuses this check without it." }),
       updBox("device_managed_mode", "device_managed_mode", "device", { param: true, fill: "-1", hint: "-1 an ordinary headset, 4 postponed by policy." }),
       updBox("full_update_only", "full_update_only", "device", { param: true, fill: "false" }),
     ],
@@ -4739,7 +4739,8 @@ function updRequestText(req) {
   const tok = req.token.trim();
   const shown = { ...req.params };
   if (shown.device_serial && !showSerials) shown.device_serial = maskSerial(shown.device_serial);
-  shown.access_token = tok === "public" ? OTA_PUBLIC_TOKEN : tok ? "(the token typed above)" : "(your updater token)";
+  shown.access_token =
+    tok === "public" ? OTA_PUBLIC_TOKEN : tok === "frl" ? "(your FRL token)" : tok ? "(the token typed above)" : "(your updater token)";
   return `GET https://${req.host}${req.path}\n${Object.entries(shown)
     .map(([k, val]) => `  ${k}=${val}`)
     .join("\n")}`;
@@ -5003,6 +5004,9 @@ function updBuildBase(opts) {
     const val = b.key === "device_serial" ? updSerials(v[b.key])[0] ?? "" : String(v[b.key] ?? "").trim();
     if (val !== "") params[b.key] = val;
   }
+  /* Meta answers a requested_version check with only "An unknown error has occurred"
+     when version is missing; the script that works always sends 1. */
+  params.version ??= "1";
   return { label: params.device_serial || "", host: UPD_HOST, path: UPD_PATH, token: updTokens.build || "", params };
 }
 

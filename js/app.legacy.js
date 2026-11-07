@@ -4417,7 +4417,9 @@ async function otaRequest({ host = "graph.oculus.com", path = "/firmware_ota_upd
   if (!/^[a-z0-9.-]+\.oculus\.com$/i.test(h)) throw new Error("the relay only forwards oculus.com hosts");
   const p = `/${String(path || "/firmware_ota_update").trim().replace(/^\/+/, "")}`;
   const t = String(token).trim();
-  const access = t === "public" ? OTA_PUBLIC_TOKEN : t || await otaToken({});
+  const frl = t === "frl" ? (loadSettings().frlToken || "").trim() : "";
+  if (t === "frl" && !frl) throw new Error("no FRL token saved \u2014 press Sign in with Meta in Settings first");
+  const access = t === "public" ? OTA_PUBLIC_TOKEN : frl || t || await otaToken({});
   const qs = new URLSearchParams({ access_token: access, ...params });
   const res = await fetch(route(`https://${h}${p}?${qs}`), { headers: { Accept: "application/json" } }).catch(() => null);
   if ((res == null ? void 0 : res.status) === 403 && !(res.headers.get("content-type") || "").includes("json")) {
@@ -5552,7 +5554,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
   if (view === "watchlist") renderWatch();
   if (view === "companion") {
-    import("./companion.js?v=261").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
+    import("./companion.js?v=262").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
       var _a2;
       console.error("companion init failed", e);
       if (!navigator.bluetooth) (_a2 = el.viewCompanion.querySelector("#companionUnsupported")) == null ? void 0 : _a2.removeAttribute("hidden");
@@ -7783,7 +7785,7 @@ var UPD_GROUPS = [
   ["sent", "Sent as written"]
 ];
 var UPD_WHERE = [
-  updBox("token", "access_token", "where", { secret: true, placeholder: "your updater token", hint: "Empty sends your saved updater token (made from your FRL token if there is none). public sends the updater app's own token." })
+  updBox("token", "access_token", "where", { secret: true, placeholder: "your updater token", hint: "Empty sends your saved updater token (made from your FRL token if there is none). frl sends your FRL token itself; public sends the updater app's own token." })
 ];
 var UPD_DEVICE = [
   updBox("device_serial", "device_serial", "device", { param: true, area: true, hint: "One a line, or comma-separated, to check several." }),
@@ -7816,7 +7818,7 @@ var UPD_ADV = {
     boxes: [
       ...UPD_WHERE,
       ...UPD_DEVICE.map((b) => b.key === "device_serial" ? { ...b, area: false, hint: "One serial." } : b),
-      updBox("version", "version", "device", { param: true, fill: "1", hint: "The build the headset is on. The script sends 1." }),
+      updBox("version", "version", "device", { param: true, fill: "1", hint: "The build the headset is on. Empty sends 1 \u2014 Meta refuses this check without it." }),
       updBox("device_managed_mode", "device_managed_mode", "device", { param: true, fill: "-1", hint: "-1 an ordinary headset, 4 postponed by policy." }),
       updBox("full_update_only", "full_update_only", "device", { param: true, fill: "false" })
     ]
@@ -7921,7 +7923,7 @@ function updRequestText(req) {
   const tok = req.token.trim();
   const shown = { ...req.params };
   if (shown.device_serial && !showSerials) shown.device_serial = maskSerial(shown.device_serial);
-  shown.access_token = tok === "public" ? OTA_PUBLIC_TOKEN : tok ? "(the token typed above)" : "(your updater token)";
+  shown.access_token = tok === "public" ? OTA_PUBLIC_TOKEN : tok === "frl" ? "(your FRL token)" : tok ? "(the token typed above)" : "(your updater token)";
   return `GET https://${req.host}${req.path}
 ${Object.entries(shown).map(([k, val]) => `  ${k}=${val}`).join("\n")}`;
 }
@@ -8115,7 +8117,7 @@ var FIND_SELECTION = "{download_uri,base_version,release_channel_name,creation_t
 var UPD_RATE_CODES = [368, 613];
 var updSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function updBuildBase(opts) {
-  var _a2, _b2;
+  var _a2, _b2, _c;
   const v = opts.adv.build;
   const params = {};
   for (const b of UPD_ADV.build.boxes) {
@@ -8123,6 +8125,7 @@ function updBuildBase(opts) {
     const val = b.key === "device_serial" ? (_a2 = updSerials(v[b.key])[0]) != null ? _a2 : "" : String((_b2 = v[b.key]) != null ? _b2 : "").trim();
     if (val !== "") params[b.key] = val;
   }
+  (_c = params.version) != null ? _c : params.version = "1";
   return { label: params.device_serial || "", host: UPD_HOST, path: UPD_PATH, token: updTokens.build || "", params };
 }
 function updBuildRequest(base, number) {

@@ -83,7 +83,7 @@
     });
   })();
 </script>
-<link rel="stylesheet" href="css/style.css?v=261">
+<link rel="stylesheet" href="css/style.css?v=262">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -1810,21 +1810,21 @@
       link.href = href;
       main.parentNode.insertBefore(link, main);
     };
-    if (!flexGap) addCss("css/legacy-gap.css?v=261");
-    if (compat) addCss("css/compat.css?v=261");
+    if (!flexGap) addCss("css/legacy-gap.css?v=262");
+    if (compat) addCss("css/compat.css?v=262");
 
     /* app.js only finds out it needs check.js once it has arrived and been read;
        asking for both at once saves a round trip before anything can run. */
     if (modern) {
       var pre = document.createElement("link");
       pre.rel = "modulepreload";
-      pre.href = "js/check.js?v=261";
+      pre.href = "js/check.js?v=262";
       document.head.appendChild(pre);
     }
 
     var js = document.createElement("script");
     js.type = "module";
-    js.src = modern ? "js/app.js?v=261" : "js/app.legacy.js?v=261";
+    js.src = modern ? "js/app.js?v=262" : "js/app.legacy.js?v=262";
     document.body.appendChild(js);
   })();
 </script>
