@@ -5554,7 +5554,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
   if (view === "watchlist") renderWatch();
   if (view === "companion") {
-    import("./companion.js?v=262").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
+    import("./companion.js?v=263").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
       var _a2;
       console.error("companion init failed", e);
       if (!navigator.bluetooth) (_a2 = el.viewCompanion.querySelector("#companionUnsupported")) == null ? void 0 : _a2.removeAttribute("hidden");

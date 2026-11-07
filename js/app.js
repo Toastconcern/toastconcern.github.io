@@ -71,7 +71,7 @@ import {
   OTA_PUBLIC_TOKEN,
   OTA_SELECTION,
   otaParams,
-} from "./check.js?v=262";
+} from "./check.js?v=263";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -1676,7 +1676,7 @@ function applyView() {
   if (view === "watchlist") renderWatch();
 
   if (view === "companion") {
-    import("./companion.js?v=262")
+    import("./companion.js?v=263")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => {
         /* An engine that cannot even read companion.js (the Quest 1's) has no

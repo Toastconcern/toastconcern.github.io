@@ -15,6 +15,12 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=263 — 2026-11-07
+
+- CompanionServer's headset sign-in now asks Meta for the account's existing session
+  instead of opening a new one each time (`create_new_session: false`). CompanionServer
+  is still hidden while it is finished.
+
 ## Site v=262 — 2026-11-07
 
 - **Specific build works again.** Meta was answering every Ask and sweep with
