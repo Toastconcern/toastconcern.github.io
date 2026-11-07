@@ -56,6 +56,10 @@ export async function onRequest({ request, env }) {
 
   const download = host.startsWith("securecdn");
   const isPost = request.method === "POST";
+  /* pc=1: a Rift (PC) manifest or segment. Sent as downloads were before the OCMS
+     headers (Oct 13): the Quest User-Agent and Accept, nothing else, and not asked
+     again as other headsets — with the full set, PC manifests came back 404. */
+  const pc = download && new URL(request.url).searchParams.get("pc") === "1";
 
   /* Store queries go through the US relay when it is bound (workers/relay-us):
      Meta prices by where a request comes from, and this function runs wherever
@@ -64,7 +68,7 @@ export async function onRequest({ request, env }) {
   const viaUs = !download && host === "graph.oculus.com" && env?.US_RELAY;
   const init = {
     method: isPost ? "POST" : "GET",
-    headers: {
+    headers: pc ? { "User-Agent": OCMS_HEADERS["User-Agent"], Accept: "*/*" } : {
       ...OCMS_HEADERS,
       ...(download
         ? { Accept: "*/*" }
@@ -95,7 +99,7 @@ export async function onRequest({ request, env }) {
        throw become Cloudflare's own HTML error page. */
     try {
       upstream = await fetch(target, init);
-      if (download) {
+      if (download && !pc) {
         const tried = new Set([OCMS_HEADERS["User-Agent"]]);
         for (const device of OCMS_DEVICES) {
           if (upstream.ok) break;

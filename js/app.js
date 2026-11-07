@@ -71,7 +71,7 @@ import {
   OTA_PUBLIC_TOKEN,
   OTA_SELECTION,
   otaParams,
-} from "./check.js?v=263";
+} from "./check.js?v=264";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -1676,7 +1676,7 @@ function applyView() {
   if (view === "watchlist") renderWatch();
 
   if (view === "companion") {
-    import("./companion.js?v=263")
+    import("./companion.js?v=264")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => {
         /* An engine that cannot even read companion.js (the Quest 1's) has no
@@ -5248,28 +5248,6 @@ function updSplitBuild(n) {
   return { prefix: s.slice(0, -9), from: s.slice(-9, -5), suffix: s.slice(-5) };
 }
 
-/** Builds this visit has already turned up — the OS check, Ask, a sweep — newest
-    first, as places a sweep can start from. */
-function updSeenBuilds() {
-  const seen = new Map();
-  const add = (b) => {
-    const n = String(b?.target_version ?? "");
-    if (/^\d{10,}$/.test(n) && !seen.has(n)) seen.set(n, updVersion(b));
-  };
-  for (const sec of ["os", "build"]) for (const run of updResults.get(sec)?.runs ?? []) for (const b of updOtaList(run.json)) add(b);
-  for (const b of updFind.found) add(b);
-  return [...seen].sort(([a], [b]) => (BigInt(b) > BigInt(a) ? 1 : BigInt(b) < BigInt(a) ? -1 : 0)).slice(0, 6);
-}
-
-/** Sweep a build's whole range: its prefix and suffix in the boxes, the middle run
-    from 0000 to 9999. */
-function updSweepFrom(n) {
-  const parts = updSplitBuild(n);
-  if (!parts) return false;
-  editUpd((now) => Object.assign(now.find, { prefix: parts.prefix, suffix: parts.suffix, from: "", to: "" }));
-  return true;
-}
-
 /** What Find builds is about to do, in a line: how many, roughly how long, and what is
     missing for it to work. */
 function updFindPlan(opts) {
@@ -5399,26 +5377,6 @@ function updBuildControls(opts, body) {
   startBox.addEventListener("keydown", (e) => e.key === "Enter" && updFindRun());
   start.append(startLabel, startBox, startHint);
 
-  const seen = updSeenBuilds();
-  let chips = null;
-  if (seen.length) {
-    chips = document.createElement("div");
-    chips.className = "upd-chips";
-    chips.appendChild(elp("upd-chips-label", "Or one already found:"));
-    for (const [n, name] of seen) {
-      const c = document.createElement("button");
-      c.type = "button";
-      c.className = "ptc-btn upd-chip";
-      c.textContent = name ? `${name} · ${n}` : n;
-      c.title = `Sweep every build around ${n}`;
-      c.addEventListener("click", () => {
-        editUpd((now) => (now.find.sweepBuild = n));
-        if (updSweepFrom(n)) renderUpdater();
-      });
-      chips.appendChild(c);
-    }
-  }
-
   const sweep = grid(
     field("prefix", "Prefix", { placeholder: "e.g. 52641960", enter: updFindRun }),
     field("from", "From", { placeholder: "0000", enter: updFindRun }),
@@ -5470,7 +5428,7 @@ function updBuildControls(opts, body) {
   out.setAttribute("aria-live", "polite");
   out.append(...updFindOut());
 
-  find.append(elp("upd-choice-h", "Sweep for builds"), start, ...(chips ? [chips] : []), sweep, sweepHint, how, actions, plan, out);
+  find.append(elp("upd-choice-h", "Sweep for builds"), start, sweep, sweepHint, how, actions, plan, out);
 
   parts.append(ask, find);
   body.appendChild(parts);
@@ -8944,25 +8902,42 @@ const RIFT_PARALLEL = 8;
  * single .zip assembled in memory, which a very large build can outgrow.
  *
  * The button is the status line: it names each phase and re-enables when done,
- * per the build-row button convention. Errors land in its title.
+ * per the build-row button convention. A failure also pops up a notice saying why,
+ * so it is never only in the button's tooltip.
+ *
+ * opts.zip skips the folder and saves the .zip — what the notice offers when no
+ * folder was picked.
  */
-async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) {
+async function downloadRiftBuild(app, data, button, opts = {}) {
+  const { riftBuild: binaryId, version } = data;
   if (!canDownload()) {
     go("/settings");
     return;
   }
   const safe = (app.name || "rift-build").replace(/[^\w.-]+/g, "_");
   const folderName = `${safe}_${version || binaryId}`.replace(/[^\w.-]+/g, "_");
+  const asZip = () => downloadRiftBuild(app, data, button, { zip: true });
 
   /* The folder is asked for first: the picker needs the click that started this,
-     and that is spent by the first request. Cancelling it cancels the download. */
+     and that is spent by the first request. Chrome will not hand a site the
+     Downloads, Desktop or Documents folders themselves ("contains system files"),
+     only a folder inside them — so a cancelled or refused pick says so, and offers
+     the .zip instead, rather than doing nothing. */
   let root = null;
-  if (typeof window.showDirectoryPicker === "function") {
+  if (!opts.zip && typeof window.showDirectoryPicker === "function") {
     try {
       root = await window.showDirectoryPicker({ id: "metadb-rift", mode: "readwrite" });
     } catch (err) {
-      if (err?.name === "AbortError") return;
-      root = null;
+      toast({
+        title: err?.name === "AbortError" ? "No folder picked" : "Could not use that folder",
+        body:
+          `${app.name || "This build"} downloads into a folder you choose. Chrome won't let a site use Downloads, ` +
+          "Desktop or Documents themselves — make a new folder inside one and pick that." +
+          (err?.name === "AbortError" ? "" : ` (${err?.message || err})`),
+        actionLabel: "Save as a .zip instead",
+        onAction: asZip,
+      });
+      return;
     }
   }
 
@@ -9104,6 +9079,7 @@ async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) 
     for (const pending of open.values()) pending.then((t) => t.abort?.()).catch(() => {});
     button.textContent = "Failed";
     button.title = `${app.name}: ${err.message}`;
+    toast({ title: `${app.name || "Rift build"}: download failed`, body: err.message });
   } finally {
     button.disabled = false;
     setTimeout(() => {
@@ -9195,7 +9171,7 @@ function downloadCell(v, offerDev, app = null) {
               title="${esc(
                 dev
                   ? `${v.version} — never released to a channel; downloads the build's files into a folder you pick`
-                  : `Download ${v.version} — writes the build's files into a folder you pick`
+                  : `Download ${v.version} — writes the build's files into a folder you pick (a new one inside Downloads works; Downloads itself is refused)`
               )}">Download</button>`;
   }
 

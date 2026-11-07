@@ -1892,11 +1892,8 @@ details.hint > p {
   .upd-build-parts { grid-template-columns: 1fr; }
 }
 .upd-find-note { margin: 0 0 .4rem; font-size: .8125rem; color: var(--text); }
-/* Sweep a build: the box, then the builds already found. */
+/* Sweep a build: the box that fills in the parts below. */
 .upd-start { margin-bottom: .85rem; }
-.upd-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: 0 0 1rem; }
-.upd-chips-label { flex: 1 0 100%; margin: 0; font-size: .75rem; color: var(--muted); }
-.upd-chip { font-family: var(--mono); font-size: .75rem; }
 .upd-find-plan { margin: .6rem 0 0; font-size: .8125rem; color: var(--muted); }
 .upd-find-plan--warn { color: var(--red); }
 .upd-find-grid + .upd-find-grid { margin-top: .85rem; }

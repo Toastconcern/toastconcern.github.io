@@ -78,6 +78,8 @@ http
 
     const download = new URL(target).hostname.startsWith("securecdn");
     const isPost = req.method === "POST";
+    /* pc=1: a Rift (PC) build fetch — sent as before the OCMS headers, as functions/api.js does. */
+    const pc = download && new URL(req.url, "http://localhost").searchParams.get("pc") === "1";
 
     /* Read the form body for a POST so it can be handed on. GraphQL requests
        come this way now — doc_id, variables and token in the body rather than
@@ -92,7 +94,7 @@ http
     try {
       const init = {
         method: isPost ? "POST" : "GET",
-        headers: {
+        headers: pc ? { "User-Agent": OCMS_HEADERS["User-Agent"], Accept: "*/*" } : {
           ...OCMS_HEADERS,
           ...(download
             ? { Accept: "*/*" }
@@ -107,7 +109,7 @@ http
         body: isPost ? inBody : undefined,
       };
       let upstream = await fetch(target, init);
-      if (download) {
+      if (download && !pc) {
         const tried = new Set([OCMS_HEADERS["User-Agent"]]);
         for (const device of OCMS_DEVICES) {
           if (upstream.ok) break;

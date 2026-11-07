@@ -3141,6 +3141,15 @@ export async function riftMetadata(binaryId) {
   return { manifestUri: manifest_uri, segmentsBaseUri: segments_base_uri, platform };
 }
 
+/* A Rift (PC) build fetch, marked for the relay with pc=1: it is then sent the way it
+   was before the relays took on the headset's full OCMS identity (Oct 13) — the
+   Quest User-Agent and Accept only, no X-Build-Version-Incremental, no language, no
+   asking again as other headsets. With those, every PC manifest came back 404. */
+function routePc(url) {
+  const r = route(url);
+  return `${r}${r.includes("?") ? "&" : "?"}pc=1`;
+}
+
 /* Append the account token to a signed CDN url that already has a query string. */
 function withAcToken(url) {
   const { acToken } = loadSettings();
@@ -3148,22 +3157,66 @@ function withAcToken(url) {
   return `${url}${sep}access_token=${encodeURIComponent(acToken)}`;
 }
 
+/* Why a CDN fetch was refused, in the words that came back: the status, which host,
+   and the start of the reply (Meta's JSON error, or the relay's own "host not
+   allowed"). A 4xx is not always entitlement — an expired account token, a host the
+   relay will not forward and a bad signature all answer 4xx too — so it is not
+   guessed at. The URL is left out: it carries the account token. */
+async function cdnRefusal(what, url, res) {
+  const text = (await res.text().catch(() => "")).replace(/\s+/g, " ").trim();
+  const msg = text.match(/"message"\s*:\s*"([^"]+)"/)?.[1] || text.slice(0, 160);
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {}
+  return new Error(`${what} was refused (HTTP ${res.status}${host ? ` from ${host}` : ""})${msg ? `: ${msg}` : ""}`);
+}
+
+/* The manifest and segment addresses come back from the store already signed. They
+   have always gone out with the account token added on top; if Meta answers that
+   with a 404, the address is asked for again exactly as the store gave it, and the
+   segments then follow whichever form worked. */
+let riftAddToken = true;
+const riftUrl = (url) => (riftAddToken ? withAcToken(url) : url);
+
+/** An address's shape for an error: host, path and the names of its parameters —
+    never their values, which hold the account token and the signature. */
+function urlShape(url) {
+  try {
+    const u = new URL(url);
+    const names = [...new Set([...u.searchParams.keys()])];
+    return `${u.hostname}${u.pathname}${names.length ? `?${names.join("&")}` : ""}`;
+  } catch {
+    return "";
+  }
+}
+
 /** The manifest for a Rift build — a zip whose one entry is manifest.json. */
 export async function riftManifestBytes(manifestUri) {
-  const res = await fetch(route(withAcToken(manifestUri)));
-  if (res.status >= 400 && res.status < 500) {
-    throw new Error("not entitled to download this build");
+  riftAddToken = true;
+  let res = await fetch(routePc(riftUrl(manifestUri))).catch(() => null);
+  if (res?.status === 404) {
+    riftAddToken = false;
+    res = await fetch(routePc(riftUrl(manifestUri))).catch(() => null);
   }
-  if (!res.ok) throw new Error(`the manifest returned ${res.status}`);
+  if (!res) throw new Error("could not reach the manifest through the relay");
+  if (!res.ok) {
+    riftAddToken = true;
+    const err = await cdnRefusal("the build's manifest", manifestUri, res);
+    err.message += ` — asked for ${urlShape(manifestUri)}, with and without the account token`;
+    throw err;
+  }
   return new Uint8Array(await res.arrayBuffer());
 }
 
 /** One build segment, still compressed — the caller inflates it. */
 export async function riftSegmentBytes(segmentsBaseUri, sha256) {
+  const base = riftUrl(segmentsBaseUri);
   const res = await fetch(
-    route(`${withAcToken(segmentsBaseUri)}&segment_sha256=${encodeURIComponent(sha256)}`)
-  );
-  if (!res.ok) throw new Error(`a segment returned ${res.status}`);
+    routePc(`${base}${base.includes("?") ? "&" : "?"}segment_sha256=${encodeURIComponent(sha256)}`)
+  ).catch(() => null);
+  if (!res) throw new Error("could not reach a segment through the relay");
+  if (!res.ok) throw await cdnRefusal("a segment", segmentsBaseUri, res);
   return new Uint8Array(await res.arrayBuffer());
 }
 

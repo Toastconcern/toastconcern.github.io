@@ -4351,24 +4351,38 @@ async function riftMetadata(binaryId) {
   })(json);
   return { manifestUri: manifest_uri, segmentsBaseUri: segments_base_uri, platform };
 }
+function routePc(url) {
+  const r = route(url);
+  return `${r}${r.includes("?") ? "&" : "?"}pc=1`;
+}
 function withAcToken(url) {
   const { acToken } = loadSettings();
   const sep = url.includes("?") ? "&" : "?";
   return `${url}${sep}access_token=${encodeURIComponent(acToken)}`;
 }
-async function riftManifestBytes(manifestUri) {
-  const res = await fetch(route(withAcToken(manifestUri)));
-  if (res.status >= 400 && res.status < 500) {
-    throw new Error("not entitled to download this build");
+async function cdnRefusal(what, url, res) {
+  var _a2;
+  const text = (await res.text().catch(() => "")).replace(/\s+/g, " ").trim();
+  const msg = ((_a2 = text.match(/"message"\s*:\s*"([^"]+)"/)) == null ? void 0 : _a2[1]) || text.slice(0, 160);
+  let host = "";
+  try {
+    host = new URL(url).hostname;
+  } catch {
   }
-  if (!res.ok) throw new Error(`the manifest returned ${res.status}`);
+  return new Error(`${what} was refused (HTTP ${res.status}${host ? ` from ${host}` : ""})${msg ? `: ${msg}` : ""}`);
+}
+async function riftManifestBytes(manifestUri) {
+  const res = await fetch(routePc(withAcToken(manifestUri))).catch(() => null);
+  if (!res) throw new Error("could not reach the manifest through the relay");
+  if (!res.ok) throw await cdnRefusal("the build's manifest", manifestUri, res);
   return new Uint8Array(await res.arrayBuffer());
 }
 async function riftSegmentBytes(segmentsBaseUri, sha256) {
   const res = await fetch(
-    route(`${withAcToken(segmentsBaseUri)}&segment_sha256=${encodeURIComponent(sha256)}`)
-  );
-  if (!res.ok) throw new Error(`a segment returned ${res.status}`);
+    routePc(`${withAcToken(segmentsBaseUri)}&segment_sha256=${encodeURIComponent(sha256)}`)
+  ).catch(() => null);
+  if (!res) throw new Error("could not reach a segment through the relay");
+  if (!res.ok) throw await cdnRefusal("a segment", segmentsBaseUri, res);
   return new Uint8Array(await res.arrayBuffer());
 }
 var canDownload = () => Boolean(loadSettings().acToken);
@@ -5554,7 +5568,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
   if (view === "watchlist") renderWatch();
   if (view === "companion") {
-    import("./companion.js?v=263").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
+    import("./companion.js?v=264").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
       var _a2;
       console.error("companion init failed", e);
       if (!navigator.bluetooth) (_a2 = el.viewCompanion.querySelector("#companionUnsupported")) == null ? void 0 : _a2.removeAttribute("hidden");
@@ -8358,24 +8372,6 @@ function updSplitBuild(n) {
   if (!s) return null;
   return { prefix: s.slice(0, -9), from: s.slice(-9, -5), suffix: s.slice(-5) };
 }
-function updSeenBuilds() {
-  var _a2, _b2;
-  const seen = /* @__PURE__ */ new Map();
-  const add = (b) => {
-    var _a3;
-    const n = String((_a3 = b == null ? void 0 : b.target_version) != null ? _a3 : "");
-    if (/^\d{10,}$/.test(n) && !seen.has(n)) seen.set(n, updVersion(b));
-  };
-  for (const sec of ["os", "build"]) for (const run of (_b2 = (_a2 = updResults.get(sec)) == null ? void 0 : _a2.runs) != null ? _b2 : []) for (const b of updOtaList(run.json)) add(b);
-  for (const b of updFind.found) add(b);
-  return [...seen].sort(([a], [b]) => BigInt(b) > BigInt(a) ? 1 : BigInt(b) < BigInt(a) ? -1 : 0).slice(0, 6);
-}
-function updSweepFrom(n) {
-  const parts = updSplitBuild(n);
-  if (!parts) return false;
-  editUpd((now) => Object.assign(now.find, { prefix: parts.prefix, suffix: parts.suffix, from: "", to: "" }));
-  return true;
-}
 function updFindPlan(opts) {
   const v = opts.adv.build;
   const missing = ["device_serial", "device_type"].filter((k) => {
@@ -8497,25 +8493,6 @@ function updBuildControls(opts, body) {
   });
   startBox.addEventListener("keydown", (e) => e.key === "Enter" && updFindRun());
   start.append(startLabel, startBox, startHint);
-  const seen = updSeenBuilds();
-  let chips = null;
-  if (seen.length) {
-    chips = document.createElement("div");
-    chips.className = "upd-chips";
-    chips.appendChild(elp("upd-chips-label", "Or one already found:"));
-    for (const [n, name] of seen) {
-      const c = document.createElement("button");
-      c.type = "button";
-      c.className = "ptc-btn upd-chip";
-      c.textContent = name ? `${name} \xB7 ${n}` : n;
-      c.title = `Sweep every build around ${n}`;
-      c.addEventListener("click", () => {
-        editUpd((now) => now.find.sweepBuild = n);
-        if (updSweepFrom(n)) renderUpdater();
-      });
-      chips.appendChild(c);
-    }
-  }
   const sweep = grid(
     field("prefix", "Prefix", { placeholder: "e.g. 52641960", enter: updFindRun }),
     field("from", "From", { placeholder: "0000", enter: updFindRun }),
@@ -8563,7 +8540,7 @@ function updBuildControls(opts, body) {
   out.dataset.updFind = "";
   out.setAttribute("aria-live", "polite");
   out.append(...updFindOut());
-  find.append(elp("upd-choice-h", "Sweep for builds"), start, ...chips ? [chips] : [], sweep, sweepHint, how, actions, plan, out);
+  find.append(elp("upd-choice-h", "Sweep for builds"), start, sweep, sweepHint, how, actions, plan, out);
   parts.append(ask, find);
   body.appendChild(parts);
 }
@@ -11015,20 +10992,27 @@ async function loadFflate() {
   return _fflate;
 }
 var RIFT_PARALLEL = 8;
-async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) {
+async function downloadRiftBuild(app, data, button, opts = {}) {
+  const { riftBuild: binaryId, version } = data;
   if (!canDownload()) {
     go("/settings");
     return;
   }
   const safe = (app.name || "rift-build").replace(/[^\w.-]+/g, "_");
   const folderName = `${safe}_${version || binaryId}`.replace(/[^\w.-]+/g, "_");
+  const asZip = () => downloadRiftBuild(app, data, button, { zip: true });
   let root = null;
-  if (typeof window.showDirectoryPicker === "function") {
+  if (!opts.zip && typeof window.showDirectoryPicker === "function") {
     try {
       root = await window.showDirectoryPicker({ id: "metadb-rift", mode: "readwrite" });
     } catch (err2) {
-      if ((err2 == null ? void 0 : err2.name) === "AbortError") return;
-      root = null;
+      toast({
+        title: (err2 == null ? void 0 : err2.name) === "AbortError" ? "No folder picked" : "Could not use that folder",
+        body: `${app.name || "This build"} downloads into a folder you choose. Chrome won't let a site use Downloads, Desktop or Documents themselves \u2014 make a new folder inside one and pick that.` + ((err2 == null ? void 0 : err2.name) === "AbortError" ? "" : ` (${(err2 == null ? void 0 : err2.message) || err2})`),
+        actionLabel: "Save as a .zip instead",
+        onAction: asZip
+      });
+      return;
     }
   }
   const label = button.textContent;
@@ -11068,7 +11052,7 @@ async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) 
     let dir = null;
     const buffers = /* @__PURE__ */ new Map();
     const zipChunks = [];
-    const zip2 = root ? null : new f.Zip((err2, data) => data && zipChunks.push(data));
+    const zip2 = root ? null : new f.Zip((err2, data2) => data2 && zipChunks.push(data2));
     if (root) dir = await root.getDirectoryHandle(folderName, { create: true });
     const target = async (name) => {
       if (open2.has(name)) return open2.get(name);
@@ -11076,7 +11060,7 @@ async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) 
         if (!root) {
           const buf = new Uint8Array(files[name].size || 0);
           buffers.set(name, buf);
-          return { write: async (offset, data) => buf.set(data, offset), close: async () => {
+          return { write: async (offset, data2) => buf.set(data2, offset), close: async () => {
           } };
         }
         const parts = String(name).split(/[\\/]+/).filter((p) => p && p !== "." && p !== "..");
@@ -11084,7 +11068,7 @@ async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) 
         for (const p of parts.slice(0, -1)) d = await d.getDirectoryHandle(p, { create: true });
         const handle = await d.getFileHandle(parts[parts.length - 1] || "file", { create: true });
         const w = await handle.createWritable();
-        return { write: (offset, data) => w.write({ type: "write", position: offset, data }), close: () => w.close(), abort: () => w.abort() };
+        return { write: (offset, data2) => w.write({ type: "write", position: offset, data: data2 }), close: () => w.close(), abort: () => w.abort() };
       })();
       open2.set(name, pending);
       return pending;
@@ -11116,10 +11100,10 @@ async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) 
             await new Promise((r) => setTimeout(r, 1e3 * attempt));
           }
         }
-        const data = riftInflate(f, raw);
+        const data2 = riftInflate(f, raw);
         const t = await target(job.name);
-        await t.write(job.offset, data);
-        doneBytes += data.length;
+        await t.write(job.offset, data2);
+        doneBytes += data2.length;
         const n = left.get(job.name) - 1;
         left.set(job.name, n);
         if (n === 0) await finish(job.name);
@@ -11160,6 +11144,7 @@ async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) 
     });
     button.textContent = "Failed";
     button.title = `${app.name}: ${err2.message}`;
+    toast({ title: `${app.name || "Rift build"}: download failed`, body: err2.message });
   } finally {
     button.disabled = false;
     setTimeout(() => {
@@ -11232,7 +11217,7 @@ function downloadCell(v, offerDev, app = null) {
               data-rift-build="${esc(v.id)}"
               data-version="${esc(v.version)}"
               title="${esc(
-      dev ? `${v.version} \u2014 never released to a channel; downloads the build's files into a folder you pick` : `Download ${v.version} \u2014 writes the build's files into a folder you pick`
+      dev ? `${v.version} \u2014 never released to a channel; downloads the build's files into a folder you pick` : `Download ${v.version} \u2014 writes the build's files into a folder you pick (a new one inside Downloads works; Downloads itself is refused)`
     )}">Download</button>`;
   }
   if (!canDownload()) {

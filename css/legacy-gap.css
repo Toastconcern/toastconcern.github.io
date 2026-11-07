@@ -50,8 +50,6 @@ details.hint > summary::before { margin-right: .35rem; }
 .upd-send-head > * { margin-top: .25rem; }
 .upd-run-head > * + * { margin-left: .75rem; }
 .upd-run-head > * { margin-top: .2rem; }
-.upd-chips > * + * { margin-left: .4rem; }
-.upd-chips > * { margin-top: .4rem; }
 .notfound-links > * + * { margin-left: 1.25rem; }
 .notfound-links > * { margin-top: .25rem; }
 .wifi-bar > * + * { margin-left: .75rem; }

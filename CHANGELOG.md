@@ -15,6 +15,23 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=264 — 2026-11-07
+
+- The sweep no longer lists "Or one already found" builds under **Sweep a build**.
+- **Rift downloads no longer fail silently.** Chrome won't let a site write into Downloads,
+  Desktop or Documents themselves, so picking one of those (or cancelling) used to just do
+  nothing. Now a notice says to make a new folder inside one and pick that, with **Save as a
+  .zip instead** right there. Any other failure pops up a notice with Meta's reason instead
+  of only changing the button.
+- A refused Rift download now says what actually came back — the HTTP status, the host and
+  Meta's (or the relay's) own message — instead of always claiming the account is not
+  entitled to the build.
+- **Rift (PC) downloads work again.** Since the relays started sending every download
+  with the headset's full OCMS identity (Oct 13), PC build manifests came back 404 for
+  every Rift app. Rift manifests and segments now go out as they did before — the
+  User-Agent and Accept only, no OS-build header and no retrying as other headsets. Quest
+  APK downloads are unchanged.
+
 ## Site v=263 — 2026-11-07
 
 - CompanionServer's headset sign-in now asks Meta for the account's existing session
