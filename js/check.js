@@ -3290,7 +3290,7 @@ export async function mintCombinedHeadsetTokens() {
   // xfr_accounts_get_session_for_app, the Horizon one under xfr_create_profile_token.
   // digAccessToken is only a fallback if Meta ever moves them.
   const metaData = await frlGraphMutation(frlToken, FRL_META_TOKEN_DOC_ID, {
-    app_id: FRL_META_TOKEN_APP_ID, client_mutation_id: "-1", create_new_session: true,
+    app_id: FRL_META_TOKEN_APP_ID, client_mutation_id: "-1", create_new_session: false,
   });
   const access_token_meta = metaData?.xfr_accounts_get_session_for_app?.access_token || digAccessToken(metaData);
   if (!access_token_meta) throw new Error("the Meta token mint returned no token — Meta replied: " + JSON.stringify(metaData).slice(0, 300));
