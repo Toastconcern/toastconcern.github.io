@@ -83,7 +83,7 @@
     });
   })();
 </script>
-<link rel="stylesheet" href="css/style.css?v=254">
+<link rel="stylesheet" href="css/style.css?v=261">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -140,6 +140,7 @@
         <button class="navtop" type="button" aria-expanded="false">User</button>
         <div class="navmenu" hidden>
           <a href="/devices" data-view="devices">Headsets</a>
+          <a href="/updater" data-view="updater">Updater</a>
           <a href="/mine" data-view="mine">Entitlements</a>
           <a href="/purchases" data-view="purchases">Purchases</a>
           <a href="/wishlist" data-view="wishlist">Wishlist</a>
@@ -150,7 +151,9 @@
         <button class="navtop" type="button" aria-expanded="false">Device</button>
         <div class="navmenu" hidden>
           <a href="/adb" data-view="adb">ADB</a>
-          <a href="/companion" data-view="companion">CompanionServer</a>
+          <!-- CompanionServer is unfinished and hidden (WIP_VIEWS in app.js). To open it,
+               take it out of that list and put this link back:
+          <a href="/companion" data-view="companion">CompanionServer</a> -->
         </div>
       </div>
       <a href="/downgrade" data-in-app>Downgrade</a>
@@ -463,12 +466,13 @@
   <section id="view-devices" hidden>
 
     <h2>Headsets</h2>
-    <p class="sub" id="devicesSub">Headsets registered to this account. Needs your own access token, set in Settings.</p>
+    <p class="sub" id="devicesSub">Headsets registered to this account. Open one for its details and the test channel; its OS updates are on the <a href="/updater">Updater</a> screen. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
       <button id="devicesLoad" class="primary" type="button">Get devices</button>
       <input id="devicesQ" type="search" placeholder="Filter by model or serial" aria-label="Filter your devices" autocomplete="off" spellcheck="false">
       <select id="devicesSort" aria-label="Sort by">
+        <option value="release">Quest 1 to newest</option>
         <option value="modelAz">Device type A–Z</option>
         <option value="modelZa">Device type Z–A</option>
       </select>
@@ -482,15 +486,13 @@
       <thead>
         <tr>
           <th scope="col">Device</th>
+          <th scope="col">Update type</th>
           <th scope="col">Serial</th>
           <th scope="col">Status</th>
-          <th scope="col" class="c-ptc">PTC</th>
         </tr>
       </thead>
       <tbody id="devicesRows"></tbody>
     </table>
-
-    <p class="hint" id="ptcOut" role="status" hidden></p>
 
     <p id="devicesEmpty" class="empty" hidden></p>
 
@@ -501,12 +503,58 @@
         <thead>
           <tr>
             <th scope="col">Device</th>
+            <th scope="col">Update type</th>
             <th scope="col">Serial</th>
             <th scope="col">Status</th>
           </tr>
         </thead>
         <tbody id="sharedRows"></tbody>
       </table>
+    </div>
+
+  </section>
+
+  <!-- ---------- the OS updater ----------
+       The requests the headset's OSUpdater app makes, for this account's headsets.
+       Easy is the OS build check alone; Advanced (one switch, #updaterMode) adds Specific
+       build. All drawn into #updaterBody (renderUpdater). -->
+
+  <section id="view-updater" hidden>
+
+    <h2>Updater</h2>
+    <p class="sub">Ask Meta which OS builds its updater would hand a headset, or look a build up by its number. These are the requests the headset's own updater makes. A browser can't install them, so each result comes with its download. Uses your updater token, made from your FRL token the first time (Settings).</p>
+
+    <div class="controls">
+      <button id="updaterLoad" type="button">Get headsets</button>
+      <button id="updaterSerials" type="button">Show serials</button>
+      <button id="updaterMode" type="button" aria-pressed="false">Switch to Advanced</button>
+    </div>
+    <p class="count" id="updaterCount"></p>
+
+    <datalist id="updTypes"></datalist>
+    <div id="updaterBody" class="upd-screen"></div>
+
+  </section>
+
+  <!-- ---------- 404: an address that names no screen ---------- -->
+
+  <section id="view-notfound" hidden>
+
+    <div class="notfound">
+      <p class="notfound-code" aria-hidden="true">404</p>
+      <div class="notfound-text">
+        <h2>Nothing lives at this address</h2>
+        <p class="notfound-path"><code id="notfoundPath"></code></p>
+        <p class="sub">MetaDB has no screen here. The link may be old, cut short or mistyped. An app is <code>/apps/&lt;id&gt;</code>, a search <code>/search/&lt;words&gt;</code>.</p>
+        <p class="sub">Try the search box at the top, or go to one of these:</p>
+        <ul class="notfound-links">
+          <li><a href="/apps">Apps and games</a></li>
+          <li><a href="/store">Store front</a></li>
+          <li><a href="/devices">Headsets</a></li>
+          <li><a href="/updater">Updater</a></li>
+          <li><a href="/settings">Settings</a></li>
+        </ul>
+      </div>
     </div>
 
   </section>
@@ -908,26 +956,50 @@
   <section id="view-companion" hidden>
 
     <h2>CompanionServer</h2>
-    <p class="sub">Talk to a headset's on-device CompanionServer straight from this page over Bluetooth — the same service the Meta phone app drives, with the browser standing in for the phone. Pairs with a libsodium key exchange; claimed headsets need their device secret to do anything beyond a few status reads. Nothing here goes through Meta's servers. Chrome or Edge, on desktop or Android. A secret you fetch or authenticate with is kept in a cookie so it is here next time — unlike the tokens in Settings, a cookie is sent to whoever serves this page on every request. Forget secret takes it back.</p>
-    <p class="sub">Setting up a new or just-reset headset? Connect below, then open the <strong>Setup</strong> tab — it walks the one-time steps in order and explains what each box wants and where to get it. Everything else the headset can do is under the other tabs.</p>
+    <p class="sub">Drive a headset's on-device CompanionServer over Bluetooth, straight from this page — the service the Meta phone app uses, with the browser standing in for the phone. Nothing here goes through Meta's servers.</p>
 
     <p id="companionUnsupported" class="empty" hidden>This browser has no Web Bluetooth. Use Chrome or Edge on desktop or Android.</p>
 
-    <div class="controls">
-      <select id="companionVersion" aria-label="CompanionServer version">
-        <option value="latest">Latest</option>
-        <option value="v50">v50</option>
-      </select>
-      <input id="companionSecret" type="password" placeholder="Device secret (64 hex chars) — optional for status" aria-label="Device secret" autocomplete="off" spellcheck="false" maxlength="64">
-      <button id="companionFetchSecret" type="button">Fetch secret</button>
-      <button id="companionForgetSecret" type="button" disabled>Forget secret</button>
-      <select id="companionSecretPick" aria-label="Pick a headset's secret" hidden></select>
-      <button id="companionConnect" type="button">Connect</button>
-      <button id="companionDisconnect" type="button" hidden>Disconnect</button>
-      <button id="companionAuth" type="button" hidden>Authenticate</button>
+    <!-- The way in: a connection card. Its state leads, then the protocol and the
+         device secret, then the one button that acts. Every id is unchanged so the
+         JS hooks on exactly as before. -->
+    <div class="companion-connect" id="companionConnectCard">
+      <div class="companion-conn-head">
+        <span class="companion-conn-label">Connection</span>
+        <p class="companion-conn-state" id="companionState" role="status">Not connected.</p>
+      </div>
+
+      <div class="companion-conn-grid">
+        <div class="companion-conn-field">
+          <label for="companionVersion">Protocol</label>
+          <select id="companionVersion" aria-label="CompanionServer version">
+            <option value="latest">Latest</option>
+            <option value="v50">v50</option>
+          </select>
+        </div>
+        <div class="companion-conn-field companion-conn-secret">
+          <label for="companionSecret">Device secret <span class="companion-conn-opt">— optional, status reads work without it</span></label>
+          <div class="companion-conn-secret-row">
+            <input id="companionSecret" type="password" placeholder="64 hex characters" aria-label="Device secret" autocomplete="off" spellcheck="false" maxlength="64">
+            <button id="companionFetchSecret" type="button">Fetch secret</button>
+            <button id="companionForgetSecret" type="button" disabled>Forget secret</button>
+          </div>
+          <select id="companionSecretPick" aria-label="Pick a headset's secret" hidden></select>
+        </div>
+      </div>
+
+      <div class="controls companion-conn-actions">
+        <button id="companionConnect" type="button" class="primary">Connect</button>
+        <button id="companionDisconnect" type="button" hidden>Disconnect</button>
+        <button id="companionAuth" type="button" hidden>Authenticate</button>
+      </div>
     </div>
 
-    <p class="hint" id="companionState" role="status">Not connected.</p>
+    <p class="sub companion-lead">Setting up a new or just-reset headset? Connect above, then open the <strong>Setup</strong> tab — it walks the one-time steps in order. Everything else the headset can do is under the other tabs.</p>
+    <details class="sub companion-about">
+      <summary>How it works &amp; what's kept</summary>
+      <p>Pairs with a libsodium key exchange; a claimed headset needs its device secret for anything beyond a few status reads. A secret you fetch or authenticate with is kept in a cookie so it's here next time — unlike the tokens in Settings, a cookie is sent to whoever serves this page on every request, and <strong>Forget secret</strong> takes it back. Works in Chrome or Edge, on desktop or Android.</p>
+    </details>
 
     <div id="companionTabs" class="companion-tabs" hidden></div>
     <div id="companionPanels" hidden></div>
@@ -979,14 +1051,14 @@
 
       <div class="getapp-card getapp-card--wide">
         <div class="getapp-card__head">
-          <span class="getapp-eyebrow" id="getext">Browser · Chrome &amp; Edge</span>
+          <span class="getapp-eyebrow" id="getext">Browser · Chrome, Edge &amp; Firefox</span>
           <h3>Sign-in extension</h3>
         </div>
         <p class="getapp-text">On a computer, the extension signs this site in with your Meta account: press <strong>Sign in with Meta</strong> in Settings and both tokens are filled in from your Meta login. It reads Meta's two login cookies and hands them to this site only, when the site asks. Nothing is sent anywhere else. It is open source, and not in the extension stores yet, so it is added by hand:</p>
         <ol class="getapp-steps">
           <li>Download <strong>MetaDB-extension.zip</strong> and unzip it.</li>
-          <li>Open <strong>chrome://extensions</strong> (or <strong>edge://extensions</strong>) and turn on <strong>Developer mode</strong>.</li>
-          <li>Press <strong>Load unpacked</strong> and choose the unzipped folder.</li>
+          <li><strong>Chrome or Edge:</strong> open <strong>chrome://extensions</strong> (or <strong>edge://extensions</strong>), turn on <strong>Developer mode</strong>, press <strong>Load unpacked</strong> and choose the unzipped folder.</li>
+          <li><strong>Firefox</strong> (128 or newer): open <strong>about:debugging</strong> → <strong>This Firefox</strong> → <strong>Load Temporary Add-on</strong> and pick the folder's <strong>manifest.json</strong>. A temporary add-on stays until you close Firefox.</li>
           <li>Come back to <a href="/settings">Settings</a> and press <strong>Sign in with Meta</strong>. If you are not logged in to Meta in this browser, Meta's login opens in a new tab, and Settings fills in once you finish.</li>
         </ol>
         <div class="actions">
@@ -1024,14 +1096,14 @@
       <div class="field" id="appSignInField" hidden>
         <label for="appSignIn">Sign in</label>
         <div class="actions"><button type="button" id="appSignIn">Sign in with Meta</button><button type="button" id="appSignOut" hidden>Sign out</button></div>
-        <p class="hint">Opens Meta's login here. Once you are signed in, both tokens below are filled in for you. They stay on this headset.</p>
+        <p class="hint">Opens Meta's login here. Once you are signed in, the tokens below are filled in for you. They stay on this headset.</p>
       </div>
 
       <div class="field" id="extSignInField" data-not-in-app>
         <label for="extSignIn">Sign in</label>
         <div class="actions"><button type="button" id="extRefresh" hidden>Refresh tokens</button><button type="button" id="extSignIn">Sign in with Meta</button></div>
-        <p class="hint" id="extSignInOut" role="status">Fills in both tokens below from your Meta login, with nothing to copy. It needs the MetaDB Sign-in extension for Chrome or Edge — <a href="/getapp">how to add it</a>.</p>
-        <p class="hint" id="extSignedIn" role="status" hidden>Signed in. Both tokens below came from your Meta login and are saved in this browser. Refresh tokens reads them again from your Meta login — press it if requests start failing, or after switching Meta accounts. Sign out removes them from MetaDB; you stay logged in to Meta itself.</p>
+        <p class="hint" id="extSignInOut" role="status">Fills in the tokens below from your Meta login, with nothing to copy. It needs the MetaDB Sign-in extension for Chrome, Edge or Firefox — <a href="/getapp">how to add it</a>.</p>
+        <p class="hint" id="extSignedIn" role="status" hidden>Signed in. The tokens below came from your Meta login and are saved in this browser. Refresh tokens reads them again from your Meta login — press it if requests start failing, or after switching Meta accounts. Sign out removes them from MetaDB; you stay logged in to Meta itself.</p>
         <p class="hint" id="extUpdate" hidden></p>
       </div>
 
@@ -1067,11 +1139,59 @@
             it signs in as you.
           </p>
         </details>
+      </div>
+
+      <div class="field">
+        <label for="frlToken">FRL token</label>
+        <input id="frlToken" class="token" type="password" placeholder="filled in by Sign in with Meta" autocomplete="off" spellcheck="false">
+        <details class="hint" data-not-in-app>
+          <summary>What this is</summary>
+          <p>
+            The FRL (Meta-account) profile token the Meta Horizon app uses. Sign in with
+            Meta mints it from your signed-in Meta session the way the app does (native
+            SSO → <code>xfr_create_profile_token</code>), using the cookies only the MetaDB
+            Sign-in extension can read, and fills it in here with the other tokens. Refresh
+            tokens fetches a fresh one. For the requests that need an FRL-scoped token.
+          </p>
+        </details>
+        <details class="hint" data-not-in-app>
+          <summary>Get it without the extension</summary>
+          <p>
+            No extension? You can mint the same token by hand. Open
+            <a href="https://auth.meta.com/" target="_blank" rel="noopener">auth.meta.com</a>
+            in this browser and make sure you're signed in to Meta there. Then open the
+            browser's developer console on that page (F12 → Console), paste the snippet
+            below, and run it — it copies your FRL token to the clipboard. Come back here and
+            paste it into the box above. The snippet only talks to Meta and this site's relay;
+            your login stays in your browser.
+          </p>
+          <div class="actions"><button type="button" id="copyFrlSnippet">Copy snippet</button></div>
+          <pre id="frlSnippet" class="token-snippet"></pre>
+          <p id="frlSnippetOut" class="settings-out" role="status"></p>
+        </details>
 
         <div class="actions">
           <button type="button" id="saveTokens">Save tokens</button>
         </div>
         <p id="tokensOut" class="settings-out" role="status"></p>
+      </div>
+
+      <div class="field">
+        <label for="updToken">Updater token</label>
+        <input id="updToken" class="token" type="password" placeholder="made when you first check an OS update" autocomplete="off" spellcheck="false">
+        <details class="hint" data-not-in-app>
+          <summary>What this is</summary>
+          <p>
+            The app token MetaDB uses to ask Meta's OS-updater service (OSUpdater app
+            <code>1556285957737177</code>), minted from your FRL token. It's created the first
+            time you check a headset for an OS update on the <a href="/updater">Updater</a>
+            screen, and saved here so later checks reuse it instead of minting a new one each
+            time. <strong>Get updater token</strong> makes one now; saving the other tokens does
+            not create it.
+          </p>
+        </details>
+        <div class="actions"><button type="button" id="getUpdToken">Get updater token</button></div>
+        <p id="updTokenOut" class="settings-out" role="status"></p>
       </div>
 
       </section>
@@ -1690,21 +1810,21 @@
       link.href = href;
       main.parentNode.insertBefore(link, main);
     };
-    if (!flexGap) addCss("css/legacy-gap.css?v=254");
-    if (compat) addCss("css/compat.css?v=254");
+    if (!flexGap) addCss("css/legacy-gap.css?v=261");
+    if (compat) addCss("css/compat.css?v=261");
 
     /* app.js only finds out it needs check.js once it has arrived and been read;
        asking for both at once saves a round trip before anything can run. */
     if (modern) {
       var pre = document.createElement("link");
       pre.rel = "modulepreload";
-      pre.href = "js/check.js?v=254";
+      pre.href = "js/check.js?v=261";
       document.head.appendChild(pre);
     }
 
     var js = document.createElement("script");
     js.type = "module";
-    js.src = modern ? "js/app.js?v=254" : "js/app.legacy.js?v=254";
+    js.src = modern ? "js/app.js?v=261" : "js/app.legacy.js?v=261";
     document.body.appendChild(js);
   })();
 </script>

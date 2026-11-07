@@ -6,6 +6,7 @@
 }
 .no-focus-visible :focus { outline: 2px solid var(--link); outline-offset: 1px; }
 .no-focus-visible tbody tr.app:focus { outline: 2px solid var(--link); outline-offset: -2px; }
+.no-focus-visible .device-row:focus { outline: 2px solid var(--blue); outline-offset: -2px; }
 .no-focus-visible tbody tr.watch-row:focus { outline: 2px solid var(--link); outline-offset: -2px; }
 .no-focus-visible tbody tr.watch-row:focus { outline: 2px solid var(--link); outline-offset: -2px; }
 @supports not (color: color-mix(in srgb, red 50%, blue)) {

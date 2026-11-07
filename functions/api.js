@@ -29,7 +29,7 @@ const asDevice = (ua, device) =>
 
 /* Only these hosts are forwarded. Without the check this is an open proxy that
    anyone who finds the address can fetch arbitrary sites through. */
-const ALLOWED = /^(graph|securecdn(-[a-z0-9-]+)?)\.oculus\.com$/;
+const ALLOWED = /^((graph|securecdn(-[a-z0-9-]+)?|realitylabs-graph)\.oculus\.com|meta\.graph\.meta\.com)$/;
 
 /* Headers worth carrying back. Content-Disposition is what makes the browser
    save an APK under its own name instead of showing it as "api".
@@ -61,7 +61,7 @@ export async function onRequest({ request, env }) {
      Meta prices by where a request comes from, and this function runs wherever
      Cloudflare serves the site — often Europe on the free plan. Downloads are not
      priced, so they stay direct. Unbound, or if the relay fails, it is direct too. */
-  const viaUs = !download && env?.US_RELAY;
+  const viaUs = !download && host === "graph.oculus.com" && env?.US_RELAY;
   const init = {
     method: isPost ? "POST" : "GET",
     headers: {

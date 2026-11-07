@@ -64,6 +64,13 @@ function readSettings() {
     return {
       token: localStorage.getItem("metadb.token") || DEFAULT_TOKEN,
       acToken: localStorage.getItem("metadb.acToken") || "",
+      /* The FRL (Meta-account) token, upleveled from the signed-in token on the
+         Settings page. Empty until the reader fetches it. For requests that need
+         the FRL-scoped bearer rather than oc_www_at. */
+      frlToken: localStorage.getItem("metadb.frlToken") || "",
+      /* The OS-updater app token (authenticate_application, app 1556285957737177),
+         saved when first minted for an OTA check so later checks reuse it. */
+      upToken: localStorage.getItem("metadb.upToken") || "",
       relay: localStorage.getItem("metadb.relay") || "",
       images: localStorage.getItem("metadb.images") === "1",
       details: localStorage.getItem("metadb.details") === "1",
@@ -142,6 +149,8 @@ function readSettings() {
     return {
       token: DEFAULT_TOKEN,
       acToken: "",
+      frlToken: "",
+      upToken: "",
       relay: "",
       images: false,
       details: false,
@@ -211,7 +220,7 @@ export function saveSettings(patch) {
 export function clearSettings() {
   settingsCache = null;
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "watchAuto", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll", "watchButtons", "setupDone", "sectionsOff", "panelsOff"]) {
+    for (const key of ["token", "acToken", "frlToken", "upToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "watchAuto", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll", "watchButtons", "setupDone", "sectionsOff", "panelsOff", "updaterOpts"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -3216,6 +3225,225 @@ export async function mintHeadsetToken(appId = HEADSET_LOGIN_APP_ID) {
     );
   }
   return minted;
+}
+
+/* ---------- combined headset sign-in tokens ----------
+   The headset's combined sign-in (META_SET_ACCESS_TOKEN_COMBINED, 2302) wants a Meta
+   (com.meta) token and a Horizon (com.oculus) profile token, both minted from an FRLA
+   token the way the Meta app does at the end of setup, plus the account id. The FRLA
+   token is the one the MetaDB Sign-in extension fills into Settings on Sign in with Meta.
+   Both mutations POST to meta.graph.meta.com/graphql with the FRLA token as the bearer
+   (no cookies, so the relay can carry them — unlike the native-SSO mint); their doc_ids,
+   app ids and variable shapes were read off the app. The response field names are not
+   known, so the token is dug out of the reply wherever it sits. */
+const META_GRAPH = "https://meta.graph.meta.com/graphql";
+const FRL_META_TOKEN_DOC_ID = "29287053794242903"; // FRLAppAuthGetMetaTokenMutation
+const FRL_META_TOKEN_APP_ID = "587541115696873";
+const FRL_HZ_PROFILE_DOC_ID = "9689738841108520"; // FRLAppAuthGetProfileTokenMutation
+const FRL_HZ_PROFILE_APP_ID = "826037204154824";
+
+/** Find an access_token anywhere in a GraphQL reply's data, whatever the field is called. */
+function digAccessToken(obj, depth = 0) {
+  if (!obj || typeof obj !== "object" || depth > 5) return null;
+  if (typeof obj.access_token === "string" && obj.access_token) return obj.access_token;
+  for (const x of Object.values(obj)) {
+    const hit = digAccessToken(x, depth + 1);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+async function frlGraphMutation(frla, docId, input) {
+  const init = {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({ access_token: frla, doc_id: docId, variables: JSON.stringify({ input }) }).toString(),
+  };
+  if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) init.signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  let res;
+  try { res = await fetch(route(META_GRAPH), init); }
+  catch { throw new Error("could not reach meta.graph.meta.com through the relay — check the relay on the Settings page"); }
+  const json = await res.json().catch(() => null);
+  if (!json) throw new Error("meta.graph returned a non-JSON reply (relay or token problem)");
+  if (json.errors?.length) throw new Error(json.errors.map((e) => e.message).join("; "));
+  if (json.error) throw new Error(json.error.message || "meta.graph refused the request");
+  return json.data;
+}
+
+/** The account id that goes with the FRLA token: graph.oculus.com/me, through the relay. */
+async function frlUserId(frla) {
+  try {
+    const res = await fetch(route(`${NODE}/me?access_token=${encodeURIComponent(frla)}&fields=id`), { headers: { Accept: "application/json" } });
+    const json = await res.json().catch(() => null);
+    return json?.id || null;
+  } catch { return null; }
+}
+
+/** Mint the headset's combined sign-in tokens from the FRL token in Settings.
+ *  Resolves to { access_token_meta, access_token_horizon_profile, user_id } for
+ *  META_SET_ACCESS_TOKEN_COMBINED, or throws with Meta's own error. */
+export async function mintCombinedHeadsetTokens() {
+  const { frlToken } = loadSettings();
+  if (!frlToken) throw new Error("no FRL token yet — press Sign in with Meta in Settings first (it fills the FRL token in)");
+
+  // Field paths confirmed against live replies: the Meta token comes back under
+  // xfr_accounts_get_session_for_app, the Horizon one under xfr_create_profile_token.
+  // digAccessToken is only a fallback if Meta ever moves them.
+  const metaData = await frlGraphMutation(frlToken, FRL_META_TOKEN_DOC_ID, {
+    app_id: FRL_META_TOKEN_APP_ID, client_mutation_id: "-1", create_new_session: true,
+  });
+  const access_token_meta = metaData?.xfr_accounts_get_session_for_app?.access_token || digAccessToken(metaData);
+  if (!access_token_meta) throw new Error("the Meta token mint returned no token — Meta replied: " + JSON.stringify(metaData).slice(0, 300));
+
+  const hzData = await frlGraphMutation(frlToken, FRL_HZ_PROFILE_DOC_ID, {
+    app_id: FRL_HZ_PROFILE_APP_ID, client_mutation_id: "-1", profile_type: "VR",
+  });
+  const access_token_horizon_profile = hzData?.xfr_create_profile_token?.profile_tokens?.[0]?.access_token || digAccessToken(hzData);
+  if (!access_token_horizon_profile) throw new Error("the Horizon profile token mint returned no token — Meta replied: " + JSON.stringify(hzData).slice(0, 300));
+
+  const user_id = await frlUserId(frlToken);
+  return { access_token_meta, access_token_horizon_profile, user_id };
+}
+
+/* ---------- the account's headsets ----------
+ * me.owned_devices: the serials of the headsets on the account and whether each is
+ * banned. doc_id + shape verified live. Uses the signed-in access token (oc_www_at). */
+const OWNED_DEVICES_DOC_ID = "9144374255617281";
+export async function ownedDevices() {
+  const { token } = loadSettings();
+  if (!token) throw new Error("sign in first — this reads the headsets on your account");
+  const json = await getJSON(`${ENDPOINT}?` + new URLSearchParams({ access_token: token, doc_id: OWNED_DEVICES_DOC_ID }));
+  const edges = json?.data?.me?.owned_devices?.edges || [];
+  return edges
+    .map((e) => ({ serial: e?.node?.serial, banStatus: e?.node?.persisted_config?.device_ban_status || null }))
+    .filter((d) => d.serial);
+}
+
+/* ---------- the OS-updater token ----------
+ * authenticate_application exchanges the FRL token for an app-scoped token for the
+ * OSUpdater app (app id 1556285957737177), the one the headset's updater uses to ask
+ * Meta for OS builds. POST (a GET is refused), verified live. */
+const UPDATER_APP_ID = "1556285957737177";
+export async function updaterToken(frl) {
+  const token = (frl || loadSettings().frlToken || "").trim();
+  if (!token) throw new Error("no FRL token — press Sign in with Meta in Settings first");
+  const res = await fetch(route("https://graph.oculus.com/authenticate_application"), {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({ access_token: token, app_id: UPDATER_APP_ID }).toString(),
+  }).catch(() => null);
+  const json = res ? await res.json().catch(() => null) : null;
+  if (!json) throw new Error("could not reach graph.oculus.com through the relay");
+  if (json.error) throw new Error(json.error.message || "the updater-token request was refused");
+  if (!json.access_token) throw new Error("no updater token came back");
+  return json.access_token;
+}
+
+/* ---------- OS-update (OTA) check ----------
+ * The same request OSUpdater makes: graph.oculus.com/firmware_ota_update with the OTA
+ * fields, the device type, the serial, and the current build number. Returns Meta's
+ * JSON: { update_interval, ota?: {download_uri, target_version, base_version, size,
+ * file_checksum, release_channel_name, formatted_build_number, semantic_version, …} }.
+ * The ota object only appears when device_type + version form a real update path.
+ * device_type is "ota.<flavor>.user" (flavor from ro.build.flavor, - and _ -> .). */
+/* The headset catalog: the hmd_type enum, confirmed live against the RegisterHmd
+   mutation (a valid type registers; an invalid one 400s). device_type for the OTA
+   query is "ota.<flavor>.user" (ro.build.flavor, - and _ -> .) — for most that is the
+   lowercase codename; MONTEREY ships as vr_monterey. The UI also has a free-text field
+   for anything not listed. hmd_type is what owned_devices / RegisterHmd use. */
+/* The Xbox edition of the Quest 3S has its own build flavor (xse_panther), so its own type,
+   though the account reports it as a PANTHER like any 3S. hwm: the hwm_device_type codenames
+   a headset reports when they differ from hmd — the Quest 1 is OCULUS_SANTA_CRUZ. */
+/* In release order — Quest 1, 2, Pro, 3, 3S, 3S Xbox Edition, VR glasses — then the
+   older and unreleased ones. Lists of headsets are sorted by this order. */
+export const OTA_DEVICE_TYPES = [
+  { hmd: "MONTEREY", hwm: ["SANTA_CRUZ"], label: "Oculus Quest", type: "ota.vr.monterey.user" },
+  { hmd: "HOLLYWOOD", label: "Quest 2", type: "ota.hollywood.user" },
+  { hmd: "SEACLIFF", label: "Quest Pro", type: "ota.seacliff.user" },
+  { hmd: "EUREKA", label: "Quest 3", type: "ota.eureka.user" },
+  { hmd: "PANTHER", label: "Quest 3S", type: "ota.panther.user" },
+  { hmd: "XSE_PANTHER", label: "Quest 3S Xbox Edition", type: "ota.xse.panther.user" },
+  { hmd: "LOMA", label: "VR glasses", type: "ota.loma.user" },
+  { hmd: "PACIFIC", label: "Oculus Go", type: "ota.pacific.user" },
+  { hmd: "GEARVR", label: "Gear VR", type: "ota.gearvr.user" },
+  { hmd: "RIFT", label: "Oculus Rift (PC)", type: "ota.rift.user" },
+  { hmd: "LAGUNA", label: "Laguna (unreleased)", type: "ota.laguna.user" },
+  { hmd: "GEMINI", label: "Gemini (unreleased)", type: "ota.gemini.user" },
+];
+
+const OTA_SELECTION = "{download_uri,target_version,base_version,extra_install_options,file_checksum,release_channel_id,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,controller_fw_version,semantic_version}";
+
+/* OSUpdater's own fallback app token (OC_ACCESS_TOKEN in OSUpdateProvider): what the
+   headset sends when Horizon hands it no user token. Lets a check run without
+   signing in, if Meta answers it for the serial. */
+export const OTA_PUBLIC_TOKEN = "OC|3733290306686872|";
+
+/** The `fields` value of an OS check, built the way OSUpdateProvider builds it:
+ *  ota[.sdk_version(N).security_patch_time(S)].show_all_paths(B)[.requested_version(N)]
+ *  [.delay_in_days(N)][.minor_release_only(true)]{…}. The headset always sends the SDK
+ *  pair (security patch "undefined" when it has none); here it is left out unless an
+ *  SDK version is given. minor_release_only is defined in the app but never sent. */
+export function otaFields(opts = {}) {
+  let ota = "ota";
+  if (opts.sdkVersion) ota += `.sdk_version(${opts.sdkVersion}).security_patch_time(${opts.securityPatch || "undefined"})`;
+  ota += `.show_all_paths(${opts.showAllPaths ? "true" : "false"})`;
+  if (opts.requestedVersion) ota += `.requested_version(${opts.requestedVersion})`;
+  if (Number(opts.delayInDays) > 0) ota += `.delay_in_days(${opts.delayInDays})`;
+  if (opts.minorReleaseOnly) ota += ".minor_release_only(true)";
+  return `update_interval,${ota}${opts.selection || OTA_SELECTION}${opts.extraFields ? `,${opts.extraFields}` : ""}`;
+}
+
+export { OTA_SELECTION };
+
+/** Any updater request, as the Updater screen builds it: a host, a path (the headset
+ *  only ever uses graph.oculus.com/firmware_ota_update) and the query parameters,
+ *  token left out. token: "" uses the saved updater token (minted when missing),
+ *  "public" OSUpdater's own app token, anything else is sent as it is. Build numbers
+ *  past 2^53 come back as strings so they survive being fed into the next check. */
+export async function otaRequest({ host = "graph.oculus.com", path = "/firmware_ota_update", params = {}, token = "" } = {}) {
+  const h = String(host).trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  if (!/^[a-z0-9.-]+\.oculus\.com$/i.test(h)) throw new Error("the relay only forwards oculus.com hosts");
+  const p = `/${String(path || "/firmware_ota_update").trim().replace(/^\/+/, "")}`;
+  const t = String(token).trim();
+  const access = t === "public" ? OTA_PUBLIC_TOKEN : t || (await otaToken({}));
+  const qs = new URLSearchParams({ access_token: access, ...params });
+  const res = await fetch(route(`https://${h}${p}?${qs}`), { headers: { Accept: "application/json" } }).catch(() => null);
+  if (res?.status === 403 && !(res.headers.get("content-type") || "").includes("json")) {
+    throw new Error(`the relay would not forward ${h}`);
+  }
+  const text = res ? await res.text().catch(() => "") : "";
+  let json = null;
+  try {
+    json = JSON.parse(text.replace(/"(target_version|base_version)":\s*(-?\d{16,})/g, '"$1":"$2"'));
+  } catch {}
+  if (!json) throw Object.assign(new Error(`could not reach ${h} through the relay`), { status: res?.status });
+  if (json.error) throw Object.assign(new Error(json.error.message || "Meta refused the request"), { code: json.error.code, status: res?.status });
+  return json;
+}
+
+/** The query string of an OS check, token left out (for showing what will be sent). */
+export function otaParams(opts) {
+  return {
+    fields: otaFields(opts),
+    device_type: opts.deviceType || "",
+    device_serial: opts.serial || "",
+    version: String(opts.version ?? -1),
+    device_managed_mode: String(opts.managedMode ?? 0),
+    full_update_only: opts.fullUpdateOnly ? "true" : "false",
+  };
+}
+
+/* The token an updater check goes out with: the public one when asked for, else the
+   saved updater token (Settings → Updater token), minted and saved when there is none
+   so later checks don't mint again. */
+async function otaToken(opts) {
+  if (opts.publicToken) return OTA_PUBLIC_TOKEN;
+  let token = (opts.token || loadSettings().upToken || "").trim();
+  if (!token) {
+    token = await updaterToken();
+    saveSettings({ upToken: token });
+  }
+  return token;
 }
 
 /** Pull an app ID out of a bare ID or a store URL. */

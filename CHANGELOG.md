@@ -15,6 +15,144 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=261 — 2026-11-07
+
+- **Updater is its own screen now (User → Updater).** OS updates moved out of the
+  headset panel; a headset's Overview has a **Check for updates** button that opens the
+  Updater with that headset picked. One **Switch to Advanced / Switch to Easy** button
+  changes the whole screen.
+- **Easy** is just your headsets: pick one or more, and each is checked with its own
+  model's device type and every update path. Every build Meta returns is listed under
+  each headset.
+- **Advanced** adds **Specific build** and opens up the OS check, all typed by hand —
+  every box starts empty and **only what you type is sent**. Use your own serial, device
+  type (Quest 3S Xbox Edition and VR glasses included), version and token. Each shows
+  exactly what will go out.
+- **Specific build** asks for one build by its incremental, or **sweeps for builds**: a
+  prefix, then a middle that counts up, then a suffix (52641960 + 0345 + 00520 is
+  52641960034500520). Set From and To to sweep part of the middle, or leave them empty
+  for 0000 to 9999. Each number is asked for as requested_version, with every path shown. Requests are paced (a
+  few a second, a few at once, both adjustable); when Meta says it is going too fast it
+  retries, then cools down and carries on, and gives up after five blocks. Stop and Find
+  again picks up where it left off, and **Save as CSV** downloads what it found.
+- **Starting a sweep is quicker:** paste any build incremental into **Sweep a build** and
+  it keeps that build's prefix and suffix and sweeps the 4 digits between them from 0000
+  to 9999 — 52641960034500520 sweeps 52641960000000520 to 52641960999900520. A whole
+  copied row (`52641960034500520    v2.9.0`) works too, and the box keeps what you put in
+  it. Builds already
+  found by the OS check, Ask or a sweep are one click away. A line under Find builds says how many
+  numbers it will try and roughly how long that takes, and points out a missing serial
+  or device type before anything is sent.
+- **Builds read Release Tag, Version, Incremental, Build Number and Release Channel**, with the date,
+  checksum and the rest under Details. Version is the semantic version with a v (e.g. v2.9.0) when
+  Meta gives one, else the build's display name.
+- **Headsets are listed in release order** — Quest 1, Quest 2, Quest Pro, Quest 3, Quest 3S,
+  Quest 3S Xbox Edition, VR glasses — on the Updater and on Headsets, where it is the new
+  default sort (A–Z and Z–A are still there).
+- On the Updater, headsets shared with you get their own row under **Shared with you**,
+  below your own.
+- A Quest 1 (which the account reports as OCULUS_SANTA_CRUZ) is now recognised as the
+  Oculus Quest and checked as ota.vr.monterey.user, and shows its picture on Headsets. A Quest
+  3S Xbox Edition is checked as ota.xse.panther.user.
+- **Rift (PC) downloads are faster and no longer held in memory.** Segments now come down
+  8 at a time instead of one after another. On Chrome and Edge, Download asks for a folder
+  and writes the game's own files into it as they arrive — the build as it installs, in
+  its own subfolder, however large — instead of packing everything into one in-memory
+  .zip. Browsers without folder access (Firefox, Safari) still get a .zip. A segment that
+  fails is retried twice before the download gives up.
+- **CompanionServer is hidden for now** while it is finished: it is gone from the Device
+  menu and the setup guide, and its address shows the not-found screen.
+- **Links that go nowhere show a 404 screen** instead of quietly opening Apps and games,
+  with the address that failed and links to the main screens.
+
+## Site v=260 — 2026-10-29
+
+- **A headset's Updates tab, redesigned and fully configurable.** Both checks, OS build and
+  System apps, now have an **Options** fold with every setting the headset's own updater
+  can send: current build, every path or only the next step, a specific target build, full
+  image only, managed mode, delay in days, Android SDK version and security patch, minor
+  releases only, the device type, and the updater's public token (so a check can run without
+  signing in). System apps can be asked about one app at a time, the way the headset checks
+  on demand. A badge on Options shows how many settings differ from the defaults, a box
+  shows the exact request that will go out, and **Reset to defaults** puts them back.
+  Choices are remembered in this browser. Left alone, the checks send what they always have.
+- OS builds show as cards reading *from build → to build*, with channel, date and a folded
+  **Details** (checksum, controller firmware, install options). System apps are a table with
+  a **Download** on each row, plus a count line giving the total size and how many need a
+  restart. Both have a **Raw reply** fold.
+- Long build numbers are no longer rounded off when an OS check's build fills the System
+  apps box.
+
+- **CompanionServer command tabs tidied and lined up.** Each feature group is now a
+  quiet card, and the cards sit in a grid so a tab reads as rows of aligned boxes instead
+  of ragged newspaper columns. Commands that are just on or off — developer mode, MTP,
+  crash reports, auto-wake and the like — are a single row with **Enable** and **Disable**
+  buttons now, instead of a checkbox or a box you type a 1 or a 0 into.
+- **The sign-in extension works in Firefox too** (128 or newer), so the Get the app steps
+  and Settings mention Firefox alongside Chrome and Edge. CompanionServer and the USB tools
+  still need Chrome or Edge — only those have Web Bluetooth and WebUSB; Firefox does not.
+
+- **The Headsets screen opens each headset into a panel.** A headset is now a row you click
+  open, the same as an app or an entitlement: a dropdown with tabs inside it. **Overview** lists
+  the headset's details (model, serial, device type, update type, ownership); **Updates** checks
+  for both OS builds and the system apps that ship with them; **Test channel** (owned headsets)
+  shows the test channel's state and the one switch to turn it on or off. The Check updates button
+  and the PTC column that used to sit on the row are gone — both live on their tab now. The table
+  reads Device · Update type · Serial · Status, filling the width so it lines up with the controls.
+- **The full headset updater, not just the OS check.** The Updates tab now runs both of the
+  requests the on-device updater makes against Meta's `firmware_ota_update` service: the **OS build**
+  (what build it would hand this headset, by serial and device type — shown with its download link),
+  and the **system apps** that ship with a given OS build (the "train" — each app with its version,
+  size, whether it needs a reboot, and its own download link). The OS build number flows into the
+  app check. Nothing is installed; you get the builds and their links.
+- **CompanionServer command tabs rebuilt.** Each tab's commands are grouped by feature (Wi-Fi,
+  Casting, Controllers, and so on) with a short heading over a clean list of rows — the command's
+  name on the left, its button or fields on the right. No more walls of description text (the
+  "what it does" note is a hover tooltip now), and the Setup tab reads as the same kind of list
+  instead of a standout wizard. The connect controls stay the one clear card at the top.
+- **FRL token added to Settings.** A third token, the FRL (Meta-account) profile token the
+  Meta Horizon app uses, sits with the Access and Account tokens. Sign in with Meta fills in
+  all three, and Refresh tokens refreshes all three; one Save tokens button saves them. Needs
+  the MetaDB Sign-in extension (1.4+) and that you are logged in to Meta in this browser.
+- **Get the FRL token without the extension.** The FRL token box has a “Get it without the
+  extension” snippet you run in the console on auth.meta.com (signed in); it mints the token
+  and copies it so you can paste it in. The login steps run on that page, the rest through
+  this site's relay.
+- **Companion Setup signs the headset in and finishes first-time setup.** The CompanionServer
+  Setup tab now has a “Sign in to your account” step, right where the Meta app does it: from
+  the FRL token it mints the Meta and Horizon profile tokens the headset wants and sends the
+  combined token (`META_SET_ACCESS_TOKEN_COMBINED`) with your account ID. The welcome flow is
+  then skipped the default way (retail skip-NUX, DEFAULT) and marked complete.
+- **Check for OS updates from the Headsets screen.** Each headset has a Check updates button
+  that asks Meta's updater service for the OS builds offered to that headset (by its serial and
+  model), the same request the on-device updater makes, and shows any build with its download
+  link. A browser can't install an OS update, so this checks + downloads only. The updater token
+  is minted from your FRL token the first time and saved in Settings (its own Updater token
+  field, next to the others) so later checks reuse it; Get updater token mints one on demand.
+- **The Setup tab reads as a guided wizard.** Numbered steps on a connecting rail, plain-language
+  titles and one action each, instead of a stack of command rows — easier to follow start to finish.
+- **CompanionServer tab tidied.** The Wi-Fi section drops the type-in-a-network and Easy Connect (QR)
+  rows — the Scan picker covers joining a network. The intro is shorter with the fine print folded
+  into a “How it works” note, and the connect controls sit in their own card with Connect as the
+  primary button.
+- If the FRL token can't be fetched, the reason now shows under the tokens instead of failing
+  silently.
+
+## Extension 1.4
+
+- Sign in with Meta now also mints the FRL (Meta-account) profile token — the token the Meta
+  Horizon app uses — from your signed-in Meta session the way the app does (native SSO →
+  `xfr_create_profile_token`), and hands it to the site with the other two. Refresh tokens
+  fetches a fresh one.
+- Fetching it opens one brief background tab on meta.com that closes itself — the login step
+  only works from a real meta.com page. You must be signed in to meta.com in this browser
+  (separate from the Oculus sign-in). Adds the "scripting" permission.
+- Works in Firefox now (version 128 or newer), as well as Chrome and Edge, from the same code:
+  Firefox uses the promise-based `browser` API and an event-page background script, Chrome and
+  Edge the `chrome` API and a service worker. Load it in Firefox from about:debugging → This
+  Firefox → Load Temporary Add-on (pick manifest.json). Sets an add-on ID (for settings storage)
+  and a minimum version of 128 (the account sign-in uses an API added there).
+
 ## Site v=254 — 2026-10-28
 
 - **Builds made for one headset now download.** Some APKs are only served to the headset

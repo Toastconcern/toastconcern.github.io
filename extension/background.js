@@ -6,6 +6,12 @@
    Nothing is sent anywhere: the tokens go from the browser's cookie jar to the
    MetaDB tab, which keeps them in its own settings, as if they were pasted. */
 
+/* Cross-browser: Firefox exposes the promise-based WebExtension API as `browser`
+   (its `chrome.*` is callback-only), while Chrome's `chrome.*` is promise-based in
+   Manifest V3. Point `chrome` at `browser` where it exists so the `await chrome.*`
+   calls below work in both. In Chrome `browser` is undefined and this is a no-op. */
+if (typeof browser !== "undefined") globalThis.chrome = browser;
+
 const LOGIN = "https://secure.oculus.com/my/profile/";
 
 async function readTokens() {
@@ -27,8 +33,16 @@ async function pending() {
 
 async function deliver(p, tokens) {
   await chrome.storage.session.remove("pending");
+  /* Mint the FRL token first, THEN re-read the oc tokens: the native-SSO flow can
+     rotate the Meta session, so the oc_www_at read before it can be the stale one
+     Meta then invalidates. Reading after the mint hands over the current ones.
+     Best-effort: a mint failure never holds up the sign-in — it comes back as frlError. */
+  let frlToken = null, frlError = null;
+  try { frlToken = await getFrlToken(); } catch (e) { frlError = e.message; console.log("[FRL] failed:", e.message); }
+  const fresh = await readTokens();
+  const out = fresh.token && fresh.acToken ? fresh : tokens;
   try {
-    await chrome.tabs.sendMessage(p.tab, { type: "tokens", ...tokens });
+    await chrome.tabs.sendMessage(p.tab, { type: "tokens", ...out, frlToken, frlError });
     await chrome.tabs.update(p.tab, { active: true });
   } catch {}
   if (p.login) chrome.tabs.remove(p.login).catch(() => {});
@@ -42,7 +56,15 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg?.type !== "sign-in" || !sender.tab) return;
   (async () => {
     const tokens = await readTokens();
-    if (tokens.token && tokens.acToken) return reply({ type: "tokens", ...tokens });
+    if (tokens.token && tokens.acToken) {
+      /* Already signed in — mint the FRL token first, then re-read the oc tokens, since
+         the native-SSO flow can rotate the Meta session and stale the ones read before it. */
+      let frlToken = null, frlError = null;
+      try { frlToken = await getFrlToken(); } catch (e) { frlError = e.message; console.log("[FRL] failed:", e.message); }
+      const fresh = await readTokens();
+      const out = fresh.token && fresh.acToken ? fresh : tokens;
+      return reply({ type: "tokens", ...out, frlToken, frlError });
+    }
     /* Not logged in to Meta in this browser: open the login, and answer once it is done. */
     const login = await chrome.tabs.create({ url: LOGIN, index: sender.tab.index + 1 });
     await chrome.storage.session.set({ pending: { tab: sender.tab.id, login: login.id } });
@@ -396,5 +418,147 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg?.type !== "store-item" || !sender.tab || !/^https:\/\/www\.meta\.com\//.test(sender.url ?? "")) return;
   if (!/^\d{6,}$/.test(String(msg.id))) return reply({ error: "That is not an app ID." });
   storePage(String(msg.id), msg.kind).then(reply, (err) => reply({ error: err.message || "Could not read this app." }));
+  return true;
+});
+
+/* ---------- FRL profile token: the Meta Horizon native-SSO flow ----------
+   Mints the app-scoped FRL token the Meta Horizon app uses:
+   webview_tokens_query -> native_sso confirm/approved -> webview_blobs_decrypt ->
+   xfr_create_profile_token. Minted alongside the sign-in tokens, and the MetaDB
+   tab can also ask for it on its own. Values recovered from com.oculus.twilight.
+
+   The graph steps (tokens_query, blobs_decrypt, graphql) are token-authed and run in
+   this worker. The native_sso confirm/approved step needs the meta.com session AND a
+   same-origin request: Meta's approval rejects a foreign Origin (error 1357004), and
+   the browser won't attach the SameSite session cookies to a worker's cross-site fetch,
+   so confirm comes back logged out. Running it in a brief background tab on auth.meta.com
+   sidesteps both — the page sends its own cookies and Origin. (A worker-only path via
+   declarativeNetRequest header rewriting works in plain Chromium but not reliably in
+   Brave, so the one tab stays.) */
+const FRL_CLIENT_TOKEN = "FRL|512466987071624|01d4a1f7fd0682aea7ee8ae987704d63";
+const FRL_NATIVE_APP_ID = "512466987071624";
+const FRL_PROFILE_APP_ID = 826037204154824; // the profile the combined-token mutations accept
+const FRL_CREATE_DOC_ID = "5787825127910775";
+
+/* The three steps. Each takes a plain args object and returns a result or { error }.
+   They must stay self-contained (no outside references) so step2 can be serialized by
+   chrome.scripting.executeScript to run inside the auth.meta.com tab. */
+async function frlStep1(a) { // graph origin: client token -> native-SSO etoken
+  try {
+    const r = await fetch("https://meta.graph.meta.com/webview_tokens_query", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+      body: new URLSearchParams({ access_token: a.client }),
+    });
+    const j = await r.json();
+    return { etoken: j.native_sso_etoken, reqtoken: j.native_sso_token };
+  } catch (e) { return { error: "webview_tokens_query: " + e.message }; }
+}
+async function frlStep2(a) { // auth origin: confirm, then approve with dtsg + jazoest + lsd
+  const form = (o) => new URLSearchParams(o);
+  const scrape = (html, term) => {
+    const m = html.match(new RegExp('"' + term + '"\\s*,\\s*\\[\\]\\s*,\\s*\\{"token":"([^"]+)"'))
+           || html.match(new RegExp('"' + term + '"[\\s\\S]{0,40}?"token":"([^"]+)"'));
+    return m ? m[1] : null;
+  };
+  try {
+    const confirmUrl = "https://auth.meta.com/native_sso/confirm?" + form({ native_app_id: a.native, native_sso_etoken: a.etoken, utm_source: "skyline_splash" });
+    const html = await (await fetch(confirmUrl, { credentials: "include" })).text();
+    const dtsg = scrape(html, "DTSGInitialData"), lsd = scrape(html, "LSD");
+    if (!dtsg || !lsd) return { error: "not signed in to Meta in this browser (no dtsg/lsd)" };
+    // jazoest = "2" + sum of the dtsg char codes; Meta's CSRF layer wants it with fb_dtsg.
+    const jazoest = "2" + [...dtsg].reduce((s, c) => s + c.charCodeAt(0), 0);
+    const body = { __a: "1", fb_dtsg: dtsg, jazoest, lsd, native_app_id: a.native, native_sso_etoken: a.etoken };
+    if (a.kabob) body.access_token = a.kabob;
+    const r = await fetch("https://auth.meta.com/api/native_sso/approved/", {
+      method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "x-fb-lsd": lsd },
+      body: form(body),
+    });
+    const bt = await r.text();
+    const blob = new URL(JSON.parse(bt.replace("for (;;);", "")).payload.uri).searchParams.get("blob");
+    return blob ? { blob } : { error: "native_sso/approved: " + bt.slice(0, 200) };
+  } catch (e) { return { error: "native_sso/approved: " + e.message }; }
+}
+async function frlStep3(a) { // graph origin: decrypt blob, then mint the profile token
+  const form = (o) => new URLSearchParams(o);
+  const opt = (b) => ({ method: "POST", credentials: "include", headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }, body: b });
+  try {
+    let j = await (await fetch("https://meta.graph.meta.com/webview_blobs_decrypt", opt(form({ access_token: a.client, blob: a.blob, request_token: a.reqtoken })))).json();
+    const first = j.access_token;
+    if (!first) return { error: "webview_blobs_decrypt: " + JSON.stringify(j).slice(0, 180) };
+    j = await (await fetch("https://meta.graph.meta.com/graphql", opt(form({ doc_id: a.doc, variables: JSON.stringify({ app_id: a.appId }), access_token: first })))).json();
+    const tkn = j?.data?.xfr_create_profile_token?.profile_tokens?.[0]?.access_token;
+    return tkn ? { frlToken: tkn } : { error: "xfr_create_profile_token: " + JSON.stringify(j).slice(0, 180) };
+  } catch (e) { return { error: "blobs_decrypt/create: " + e.message }; }
+}
+
+// Open a background tab on `url`, run `func(args)` in its page (MAIN world) so its
+// fetches are same-origin and carry the page's own Meta cookies + Origin, return the
+// result, and close the tab. active:false keeps it in the background (no focus steal).
+async function frlRunInTab(url, func, args) {
+  const tab = await chrome.tabs.create({ url, active: false });
+  try {
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { cleanup(); reject(new Error("timed out loading " + new URL(url).host)); }, 30000);
+      const onUpdated = (id, info) => { if (id === tab.id && info.status === "complete") { cleanup(); resolve(); } };
+      const onRemoved = (id) => { if (id === tab.id) { cleanup(); reject(new Error("tab closed")); } };
+      function cleanup() { clearTimeout(timer); chrome.tabs.onUpdated.removeListener(onUpdated); chrome.tabs.onRemoved.removeListener(onRemoved); }
+      chrome.tabs.onUpdated.addListener(onUpdated);
+      chrome.tabs.onRemoved.addListener(onRemoved);
+    });
+    const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func, args: [args] });
+    return result;
+  } finally {
+    chrome.tabs.remove(tab.id).catch(() => {});
+  }
+}
+
+// A dead meta.com session (password change, or Meta security) shows up mid-flow as
+// "The session has been invalidated…" / "Error validating access token" (code 190).
+// No token can be minted from a dead session, so say plainly what to do rather than
+// surfacing Meta's raw text.
+function frlSessionDead(msg) {
+  return /session has been invalidated|validating access token|\(#?190\)|\bcode"?:?\s*190\b/i.test(msg || "");
+}
+
+// Graph steps run here in the worker (token-authed, no cookies needed). The login-gated
+// confirm/approved step runs in a brief background auth.meta.com tab so it carries the
+// page's own cookies and Origin — the only reliable way in Brave. Logs each step.
+async function getFrlToken(kabob) {
+  try {
+    return await frlMint(kabob);
+  } catch (e) {
+    if (frlSessionDead(e.message)) {
+      throw new Error("Your meta.com login has been invalidated (a password change, or Meta ended the session for security). Open meta.com, sign out and sign back in, then try again.");
+    }
+    throw e;
+  }
+}
+
+async function frlMint(kabob) {
+  const s1 = await frlStep1({ client: FRL_CLIENT_TOKEN });
+  console.log("[FRL] step1 tokens_query:", s1.etoken ? "ok" : JSON.stringify(s1).slice(0, 300));
+  if (s1.error || !s1.etoken) throw new Error("step1 " + (s1.error || "no etoken"));
+
+  const s2 = await frlRunInTab("https://auth.meta.com/language", frlStep2,
+    { native: FRL_NATIVE_APP_ID, etoken: s1.etoken, kabob: kabob || "" });
+  console.log("[FRL] step2 confirm+approved:", s2.blob ? "ok (got blob)" : JSON.stringify(s2).slice(0, 300));
+  if (s2.error || !s2.blob) {
+    if (/no dtsg\/lsd/.test(s2.error || "")) {
+      throw new Error("not logged in to meta.com — open https://www.meta.com in this browser and sign in there (separate from the Oculus sign-in), then press Refresh tokens");
+    }
+    throw new Error("step2 " + (s2.error || "no blob"));
+  }
+
+  const s3 = await frlStep3({ client: FRL_CLIENT_TOKEN, blob: s2.blob, reqtoken: s1.reqtoken, doc: FRL_CREATE_DOC_ID, appId: FRL_PROFILE_APP_ID });
+  console.log("[FRL] step3 decrypt+create:", s3.frlToken ? "ok (got token)" : JSON.stringify(s3).slice(0, 300));
+  if (s3.error || !s3.frlToken) throw new Error("step3 " + (s3.error || "no token"));
+  return s3.frlToken;
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (msg?.type !== "frl-token" || !sender.tab) return;
+  getFrlToken(msg.token).then((frlToken) => reply({ type: "frl-token", frlToken }), (err) => reply({ type: "error", message: err.message }));
   return true;
 });

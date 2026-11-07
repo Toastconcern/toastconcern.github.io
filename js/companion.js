@@ -25,7 +25,7 @@
  * MetaDB is not affiliated with Meta.
  */
 
-import { deviceSecrets, loadSecrets, saveSecrets, clearSecrets, loadSettings, viewerId, mintHeadsetToken } from "./check.js?v=254";
+import { deviceSecrets, loadSecrets, saveSecrets, clearSecrets, loadSettings, viewerId, mintHeadsetToken, mintCombinedHeadsetTokens } from "./check.js?v=261";
 
 /* ---------- constants ---------- */
 
@@ -40,7 +40,7 @@ const HELLO_APP_VERSION = "5.8.0";
    CompanionServer versionCode 29 (Quest OS v50). The wire format is identical —
    v50 just supports fewer methods, so it gets a proto with the newer methods
    trimmed out, which is what narrows its command list. */
-const PROTO_VERSION = "254";
+const PROTO_VERSION = "261";
 const PROTO_FILES = {
   latest: "../data/companion.proto",
   v50: "../data/companion-v50.proto",
@@ -247,6 +247,28 @@ function defaultBtnLabel(title) {
   return "Run";
 }
 
+/* An on/off command — one whose single editable input is a boolean, or a number
+   whose help spells out "1 to enable, 0 to disable" (that is DEV_MODE's `mode`).
+   These render as one row with Enable / Disable buttons instead of a checkbox or a
+   bare 1/0 box. Returns { field, on, off } or null. `full_ota` is a flavour flag on
+   an action (check / install), not an on/off switch, so it stays an ordinary field. */
+function detectToggle(cmd, reqType) {
+  if (!reqType) return null;
+  const fields = reqType.fieldsArray;
+  if (cmd.ui === "toggle") {
+    const bf = fields.find((f) => f.type === "bool");
+    return bf ? { field: bf.name, on: true, off: false } : null;
+  }
+  if (fields.length !== 1) return null;
+  const f = fields[0];
+  if (f.type === "bool") return f.name === "full_ota" ? null : { field: f.name, on: true, off: false };
+  const help = (cmd.fieldHelp && cmd.fieldHelp[f.name]) || "";
+  const numeric = /^(u?int|sint)(32|64)$/.test(f.type);
+  if (numeric && /enabl/i.test(help) && /disabl/i.test(help) && /\b0\b/.test(help) && /\b1\b/.test(help)) {
+    return { field: f.name, on: 1, off: 0 };
+  }
+  return null;
+}
 
 function buildFeatures(methods, type) {
   const byTab = {};
@@ -267,12 +289,15 @@ function buildFeatures(methods, type) {
       custom: false,
     };
 
+    const reqType = cmd.requestType ? type(cmd.requestType) : null;
+    const toggle = detectToggle(cmd, reqType);
+
     let commands = [];
-    if (cmd.ui === "toggle" && cmd.requestType) {
-      commands.push({ ...base, id: cmd.name + "_ENABLE", title: "Enable", fixed: { enable: true } });
-      commands.push({ ...base, id: cmd.name + "_DISABLE", title: "Disable", fixed: { enable: false } });
+    if (toggle) {
+      /* One command, rendered as a single Enable/Disable row (see renderToggle). */
+      base.toggle = toggle;
+      commands.push(base);
     } else {
-      const reqType = cmd.requestType ? type(cmd.requestType) : null;
       if (reqType) {
         for (const f of reqType.fieldsArray) {
           const p = paramForField(f);
@@ -294,7 +319,7 @@ function buildFeatures(methods, type) {
         secondary: [],
       });
       if (cmd.priority !== undefined && g.priority === undefined) g.priority = cmd.priority;
-      if (cmd.primary && cmd.ui !== "toggle") g.primary = c;
+      if (cmd.primary && !c.toggle) g.primary = c;
       else g.secondary.push(c);
     }
   }
@@ -412,23 +437,34 @@ function customPayloads(client) {
       buttonLabel: "Sign in",
       help:
         "Signs the headset into your Oculus/Horizon account. Your plain token won't work — the headset rejects it — so, like the Meta app, MetaDB mints a short-lived app-scoped login token from your signed-in account and sends that with your account ID. Press Sign in. The headset must be on Wi-Fi and unlocked. If Meta rejects the mint, the exact error shows below.",
-      params: [
-        { name: "user_id", type: "text", label: "Your account ID", help: "Your account's numeric ID, from your signed-in session. Filled in for you." },
-      ],
-      onForm: (inputs) => {
-        (async () => {
-          let uid = null;
-          try { uid = await viewerId(); } catch {}
-          if (uid) inputs.user_id.input.value = uid;
-        })();
-      },
+      params: [],
       // Async: mint the app-scoped token first (the raw Settings token is only the
-      // bearer, inside check.js), then build the request the headset accepts.
-      build: async (f) => {
+      // bearer, inside check.js), then build the request the headset accepts. The
+      // account id is fetched here and sent, never shown on screen.
+      build: async () => {
         const token = await mintHeadsetToken();
         const req = { access_token: token };
-        const uid = (f.user_id || "").trim();
+        let uid = null;
+        try { uid = await viewerId(); } catch {}
         if (uid) req.user_id = uid;
+        return req;
+      },
+    },
+    /* The combined sign-in the Meta app sends at the end of setup: a Meta token and a
+       Horizon profile token, both minted from the FRL token in Settings, with the
+       account id. salsa_account/salsa_status are the Guardian flags the app sends
+       (off / 1). This is what actually signs a modern headset in; the Oculus-only
+       token above is the legacy path. Needs the FRL token filled in (Sign in with Meta). */
+    META_SET_ACCESS_TOKEN_COMBINED: {
+      title: "Sign the headset into your account",
+      buttonLabel: "Sign in",
+      help:
+        "Signs the headset into your Meta/Horizon account the way the Meta app does at the end of setup. From the FRL token in Settings it mints a Meta token and a Horizon profile token and sends both with your account ID. Fill in the FRL token first (press Sign in with Meta in Settings). The headset must be on Wi-Fi and unlocked.",
+      params: [],
+      build: async () => {
+        const { access_token_meta, access_token_horizon_profile, user_id } = await mintCombinedHeadsetTokens();
+        const req = { access_token_meta, access_token_horizon_profile, salsa_account: false, salsa_status: 1 };
+        if (user_id) req.user_id = user_id;
         return req;
       },
     },
@@ -447,6 +483,38 @@ function customPayloads(client) {
       }),
     },
   };
+}
+
+/* Tidy a schema @@group title ("WI-FI STATUS & STATE", "CASTING CONTROL") into a
+   short sentence-case category label for the heading over its commands. */
+function cleanGroupLabel(g) {
+  let s = String(g || "")
+    .toLowerCase()
+    .replace(/\s*\(.*?\)\s*/g, " ")
+    .replace(/\s*&\s*(info|state)\b/g, "")
+    .replace(/\bstatus & state\b/g, "")
+    .replace(/\s+status\b/g, "")
+    .replace(/\s+control\b/g, "")
+    .replace(/\s+settings\b/g, "")
+    .replace(/\s+actions\b/g, "")
+    .replace(/\s+features\b/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (!s) s = String(g || "").toLowerCase();
+  s = s.charAt(0).toUpperCase() + s.slice(1);
+  /* Put back the terms that read wrong lower-cased. */
+  return s
+    .replace(/\bwi-?fi\b/gi, "Wi-Fi")
+    .replace(/\bota\b/gi, "OTA")
+    .replace(/\badb\b/gi, "ADB")
+    .replace(/\bmtp\b/gi, "MTP")
+    .replace(/\bnux\b/gi, "NUX")
+    .replace(/\bpin\b/gi, "PIN")
+    .replace(/\bled\b/gi, "LED")
+    .replace(/\busb\b/gi, "USB")
+    .replace(/\btcp\b/gi, "TCP")
+    .replace(/\bos\b/gi, "OS")
+    .replace(/\boculus\b/gi, "Oculus");
 }
 
 const extraCommands = {
@@ -637,8 +705,7 @@ function wifiPicker(client) {
   scanBtn.textContent = "Scan for networks";
   const note = document.createElement("p");
   note.className = "wifi-note";
-  note.textContent =
-    "Ask the headset what it can see, then press Join. A network that does not broadcast its name will not appear — type that one in below and tick Hidden network.";
+  note.textContent = "";
   bar.append(scanBtn, note);
 
   const list = document.createElement("ul");
@@ -1392,6 +1459,7 @@ export async function initCompanion(section) {
     state: section.querySelector("#companionState"),
     tabs: section.querySelector("#companionTabs"),
     panels: section.querySelector("#companionPanels"),
+    card: section.querySelector("#companionConnectCard"),
   };
 
   // Rebuild the command panels next connect if the protocol variant changed.
@@ -1559,6 +1627,9 @@ export async function initCompanion(section) {
   function setState(text, kind) {
     el.state.textContent = text;
     el.state.dataset.kind = kind || "";
+    /* The card borrows the same accent on its left edge, so "connected" reads
+       at a glance from the whole card, not just the line of text. */
+    if (el.card) el.card.dataset.state = kind || "";
   }
 
   /* Build the tabbed command panels once the deps are loaded. */
@@ -1580,7 +1651,13 @@ export async function initCompanion(section) {
       sections.push({
         label: titleCase(feature.tab),
         fill: (panel) => {
-          for (const group of feature.groups) panel.appendChild(renderGroup(group, patches));
+          /* Commands grouped by feature (Wi-Fi, Casting, Controllers…), each a short
+             heading over a list of rows — name on the left, its control on the right.
+             The groups flow into columns so a tab fills the width. No descriptions. */
+          const body = document.createElement("div");
+          body.className = "companion-groups";
+          for (const group of feature.groups) body.appendChild(renderFeatureGroup(group, patches));
+          panel.appendChild(body);
         },
       });
     }
@@ -1645,137 +1722,116 @@ export async function initCompanion(section) {
     // the network step is just that group rendered here too.
     const wifiGroup = deps.methods.some((m) => m.name === "WIFI_CONNECT") ? findGroup("WIFI_CONNECT") : null;
     const secret = findCmd("OCULUS_SET_USER_SECRET");
+    const signin = findCmd("META_SET_ACCESS_TOKEN_COMBINED");
     const time = findCmd("TIME_SET");
+    const skipNux = findCmd("RETAIL_SKIP_FIRST_TIME_NUX");
     const nux = findCmd("NUX_COMPLETED");
 
-    if (!wifiGroup && !secret && !time && !nux) return null;
+    if (!wifiGroup && !secret && !signin && !time && !skipNux && !nux) return null;
 
-    // A shallow retitle so a row can read the way this tab frames it, without
-    // touching the shared command object.
-    const retitled = (cmd, title) => ({ ...cmd, title });
+    /* A shallow retitle so a row reads the way setup frames it, without touching
+       the shared command object. */
+    const titled = (cmd, title) => ({ ...cmd, title });
 
-    /* One numbered step: an ordinary group whose heading is prefixed with its
-       number ("1. …"), a line of plain guidance, then the controls. No badge or
-       other chrome — it reads like every other group. */
-    let stepNo = 0;
-    const step = (title, note, ...nodes) => {
-      const n = ++stepNo;
-      const wrap = document.createElement("section");
-      wrap.className = "companion-group companion-step";
-      const h = document.createElement("h3");
-      h.textContent = n + ". " + title;
-      wrap.appendChild(h);
-      if (note) {
-        const p = document.createElement("p");
-        p.className = "companion-step-note";
-        p.textContent = note;
-        wrap.appendChild(p);
-      }
-      for (const node of nodes) if (node) wrap.appendChild(node);
-      return wrap;
-    };
-
+    /* The first-run steps in order, as one plain list in the same group-and-row
+       style as every other tab — so Setup no longer stands out as a wizard. A small
+       step number marks the order; the "what the app does here" guidance lives in
+       each row's tooltip rather than as a paragraph. */
     return {
       label: "Setup",
       fill: (panel) => {
-        const intro = document.createElement("p");
-        intro.className = "companion-setup-intro";
-        intro.textContent =
-          "The same first-time setup the Meta app walks a new headset through, in the same order. Connect at the top of the page first, then work down these. Each step says what the app does at that point. Skip any that doesn't apply.";
-        panel.appendChild(intro);
+        const sec = document.createElement("section");
+        sec.className = "companion-group companion-group--setup";
+        const h = document.createElement("h4");
+        h.className = "companion-group-title";
+        h.textContent = "First-time setup";
+        sec.appendChild(h);
 
-        // Claim is first and required for a new/factory-reset headset: until it is
-        // claimed the headset accepts nothing but OCULUS_SET_USER_SECRET, exactly
-        // as the app does it during pairing. An already-claimed headset skips it.
-        if (secret) {
-          panel.appendChild(
-            step(
-              "Claim the headset (set its device secret)",
-              "First, like the app does while pairing a brand-new or just-factory-reset headset: a headset that isn't tied to anyone yet accepts nothing else until you claim it. Put a 64-character secret in the box at the top of the page, then press Set — it becomes the key the headset trusts, and the one you'll authenticate with from now on. An already-claimed headset ignores this; skip to Wi-Fi.",
-              renderCommand(retitled(secret, "Set device secret"), patches, false)
-            )
-          );
-        }
+        let n = 0;
+        const addStep = (title, cmd) => sec.appendChild(renderCommand(titled(cmd, title), patches, { stepNo: ++n }));
 
-        // The app's order after pairing/claim: Wi-Fi → account → set time → finish.
-        // Wi-Fi is a hard prerequisite — the account cannot sign in and the headset
-        // cannot update until it is online.
+        if (secret) addStep("Claim the headset — set its device secret", secret);
         if (wifiGroup) {
-          const wifiBody = document.createElement("div");
-          renderGroupInto(wifiBody, wifiGroup, patches, { headless: true });
-          panel.appendChild(
-            step(
-              "Get it onto Wi-Fi",
-              "The headset must be online before it can sign in or update. Press Scan, pick your network, and type the password. A network it has joined before rejoins with no password.",
-              wifiBody
-            )
-          );
+          /* The Wi-Fi step is the Scan picker, not a single button, so it is built
+             by hand with its step number and the picker under it. */
+          const row = document.createElement("div");
+          row.className = "companion-cmd companion-cmd--wide";
+          const label = document.createElement("div");
+          label.className = "companion-cmd-title";
+          const num = document.createElement("span");
+          num.className = "companion-cmd-step";
+          num.textContent = ++n + ".";
+          label.append(num, document.createTextNode(" Get it onto Wi-Fi"));
+          row.appendChild(label);
+          row.appendChild(wifiPicker(client));
+          sec.appendChild(row);
         }
-        if (time) {
-          panel.appendChild(
-            step(
-              "Set the time",
-              "Same as the app near the end of setup: set the headset's clock to your phone/computer's time and time zone. One press — nothing to fill in.",
-              renderCommand(retitled(time, "Set time now"), patches, false)
-            )
-          );
-        }
-        if (nux) {
-          panel.appendChild(
-            step(
-              "Finish setup",
-              "Marks the in-headset first-time setup complete — the app's “You're all set” — so the headset lands on Home instead of walking the welcome flow again. (The app then does consents, controllers and an avatar; those are not over Bluetooth.)",
-              renderCommand(retitled(nux, "Finish"), patches, false)
-            )
-          );
-        }
+        if (signin) addStep("Sign in to your account", signin);
+        if (time) addStep("Set the time", time);
+        if (skipNux) addStep("Skip the welcome flow", { ...skipNux, params: [], fixed: { skip_nux_type: 0 } });
+        if (nux) addStep("Finish setup", nux);
+
+        panel.appendChild(sec);
       },
     };
   }
 
-  /* Fill a container with a group's commands. headless skips the group's own
-     heading, which the Setup tab does because its step already has one. */
-  function renderGroupInto(wrap, group, patches, opts = {}) {
-    if (!opts.headless) {
-      const h = document.createElement("h3");
-      h.textContent = group.title;
-      wrap.appendChild(h);
+  /* One feature group: a short heading, then its commands as rows. The Wi-Fi group
+     grows the Scan picker at its top and spans the full width. */
+  function renderFeatureGroup(group, patches) {
+    const sec = document.createElement("section");
+    sec.className = "companion-group";
+    const h = document.createElement("h4");
+    h.className = "companion-group-title";
+    h.textContent = cleanGroupLabel(group.title);
+    sec.appendChild(h);
+
+    const cmds = group.primary ? [group.primary, ...group.secondary] : [...group.secondary];
+    if (cmds.some((c) => c.methodName === "WIFI_CONNECT")) {
+      sec.classList.add("companion-group--wide");
+      sec.appendChild(wifiPicker(client));
     }
-    const cmds = [];
-    if (group.primary) cmds.push([group.primary, true]);
-    for (const c of group.secondary) cmds.push([c, false]);
-    /* Whichever group the schema puts WIFI_CONNECT in, the picker leads it and
-       the typed-in row sits underneath as the fallback. */
-    if (cmds.some(([c]) => c.methodName === "WIFI_CONNECT")) wrap.appendChild(wifiPicker(client));
-    for (const [c, primary] of cmds) wrap.appendChild(renderCommand(c, patches, primary));
+    for (const c of cmds) {
+      if (c.methodName === "WIFI_CONNECT" || c.methodName === "WIFI_EASY_CONNECT") continue;
+      sec.appendChild(renderCommand(c, patches));
+    }
+    return sec;
   }
 
-  function renderGroup(group, patches) {
-    const wrap = document.createElement("section");
-    wrap.className = "companion-group";
-    renderGroupInto(wrap, group, patches);
-    return wrap;
-  }
-
-  function renderCommand(cmd, patches, primary) {
-    /* A fixed-payload command (Stop mirroring, Enable/Disable) shares its method
-       with the editable one, but not its title, button or form. */
+  /* One command as a row: its name on the left, its control (a button, or fields
+     plus a button) on the right. The "what it does" help becomes a hover tooltip,
+     not a visible line — the names and buttons carry the screen. */
+  function renderCommand(cmd, patches, opts = {}) {
+    /* An on/off command is one tidy row: its name, then Enable / Disable buttons. */
+    if (cmd.toggle) return renderToggle(cmd, opts);
+    /* A fixed-payload command (Stop mirroring) shares its method with the editable
+       one, but not its title, button or form. */
     const patch = cmd.fixed ? null : patches[cmd.methodName];
     const params = patch && patch.params ? patch.params : cmd.params;
-    const title = (patch && patch.title) || cmd.title;
+    const title = opts.title || (patch && patch.title) || cmd.title;
     const btnLabel = (patch && patch.buttonLabel) || cmd.buttonLabel || defaultBtnLabel(title);
     const help = (patch && patch.help) || cmd.help;
 
     const row = document.createElement("div");
-    row.className = "companion-cmd" + (primary ? " is-primary" : "");
+    row.className = "companion-cmd";
+
+    /* The name, with the step number ahead of it on the Setup tab. The help, where
+       there is any, rides along as a hover tooltip rather than a visible line. */
+    const label = document.createElement("div");
+    label.className = "companion-cmd-title";
+    if (opts.stepNo) {
+      const num = document.createElement("span");
+      num.className = "companion-cmd-step";
+      num.textContent = opts.stepNo + ".";
+      label.append(num, document.createTextNode(" " + title));
+    } else {
+      label.textContent = title;
+    }
+    if (help) label.title = help;
+    row.appendChild(label);
 
     const form = document.createElement("form");
     form.className = "companion-cmd-form";
-
-    const label = document.createElement("span");
-    label.className = "companion-cmd-title";
-    label.textContent = title;
-    form.appendChild(label);
 
     const inputs = {};
     for (const p of params) {
@@ -1833,15 +1889,70 @@ export async function initCompanion(section) {
       }
     });
 
-    /* A sentence under the row saying what this command does and what it needs,
-       so the row reads on its own without the schema open beside it. */
-    if (help) {
-      const h = document.createElement("p");
-      h.className = "companion-cmd-help";
-      h.textContent = help;
-      row.appendChild(h);
-    }
+    row.appendChild(form);
+    row.appendChild(out);
+    return row;
+  }
 
+  /* An on/off command: its name on the left, Enable and Disable buttons on the
+     right. Each button sends the command with its one field set on or off, so the
+     reader never types a 1 or a 0. The two share one result line below. */
+  function renderToggle(cmd, opts = {}) {
+    /* "Enable Developer Mode" reads oddly beside an Enable button, so drop a leading
+       "Enable " — the button carries the verb. */
+    const title = (opts.title || cmd.title || "").replace(/^Enable\s+/i, "");
+    const help = cmd.help;
+
+    const row = document.createElement("div");
+    row.className = "companion-cmd companion-cmd--toggle";
+
+    const label = document.createElement("div");
+    label.className = "companion-cmd-title";
+    if (opts.stepNo) {
+      const num = document.createElement("span");
+      num.className = "companion-cmd-step";
+      num.textContent = opts.stepNo + ".";
+      label.append(num, document.createTextNode(" " + title));
+    } else {
+      label.textContent = title;
+    }
+    if (help) label.title = help;
+    row.appendChild(label);
+
+    const form = document.createElement("div");
+    form.className = "companion-cmd-form";
+    const pair = document.createElement("div");
+    pair.className = "companion-toggle";
+
+    const out = document.createElement("pre");
+    out.className = "companion-result";
+    out.hidden = true;
+
+    const btns = [];
+    const make = (text, value) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = text;
+      b.addEventListener("click", async () => {
+        if (cmd.confirm && !confirm(cmd.confirm)) return;
+        for (const x of btns) x.disabled = true;
+        const was = b.textContent;
+        b.textContent = "…";
+        try {
+          const res = await client.execute(cmd.methodName, { [cmd.toggle.field]: value });
+          showResult(out, res, false);
+        } catch (err) {
+          showResult(out, { code: -1, error: { message: err.message } }, true);
+        } finally {
+          for (const x of btns) x.disabled = false;
+          b.textContent = was;
+        }
+      });
+      btns.push(b);
+      return b;
+    };
+    pair.append(make("Enable", cmd.toggle.on), make("Disable", cmd.toggle.off));
+    form.appendChild(pair);
     row.appendChild(form);
     row.appendChild(out);
     return row;
@@ -1894,13 +2005,11 @@ export async function initCompanion(section) {
       wrap.appendChild(cap);
       wrap.appendChild(input);
     }
-    /* The per-slot "what goes here / where to get it" line, dropped under the
-       input. It breaks to its own row so it never squeezes the field's width. */
+    /* The per-slot "what goes here" guidance rides along as a tooltip on the field,
+       rather than a visible line, to keep the row clean. */
     if (p.help) {
-      const hint = document.createElement("span");
-      hint.className = "companion-help";
-      hint.textContent = p.help;
-      wrap.appendChild(hint);
+      input.title = p.help;
+      cap.title = p.help;
     }
     return wrap;
   }

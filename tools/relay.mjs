@@ -27,7 +27,7 @@ import { pipeline } from "node:stream/promises";
 import { readFileSync } from "node:fs";
 
 const PORT = Number(process.env.PORT) || 8788;
-const ALLOWED = /^https:\/\/(graph|www|securecdn(-[a-z0-9-]+)?)\.oculus\.com\//;
+const ALLOWED = /^https:\/\/((graph|www|securecdn(-[a-z0-9-]+)?|realitylabs-graph)\.oculus\.com|meta\.graph\.meta\.com)\//;
 
 /* Every request goes out as the headset's own app manager (OCMS) sends it: its
    User-Agent (carrying the OCMS version), the OS build header, and the language

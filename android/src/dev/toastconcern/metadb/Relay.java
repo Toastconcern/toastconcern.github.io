@@ -63,7 +63,7 @@ final class Relay {
     static final String LANGUAGE = "en-US,en;q=0.6";
 
     private static final Pattern ALLOWED =
-            Pattern.compile("^https://(graph|www|securecdn(-[a-z0-9-]+)?)\\.oculus\\.com/.*");
+            Pattern.compile("^https://((graph|www|securecdn(-[a-z0-9-]+)?|realitylabs-graph)\\.oculus\\.com|meta\\.graph\\.meta\\.com)/.*");
 
     private static volatile boolean started;
 

@@ -2384,6 +2384,13 @@ function readSettings() {
     return {
       token: localStorage.getItem("metadb.token") || DEFAULT_TOKEN,
       acToken: localStorage.getItem("metadb.acToken") || "",
+      /* The FRL (Meta-account) token, upleveled from the signed-in token on the
+         Settings page. Empty until the reader fetches it. For requests that need
+         the FRL-scoped bearer rather than oc_www_at. */
+      frlToken: localStorage.getItem("metadb.frlToken") || "",
+      /* The OS-updater app token (authenticate_application, app 1556285957737177),
+         saved when first minted for an OTA check so later checks reuse it. */
+      upToken: localStorage.getItem("metadb.upToken") || "",
       relay: localStorage.getItem("metadb.relay") || "",
       images: localStorage.getItem("metadb.images") === "1",
       details: localStorage.getItem("metadb.details") === "1",
@@ -2456,6 +2463,8 @@ function readSettings() {
     return {
       token: DEFAULT_TOKEN,
       acToken: "",
+      frlToken: "",
+      upToken: "",
       relay: "",
       images: false,
       details: false,
@@ -2512,7 +2521,7 @@ function saveSettings(patch) {
 function clearSettings() {
   settingsCache = null;
   try {
-    for (const key of ["token", "acToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "watchAuto", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll", "watchButtons", "setupDone", "sectionsOff", "panelsOff"]) {
+    for (const key of ["token", "acToken", "frlToken", "upToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "watchAuto", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll", "watchButtons", "setupDone", "sectionsOff", "panelsOff", "updaterOpts"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {
@@ -4363,6 +4372,87 @@ async function riftSegmentBytes(segmentsBaseUri, sha256) {
   return new Uint8Array(await res.arrayBuffer());
 }
 var canDownload = () => Boolean(loadSettings().acToken);
+var UPDATER_APP_ID = "1556285957737177";
+async function updaterToken(frl) {
+  const token = (frl || loadSettings().frlToken || "").trim();
+  if (!token) throw new Error("no FRL token \u2014 press Sign in with Meta in Settings first");
+  const res = await fetch(route("https://graph.oculus.com/authenticate_application"), {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
+    body: new URLSearchParams({ access_token: token, app_id: UPDATER_APP_ID }).toString()
+  }).catch(() => null);
+  const json = res ? await res.json().catch(() => null) : null;
+  if (!json) throw new Error("could not reach graph.oculus.com through the relay");
+  if (json.error) throw new Error(json.error.message || "the updater-token request was refused");
+  if (!json.access_token) throw new Error("no updater token came back");
+  return json.access_token;
+}
+var OTA_DEVICE_TYPES = [
+  { hmd: "MONTEREY", hwm: ["SANTA_CRUZ"], label: "Oculus Quest", type: "ota.vr.monterey.user" },
+  { hmd: "HOLLYWOOD", label: "Quest 2", type: "ota.hollywood.user" },
+  { hmd: "SEACLIFF", label: "Quest Pro", type: "ota.seacliff.user" },
+  { hmd: "EUREKA", label: "Quest 3", type: "ota.eureka.user" },
+  { hmd: "PANTHER", label: "Quest 3S", type: "ota.panther.user" },
+  { hmd: "XSE_PANTHER", label: "Quest 3S Xbox Edition", type: "ota.xse.panther.user" },
+  { hmd: "LOMA", label: "VR glasses", type: "ota.loma.user" },
+  { hmd: "PACIFIC", label: "Oculus Go", type: "ota.pacific.user" },
+  { hmd: "GEARVR", label: "Gear VR", type: "ota.gearvr.user" },
+  { hmd: "RIFT", label: "Oculus Rift (PC)", type: "ota.rift.user" },
+  { hmd: "LAGUNA", label: "Laguna (unreleased)", type: "ota.laguna.user" },
+  { hmd: "GEMINI", label: "Gemini (unreleased)", type: "ota.gemini.user" }
+];
+var OTA_SELECTION = "{download_uri,target_version,base_version,extra_install_options,file_checksum,release_channel_id,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,controller_fw_version,semantic_version}";
+var OTA_PUBLIC_TOKEN = "OC|3733290306686872|";
+function otaFields(opts = {}) {
+  let ota = "ota";
+  if (opts.sdkVersion) ota += `.sdk_version(${opts.sdkVersion}).security_patch_time(${opts.securityPatch || "undefined"})`;
+  ota += `.show_all_paths(${opts.showAllPaths ? "true" : "false"})`;
+  if (opts.requestedVersion) ota += `.requested_version(${opts.requestedVersion})`;
+  if (Number(opts.delayInDays) > 0) ota += `.delay_in_days(${opts.delayInDays})`;
+  if (opts.minorReleaseOnly) ota += ".minor_release_only(true)";
+  return `update_interval,${ota}${opts.selection || OTA_SELECTION}${opts.extraFields ? `,${opts.extraFields}` : ""}`;
+}
+async function otaRequest({ host = "graph.oculus.com", path = "/firmware_ota_update", params = {}, token = "" } = {}) {
+  const h = String(host).trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  if (!/^[a-z0-9.-]+\.oculus\.com$/i.test(h)) throw new Error("the relay only forwards oculus.com hosts");
+  const p = `/${String(path || "/firmware_ota_update").trim().replace(/^\/+/, "")}`;
+  const t = String(token).trim();
+  const access = t === "public" ? OTA_PUBLIC_TOKEN : t || await otaToken({});
+  const qs = new URLSearchParams({ access_token: access, ...params });
+  const res = await fetch(route(`https://${h}${p}?${qs}`), { headers: { Accept: "application/json" } }).catch(() => null);
+  if ((res == null ? void 0 : res.status) === 403 && !(res.headers.get("content-type") || "").includes("json")) {
+    throw new Error(`the relay would not forward ${h}`);
+  }
+  const text = res ? await res.text().catch(() => "") : "";
+  let json = null;
+  try {
+    json = JSON.parse(text.replace(/"(target_version|base_version)":\s*(-?\d{16,})/g, '"$1":"$2"'));
+  } catch {
+  }
+  if (!json) throw Object.assign(new Error(`could not reach ${h} through the relay`), { status: res == null ? void 0 : res.status });
+  if (json.error) throw Object.assign(new Error(json.error.message || "Meta refused the request"), { code: json.error.code, status: res == null ? void 0 : res.status });
+  return json;
+}
+function otaParams(opts) {
+  var _a2, _b2;
+  return {
+    fields: otaFields(opts),
+    device_type: opts.deviceType || "",
+    device_serial: opts.serial || "",
+    version: String((_a2 = opts.version) != null ? _a2 : -1),
+    device_managed_mode: String((_b2 = opts.managedMode) != null ? _b2 : 0),
+    full_update_only: opts.fullUpdateOnly ? "true" : "false"
+  };
+}
+async function otaToken(opts) {
+  if (opts.publicToken) return OTA_PUBLIC_TOKEN;
+  let token = (opts.token || loadSettings().upToken || "").trim();
+  if (!token) {
+    token = await updaterToken();
+    saveSettings({ upToken: token });
+  }
+  return token;
+}
 function parseAppId(input) {
   const text = String(input).trim();
   if (/^\d{5,}$/.test(text)) return text;
@@ -4536,6 +4626,16 @@ var el = {
   viewOrgs: document.getElementById("view-orgs"),
   viewDefault: document.getElementById("view-default"),
   viewDevices: document.getElementById("view-devices"),
+  viewUpdater: document.getElementById("view-updater"),
+  viewNotfound: document.getElementById("view-notfound"),
+  notfoundPath: document.getElementById("notfoundPath"),
+  updaterLoad: document.getElementById("updaterLoad"),
+  updaterSerials: document.getElementById("updaterSerials"),
+  updaterMode: document.getElementById("updaterMode"),
+  updaterView: document.getElementById("view-updater"),
+  updaterCount: document.getElementById("updaterCount"),
+  updaterBody: document.getElementById("updaterBody"),
+  updTypes: document.getElementById("updTypes"),
   viewSettings: document.getElementById("view-settings"),
   viewGetapp: document.getElementById("view-getapp"),
   devicesLoad: document.getElementById("devicesLoad"),
@@ -4546,7 +4646,6 @@ var el = {
   devicesCount: document.getElementById("devicesCount"),
   devicesEmpty: document.getElementById("devicesEmpty"),
   devicesPresence: document.getElementById("devicesPresence"),
-  ptcOut: document.getElementById("ptcOut"),
   sharedSection: document.getElementById("sharedSection"),
   sharedRows: document.getElementById("sharedRows"),
   sharedCount: document.getElementById("sharedCount"),
@@ -4648,6 +4747,13 @@ var el = {
   settingsForm: document.getElementById("settingsForm"),
   token: document.getElementById("token"),
   acToken: document.getElementById("acToken"),
+  frlToken: document.getElementById("frlToken"),
+  frlSnippet: document.getElementById("frlSnippet"),
+  copyFrlSnippet: document.getElementById("copyFrlSnippet"),
+  frlSnippetOut: document.getElementById("frlSnippetOut"),
+  updToken: document.getElementById("updToken"),
+  getUpdToken: document.getElementById("getUpdToken"),
+  updTokenOut: document.getElementById("updTokenOut"),
   saveTokens: document.getElementById("saveTokens"),
   tokensOut: document.getElementById("tokensOut"),
   relay: document.getElementById("relay"),
@@ -4758,6 +4864,23 @@ var avatarOpen = /* @__PURE__ */ new Set();
 var showPayment = false;
 var showSerials = false;
 var ptcStatus = /* @__PURE__ */ new Map();
+var devicesOpen = /* @__PURE__ */ new Set();
+var devicesPanelTab = /* @__PURE__ */ new Map();
+var updResults = /* @__PURE__ */ new Map();
+var updFind = {
+  running: false,
+  stop: false,
+  error: "",
+  note: "",
+  lastError: "",
+  tried: 0,
+  total: 0,
+  skipped: 0,
+  errors: 0,
+  found: [],
+  done: /* @__PURE__ */ new Set(),
+  current: ""
+};
 var defaultList = [];
 var defaultLoading = false;
 var defaultAsked = false;
@@ -4813,6 +4936,7 @@ var VIEWS = [
   "watchlist",
   "avatar",
   "devices",
+  "updater",
   "worlds",
   "orgs",
   "default",
@@ -4824,6 +4948,7 @@ var VIEWS = [
   "getapp",
   "downgrade"
 ];
+var WIP_VIEWS = ["companion"];
 var routeSearch = "";
 var routeView = () => {
   var _a2;
@@ -4891,6 +5016,7 @@ initViews();
 initSettings();
 initOrgs();
 initDevices();
+initUpdater();
 initPurchases();
 initAvatar();
 initAccountTabs();
@@ -5270,7 +5396,7 @@ function initViews() {
     }
   });
   const def = loadSettings().defaultView;
-  if (!IN_APP && routeParts().length === 0 && def && def !== "apps" && VIEWS.includes(def)) {
+  if (!IN_APP && routeParts().length === 0 && def && def !== "apps" && VIEWS.includes(def) && !WIP_VIEWS.includes(def)) {
     history.replaceState(null, "", "/" + def);
   }
   applyView();
@@ -5289,6 +5415,16 @@ function routeParts() {
   });
   if (parts[0] === "index.html") parts.shift();
   return parts;
+}
+function routeKnown() {
+  const [view = "", a = null, b = null, ...more] = routeParts();
+  if (more.length) return false;
+  if (view === "") return true;
+  if (WIP_VIEWS.includes(view)) return false;
+  if (view === "search") return b === null;
+  if (view === "apps") return (a === null || /^\d{5,}$/.test(a)) && (b === null || PANEL_TABS.includes(b));
+  if (view === "worlds" || view === "orgs") return b === null;
+  return VIEWS.includes(view) && a === null;
 }
 function routeState() {
   const [view = "", a = null, b = null] = routeParts();
@@ -5358,7 +5494,7 @@ async function restoreRoute() {
 }
 function firstEnabledSection(off) {
   var _a2;
-  const order = ["apps", "store", "default", "plus", "worlds", "orgs", "watchlist", "devices", "mine", "purchases", "wishlist", "avatar", "adb", "companion"];
+  const order = ["apps", "store", "default", "plus", "worlds", "orgs", "watchlist", "devices", "updater", "mine", "purchases", "wishlist", "avatar", "adb"];
   return (_a2 = order.find((v) => !off.includes(v))) != null ? _a2 : "settings";
 }
 function applyFeatureVisibility() {
@@ -5386,10 +5522,11 @@ function applyView() {
       return;
     }
   }
-  const views = ["mine", "purchases", "wishlist", "watchlist", "avatar", "devices", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
+  const views = ["mine", "purchases", "wishlist", "watchlist", "avatar", "devices", "updater", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
   let view = views.includes(hash) && !(IN_APP && (hash === "adb" || hash === "companion")) ? hash : "apps";
+  if (!routeKnown()) view = "notfound";
   const sectionsOff = loadSettings().sectionsOff;
-  if (view !== "settings" && view !== "getapp" && sectionsOff.includes(view)) {
+  if (view !== "settings" && view !== "getapp" && view !== "notfound" && sectionsOff.includes(view)) {
     view = firstEnabledSection(sectionsOff);
   }
   el.viewApps.hidden = view !== "apps";
@@ -5399,6 +5536,10 @@ function applyView() {
   el.viewWatchlist.hidden = view !== "watchlist";
   el.viewAvatar.hidden = view !== "avatar";
   el.viewDevices.hidden = view !== "devices";
+  el.viewUpdater.hidden = view !== "updater";
+  el.viewNotfound.hidden = view !== "notfound";
+  if (view === "notfound") el.notfoundPath.textContent = `/${routeParts().join("/")}`;
+  if (view === "updater") setTimeout(renderUpdater, 0);
   el.viewWorlds.hidden = view !== "worlds";
   el.viewOrgs.hidden = view !== "orgs";
   el.viewDefault.hidden = view !== "default";
@@ -5411,7 +5552,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
   if (view === "watchlist") renderWatch();
   if (view === "companion") {
-    import("./companion.js?v=254").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
+    import("./companion.js?v=261").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
       var _a2;
       console.error("companion init failed", e);
       if (!navigator.bluetooth) (_a2 = el.viewCompanion.querySelector("#companionUnsupported")) == null ? void 0 : _a2.removeAttribute("hidden");
@@ -5426,7 +5567,7 @@ function applyView() {
   }
   window.scrollTo(0, 0);
   play(
-    [el.viewApps, el.viewMine, el.viewPurchases, el.viewWishlist, el.viewWatchlist, el.viewAvatar, el.viewDevices, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
+    [el.viewApps, el.viewMine, el.viewPurchases, el.viewWishlist, el.viewWatchlist, el.viewAvatar, el.viewDevices, el.viewUpdater, el.viewNotfound, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
@@ -6483,15 +6624,17 @@ async function signOut() {
       yes: "Sign out"
     } : {
       title: "Sign out of MetaDB?",
-      text: "Both tokens are removed from this browser, and MetaDB goes back to the built-in token. You stay logged in to Meta itself, so Sign in with Meta can fill them in again.",
+      text: "Your tokens are removed from this browser, and MetaDB goes back to the built-in token. You stay logged in to Meta itself, so Sign in with Meta can fill them in again.",
       yes: "Sign out"
     }
   );
   if (!sure) return;
   if (IN_APP) window.MetaDBApp.signOut();
-  saveSettings({ token: "", acToken: "" });
+  saveSettings({ token: "", acToken: "", frlToken: "", upToken: "" });
   el.token.value = "";
   el.acToken.value = "";
+  if (el.frlToken) el.frlToken.value = "";
+  if (el.updToken) el.updToken.value = "";
   mineList = [];
   adbApps = [];
   dgState.loaded = false;
@@ -7629,6 +7772,1076 @@ async function installAppOverAdb() {
     button.disabled = false;
   }
 }
+var UPD_KEY = "metadb.updaterOpts";
+var updBox = (key, label, group, extra = {}) => ({ key, label, group, ...extra });
+var UPD_HOST = "graph.oculus.com";
+var UPD_PATH = "/firmware_ota_update";
+var UPD_GROUPS = [
+  ["where", "Token"],
+  ["device", "The headset"],
+  ["fields", "Inside fields"],
+  ["sent", "Sent as written"]
+];
+var UPD_WHERE = [
+  updBox("token", "access_token", "where", { secret: true, placeholder: "your updater token", hint: "Empty sends your saved updater token (made from your FRL token if there is none). public sends the updater app's own token." })
+];
+var UPD_DEVICE = [
+  updBox("device_serial", "device_serial", "device", { param: true, area: true, hint: "One a line, or comma-separated, to check several." }),
+  updBox("device_type", "device_type", "device", { param: true, list: "updTypes", placeholder: "ota.eureka.user" })
+];
+var UPD_TAIL = [
+  updBox("also", "Other fields", "fields", { fill: "update_interval", placeholder: "update_interval", hint: "Put in front of the rest of fields, comma-separated." }),
+  updBox("fields", "fields", "sent", { param: true, area: true, fields: true, hint: "Built from Inside fields until you type in it." }),
+  updBox("extra", "Extra parameters", "sent", { area: true, placeholder: "name=value, one a line", hint: "Sent as they are, and win over a box of the same name." })
+];
+var UPD_ADV = {
+  os: {
+    root: "ota",
+    boxes: [
+      ...UPD_WHERE,
+      ...UPD_DEVICE,
+      updBox("version", "version", "device", { param: true, fill: "1", hint: "The build the headset is on. 1 is any build." }),
+      updBox("device_managed_mode", "device_managed_mode", "device", { param: true, fill: "-1", hint: "-1 an ordinary headset, 3 paired to a local update source, 4 postponed by policy." }),
+      updBox("full_update_only", "full_update_only", "device", { param: true, fill: "false", hint: "true asks for a whole OS image." }),
+      updBox("sdk_version", "sdk_version", "fields", { part: true, hint: "34 on Android 14." }),
+      updBox("security_patch_time", "security_patch_time", "fields", { part: true, placeholder: "YYYY-MM-DD" }),
+      updBox("show_all_paths", "show_all_paths", "fields", { part: true, fill: "true", hint: "false returns only the next step from version." }),
+      updBox("minor_release_only", "minor_release_only", "fields", { part: true, hint: "In the app, never sent by the headset." }),
+      updBox("selection", "Selection", "fields", { area: true, fill: OTA_SELECTION, placeholder: "{download_uri,target_version,\u2026}", hint: "What Meta returns for each build." }),
+      ...UPD_TAIL
+    ]
+  },
+  build: {
+    root: "ota",
+    boxes: [
+      ...UPD_WHERE,
+      ...UPD_DEVICE.map((b) => b.key === "device_serial" ? { ...b, area: false, hint: "One serial." } : b),
+      updBox("version", "version", "device", { param: true, fill: "1", hint: "The build the headset is on. The script sends 1." }),
+      updBox("device_managed_mode", "device_managed_mode", "device", { param: true, fill: "-1", hint: "-1 an ordinary headset, 4 postponed by policy." }),
+      updBox("full_update_only", "full_update_only", "device", { param: true, fill: "false" })
+    ]
+  }
+};
+var UPD_SECTIONS = [
+  ["os", "OS build", "Which OS builds Meta's updater would hand the headset, each with its download."],
+  ["build", "Specific build", "Ask for a build by its number, or count up from a build incremental to find the builds Meta has."]
+];
+function updDefaults() {
+  const adv = {};
+  for (const [sec, { boxes }] of Object.entries(UPD_ADV)) {
+    adv[sec] = Object.fromEntries(boxes.filter((b) => !b.secret).map((b) => [b.key, ""]));
+  }
+  return {
+    mode: "easy",
+    easy: { serials: [] },
+    find: { build: "", sweepBuild: "", prefix: "", from: "", to: "", suffix: "", rate: "2", workers: "2" },
+    adv,
+    edited: { os: false, build: false }
+  };
+}
+function loadUpd() {
+  const d = updDefaults();
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(UPD_KEY) || "{}") || {};
+  } catch {
+  }
+  const pick = (o) => o && typeof o === "object" && !Array.isArray(o) ? o : {};
+  return {
+    mode: saved.mode === "advanced" ? "advanced" : "easy",
+    easy: { ...d.easy, ...pick(saved.easy) },
+    find: { ...d.find, ...pick(saved.find) },
+    adv: Object.fromEntries(Object.keys(d.adv).map((s) => [s, { ...d.adv[s], ...pick(pick(saved.adv)[s]) }])),
+    edited: { ...d.edited, ...pick(saved.edited) }
+  };
+}
+function saveUpd(opts) {
+  try {
+    localStorage.setItem(UPD_KEY, JSON.stringify(opts));
+  } catch {
+  }
+}
+function editUpd(change) {
+  const now = loadUpd();
+  change(now);
+  saveUpd(now);
+  return now;
+}
+var updTokens = {};
+function otaTypeFor(device) {
+  const code = String(device.deviceType || "").replace(/^OCULUS_/, "");
+  const hit = otaCatalogFor(device);
+  return hit ? hit.type : code ? `ota.${code.toLowerCase()}.user` : "";
+}
+function otaCatalogFor(device) {
+  const code = String(device.deviceType || "").replace(/^OCULUS_/, "");
+  if (code === "PANTHER" && /xbox/i.test(device.model || "")) return OTA_DEVICE_TYPES.find((t) => t.hmd === "XSE_PANTHER");
+  return OTA_DEVICE_TYPES.find((t) => {
+    var _a2;
+    return t.hmd === code || ((_a2 = t.hwm) == null ? void 0 : _a2.includes(code));
+  });
+}
+function updBuildFields(sec, v) {
+  var _a2, _b2;
+  const { root, boxes } = UPD_ADV[sec];
+  const mods = boxes.filter((b) => {
+    var _a3;
+    return b.part && String((_a3 = v[b.key]) != null ? _a3 : "").trim() !== "";
+  }).map((b) => `.${b.key}(${String(v[b.key]).trim()})`).join("");
+  const sel = String((_a2 = v.selection) != null ? _a2 : "").trim();
+  const main = mods || sel ? `${root}${mods}${sel}` : "";
+  return [String((_b2 = v.also) != null ? _b2 : "").trim(), main].filter(Boolean).join(",");
+}
+var updSerials = (text) => String(text || "").split(/[\s,]+/).filter(Boolean);
+function updAdvRequests(sec, opts) {
+  var _a2, _b2;
+  const v = opts.adv[sec];
+  const fields = opts.edited[sec] ? String((_a2 = v.fields) != null ? _a2 : "").trim() : updBuildFields(sec, v);
+  const base = {};
+  for (const b of UPD_ADV[sec].boxes) {
+    if (!b.param || b.key === "device_serial") continue;
+    const val = b.fields ? fields : String((_b2 = v[b.key]) != null ? _b2 : "").trim();
+    if (val !== "") base[b.key] = val;
+  }
+  for (const line of String(v.extra || "").split("\n")) {
+    const m = line.match(/^\s*([^=\s][^=]*?)\s*=\s*(.*?)\s*$/);
+    if (m) base[m[1]] = m[2];
+  }
+  const serials = updSerials(v.device_serial);
+  const one = (serial) => ({
+    label: serial,
+    host: UPD_HOST,
+    path: UPD_PATH,
+    params: serial ? { device_serial: serial, ...base } : base,
+    token: updTokens[sec] || ""
+  });
+  return serials.length ? serials.map(one) : [one("")];
+}
+function updRequestText(req) {
+  const tok = req.token.trim();
+  const shown = { ...req.params };
+  if (shown.device_serial && !showSerials) shown.device_serial = maskSerial(shown.device_serial);
+  shown.access_token = tok === "public" ? OTA_PUBLIC_TOKEN : tok ? "(the token typed above)" : "(your updater token)";
+  return `GET https://${req.host}${req.path}
+${Object.entries(shown).map(([k, val]) => `  ${k}=${val}`).join("\n")}`;
+}
+function updHeadsets() {
+  return sortDevices(deviceList.filter((d) => d.serial), "release").sort((a, b) => (a.ownership === "shared") - (b.ownership === "shared"));
+}
+var updSerialText = (serial) => showSerials ? serial : maskSerial(serial);
+function updHeadsetLabel(d) {
+  return `${d.model || "Headset"} \xB7 ${updSerialText(d.serial)}`;
+}
+function updEasyOs(opts, device) {
+  return {
+    label: device.serial,
+    host: "graph.oculus.com",
+    path: "/firmware_ota_update",
+    params: otaParams({ serial: device.serial, deviceType: otaTypeFor(device), version: 1, managedMode: 0, showAllPaths: true }),
+    token: ""
+  };
+}
+async function updRun(sec, requests) {
+  var _a2, _b2;
+  const runs = [];
+  updResults.set(sec, { busy: "Checking\u2026", runs: (_b2 = (_a2 = updResults.get(sec)) == null ? void 0 : _a2.runs) != null ? _b2 : [] });
+  renderUpdater();
+  for (const [i, req] of requests.entries()) {
+    if (requests.length > 1) {
+      updResults.get(sec).busy = `Checking ${i + 1} of ${requests.length}\u2026`;
+      renderUpdater();
+    }
+    try {
+      runs.push({ label: req.label, json: await otaRequest(req) });
+    } catch (e) {
+      runs.push({ label: req.label, error: e.message });
+    }
+  }
+  updResults.set(sec, { busy: null, runs });
+  renderUpdater();
+  return runs;
+}
+async function updCheckEasy() {
+  const opts = loadUpd();
+  const picked = updHeadsets().filter((d) => opts.easy.serials.includes(d.serial));
+  if (!picked.length) return updNote("os", "Pick at least one headset.");
+  await updRun("os", picked.map((d) => updEasyOs(opts, d)));
+}
+function updNote(sec, message) {
+  updResults.set(sec, { busy: null, runs: [{ label: "", error: message }] });
+  renderUpdater();
+}
+function initUpdater() {
+  for (const t of OTA_DEVICE_TYPES) el.updTypes.appendChild(new Option(t.label, t.type));
+  el.updaterLoad.addEventListener("click", async () => {
+    el.updaterLoad.disabled = true;
+    el.updaterLoad.textContent = "Loading\u2026";
+    try {
+      await loadDevices();
+    } finally {
+      el.updaterLoad.disabled = false;
+      el.updaterLoad.textContent = "Get headsets";
+      renderUpdater();
+    }
+  });
+  el.updaterMode.addEventListener("click", () => {
+    editUpd((now) => now.mode = now.mode === "advanced" ? "easy" : "advanced");
+    renderUpdater();
+  });
+  el.updaterSerials.addEventListener("click", () => {
+    showSerials = !showSerials;
+    renderUpdater();
+    renderDevices();
+  });
+}
+function renderUpdater() {
+  if (!el.updaterBody) return;
+  el.updaterSerials.textContent = showSerials ? "Hide serials" : "Show serials";
+  el.updaterCount.textContent = devicesLoading ? "Loading headsets\u2026" : devicesNote ? devicesNote : devicesAsked ? `${deviceList.length} headset${deviceList.length === 1 ? "" : "s"} on this account` : "";
+  const opts = loadUpd();
+  const adv = opts.mode === "advanced";
+  el.updaterMode.textContent = adv ? "Switch to Easy" : "Switch to Advanced";
+  el.updaterMode.setAttribute("aria-pressed", String(adv));
+  el.updaterView.dataset.mode = opts.mode;
+  el.updaterBody.replaceChildren(
+    ...UPD_SECTIONS.filter(([sec]) => adv || sec === "os").map(([sec, title, lead]) => updSectionEl(sec, title, lead, opts))
+  );
+}
+function updSectionEl(sec, title, lead, opts) {
+  const box = document.createElement("section");
+  box.className = "upd-section";
+  box.dataset.updSection = sec;
+  const head = document.createElement("header");
+  head.className = "upd-sec-head";
+  const words3 = document.createElement("div");
+  const h = document.createElement("h3");
+  h.className = "upd-title";
+  h.textContent = title;
+  words3.append(h, elp("upd-lead", lead));
+  head.appendChild(words3);
+  box.appendChild(head);
+  const body = document.createElement("div");
+  body.className = "upd-body";
+  if (opts.mode === "advanced") updAdvanced(sec, opts, body);
+  else updEasy(opts, body);
+  box.append(body, updResultsEl(sec));
+  return box;
+}
+function updCheckButton(sec, idle, onClick) {
+  var _a2;
+  const busy = (_a2 = updResults.get(sec)) == null ? void 0 : _a2.busy;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = busy || idle;
+  btn.disabled = !!busy;
+  btn.addEventListener("click", onClick);
+  return btn;
+}
+function updActions(button, note2) {
+  const row = document.createElement("div");
+  row.className = "upd-actions";
+  row.appendChild(button);
+  if (note2) row.appendChild(elp("upd-action-note", note2));
+  return row;
+}
+function updNeedHeadsets() {
+  if (devicesAsked && !devicesNote && deviceList.length) return null;
+  return elp(
+    "upd-empty",
+    devicesLoading ? "Loading this account's headsets\u2026" : devicesNote ? `Could not list your headsets: ${devicesNote}` : devicesAsked ? "This account has no headsets. Advanced takes any serial." : "Press Get headsets above to choose from this account's headsets."
+  );
+}
+function updGroup(title, ...children) {
+  const g = document.createElement("div");
+  g.className = "upd-choice";
+  const h = document.createElement("p");
+  h.className = "upd-choice-h";
+  h.textContent = title;
+  g.append(h, ...children);
+  return g;
+}
+function updTiles(heads, kind, isOn, onPick) {
+  const wrap = document.createElement("div");
+  wrap.className = "upd-tiles";
+  const name = `upd-${kind}-${Math.random().toString(36).slice(2, 8)}`;
+  for (const d of heads) {
+    const tile = document.createElement("label");
+    tile.className = "upd-tile";
+    const input = document.createElement("input");
+    input.type = kind;
+    input.name = name;
+    input.checked = isOn(d);
+    input.addEventListener("change", () => {
+      onPick(d, input.checked);
+      if (kind === "radio") for (const t of wrap.querySelectorAll(".upd-tile")) t.classList.toggle("on", t.contains(input));
+      else tile.classList.toggle("on", input.checked);
+    });
+    tile.classList.toggle("on", input.checked);
+    const text = document.createElement("span");
+    text.className = "upd-tile-text";
+    text.innerHTML = `<span class="upd-tile-model">${esc(d.model || "Headset")}</span><span class="upd-tile-serial">${esc(updSerialText(d.serial))}</span>`;
+    tile.append(input, text);
+    wrap.appendChild(tile);
+  }
+  return wrap;
+}
+function updEasy(opts, body) {
+  const heads = updHeadsets();
+  const missing = updNeedHeadsets();
+  if (missing) {
+    body.appendChild(missing);
+    return;
+  }
+  const picked = () => loadUpd().easy.serials.filter((s) => heads.some((d) => d.serial === s)).length;
+  const note2 = (n) => n ? `${n} headset${n === 1 ? "" : "s"} picked` : "Pick a headset to check";
+  const actions = updActions(updCheckButton("os", "Check for updates", updCheckEasy), note2(picked()));
+  const onPick = (d, on) => {
+    editUpd((now) => {
+      const s = new Set(now.easy.serials);
+      on ? s.add(d.serial) : s.delete(d.serial);
+      now.easy.serials = heads.map((h) => h.serial).filter((x) => s.has(x));
+    });
+    actions.querySelector(".upd-action-note").textContent = note2(picked());
+  };
+  const own = heads.filter((d) => d.ownership !== "shared");
+  const shared = heads.filter((d) => d.ownership === "shared");
+  const isOn = (d) => opts.easy.serials.includes(d.serial);
+  if (own.length) body.appendChild(updGroup(shared.length ? "Your headsets" : "Headsets", updTiles(own, "checkbox", isOn, onPick)));
+  if (shared.length) body.appendChild(updGroup("Shared with you", updTiles(shared, "checkbox", isOn, onPick)));
+  body.appendChild(actions);
+}
+var UPD_FIND_MAX = 1e4;
+var FIND_SELECTION = "{download_uri,base_version,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,semantic_version}";
+var UPD_RATE_CODES = [368, 613];
+var updSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function updBuildBase(opts) {
+  var _a2, _b2;
+  const v = opts.adv.build;
+  const params = {};
+  for (const b of UPD_ADV.build.boxes) {
+    if (!b.param) continue;
+    const val = b.key === "device_serial" ? (_a2 = updSerials(v[b.key])[0]) != null ? _a2 : "" : String((_b2 = v[b.key]) != null ? _b2 : "").trim();
+    if (val !== "") params[b.key] = val;
+  }
+  return { label: params.device_serial || "", host: UPD_HOST, path: UPD_PATH, token: updTokens.build || "", params };
+}
+function updBuildRequest(base, number) {
+  const fields = `ota.requested_version(${number}).show_all_paths(true)${FIND_SELECTION}`;
+  return { ...base, params: { ...base.params, fields } };
+}
+function updOtaList(json) {
+  const ota = json == null ? void 0 : json.ota;
+  if (Array.isArray(ota)) return ota.filter((b) => b && b.download_uri);
+  return ota && typeof ota === "object" && ota.download_uri ? [ota] : [];
+}
+function updCandidates(find) {
+  const prefix = String(find.prefix || "").trim();
+  const suffix = String(find.suffix || "").trim();
+  const from = String(find.from || "").trim() || "0";
+  const to = String(find.to || "").trim() || "9999";
+  if (!/^\d+$/.test(prefix)) throw new Error("Type the prefix \u2014 the digits before the part that counts up.");
+  if (!/^\d*$/.test(suffix)) throw new Error("The suffix is digits.");
+  if (!/^\d+$/.test(from) || !/^\d+$/.test(to)) throw new Error("From and to are whole numbers.");
+  if (Number(to) < Number(from)) throw new Error("To is lower than from.");
+  const count = Number(to) - Number(from) + 1;
+  if (count > UPD_FIND_MAX) throw new Error(`That is ${count} numbers; one run takes up to ${UPD_FIND_MAX}.`);
+  const width = Math.max(4, to.length);
+  const out = [];
+  for (let m = Number(from); m <= Number(to); m++) out.push(`${prefix}${String(m).padStart(width, "0")}${suffix}`);
+  return out;
+}
+async function updAskBuild() {
+  var _a2;
+  const opts = loadUpd();
+  const n = String(opts.find.build || "").trim();
+  if (!/^\d+$/.test(n)) return updNote("build", "Type the build number to ask for.");
+  const req = updBuildRequest(updBuildBase(opts), n);
+  const runs = await updRun("build", [req]);
+  for (const run of runs) for (const b of updOtaList(run.json)) (_a2 = b.target_version) != null ? _a2 : b.target_version = n;
+  renderUpdater();
+}
+var updIsRate = (e) => UPD_RATE_CODES.includes(Number(e == null ? void 0 : e.code)) || (e == null ? void 0 : e.status) === 429 || /too fast|temporarily blocked/i.test((e == null ? void 0 : e.message) || "");
+async function updFindRun() {
+  if (updFind.running) {
+    updFind.stop = true;
+    updFind.note = "Stopping after the requests in flight\u2026";
+    updDrawFind();
+    return;
+  }
+  const opts = loadUpd();
+  const find = opts.find;
+  let queue;
+  try {
+    queue = updCandidates(find);
+  } catch (e) {
+    Object.assign(updFind, { error: e.message, note: "" });
+    renderUpdater();
+    return;
+  }
+  const base = updBuildBase(opts);
+  const done = updFind.done;
+  const before = queue.length;
+  queue = queue.filter((n) => !done.has(n));
+  const rate = Math.min(12, Math.max(0.2, Number(find.rate) || 2));
+  const workers = Math.min(8, Math.max(1, Math.round(Number(find.workers) || 2)));
+  Object.assign(updFind, {
+    running: true,
+    stop: false,
+    error: "",
+    note: "",
+    tried: 0,
+    total: queue.length,
+    skipped: before - queue.length,
+    errors: 0,
+    current: ""
+  });
+  renderUpdater();
+  if (!queue.length) {
+    updFind.running = false;
+    updFind.note = "Every one of those numbers has been tried already. Clear to try them again.";
+    renderUpdater();
+    return;
+  }
+  const gate = { next: 0, until: 0, blocks: 0 };
+  const gap = 1e3 / rate;
+  const slot = async () => {
+    const now = Date.now();
+    const at = Math.max(now, gate.next, gate.until);
+    gate.next = at + gap;
+    if (at > now) await updSleep(at - now);
+  };
+  const seenBuild = new Set(updFind.found.map((b) => `${b.foundAt}>${b.download_uri}`));
+  let failsInRow = 0;
+  const probe = async (n) => {
+    var _a2;
+    let rateTries = 0;
+    for (; ; ) {
+      if (updFind.stop) return false;
+      await slot();
+      if (updFind.stop) return false;
+      updFind.current = n;
+      try {
+        const json = await otaRequest(updBuildRequest(base, n));
+        failsInRow = 0;
+        for (const b of updOtaList(json)) {
+          const key = `${n}>${b.download_uri}`;
+          if (seenBuild.has(key)) continue;
+          seenBuild.add(key);
+          updFind.found.push({ ...b, target_version: (_a2 = b.target_version) != null ? _a2 : n, foundAt: n });
+        }
+        done.add(n);
+        return true;
+      } catch (e) {
+        if (updIsRate(e)) {
+          if (++rateTries <= 3) {
+            updFind.note = `Meta says slow down \u2014 asking for ${n} again in 4 s.`;
+            updDrawFind();
+            await updSleep(4e3);
+            continue;
+          }
+          const now = Date.now();
+          if (now >= gate.until) {
+            gate.blocks++;
+            if (gate.blocks >= 5) {
+              updFind.error = "Blocked five times for going too fast. Stop here and wait a few hours before trying again \u2014 carrying on only makes the block longer.";
+              updFind.stop = true;
+              return false;
+            }
+            const cool = 3e4 * 2 ** (gate.blocks - 1);
+            gate.until = now + cool;
+            gate.next = gate.until;
+            updFind.note = `Blocked for going too fast \u2014 waiting ${cool / 1e3} s, then carrying on (block ${gate.blocks} of 5).`;
+            updDrawFind();
+          }
+          rateTries = 0;
+          continue;
+        }
+        updFind.errors++;
+        updFind.lastError = e.message;
+        if (++failsInRow >= 10) {
+          updFind.error = `Stopped after ten refusals in a row: ${e.message}`;
+          updFind.stop = true;
+        }
+        return false;
+      }
+    }
+  };
+  await Promise.all(
+    Array.from({ length: workers }, async () => {
+      while (queue.length && !updFind.stop) {
+        const n = queue.shift();
+        await probe(n);
+        updFind.tried++;
+        if (updFind.note.startsWith("Meta says")) updFind.note = "";
+        updDrawFind();
+      }
+    })
+  );
+  updFind.running = false;
+  updFind.current = "";
+  if (updFind.note.startsWith("Stopping")) updFind.note = "Stopped. Find builds again carries on from where it left off.";
+  renderUpdater();
+}
+function updFindCsv() {
+  const cols = [
+    "requested_incremental",
+    "base_version",
+    "semantic_version",
+    "formatted_build_number",
+    "build_number_display_name",
+    "release_channel_name",
+    "creation_time",
+    "release_tag",
+    "download_uri"
+  ];
+  const cell = (v) => {
+    const s = String(v != null ? v : "");
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const rows = updFind.found.map((b) => cols.map((c) => cell(c === "requested_incremental" ? b.foundAt : b[c])).join(","));
+  const blob = new Blob([[cols.join(","), ...rows].join("\n") + "\n"], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "quest_ota_results.csv";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1e3);
+}
+function updDrawFind() {
+  const box = el.updaterBody.querySelector("[data-upd-find]");
+  if (!box) return;
+  box.replaceChildren(...updFindOut());
+  const btn = el.updaterBody.querySelector("[data-upd-find-btn]");
+  if (btn) btn.textContent = updFind.running ? "Stop" : "Find builds";
+}
+function updFindOut() {
+  const out = [];
+  if (updFind.error) out.push(elp("settings-out bad", updFind.error));
+  if (updFind.note) out.push(elp("upd-find-note", updFind.note));
+  const found = updFind.found.length;
+  if (updFind.total || found) {
+    const bits2 = [
+      updFind.running && updFind.current ? `Trying ${updFind.current}` : "",
+      updFind.total ? `${updFind.tried} of ${updFind.total} tried` : "",
+      updFind.skipped ? `${updFind.skipped} skipped (tried before)` : "",
+      updFind.errors ? `${updFind.errors} refused` : "",
+      `${found} build${found === 1 ? "" : "s"} found`
+    ].filter(Boolean);
+    out.push(elp("upd-find-progress", bits2.join(" \xB7 ")));
+    if (updFind.total) {
+      const bar = document.createElement("div");
+      bar.className = "upd-find-bar";
+      bar.style.setProperty("--done", String(updFind.tried / updFind.total));
+      out.push(bar);
+    }
+  }
+  if (updFind.errors && updFind.lastError && !updFind.error) out.push(elp("upd-hint", `Last refusal: ${updFind.lastError}`));
+  if (found) {
+    const big = (b) => BigInt(/^\d+$/.test(String(b.foundAt)) ? b.foundAt : 0);
+    const sorted2 = [...updFind.found].sort((a, b) => big(b) > big(a) ? 1 : big(b) < big(a) ? -1 : 0);
+    const result = document.createElement("div");
+    result.className = "updater-result";
+    renderUpdaterResult({ ota: sorted2 }, result);
+    out.push(result);
+  } else if (!updFind.running && updFind.total && !updFind.error) {
+    out.push(elp("upd-empty", "Nothing came back for those numbers."));
+  }
+  return out;
+}
+function updSplitBuild(n) {
+  var _a2;
+  const s = (_a2 = String(n || "").match(/\d{10,}/)) == null ? void 0 : _a2[0];
+  if (!s) return null;
+  return { prefix: s.slice(0, -9), from: s.slice(-9, -5), suffix: s.slice(-5) };
+}
+function updSeenBuilds() {
+  var _a2, _b2;
+  const seen = /* @__PURE__ */ new Map();
+  const add = (b) => {
+    var _a3;
+    const n = String((_a3 = b == null ? void 0 : b.target_version) != null ? _a3 : "");
+    if (/^\d{10,}$/.test(n) && !seen.has(n)) seen.set(n, updVersion(b));
+  };
+  for (const sec of ["os", "build"]) for (const run of (_b2 = (_a2 = updResults.get(sec)) == null ? void 0 : _a2.runs) != null ? _b2 : []) for (const b of updOtaList(run.json)) add(b);
+  for (const b of updFind.found) add(b);
+  return [...seen].sort(([a], [b]) => BigInt(b) > BigInt(a) ? 1 : BigInt(b) < BigInt(a) ? -1 : 0).slice(0, 6);
+}
+function updSweepFrom(n) {
+  const parts = updSplitBuild(n);
+  if (!parts) return false;
+  editUpd((now) => Object.assign(now.find, { prefix: parts.prefix, suffix: parts.suffix, from: "", to: "" }));
+  return true;
+}
+function updFindPlan(opts) {
+  const v = opts.adv.build;
+  const missing = ["device_serial", "device_type"].filter((k) => {
+    var _a2;
+    return !String((_a2 = v[k]) != null ? _a2 : "").trim();
+  });
+  if (missing.length) return { warn: true, text: `Type ${missing.join(" and ")} above first \u2014 Fill in from a headset puts both in.` };
+  let list;
+  try {
+    list = updCandidates(opts.find);
+  } catch (e) {
+    return { warn: false, text: e.message };
+  }
+  const left = list.filter((n) => !updFind.done.has(n)).length;
+  if (!left) return { warn: false, text: "Every number in this sweep has been tried. Clear results to try them again." };
+  const rate = Math.min(12, Math.max(0.2, Number(opts.find.rate) || 2));
+  const secs = Math.ceil(left / rate);
+  const time = secs < 90 ? `${secs} s` : secs < 5400 ? `${Math.round(secs / 60)} min` : `${Math.floor(secs / 3600)} h ${Math.round(secs % 3600 / 60)} min`;
+  const tried = list.length - left;
+  return {
+    warn: false,
+    text: `${left.toLocaleString()} number${left === 1 ? "" : "s"} to try${tried ? ` (${tried.toLocaleString()} tried already)` : ""} \u2014 about ${time} at ${rate} a second.`
+  };
+}
+function updBuildControls(opts, body) {
+  var _a2;
+  const f = opts.find;
+  const field = (key, label, extra = {}) => {
+    var _a3;
+    const id = `upd-find-${key}`;
+    const wrap = document.createElement("div");
+    wrap.className = `upd-field${extra.wide ? " upd-field--wide" : ""}`;
+    const l = document.createElement("label");
+    l.htmlFor = id;
+    l.textContent = label;
+    const i = document.createElement(extra.area ? "textarea" : "input");
+    if (!extra.area) {
+      i.type = "text";
+      i.inputMode = extra.text ? "text" : "numeric";
+    } else i.rows = 4;
+    i.id = id;
+    i.autocomplete = "off";
+    i.spellcheck = false;
+    i.value = (_a3 = f[key]) != null ? _a3 : "";
+    if (extra.placeholder) i.placeholder = extra.placeholder;
+    i.addEventListener("input", () => editUpd((now) => now.find[key] = extra.area ? i.value : i.value.trim()));
+    if (extra.enter) i.addEventListener("keydown", (e) => e.key === "Enter" && extra.enter());
+    wrap.append(l, i);
+    if (extra.hint) wrap.appendChild(elp("upd-hint", extra.hint));
+    return wrap;
+  };
+  const select = (key, label, options, extra = {}) => {
+    const id = `upd-find-${key}`;
+    const wrap = document.createElement("div");
+    wrap.className = "upd-field";
+    const l = document.createElement("label");
+    l.htmlFor = id;
+    l.textContent = label;
+    const s = document.createElement("select");
+    s.id = id;
+    for (const [v, text] of options) s.add(new Option(text, v));
+    s.value = options.some(([v]) => v === f[key]) ? f[key] : options[0][0];
+    s.addEventListener("change", () => {
+      editUpd((now) => now.find[key] = s.value);
+      if (extra.redraw) renderUpdater();
+    });
+    wrap.append(l, s);
+    if (extra.hint) wrap.appendChild(elp("upd-hint", extra.hint));
+    return wrap;
+  };
+  const grid = (...kids) => {
+    const g = document.createElement("div");
+    g.className = "upd-find-grid";
+    g.append(...kids);
+    return g;
+  };
+  const parts = document.createElement("div");
+  parts.className = "upd-build-parts";
+  const ask = document.createElement("div");
+  ask.className = "upd-part";
+  ask.append(
+    elp("upd-choice-h", "Ask for a build"),
+    field("build", "Build incremental", { placeholder: "e.g. 51154110129000520", enter: updAskBuild, hint: "Sent as requested_version, every path shown." }),
+    updActions(updCheckButton("build", "Ask for it", updAskBuild), "")
+  );
+  const find = document.createElement("div");
+  find.className = "upd-part";
+  const startId = "upd-find-start-from";
+  const start = document.createElement("div");
+  start.className = "upd-field upd-start";
+  const startLabel = document.createElement("label");
+  startLabel.htmlFor = startId;
+  startLabel.textContent = "Sweep a build";
+  const startBox = document.createElement("input");
+  startBox.type = "text";
+  startBox.id = startId;
+  startBox.autocomplete = "off";
+  startBox.spellcheck = false;
+  startBox.placeholder = "Paste an incremental, e.g. 52641960034500520";
+  startBox.value = (_a2 = f.sweepBuild) != null ? _a2 : "";
+  const startHintText = "Keeps its prefix and suffix and sweeps the 4 digits between them from 0000 to 9999.";
+  const startHint = elp("upd-hint", startHintText);
+  startHint.id = `${startId}-hint`;
+  startBox.setAttribute("aria-describedby", startHint.id);
+  startBox.addEventListener("input", () => {
+    const text = startBox.value;
+    const parts2 = updSplitBuild(text);
+    editUpd((now) => {
+      now.find.sweepBuild = text;
+      if (parts2) Object.assign(now.find, { prefix: parts2.prefix, suffix: parts2.suffix, from: "", to: "" });
+    });
+    if (parts2) {
+      for (const [k, v] of Object.entries({ prefix: parts2.prefix, suffix: parts2.suffix, from: "", to: "" })) {
+        const box = find.querySelector(`#upd-find-${k}`);
+        if (box) box.value = v;
+      }
+    }
+    startHint.textContent = parts2 || !text.trim() ? startHintText : "That needs a build incremental in it \u2014 a number of 10 digits or more.";
+  });
+  startBox.addEventListener("keydown", (e) => e.key === "Enter" && updFindRun());
+  start.append(startLabel, startBox, startHint);
+  const seen = updSeenBuilds();
+  let chips = null;
+  if (seen.length) {
+    chips = document.createElement("div");
+    chips.className = "upd-chips";
+    chips.appendChild(elp("upd-chips-label", "Or one already found:"));
+    for (const [n, name] of seen) {
+      const c = document.createElement("button");
+      c.type = "button";
+      c.className = "ptc-btn upd-chip";
+      c.textContent = name ? `${name} \xB7 ${n}` : n;
+      c.title = `Sweep every build around ${n}`;
+      c.addEventListener("click", () => {
+        editUpd((now) => now.find.sweepBuild = n);
+        if (updSweepFrom(n)) renderUpdater();
+      });
+      chips.appendChild(c);
+    }
+  }
+  const sweep = grid(
+    field("prefix", "Prefix", { placeholder: "e.g. 52641960", enter: updFindRun }),
+    field("from", "From", { placeholder: "0000", enter: updFindRun }),
+    field("to", "To", { placeholder: "9999", enter: updFindRun }),
+    field("suffix", "Suffix", { placeholder: "e.g. 00520", enter: updFindRun })
+  );
+  const sweepHint = elp("upd-hint upd-sweep-hint", "Each number tried is the prefix, then the middle counting up from From to To as 4 digits, then the suffix \u2014 52641960 + 0345 + 00520 is 52641960034500520. Leave From and To empty to try 0000 to 9999.");
+  const how = grid(
+    field("rate", "Requests a second", { placeholder: "2", hint: "Up to 12. Meta blocks a run that goes too fast." }),
+    field("workers", "At once", { placeholder: "2", hint: "Up to 8. Does not raise the rate." })
+  );
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.dataset.updFindBtn = "";
+  btn.textContent = updFind.running ? "Stop" : "Find builds";
+  btn.addEventListener("click", updFindRun);
+  const csv = document.createElement("button");
+  csv.type = "button";
+  csv.className = "ptc-btn";
+  csv.textContent = "Save as CSV";
+  csv.disabled = !updFind.found.length;
+  csv.addEventListener("click", updFindCsv);
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "ptc-btn";
+  clear.textContent = "Clear results";
+  clear.disabled = updFind.running || !updFind.found.length && !updFind.done.size && !updFind.total;
+  clear.addEventListener("click", () => {
+    Object.assign(updFind, { error: "", note: "", tried: 0, total: 0, skipped: 0, errors: 0, found: [], lastError: "" });
+    updFind.done.clear();
+    renderUpdater();
+  });
+  const actions = updActions(btn, "");
+  actions.append(csv, clear);
+  const plan = elp("upd-find-plan", "");
+  const showPlan = () => {
+    const p = updFindPlan(loadUpd());
+    plan.textContent = updFind.running ? "" : p.text;
+    plan.classList.toggle("upd-find-plan--warn", p.warn);
+  };
+  showPlan();
+  body.addEventListener("input", showPlan);
+  const out = document.createElement("div");
+  out.className = "upd-find-out";
+  out.dataset.updFind = "";
+  out.setAttribute("aria-live", "polite");
+  out.append(...updFindOut());
+  find.append(elp("upd-choice-h", "Sweep for builds"), start, ...chips ? [chips] : [], sweep, sweepHint, how, actions, plan, out);
+  parts.append(ask, find);
+  body.appendChild(parts);
+}
+function updAdvanced(sec, opts, body) {
+  var _a2, _b2, _c;
+  const v = opts.adv[sec];
+  const heads = updHeadsets();
+  const tools = document.createElement("div");
+  tools.className = "upd-tools";
+  if (heads.length) {
+    const fill = document.createElement("select");
+    fill.setAttribute("aria-label", "Fill in from a headset");
+    fill.add(new Option("Fill in from a headset\u2026", ""));
+    for (const [label, list] of [["Your headsets", heads.filter((d) => d.ownership !== "shared")], ["Shared with you", heads.filter((d) => d.ownership === "shared")]]) {
+      if (!list.length) continue;
+      const group = document.createElement("optgroup");
+      group.label = label;
+      for (const d of list) group.appendChild(new Option(updHeadsetLabel(d), d.serial));
+      fill.appendChild(group);
+    }
+    fill.addEventListener("change", () => {
+      const d = heads.find((x) => x.serial === fill.value);
+      if (!d) return;
+      editUpd((now) => {
+        now.adv[sec].device_serial = d.serial;
+        now.adv[sec].device_type = otaTypeFor(d);
+      });
+      renderUpdater();
+    });
+    tools.appendChild(fill);
+  }
+  const fillDefaults = document.createElement("button");
+  fillDefaults.type = "button";
+  fillDefaults.className = "ptc-btn";
+  fillDefaults.textContent = "Fill in what the headset sends";
+  fillDefaults.addEventListener("click", () => {
+    editUpd((now) => {
+      var _a3;
+      for (const b of UPD_ADV[sec].boxes) if (b.fill != null && !String((_a3 = now.adv[sec][b.key]) != null ? _a3 : "").trim()) now.adv[sec][b.key] = b.fill;
+      now.edited[sec] = false;
+    });
+    renderUpdater();
+  });
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "ptc-btn";
+  clear.textContent = "Clear all";
+  clear.addEventListener("click", () => {
+    editUpd((now) => {
+      now.adv[sec] = updDefaults().adv[sec];
+      now.edited[sec] = false;
+    });
+    delete updTokens[sec];
+    renderUpdater();
+  });
+  tools.append(fillDefaults, clear);
+  body.appendChild(tools);
+  const req = document.createElement("pre");
+  req.className = "upd-req";
+  const reqCount = document.createElement("span");
+  reqCount.className = "upd-send-count";
+  let fieldsBox = null;
+  let rebuild = null;
+  const refresh = () => {
+    const now = loadUpd();
+    if (fieldsBox && !now.edited[sec]) fieldsBox.value = updBuildFields(sec, now.adv[sec]);
+    const reqs = updAdvRequests(sec, now);
+    req.textContent = reqs.map(updRequestText).join("\n\n");
+    reqCount.textContent = reqs.length > 1 ? `${reqs.length} requests, one a serial` : "";
+  };
+  const groups = document.createElement("div");
+  groups.className = "upd-groups";
+  for (const [group, legendText] of UPD_GROUPS) {
+    if (!UPD_ADV[sec].boxes.some((x) => x.group === group)) continue;
+    const set = document.createElement("fieldset");
+    set.className = `upd-group upd-group--${group}`;
+    const legend = document.createElement("legend");
+    legend.textContent = legendText;
+    const grid = document.createElement("div");
+    grid.className = "upd-grid";
+    for (const b of UPD_ADV[sec].boxes.filter((x) => x.group === group)) {
+      const id = `upd-${sec}-${b.key}`;
+      const field = document.createElement("div");
+      field.className = `upd-field${b.area ? " upd-field--wide" : ""}`;
+      const input = document.createElement(b.area ? "textarea" : "input");
+      if (!b.area) input.type = b.secret ? "password" : "text";
+      else input.rows = b.fields || b.key === "selection" ? 3 : 2;
+      input.id = id;
+      input.spellcheck = false;
+      input.autocomplete = "off";
+      input.placeholder = (_a2 = b.placeholder) != null ? _a2 : "not sent";
+      input.value = b.secret ? updTokens[sec] || "" : b.fields ? opts.edited[sec] ? (_b2 = v.fields) != null ? _b2 : "" : updBuildFields(sec, v) : (_c = v[b.key]) != null ? _c : "";
+      if (b.list) input.setAttribute("list", b.list);
+      if (b.fields) fieldsBox = input;
+      input.addEventListener("input", () => {
+        if (b.secret) {
+          updTokens[sec] = input.value;
+        } else {
+          editUpd((now) => {
+            now.adv[sec][b.key] = input.value;
+            if (b.fields) now.edited[sec] = true;
+          });
+          if (b.fields && rebuild) rebuild.hidden = false;
+        }
+        refresh();
+      });
+      const label = document.createElement("label");
+      label.htmlFor = id;
+      label.textContent = b.label;
+      field.append(label, input);
+      if (b.hint) {
+        const hint = elp("upd-hint", b.hint);
+        hint.id = `${id}-hint`;
+        input.setAttribute("aria-describedby", hint.id);
+        field.appendChild(hint);
+      }
+      grid.appendChild(field);
+    }
+    set.append(legend, grid);
+    groups.appendChild(set);
+  }
+  body.appendChild(groups);
+  if (sec === "build") {
+    updBuildControls(opts, body);
+    return;
+  }
+  const send = document.createElement("div");
+  send.className = "upd-send";
+  const sendHead = document.createElement("div");
+  sendHead.className = "upd-send-head";
+  sendHead.append(elp("upd-send-label", "Sends"), reqCount);
+  rebuild = document.createElement("button");
+  rebuild.type = "button";
+  rebuild.className = "ptc-btn";
+  rebuild.textContent = "Rebuild fields from the boxes";
+  rebuild.hidden = !opts.edited[sec];
+  rebuild.addEventListener("click", () => {
+    editUpd((now) => now.edited[sec] = false);
+    rebuild.hidden = true;
+    refresh();
+  });
+  const actions = updActions(updCheckButton(sec, "Send", () => updRun(sec, updAdvRequests(sec, loadUpd()))), "");
+  actions.appendChild(rebuild);
+  send.append(sendHead, req, actions);
+  body.appendChild(send);
+  refresh();
+}
+function updRunCount(run) {
+  if (run.error || !run.json) return "";
+  const n = !run.json.ota ? 0 : Array.isArray(run.json.ota) ? run.json.ota.length : 1;
+  return `${n || "No"} build${n === 1 ? "" : "s"}`;
+}
+function updResultsEl(sec) {
+  var _a2, _b2;
+  const wrap = document.createElement("div");
+  wrap.className = "upd-results";
+  const runs = (_b2 = (_a2 = updResults.get(sec)) == null ? void 0 : _a2.runs) != null ? _b2 : [];
+  if (runs.length) wrap.setAttribute("aria-live", "polite");
+  for (const run of runs) {
+    const block = document.createElement("div");
+    block.className = "upd-run";
+    if (run.label) {
+      const d = deviceList.find((x) => x.serial === run.label);
+      const h = document.createElement("div");
+      h.className = "upd-run-head";
+      h.innerHTML = `<h4 class="upd-run-model">${esc((d == null ? void 0 : d.model) || "Serial")}</h4><span class="upd-run-serial">${esc(updSerialText(run.label))}</span><span class="upd-run-count">${esc(updRunCount(run))}</span>`;
+      block.appendChild(h);
+    }
+    if (run.error) {
+      block.appendChild(elp("settings-out bad", run.error));
+    } else {
+      const result = document.createElement("div");
+      result.className = "updater-result";
+      renderUpdaterResult(run.json || {}, result);
+      block.append(result, updRaw(run.json));
+    }
+    wrap.appendChild(block);
+  }
+  return wrap;
+}
+function elp(cls, text) {
+  const p = document.createElement("p");
+  p.className = cls;
+  p.textContent = text;
+  return p;
+}
+function updRaw(json) {
+  const d = document.createElement("details");
+  d.className = "hint upd-raw";
+  const s = document.createElement("summary");
+  s.textContent = "Raw reply";
+  const pre = document.createElement("pre");
+  pre.textContent = JSON.stringify(json, null, 2);
+  d.append(s, pre);
+  return d;
+}
+function updDownload(href, label) {
+  const a = document.createElement("a");
+  a.className = "dl";
+  a.href = href;
+  a.textContent = label;
+  a.target = "_blank";
+  a.rel = "noopener";
+  return a;
+}
+function updDate(t) {
+  if (t == null || t === "") return "";
+  const n = Number(t);
+  if (!Number.isFinite(n) || n <= 0) return String(t);
+  return new Date(n * 1e3).toLocaleDateString(void 0, { year: "numeric", month: "short", day: "numeric" });
+}
+function updVersion(b) {
+  var _a2;
+  const sem = String((_a2 = b.semantic_version) != null ? _a2 : "").trim();
+  if (sem) return /^\d/.test(sem) ? `v${sem}` : sem;
+  return String(b.build_number_display_name || b.formatted_build_number || "").trim();
+}
+function renderUpdaterResult(json, result) {
+  result.replaceChildren();
+  const otas = !json.ota ? [] : Array.isArray(json.ota) ? json.ota : [json.ota];
+  if (!otas.length) {
+    result.appendChild(elp("empty", "No OS build offered. Meta has nothing newer for this headset with these options."));
+    return;
+  }
+  for (const b of otas) {
+    const card = document.createElement("article");
+    card.className = "updater-build";
+    const facts = [
+      ["Release Tag", b.release_tag],
+      ["Version", updVersion(b)],
+      ["Incremental", b.target_version],
+      ["Build Number", b.formatted_build_number],
+      ["Release Channel", b.release_channel_name]
+    ].filter(([, v]) => v != null && v !== "");
+    const dl = document.createElement("dl");
+    dl.className = "upd-facts";
+    for (const [k, v] of facts) {
+      const row = document.createElement("div");
+      row.className = `upd-fact${k === "Incremental" || k === "Build Number" ? " upd-fact--num" : ""}`;
+      const dt = document.createElement("dt");
+      dt.textContent = k;
+      const dd = document.createElement("dd");
+      dd.textContent = String(v);
+      row.append(dt, dd);
+      dl.appendChild(row);
+    }
+    card.appendChild(dl);
+    const extra = [
+      ["Released", updDate(b.creation_time)],
+      ["Display name", b.build_number_display_name],
+      ["Checksum", b.file_checksum],
+      ["Channel id", b.release_channel_id],
+      ["Controller firmware", b.controller_fw_version && typeof b.controller_fw_version === "object" ? Object.entries(b.controller_fw_version).map(([k, v]) => `${k} ${v}`).join(", ") : b.controller_fw_version],
+      ["Install options", b.extra_install_options && typeof b.extra_install_options === "object" ? JSON.stringify(b.extra_install_options) : b.extra_install_options]
+    ].filter(([, v]) => v != null && v !== "");
+    if (extra.length) {
+      const d = document.createElement("details");
+      d.className = "hint";
+      const s = document.createElement("summary");
+      s.textContent = "Details";
+      const more = document.createElement("dl");
+      more.className = "upd-dl";
+      for (const [k, v] of extra) {
+        const dt = document.createElement("dt");
+        dt.textContent = k;
+        const dd = document.createElement("dd");
+        dd.textContent = String(v);
+        more.append(dt, dd);
+      }
+      d.append(s, more);
+      card.appendChild(d);
+    }
+    if (b.download_uri) {
+      const act = document.createElement("div");
+      act.className = "upd-build-act";
+      act.appendChild(updDownload(b.download_uri, "Download OTA"));
+      card.appendChild(act);
+    }
+    result.appendChild(card);
+  }
+}
 function initDevices() {
   el.devicesLoad.addEventListener("click", () => {
     loadDevices().then(loadPTCStatuses);
@@ -7639,7 +8852,10 @@ function initDevices() {
     el.serialToggle.textContent = showSerials ? "Hide serials" : "Show serials";
     renderDevices();
   });
-  el.devicesRows.addEventListener("click", onDevicePTCClick);
+  el.devicesRows.addEventListener("click", onDeviceRowClick);
+  el.devicesRows.addEventListener("keydown", onDeviceRowKey);
+  el.sharedRows.addEventListener("click", onDeviceRowClick);
+  el.sharedRows.addEventListener("keydown", onDeviceRowKey);
   el.devicesQ.addEventListener("input", renderDevices);
   el.devicesSort.addEventListener("change", renderDevices);
   renderDevices();
@@ -7935,15 +9151,21 @@ function deviceStatus(d) {
   if (d.wipeStatus === "PENDING") return "Remote wipe pending";
   return words2(d.wipeStatus);
 }
+function deviceRank(d) {
+  const i = OTA_DEVICE_TYPES.indexOf(otaCatalogFor(d));
+  return i < 0 ? OTA_DEVICE_TYPES.length : i;
+}
 function sortDevices(list, mode) {
   const byModel = (a, b) => {
     var _a2, _b2;
     return ((_a2 = a.model) != null ? _a2 : "").localeCompare((_b2 = b.model) != null ? _b2 : "") || a.serial.localeCompare(b.serial);
   };
+  if (mode === "release") return [...list].sort((a, b) => deviceRank(a) - deviceRank(b) || byModel(a, b));
   return [...list].sort(mode === "modelZa" ? (a, b) => -byModel(a, b) : byModel);
 }
 var DEVICE_IMAGES = {
   OCULUS_MONTEREY: "img/Quest1.png",
+  OCULUS_SANTA_CRUZ: "img/Quest1.png",
   OCULUS_HOLLYWOOD: "img/Quest2.png",
   OCULUS_SEACLIFF: "img/QuestPro.png",
   OCULUS_EUREKA: "img/Quest3.webp",
@@ -7965,55 +9187,163 @@ function deviceImage(d) {
   if (/^(meta |oculus )?quest$/.test(model.trim())) return "img/Quest1.png";
   return null;
 }
-function deviceRowsHtml(list, { testChannel = true } = {}) {
+function deviceRowsHtml(list) {
   const art = loadSettings().images;
-  return list.map(
-    (d) => {
-      var _a2;
-      return `<tr>
-      <td class="name">${art && deviceImage(d) ? `<img class="art" src="${esc(deviceImage(d))}" alt="" loading="lazy">` : ""}${esc((_a2 = d.model) != null ? _a2 : "Unknown device")}</td>
+  return list.map((d) => {
+    var _a2;
+    const open2 = devicesOpen.has(d.serial);
+    const pic = art && deviceImage(d) ? `<img class="art" src="${esc(deviceImage(d))}" alt="" loading="lazy">` : "";
+    const otaType = otaTypeFor(d);
+    return `<tr class="device-row${open2 ? " open" : ""}" data-headset="${esc(d.serial)}" tabindex="0" role="button" aria-expanded="${open2}">
+      <td class="name">${pic}<span class="device-name">${esc((_a2 = d.model) != null ? _a2 : "Unknown device")}</span><span class="row-caret" aria-hidden="true"></span></td>
+      <td class="num device-ota">${otaType ? esc(otaType) : '<span class="dash">\u2014</span>'}</td>
       <td class="num">${esc(showSerials ? d.serial : maskSerial(d.serial))}</td>
-      <td>${esc(deviceStatus(d))}</td>${testChannel ? `
-      <td class="ptc-cell">${ptcButtons(d.serial)}</td>` : ""}
+      <td>${esc(deviceStatus(d))}</td>
     </tr>`;
-    }
-  ).join("");
+  }).join("");
 }
-function ptcButtons(serial) {
-  const button = (on, disabled = false) => `<button type="button" class="ptc-btn ${on ? "ptc-on" : "ptc-off"}" data-ptc-serial="${esc(serial)}"
-       data-ptc-on="${on ? 1 : 0}"${disabled ? " disabled" : ""}>${on ? "Enable" : "Disable"}</button>`;
-  const s = ptcStatus.get(serial);
-  if (!s || s === "loading") return "";
-  if (s.error) return button(true) + button(false);
-  if (!s.allowed) return button(true, true);
-  return s.enabled ? button(false) : button(true);
+function onDeviceRowClick(e) {
+  const row = e.target.closest("tr.device-row");
+  if (row) toggleHeadset(row.dataset.headset);
 }
-function setPtcOut(text, bad = false) {
-  el.ptcOut.textContent = text;
-  el.ptcOut.classList.toggle("bad", bad);
-  el.ptcOut.hidden = !text;
-}
-function onDevicePTCClick(e) {
-  const button = e.target.closest("[data-ptc-serial]");
-  if (!button) return;
-  setDevicePTCOne(button.dataset.ptcSerial, button.dataset.ptcOn === "1", button);
-}
-async function setDevicePTCOne(serial, enabled, button) {
-  const buttons = [...button.closest("tr").querySelectorAll(".ptc-btn")];
-  buttons.forEach((b) => b.disabled = true);
-  setPtcOut(`${enabled ? "Enabling" : "Disabling"} the test channel on ${headsetLabel(serial)}\u2026`);
-  try {
-    await setDevicePTC(serial, enabled);
-    loadPTCStatus(serial);
-    setPtcOut(
-      `Test channel ${enabled ? "on" : "off"} for ${headsetLabel(serial)}. The headset picks
-       the change up when it next looks for an update.`
-    );
-  } catch (err2) {
-    setPtcOut(`Not changed: ${err2.message}`, true);
+function onDeviceRowKey(e) {
+  var _a2, _b2;
+  const row = (_b2 = (_a2 = e.target).closest) == null ? void 0 : _b2.call(_a2, "tr.device-row");
+  if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+    e.preventDefault();
+    toggleHeadset(row.dataset.headset);
   }
-  buttons.forEach((b) => b.disabled = false);
-  syncRelayNote();
+}
+function toggleHeadset(serial) {
+  var _a2;
+  if (!serial) return;
+  if (devicesOpen.has(serial)) devicesOpen.delete(serial);
+  else devicesOpen.add(serial);
+  renderDevices();
+  const sel = `tr.device-row[data-headset="${CSS.escape(serial)}"]`;
+  (_a2 = el.devicesRows.querySelector(sel) || el.sharedRows.querySelector(sel)) == null ? void 0 : _a2.focus();
+}
+function insertHeadsetPanels(tbody, list) {
+  for (const d of list) {
+    if (!devicesOpen.has(d.serial)) continue;
+    const row = tbody.querySelector(`tr.device-row[data-headset="${CSS.escape(d.serial)}"]`);
+    if (!row) continue;
+    const detail = document.createElement("tr");
+    detail.className = "detail headset-detail";
+    const td2 = document.createElement("td");
+    td2.colSpan = row.children.length;
+    td2.appendChild(headsetPanel(d));
+    detail.appendChild(td2);
+    row.after(detail);
+  }
+}
+function headsetPanel(device) {
+  var _a2;
+  const serial = device.serial;
+  const shared = device.ownership === "shared";
+  const otaType = otaTypeFor(device);
+  const catalog = otaCatalogFor(device);
+  const tabs = [["overview", "Overview"]];
+  if (!shared) tabs.push(["ptc", "Test channel"]);
+  let tab = (_a2 = devicesPanelTab.get(serial)) != null ? _a2 : "overview";
+  if (!tabs.some(([n]) => n === tab)) tab = "overview";
+  const panel = document.createElement("div");
+  panel.className = "panel headset-panel";
+  panel.dataset.tab = tab;
+  const wipe = deviceStatus(device);
+  const overview = factGroups([
+    [
+      "Headset",
+      [
+        ["Model", device.model],
+        ["Serial", showSerials ? serial : maskSerial(serial)],
+        ["Device type", device.deviceType],
+        ["Update type", catalog ? catalog.type : otaType || null],
+        ["Ownership", shared ? "Shared with you" : "Owned"]
+      ]
+    ],
+    ["State", [["Remote wipe", wipe && wipe !== "\u2014" ? wipe : null]]]
+  ]) || `<p>No details for this headset.</p>`;
+  const tabBar = tabs.map(
+    ([n, label]) => `<button type="button" class="companion-tab${n === tab ? " on" : ""}" data-headset-tab="${n}" role="tab" aria-selected="${n === tab}">${label}</button>`
+  ).join("");
+  const pane = (n) => `data-headset-pane="${n}"${n === tab ? "" : " hidden"}`;
+  panel.innerHTML = `
+    <div class="companion-tabs panel-tabs" role="tablist" aria-label="${esc(device.model || "Headset")}">${tabBar}</div>
+    <div ${pane("overview")}>${overview}<div class="controls headset-upd"><button type="button" data-headset-updates>Check for updates</button></div></div>
+    ${shared ? "" : `<div ${pane("ptc")} class="ptc-pane"></div>`}`;
+  panel.querySelector("[data-headset-updates]").addEventListener("click", () => {
+    const now = loadUpd();
+    now.mode = "easy";
+    now.easy.serials = [serial];
+    saveUpd(now);
+    go("/updater");
+  });
+  if (!shared) fillPtcPane(panel.querySelector(".ptc-pane"), device);
+  for (const b of panel.querySelectorAll("[data-headset-tab]")) {
+    b.addEventListener("click", () => {
+      const name = b.dataset.headsetTab;
+      devicesPanelTab.set(serial, name);
+      panel.dataset.tab = name;
+      for (const x of panel.querySelectorAll("[data-headset-tab]")) {
+        const on = x === b;
+        x.classList.toggle("on", on);
+        x.setAttribute("aria-selected", String(on));
+      }
+      for (const p of panel.querySelectorAll("[data-headset-pane]")) p.hidden = p.dataset.headsetPane !== name;
+    });
+  }
+  return panel;
+}
+function fillPtcPane(pane, device) {
+  if (!pane) return;
+  const serial = device.serial;
+  const s = ptcStatus.get(serial);
+  const intro = `<p class="hint">The public test channel (PTC) puts pre-release Quest system software on this headset. It picks the change up the next time it looks for an update.</p>`;
+  if (!s || s === "loading") {
+    pane.innerHTML = intro + `<p class="settings-out">Reading the test channel\u2026</p>`;
+    return;
+  }
+  const state = s.error ? "unknown" : !s.allowed ? "not available" : s.enabled ? "on" : "off";
+  pane.innerHTML = intro + `<p class="ptc-state">Test channel: <strong>${esc(state)}</strong></p><div class="controls" data-ptc-actions></div><p class="settings-out" data-ptc-out hidden></p>`;
+  const actions = pane.querySelector("[data-ptc-actions]");
+  const out = pane.querySelector("[data-ptc-out]");
+  const mkBtn = (on, disabled = false) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "ptc-btn " + (on ? "ptc-on" : "ptc-off");
+    b.textContent = on ? "Enable" : "Disable";
+    if (disabled) b.disabled = true;
+    else b.addEventListener("click", () => setHeadsetPtc(device, on, pane));
+    return b;
+  };
+  if (s.error) actions.append(mkBtn(true), mkBtn(false));
+  else if (!s.allowed) {
+    actions.append(mkBtn(true, true));
+    out.hidden = false;
+    out.textContent = "This headset can't join the test channel.";
+  } else actions.append(s.enabled ? mkBtn(false) : mkBtn(true));
+}
+async function setHeadsetPtc(device, enable, pane) {
+  const serial = device.serial;
+  const out = pane.querySelector("[data-ptc-out]");
+  pane.querySelectorAll(".ptc-btn").forEach((b) => b.disabled = true);
+  if (out) {
+    out.hidden = false;
+    out.classList.remove("bad");
+    out.textContent = `${enable ? "Enabling" : "Disabling"} the test channel on ${headsetLabel(serial)}\u2026`;
+  }
+  try {
+    await setDevicePTC(serial, enable);
+    await loadPTCStatus(serial);
+    syncRelayNote();
+  } catch (err2) {
+    if (out) {
+      out.textContent = `Not changed: ${err2.message}`;
+      out.classList.add("bad");
+    }
+    pane.querySelectorAll(".ptc-btn").forEach((b) => b.disabled = false);
+  }
 }
 function renderDevices() {
   const q = el.devicesQ.value.trim().toLowerCase();
@@ -8027,6 +9357,7 @@ function renderDevices() {
   const owned = sortDevices(ownedAll.filter(match), mode);
   const shared = sortDevices(sharedAll.filter(match), mode);
   el.devicesRows.innerHTML = deviceRowsHtml(owned);
+  insertHeadsetPanels(el.devicesRows, owned);
   el.devicesEmpty.hidden = owned.length > 0 || devicesLoading;
   el.devicesEmpty.textContent = devicesLoading ? "" : devicesNote ? devicesNote : !devicesAsked ? "Press Get devices to list the headsets on this account." : ownedAll.length ? "Nothing matches." : "No devices found on this account.";
   el.devicesCount.textContent = devicesLoading ? "Asking the store\u2026" : !devicesAsked || devicesNote ? "" : owned.length === ownedAll.length ? `${ownedAll.length} device${ownedAll.length === 1 ? "" : "s"}.` : `${owned.length} of ${ownedAll.length} devices.`;
@@ -8034,7 +9365,8 @@ function renderDevices() {
   el.devicesPresence.textContent = presence;
   el.devicesPresence.hidden = !presence;
   el.sharedSection.hidden = !devicesAsked || devicesLoading || sharedAll.length === 0;
-  el.sharedRows.innerHTML = deviceRowsHtml(shared, { testChannel: false });
+  el.sharedRows.innerHTML = deviceRowsHtml(shared);
+  insertHeadsetPanels(el.sharedRows, shared);
   el.sharedCount.textContent = shared.length === sharedAll.length ? `${sharedAll.length} shared device${sharedAll.length === 1 ? "" : "s"}.` : `${shared.length} of ${sharedAll.length} shared devices.`;
 }
 var LOG_MAX = 300;
@@ -8095,6 +9427,18 @@ function initExtSignIn() {
       const same = el.token.value.trim() === m.token && el.acToken.value.trim() === m.acToken;
       el.token.value = m.token;
       el.acToken.value = m.acToken;
+      if (m.frlToken) {
+        el.frlToken.value = m.frlToken;
+        saveSettings({ frlToken: m.frlToken });
+        if (el.tokensOut) {
+          el.tokensOut.textContent = "";
+          el.tokensOut.className = "settings-out";
+        }
+      } else if (m.frlError && el.tokensOut) {
+        el.tokensOut.textContent = "FRL token not fetched \u2014 " + m.frlError;
+        el.tokensOut.className = "settings-out bad";
+        console.log("[MetaDB] FRL token error:", m.frlError);
+      }
       el.settingsForm.requestSubmit();
       reset();
       uiNotice(
@@ -8157,14 +9501,35 @@ function initSettings() {
   const saved = loadSettings();
   el.token.value = (_a2 = localStorage.getItem("metadb.token")) != null ? _a2 : "";
   el.acToken.value = saved.acToken;
+  el.frlToken.value = saved.frlToken || "";
+  el.updToken.value = saved.upToken || "";
   el.relay.value = saved.relay;
   syncRelayNote();
+  el.getUpdToken.addEventListener("click", async () => {
+    const label = el.getUpdToken.textContent;
+    el.getUpdToken.disabled = true;
+    el.getUpdToken.textContent = "Getting\u2026";
+    report(el.updTokenOut, "Minting the updater token from your FRL token\u2026", "");
+    try {
+      const t = await updaterToken();
+      el.updToken.value = t;
+      saveSettings({ upToken: t });
+      report(el.updTokenOut, "Updater token saved.", "ok");
+    } catch (e) {
+      report(el.updTokenOut, e.message, "bad");
+    } finally {
+      el.getUpdToken.disabled = false;
+      el.getUpdToken.textContent = label;
+    }
+  });
+  el.updToken.addEventListener("change", () => saveSettings({ upToken: el.updToken.value.trim() }));
   el.settingsForm.addEventListener("submit", (e) => {
     e.preventDefault();
     try {
       saveSettings({
         token: el.token.value.trim(),
         acToken: el.acToken.value.trim(),
+        frlToken: el.frlToken.value.trim(),
         relay: el.relay.value.trim()
       });
       syncRelayNote();
@@ -8177,21 +9542,67 @@ function initSettings() {
   el.saveTokens.addEventListener("click", () => {
     const token = el.token.value.trim();
     const acToken = el.acToken.value.trim();
+    const frlToken = el.frlToken.value.trim();
     try {
-      saveSettings({ token, acToken });
+      saveSettings({ token, acToken, frlToken });
       syncExtSignIn();
       renderAll();
       tell(
         [
           token ? "Access token saved." : "Access token cleared \u2014 using the built-in one.",
-          acToken ? "Account token saved." : "No account token, so downloads stay off."
-        ].join(" "),
+          acToken ? "Account token saved." : "No account token, so downloads stay off.",
+          frlToken ? "FRL token saved." : ""
+        ].filter(Boolean).join(" "),
         "ok"
       );
     } catch (err2) {
       tell(err2.message, "bad");
     }
   });
+  if (el.frlSnippet) {
+    const relayTemplate = (loadSettings().relay || "").trim() || location.origin + "/api?url={url}";
+    const snippet = `(async () => {
+  const R = ${JSON.stringify(relayTemplate)};
+  const relay = u => R.includes("{url}") ? R.replace("{url}", encodeURIComponent(u)) : R + encodeURIComponent(u);
+  const CLIENT = "FRL|512466987071624|01d4a1f7fd0682aea7ee8ae987704d63", NATIVE = "512466987071624";
+  const form = o => new URLSearchParams(o);
+  const graph = (url, body) => fetch(relay(url), { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }, body: form(body) }).then(r => r.json());
+  if (!location.host.endsWith("auth.meta.com")) { alert("Run this on https://auth.meta.com while signed in to Meta."); return; }
+  try {
+    let j = await graph("https://meta.graph.meta.com/webview_tokens_query", { access_token: CLIENT });
+    const etoken = j.native_sso_etoken, reqtoken = j.native_sso_token;
+    const confirmUrl = "https://auth.meta.com/native_sso/confirm?" + form({ native_app_id: NATIVE, native_sso_etoken: etoken, utm_source: "skyline_splash" });
+    const html = await (await fetch(confirmUrl, { credentials: "include" })).text();
+    const scrape = t => { const i = html.indexOf('"' + t + '"'); if (i < 0) return null; const m = html.slice(i, i + 400).match(/"token":"([^"]+)"/); return m && m[1]; };
+    const dtsg = scrape("DTSGInitialData"), lsd = scrape("LSD");
+    if (!dtsg || !lsd) { alert("Not signed in to meta.com in this browser \u2014 sign in at meta.com first, then run this again."); return; }
+    const jazoest = "2" + [...dtsg].reduce((s, c) => s + c.charCodeAt(0), 0);
+    const bt = await (await fetch("https://auth.meta.com/api/native_sso/approved/", { method: "POST", credentials: "include", headers: { "Content-Type": "application/x-www-form-urlencoded", "x-fb-lsd": lsd }, body: form({ __a: "1", fb_dtsg: dtsg, jazoest, lsd, native_app_id: NATIVE, native_sso_etoken: etoken }) })).text();
+    const blob = new URL(JSON.parse(bt.replace("for (;;);", "")).payload.uri).searchParams.get("blob");
+    j = await graph("https://meta.graph.meta.com/webview_blobs_decrypt", { access_token: CLIENT, blob, request_token: reqtoken });
+    j = await graph("https://meta.graph.meta.com/graphql", { doc_id: "5787825127910775", variables: JSON.stringify({ app_id: 826037204154824 }), access_token: j.access_token });
+    const tkn = j.data.xfr_create_profile_token.profile_tokens[0].access_token;
+    await navigator.clipboard.writeText(tkn).catch(() => {});
+    console.log("FRL token (copied to clipboard):", tkn);
+    alert("FRL token copied to the clipboard. Paste it into MetaDB Settings.");
+  } catch (e) {
+    const m = (e && e.message) || String(e);
+    if (/session has been invalidated|validating access token|190/i.test(m)) alert("Your meta.com login has been invalidated (a password change, or Meta security). Sign out of meta.com and sign back in, then run this again.");
+    else alert("Could not get the token: " + m);
+  }
+})();`;
+    el.frlSnippet.textContent = snippet;
+    if (el.copyFrlSnippet) {
+      el.copyFrlSnippet.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(snippet);
+          report(el.frlSnippetOut, "Snippet copied. Paste it into the console on auth.meta.com.", "ok");
+        } catch {
+          report(el.frlSnippetOut, "Couldn't copy automatically \u2014 select the snippet text and copy it by hand.", "bad");
+        }
+      });
+    }
+  }
   for (const [node, key] of [
     [el.images, "images"],
     [el.details, "details"],
@@ -8293,6 +9704,8 @@ function initSettings() {
     }
     el.token.value = "";
     el.acToken.value = "";
+    if (el.frlToken) el.frlToken.value = "";
+    if (el.updToken) el.updToken.value = "";
     tell("", "");
     el.relay.value = IN_APP ? window.MetaDBApp.relay() : "";
     el.images.checked = false;
@@ -9598,11 +11011,22 @@ async function loadFflate() {
   if (!_fflate) _fflate = await Promise.resolve().then(() => (init_fflate_module(), fflate_module_exports));
   return _fflate;
 }
+var RIFT_PARALLEL = 8;
 async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) {
-  var _a2;
   if (!canDownload()) {
     go("/settings");
     return;
+  }
+  const safe = (app.name || "rift-build").replace(/[^\w.-]+/g, "_");
+  const folderName = `${safe}_${version || binaryId}`.replace(/[^\w.-]+/g, "_");
+  let root = null;
+  if (typeof window.showDirectoryPicker === "function") {
+    try {
+      root = await window.showDirectoryPicker({ id: "metadb-rift", mode: "readwrite" });
+    } catch (err2) {
+      if ((err2 == null ? void 0 : err2.name) === "AbortError") return;
+      root = null;
+    }
   }
   const label = button.textContent;
   button.disabled = true;
@@ -9610,85 +11034,127 @@ async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) 
     button.textContent = t;
     button.title = `${app.name}: ${t}`;
   };
+  const open2 = /* @__PURE__ */ new Map();
   try {
     say2("Finding build\u2026");
     const { manifestUri, segmentsBaseUri, platform } = await riftMetadata(binaryId);
-    if (platform === "ANDROID") {
-      throw new Error("this is a Quest build, not a Rift one");
-    }
-    if (!manifestUri || !segmentsBaseUri) {
-      throw new Error("no PC manifest for this build");
-    }
+    if (platform === "ANDROID") throw new Error("this is a Quest build, not a Rift one");
+    if (!manifestUri || !segmentsBaseUri) throw new Error("no PC manifest for this build");
     const f = await loadFflate();
     say2("Fetching manifest\u2026");
-    const manifestZip = await riftManifestBytes(manifestUri);
-    let manifestText;
-    try {
-      const entries = f.unzipSync(manifestZip, {
-        filter: (e) => e.name === "manifest.json" || e.name.endsWith("/manifest.json")
-      });
-      const key = Object.keys(entries)[0];
-      if (!key) throw new Error("no manifest.json in the archive");
-      manifestText = new TextDecoder().decode(entries[key]);
-    } catch {
-      try {
-        manifestText = new TextDecoder().decode(f.gunzipSync(manifestZip));
-      } catch {
-        manifestText = new TextDecoder().decode(manifestZip);
-      }
-    }
-    const manifest = JSON.parse(manifestText);
+    const manifest = JSON.parse(riftManifestText(f, await riftManifestBytes(manifestUri)));
     const files = manifest.files || {};
     const names = Object.keys(files);
     if (!names.length) throw new Error("the manifest listed no files");
     const totalBytes = names.reduce((sum, n) => sum + (files[n].size || 0), 0) || 1;
-    const chunks = [];
-    const zip2 = new f.Zip((err2, data) => {
-      if (data) chunks.push(data);
-    });
-    const inflate2 = (raw) => {
-      try {
-        return f.unzlibSync(raw);
-      } catch {
-        try {
-          return f.gunzipSync(raw);
-        } catch {
-          return f.inflateSync(raw);
-        }
-      }
-    };
-    let doneBytes = 0;
+    const jobs = [];
+    const left = /* @__PURE__ */ new Map();
     for (const name of names) {
       const file = files[name];
-      const buf = new Uint8Array(file.size);
-      let offset = 0;
-      for (const seg of file.segments) {
-        const sha = Array.isArray(seg) ? seg[1] : (_a2 = seg.sha256) != null ? _a2 : seg;
-        const raw = await riftSegmentBytes(segmentsBaseUri, sha);
-        buf.set(inflate2(raw), offset);
-        offset += file.segmentSize;
-      }
-      const entry = new f.ZipPassThrough(name);
-      zip2.add(entry);
-      entry.push(buf, true);
-      doneBytes += file.size;
-      say2(`Assembling\u2026 ${Math.round(doneBytes / totalBytes * 100)}%`);
+      const segs = file.segments || [];
+      left.set(name, segs.length);
+      segs.forEach((seg, i) => {
+        var _a2;
+        jobs.push({ name, offset: i * (file.segmentSize || 0), sha: Array.isArray(seg) ? seg[1] : (_a2 = seg.sha256) != null ? _a2 : seg });
+      });
     }
-    zip2.end();
-    say2("Packaging\u2026");
-    const blob = new Blob(chunks, { type: "application/zip" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const safe = (app.name || "rift-build").replace(/[^\w.-]+/g, "_");
-    a.download = `${safe}_${version || binaryId}.zip`;
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 3e4);
-    button.textContent = "Downloaded";
-    button.title = `${app.name}: saved ${names.length} files as ${a.download}`;
+    let doneBytes = 0;
+    let filesDone = 0;
+    const progress = () => say2(`Downloading ${Math.min(99, Math.floor(doneBytes / totalBytes * 100))}% \xB7 ${filesDone} of ${names.length} files`);
+    progress();
+    let dir = null;
+    const buffers = /* @__PURE__ */ new Map();
+    const zipChunks = [];
+    const zip2 = root ? null : new f.Zip((err2, data) => data && zipChunks.push(data));
+    if (root) dir = await root.getDirectoryHandle(folderName, { create: true });
+    const target = async (name) => {
+      if (open2.has(name)) return open2.get(name);
+      const pending = (async () => {
+        if (!root) {
+          const buf = new Uint8Array(files[name].size || 0);
+          buffers.set(name, buf);
+          return { write: async (offset, data) => buf.set(data, offset), close: async () => {
+          } };
+        }
+        const parts = String(name).split(/[\\/]+/).filter((p) => p && p !== "." && p !== "..");
+        let d = dir;
+        for (const p of parts.slice(0, -1)) d = await d.getDirectoryHandle(p, { create: true });
+        const handle = await d.getFileHandle(parts[parts.length - 1] || "file", { create: true });
+        const w = await handle.createWritable();
+        return { write: (offset, data) => w.write({ type: "write", position: offset, data }), close: () => w.close(), abort: () => w.abort() };
+      })();
+      open2.set(name, pending);
+      return pending;
+    };
+    const finish = async (name) => {
+      const t = await target(name);
+      await t.close();
+      open2.delete(name);
+      if (zip2) {
+        const entry = new f.ZipPassThrough(name);
+        zip2.add(entry);
+        entry.push(buffers.get(name), true);
+        buffers.delete(name);
+      }
+      filesDone++;
+    };
+    for (const name of names) if (!left.get(name)) await finish(name);
+    let failed = null;
+    const worker = async () => {
+      while (jobs.length && !failed) {
+        const job = jobs.shift();
+        let raw;
+        for (let attempt = 1; ; attempt++) {
+          try {
+            raw = await riftSegmentBytes(segmentsBaseUri, job.sha);
+            break;
+          } catch (err2) {
+            if (attempt >= 3) throw err2;
+            await new Promise((r) => setTimeout(r, 1e3 * attempt));
+          }
+        }
+        const data = riftInflate(f, raw);
+        const t = await target(job.name);
+        await t.write(job.offset, data);
+        doneBytes += data.length;
+        const n = left.get(job.name) - 1;
+        left.set(job.name, n);
+        if (n === 0) await finish(job.name);
+        progress();
+      }
+    };
+    await Promise.all(
+      Array.from(
+        { length: RIFT_PARALLEL },
+        () => worker().catch((err2) => {
+          failed != null ? failed : failed = err2;
+        })
+      )
+    );
+    if (failed) throw failed;
+    if (root) {
+      button.textContent = "Downloaded";
+      button.title = `${app.name}: wrote ${names.length} files to the folder ${folderName}`;
+    } else {
+      zip2.end();
+      say2("Packaging\u2026");
+      const url = URL.createObjectURL(new Blob(zipChunks, { type: "application/zip" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${folderName}.zip`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 3e4);
+      button.textContent = "Downloaded";
+      button.title = `${app.name}: saved ${names.length} files as ${a.download}`;
+    }
   } catch (err2) {
+    for (const pending of open2.values()) pending.then((t) => {
+      var _a2;
+      return (_a2 = t.abort) == null ? void 0 : _a2.call(t);
+    }).catch(() => {
+    });
     button.textContent = "Failed";
     button.title = `${app.name}: ${err2.message}`;
   } finally {
@@ -9698,6 +11164,33 @@ async function downloadRiftBuild(app, { riftBuild: binaryId, version }, button) 
         button.textContent = label;
       }
     }, 6e3);
+  }
+}
+function riftManifestText(f, bytes) {
+  try {
+    const entries = f.unzipSync(bytes, {
+      filter: (e) => e.name === "manifest.json" || e.name.endsWith("/manifest.json")
+    });
+    const key = Object.keys(entries)[0];
+    if (!key) throw new Error("no manifest.json in the archive");
+    return new TextDecoder().decode(entries[key]);
+  } catch {
+    try {
+      return new TextDecoder().decode(f.gunzipSync(bytes));
+    } catch {
+      return new TextDecoder().decode(bytes);
+    }
+  }
+}
+function riftInflate(f, raw) {
+  try {
+    return f.unzlibSync(raw);
+  } catch {
+    try {
+      return f.gunzipSync(raw);
+    } catch {
+      return f.inflateSync(raw);
+    }
   }
 }
 function downloadCell(v, offerDev, app = null) {
@@ -9736,7 +11229,7 @@ function downloadCell(v, offerDev, app = null) {
               data-rift-build="${esc(v.id)}"
               data-version="${esc(v.version)}"
               title="${esc(
-      dev ? `${v.version} \u2014 never released to a channel; assembled from PC segments as a .zip` : `Download ${v.version} \u2014 assembled from PC segments into a .zip`
+      dev ? `${v.version} \u2014 never released to a channel; downloads the build's files into a folder you pick` : `Download ${v.version} \u2014 writes the build's files into a folder you pick`
     )}">Download</button>`;
   }
   if (!canDownload()) {

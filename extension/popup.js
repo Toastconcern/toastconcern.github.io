@@ -1,15 +1,20 @@
+/* Firefox's promise-based API is `browser` (its `chrome.*` is callback-only);
+   Chrome's `chrome.*` is promise-based in MV3. Use `browser` where it exists so
+   the promise calls below work in both. In Chrome `browser` is undefined (no-op). */
+if (typeof browser !== "undefined") globalThis.chrome = browser;
+
 const $ = (id) => document.getElementById(id);
 const VERSION = chrome.runtime.getManifest().version;
 $("version").textContent = VERSION;
 
-chrome.runtime.sendMessage({ type: "status" }, ({ signedIn } = {}) => {
+chrome.runtime.sendMessage({ type: "status" }).then(({ signedIn } = {}) => {
   const state = $("state");
   state.className = signedIn ? "on" : "";
   state.textContent = signedIn
     ? "Logged in to Meta. Press Sign in with Meta in MetaDB's Settings."
     : "Not logged in to Meta in this browser. MetaDB opens the login when you sign in, or log in here first.";
   $("login").hidden = Boolean(signedIn);
-});
+}, () => {});
 
 /* ---------- updates ---------- */
 
@@ -37,10 +42,10 @@ function show({ off, update, checked, failed } = {}) {
           : "Not checked yet.";
 }
 
-chrome.storage.sync.get({ updates: true }, ({ updates }) => {
+chrome.storage.sync.get({ updates: true }).then(({ updates }) => {
   $("updates").checked = updates;
   if (!updates) return show({ off: true });
-  chrome.storage.local.get(["update", "checked"], show);
+  chrome.storage.local.get(["update", "checked"]).then(show);
 });
 
 /* Turned on, the background checks at once (it watches the switch); the answer is drawn when it lands. */
@@ -52,7 +57,7 @@ $("updates").addEventListener("change", () => {
 });
 chrome.storage.onChanged.addListener((c, area) => {
   if (area === "local" && (c.update || c.checked) && $("updates").checked) {
-    chrome.storage.local.get(["update", "checked"], show);
+    chrome.storage.local.get(["update", "checked"]).then(show);
   }
 });
 
@@ -60,10 +65,14 @@ $("checkNow").addEventListener("click", () => {
   const b = $("checkNow");
   b.disabled = true;
   b.textContent = "Checking…";
-  chrome.runtime.sendMessage({ type: "update-check" }, (r) => {
+  chrome.runtime.sendMessage({ type: "update-check" }).then((r) => {
     b.disabled = false;
     b.textContent = "Check now";
     show(r ?? { failed: "no answer" });
+  }, (err) => {
+    b.disabled = false;
+    b.textContent = "Check now";
+    show({ failed: err.message || "no answer" });
   });
 });
 

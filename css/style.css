@@ -1149,14 +1149,20 @@ main > section > .sub,
 
 /* Your Devices: a headset glyph beside the model name. */
 .devices-sub-h { font-size: 1rem; font-weight: 600; margin: 2.25rem 0 .5rem; }
-/* Both device tables share one fixed column layout, so Serial and Status line up
-   between the owned and shared sections. */
+/* Four columns — Device, Update type, Serial, Status — so the table fills the
+   content width and lines up with the controls above it, instead of three short
+   columns stranded in the left half with a dead strip beside them. Both tables
+   share one fixed layout so the columns line up between owned and shared. */
 #view-devices table { table-layout: fixed; }
-#view-devices th:nth-child(1), #view-devices td:nth-child(1) { width: 45%; }
-#view-devices th:nth-child(2), #view-devices td:nth-child(2) { width: 30%; }
-#view-devices th:nth-child(3), #view-devices td:nth-child(3) { width: 25%; }
+#view-devices th:nth-child(1), #view-devices td:nth-child(1) { width: 34%; }
+#view-devices th:nth-child(2), #view-devices td:nth-child(2) { width: 24%; }
+#view-devices th:nth-child(3), #view-devices td:nth-child(3) { width: 22%; }
+#view-devices th:nth-child(4), #view-devices td:nth-child(4) { width: 20%; }
 /* Center each cell vertically in its row. */
 #view-devices td { vertical-align: middle; }
+/* The update type is secondary, mono and muted; a missing one is a grey dash. */
+.device-ota { color: var(--muted); }
+.device-ota .dash { color: var(--muted); }
 
 /* The headset picture sits inline with its name, centred on it. The shared
    .art nudges itself down with vertical-align for the taller app rows; here the
@@ -1171,6 +1177,41 @@ main > section > .sub,
   background: none;
   object-fit: contain;
 }
+
+/* ---------- a headset row opens into a panel ----------
+   The whole row is the control — click or Enter opens its panel, the same move
+   an app row makes. The name cell stays a real table-cell (so the fixed column
+   widths hold); the model and a small chevron sit inline, art before them. */
+.device-row { cursor: pointer; }
+.device-row:hover td { background: var(--hover); }
+.device-row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+.device-name { font-weight: 600; }
+/* A chevron right after the name that turns to point down when the row is open.
+   Drawn from borders so it needs no glyph font and stays square like the rest. */
+.row-caret {
+  display: inline-block;
+  width: .45rem;
+  height: .45rem;
+  margin-left: .5rem;
+  vertical-align: middle;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: translateY(-1px) rotate(-45deg);
+  transition: transform .15s ease;
+}
+.device-row.open .row-caret { transform: translateY(-2px) rotate(45deg); }
+@media (prefers-reduced-motion: reduce) { .row-caret { transition: none; } }
+
+/* The opened panel sits in a detail row under its headset, top-aligned (the id
+   rule above otherwise centres it in the cell). */
+#view-devices tr.detail > td { vertical-align: top; }
+.headset-panel { padding: .25rem 0 0; }
+.headset-panel [data-headset-pane] { min-width: 0; }
+/* The test-channel tab: current state, then the one switch. */
+.ptc-state { margin: .25rem 0 .75rem; font-size: .875rem; }
+.headset-panel .controls { margin: 0; }
+.headset-panel .hint { margin-top: 0; }
+.headset-panel .settings-out { margin: .6rem 0 0; }
 
 /* store lookup */
 
@@ -1210,19 +1251,15 @@ main > section > .sub,
 /* A rejected binary ID is the one hint that is a verdict rather than a note. */
 .hint.bad { color: var(--red); }
 
-/* Two switches per headset, sized like the build table's download button so
-   the tables read as one family. Neutral rather than blue: blue is a download
-   here, and these are neither. */
-/* These tables are table-layout: fixed, so content does not size a column —
-   every width has to be stated or the column gets whatever is left, which is
-   how the PTC column ended up collapsed with its buttons hanging past the right
-   edge and no rule under its heading. Device is left unset and takes the slack;
-   the three after it are each given the room they actually need. */
+/* Serial and status never wrap — a wrapped serial reads as two, a wrapped
+   "Remote wipe pending" as two states. The column widths (45/30/25 above) give
+   each the room it needs; the box scrolls sideways on a phone rather than wrap. */
 #view-devices th:nth-child(n + 2),
 #view-devices td:nth-child(n + 2) { white-space: nowrap; }
-#view-devices th:nth-child(2) { width: 14rem; }
-#view-devices th:nth-child(3) { width: 13rem; }
-.c-ptc { width: 11rem; }
+
+/* The test-channel switches, sized like the build table's download button so the
+   panels read as one family. Neutral rather than blue: blue is a download here,
+   and these are neither. */
 .ptc-btn {
   font-size: .8125rem;
   padding: .35rem .9rem;
@@ -1501,38 +1538,76 @@ details.hint > p {
 }
 .companion-tab:hover:not(.on) { background: var(--hover); }
 
+/* ---------- command tabs: feature groups of command rows ----------
+   A tab is its commands grouped by feature (Wi-Fi, Casting, Controllers…). Each
+   group is a quiet card — a short heading over a list of rows, the command's name on
+   the left and its control (a button, Enable/Disable, or fields and a button) on the
+   right. The cards sit in a grid so they line up in neat rows and fill the width. No
+   descriptions on screen; the "what it does" help is a hover tooltip on the name. */
+.companion-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 23rem), 1fr));
+  gap: 1rem 1.25rem;
+  align-items: start;
+}
 .companion-group {
+  min-width: 0;
+  padding: .55rem .8rem .2rem;
   border: 1px solid var(--line);
   border-radius: 4px;
   background: var(--panel);
-  padding: .75rem .9rem;
-  margin-bottom: .75rem;
 }
-.companion-group > h3 {
-  margin: 0 0 .6rem;
-  font-size: .75rem;
+/* The Setup tab and the Wi-Fi group want the full width, not a single grid cell. */
+.companion-group--wide,
+.companion-group--setup { grid-column: 1 / -1; }
+
+.companion-group-title {
+  margin: 0 0 .15rem;
+  padding-bottom: .3rem;
+  border-bottom: 1px solid var(--line);
+  font-size: .8125rem;
   font-weight: 600;
-  letter-spacing: .04em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--muted);
 }
 
-.companion-cmd { margin: .35rem 0; }
-.companion-cmd.is-primary { padding-bottom: .5rem; margin-bottom: .5rem; border-bottom: 1px dashed var(--line); }
-
-.companion-cmd-form {
+.companion-cmd {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end; /* inputs and the button share a bottom line */
-  gap: .4rem .6rem;
+  align-items: baseline;
+  gap: .2rem .9rem;
+  padding: .36rem 0;
+  min-width: 0;
 }
-/* Fixed-width title column so every row's inputs start at the same x. */
+.companion-cmd + .companion-cmd { border-top: 1px solid var(--line); }
 .companion-cmd-title {
-  flex: 0 0 13rem;
-  align-self: center;
-  font-weight: 600;
+  flex: 0 0 9.5rem;
   font-size: .875rem;
+  color: var(--text);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
+.companion-cmd-step { color: var(--muted); font-weight: 600; margin-right: .1rem; }
+
+.companion-cmd-form {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .4rem .5rem;
+  min-width: 0;
+}
+.companion-cmd-form > button[type="submit"] { flex: none; }
+
+/* An on/off command: Enable and Disable sit together, never splitting across a wrap. */
+.companion-toggle { display: inline-flex; gap: .35rem; }
+.companion-toggle > button { flex: none; }
+
+/* The Setup / Wi-Fi rows stack their control under the name (the picker is wide). */
+.companion-group--setup .companion-cmd { padding: .5rem 0; }
+.companion-cmd--wide { flex-direction: column; align-items: stretch; }
+.companion-cmd--wide .companion-cmd-title { flex: none; margin-bottom: .4rem; }
 
 .companion-field {
   display: inline-flex;
@@ -1540,6 +1615,8 @@ details.hint > p {
   gap: .15rem;
   font-size: .75rem;
   color: var(--muted);
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .companion-field.is-check {
   flex-direction: row;
@@ -1547,21 +1624,10 @@ details.hint > p {
   gap: .35rem;
   color: var(--text);
   font-size: .8125rem;
-  padding-bottom: .4rem; /* sit on the same baseline as the inputs */
 }
 .companion-field.is-check input { min-height: 0; }
-/* Consistent input width so the columns line up across rows. */
 .companion-field input:not([type="checkbox"]),
-.companion-field select { width: 15ch; min-width: 0; }
-
-/* Push the action button to the right edge so every row's button lines up. */
-.companion-cmd-form > button[type="submit"] { margin-left: auto; }
-
-@media (max-width: 640px) {
-  /* On narrow screens stack the title and let the button sit inline. */
-  .companion-cmd-title { flex-basis: 100%; align-self: flex-start; }
-  .companion-cmd-form > button[type="submit"] { margin-left: 0; }
-}
+.companion-field select { width: 13ch; min-width: 0; }
 
 .companion-result {
   margin: .45rem 0 0;
@@ -1578,50 +1644,368 @@ details.hint > p {
 }
 .companion-result[data-kind="err"] { color: var(--red); }
 
+/* The console snippet for minting the FRL token without the extension. Contained
+   and scrollable so the long one-liner never pushes the Settings layout around. */
+.token-snippet {
+  margin: .5rem 0 0;
+  padding: .55rem .65rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: .72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 11rem;
+  overflow: auto;
+  user-select: all;
+}
+
 /* A field the form has no use for right now — the security type decides whether
    a password or a username is a real question. Needed because .companion-field
    sets display, which beats the [hidden] the UA stylesheet gives it. */
 .companion-field[hidden] { display: none; }
 
-/* ---------- help text: what a slot wants and where to get it ----------
-   A per-command line under the title, and a per-field line under an input. Both
-   stay muted so they read as guidance, not as another control. The field help
-   breaks to its own row (flex-basis 100%) so it never pinches the input width. */
-.companion-cmd-help {
-  margin: .1rem 0 .35rem;
-  font-size: .75rem;
-  line-height: 1.5;
-  color: var(--muted);
-  max-width: 60ch;
+/* ---------- CompanionServer: the connection card ----------
+   The one way in, so it is a card and not a loose row of controls. It reads top
+   to bottom: the state it is in, then what it connects with (protocol + secret),
+   then the button that acts. A left edge carries the state's colour so connected
+   / trouble reads from the whole card at a glance. */
+.companion-connect {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  padding: .9rem 1rem;
+  margin: 1rem 0 1rem;
 }
-.companion-field .companion-help {
-  flex-basis: 100%;
-  margin-top: .1rem;
-  font-size: .6875rem;
-  line-height: 1.45;
-  font-weight: 400;
-  color: var(--muted);
-  max-width: 34ch;
-}
-.companion-field.is-check .companion-help { margin-left: 1.6rem; }
+.companion-connect[data-state="ok"] { border-left-color: var(--green); }
+.companion-connect[data-state="warn"],
+.companion-connect[data-state="err"] { border-left-color: var(--red); }
 
-/* ---------- the Setup tab's numbered steps ----------
-   Each step is an ordinary command group whose heading is numbered ("1. …") and
-   carries a line of plain guidance, so a reader works straight down the list. No
-   special chrome — it reads like every other group on the site. */
-.companion-setup-intro {
-  margin: 0 0 1rem;
-  font-size: .8125rem;
-  line-height: 1.6;
-  color: var(--muted);
-  max-width: 68ch;
+/* State header: a small uppercase label, then the live state line with a square
+   status chip in front of it (square, like every indicator on the site). */
+.companion-conn-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: .25rem .6rem;
+  margin-bottom: .85rem;
 }
-.companion-step-note {
-  margin: 0 0 .7rem;
-  font-size: .78125rem;
-  line-height: 1.55;
+.companion-conn-label {
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
   color: var(--muted);
-  max-width: 64ch;
+}
+.companion-conn-state {
+  margin: 0;
+  font-size: .9375rem;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: baseline;
+  gap: .45rem;
+  min-width: 0;
+}
+.companion-conn-state::before {
+  content: "";
+  flex: none;
+  width: .5rem;
+  height: .5rem;
+  background: var(--muted);
+  transform: translateY(-.05em);
+}
+.companion-conn-state[data-kind="ok"] { color: var(--green); }
+.companion-conn-state[data-kind="ok"]::before { background: var(--green); }
+.companion-conn-state[data-kind="warn"],
+.companion-conn-state[data-kind="err"] { color: var(--red); }
+.companion-conn-state[data-kind="warn"]::before,
+.companion-conn-state[data-kind="err"]::before { background: var(--red); }
+
+/* Protocol beside the secret while there is room; stacked on a phone. */
+.companion-conn-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .9rem 1.4rem;
+  margin-bottom: .9rem;
+}
+.companion-conn-field {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+  min-width: 0;
+}
+.companion-conn-field > label {
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--muted);
+}
+.companion-conn-opt { font-weight: 400; text-transform: none; letter-spacing: 0; }
+.companion-conn-secret { flex: 1 1 22rem; }
+.companion-conn-secret-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  align-items: center;
+}
+.companion-conn-secret-row input {
+  flex: 1 1 15rem;
+  min-width: 0;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+#companionSecretPick { margin-top: .4rem; max-width: 22rem; }
+.companion-conn-actions { margin: 0; }
+
+/* The "how it works" note and the first-run pointer, kept quiet under the card. */
+.companion-lead { margin-top: 0; }
+.companion-about { max-width: 72ch; margin-top: .5rem; }
+.companion-about > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 600;
+  list-style-position: inside;
+}
+.companion-about > p { margin: .5rem 0 0; }
+
+/* ---------- the Updater screen (User → Updater) ---------- */
+/* Each section a quiet card: title and one line of what it does, then the choices
+   (Easy, the OS build check alone) or the boxes (Advanced, every section), then what
+   came back. One button above them switches the mode. */
+.upd-screen { display: grid; gap: 1.25rem; margin-top: 1.25rem; }
+.upd-section {
+  min-width: 0;
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.upd-sec-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .75rem 1.5rem; }
+.upd-title { margin: 0; font-size: 1.0625rem; font-weight: 600; letter-spacing: -.01em; }
+.upd-lead { margin: .25rem 0 0; font-size: .8125rem; line-height: 1.5; color: var(--muted); max-width: 60ch; }
+.upd-body { margin-top: 1.1rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+
+/* Small uppercase labels over each group of choices, and over the request. */
+.upd-choice-h, .upd-send-label {
+  margin: 0 0 .5rem;
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.upd-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr)); gap: .5rem; }
+.upd-tile {
+  display: flex;
+  align-items: flex-start;
+  gap: .65rem;
+  min-height: 44px;
+  padding: .7rem .8rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: border-color .12s ease, background-color .12s ease;
+}
+.upd-tile:hover { border-color: var(--border); }
+.upd-tile.on { background: var(--bg); border-color: var(--text); }
+.upd-tile:focus-within { outline: 2px solid var(--link); outline-offset: 2px; }
+.upd-tile input { flex: none; width: auto; min-height: 0; margin: .2rem 0 0; accent-color: var(--text); }
+.upd-tile-text { display: grid; gap: .1rem; min-width: 0; }
+.upd-tile-model { font-size: .875rem; font-weight: 600; }
+.upd-tile-serial { font-family: var(--mono); font-size: .75rem; color: var(--muted); overflow-wrap: anywhere; }
+.upd-choice + .upd-choice { margin-top: 1.1rem; }
+
+.upd-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-top: 1.25rem; }
+.upd-action-note { margin: 0; font-size: .8125rem; color: var(--muted); }
+.upd-empty { margin: 0; font-size: .875rem; color: var(--muted); }
+/* Advanced: a toolbar, the boxes in four labelled groups, then what will be sent. */
+.upd-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: 1rem; }
+.upd-tools select { flex: 0 1 20rem; min-width: 0; }
+.upd-groups { display: grid; gap: .9rem; }
+.upd-group { min-width: 0; margin: 0; padding: .85rem 1rem 1rem; border: 1px solid var(--line); border-radius: 5px; }
+.upd-group legend {
+  padding: 0 .35rem;
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.upd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: .85rem 1.25rem;
+  margin: .25rem 0 0;
+}
+.upd-field { min-width: 0; }
+.upd-field label { display: block; margin-bottom: .3rem; font-family: var(--mono); font-size: .75rem; font-weight: 600; }
+.upd-field input, .upd-field select, .upd-field textarea { width: 100%; }
+.upd-field input, .upd-field textarea { font-family: var(--mono); font-size: .8125rem; }
+.upd-field textarea { padding: .5rem .65rem; line-height: 1.5; resize: vertical; }
+.upd-field input::placeholder, .upd-field textarea::placeholder { color: var(--muted); opacity: .7; }
+.upd-field--wide { grid-column: 1 / -1; }
+.upd-hint { margin: .3rem 0 0; font-size: .75rem; line-height: 1.5; color: var(--muted); }
+.upd-send { margin-top: 1rem; }
+.upd-send-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .25rem 1rem; }
+.upd-send-count { font-size: .75rem; color: var(--muted); }
+.upd-send .upd-req { margin: 0; max-height: 18rem; overflow: auto; }
+.upd-send .upd-actions { margin-top: .75rem; }
+
+/* What came back: one block a headset, its model, serial and a count over it. */
+.upd-results:not(:empty) { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.upd-run + .upd-run { margin-top: 1.5rem; }
+.upd-run-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .75rem; margin-bottom: .7rem; }
+.upd-run-model { margin: 0; font-size: .9375rem; font-weight: 600; }
+.upd-run-serial { font-family: var(--mono); font-size: .75rem; color: var(--muted); }
+.upd-run-count { margin-left: auto; font-size: .75rem; color: var(--muted); }
+.headset-upd { margin-top: .75rem; }
+
+/* Specific build: asking for one number beside counting up from one. */
+.upd-build-parts {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) minmax(0, 2.2fr);
+  gap: 1rem;
+  align-items: start;
+  margin-top: 1.25rem;
+}
+.upd-part { min-width: 0; padding: 1rem 1.1rem 1.1rem; border: 1px solid var(--line); border-radius: 5px; }
+.upd-part .upd-actions { margin-top: .9rem; }
+.upd-find-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .85rem 1.1rem; }
+.upd-find-grid select { width: 100%; }
+.upd-find-out:not(:empty) { margin-top: 1rem; }
+.upd-find-progress { margin: 0 0 .4rem; font-family: var(--mono); font-size: .75rem; color: var(--muted); overflow-wrap: anywhere; }
+/* How far through the numbers it is: a plain rule that fills, no animation. */
+.upd-find-bar { height: 3px; margin-bottom: 1rem; background: var(--line); border-radius: 2px; overflow: hidden; }
+.upd-find-bar::before {
+  content: "";
+  display: block;
+  height: 100%;
+  width: calc(var(--done, 0) * 100%);
+  background: var(--text);
+}
+@media (max-width: 900px) {
+  .upd-build-parts { grid-template-columns: 1fr; }
+}
+.upd-find-note { margin: 0 0 .4rem; font-size: .8125rem; color: var(--text); }
+/* Sweep a build: the box, then the builds already found. */
+.upd-start { margin-bottom: .85rem; }
+.upd-chips { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: 0 0 1rem; }
+.upd-chips-label { flex: 1 0 100%; margin: 0; font-size: .75rem; color: var(--muted); }
+.upd-chip { font-family: var(--mono); font-size: .75rem; }
+.upd-find-plan { margin: .6rem 0 0; font-size: .8125rem; color: var(--muted); }
+.upd-find-plan--warn { color: var(--red); }
+.upd-find-grid + .upd-find-grid { margin-top: .85rem; }
+.upd-sweep-hint { margin: .5rem 0 .85rem; max-width: 70ch; }
+
+/* The request Advanced will send, rebuilt as the boxes change: the address and one
+   parameter a line, token left out. */
+.upd-req {
+  min-width: 0;
+  margin: 0;
+  padding: .55rem .7rem;
+  font-family: var(--mono);
+  font-size: .75rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+/* OS builds: one card each, in a grid that fills the width. */
+.updater-result {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: .75rem;
+  margin-bottom: .75rem;
+}
+.updater-build {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel);
+  padding: .8rem .9rem;
+  min-width: 0;
+}
+/* A build as label-over-value pairs, one under another: Release Tag, Version,
+   Incremental, Release Channel. The incremental is set in the mono face. */
+.upd-facts { display: grid; gap: .6rem; margin: 0; }
+.upd-fact { min-width: 0; }
+.upd-fact dt { margin: 0 0 .1rem; font-size: .75rem; color: var(--muted); }
+.upd-fact dd { margin: 0; font-size: .875rem; font-weight: 600; overflow-wrap: anywhere; }
+.upd-fact--num dd { font-family: var(--mono); font-size: .8125rem; }
+.updater-build details.hint { margin-top: .5rem; }
+.upd-dl { display: grid; grid-template-columns: max-content 1fr; gap: .2rem .75rem; margin: .5rem 0 0; font-size: .75rem; }
+.upd-dl dt { color: var(--muted); }
+.upd-dl dd { margin: 0; font-family: var(--mono); overflow-wrap: anywhere; }
+.upd-build-act { margin-top: auto; padding-top: .75rem; }
+
+.upd-raw { margin-top: .25rem; }
+.upd-raw pre {
+  max-height: 18rem;
+  overflow: auto;
+  margin: .5rem 0 0;
+  padding: .55rem .7rem;
+  font-family: var(--mono);
+  font-size: .75rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+@media (max-width: 600px) {
+  .upd-section { padding: 1rem 1rem 1.25rem; }
+  .upd-tools select { flex: 1 1 100%; }
+  .upd-group { padding: .75rem .75rem .85rem; }
+  .upd-run-count { margin-left: 0; }
+}
+
+/* ---------- 404 ----------
+   A big quiet code beside what went wrong and where to go instead, rather than the
+   Apps screen pretending the address was fine. */
+.notfound {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 2.5rem;
+  align-items: start;
+  padding: 2.5rem 0 1rem;
+}
+.notfound-code {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: clamp(4rem, 12vw, 8.5rem);
+  font-weight: 600;
+  line-height: .85;
+  letter-spacing: -.04em;
+  color: var(--border);
+}
+.notfound-text h2 { margin-top: .2rem; }
+.notfound-path { margin: .4rem 0 1rem; }
+.notfound-path code {
+  display: inline-block;
+  max-width: 100%;
+  padding: .2rem .5rem;
+  font-size: .8125rem;
+  overflow-wrap: anywhere;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.notfound-links { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; margin: .5rem 0 0; padding: 0; list-style: none; }
+.notfound-links a { display: inline-flex; align-items: center; min-height: 44px; }
+@media (max-width: 600px) {
+  .notfound { grid-template-columns: 1fr; padding-top: 1.5rem; }
+  .notfound-code { margin-bottom: .75rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .upd-tile { transition: none; }
 }
 
 /* ---------- the Wi-Fi picker ----------
@@ -2472,9 +2856,10 @@ button.primary:disabled { color: #fff; opacity: .6; }
     white-space: normal;
   }
   #view-devices td.name { grid-column: 1 / -1; font-weight: 600; }
-  #view-devices td:nth-child(3) { color: var(--muted); }
-  #view-devices td.ptc-cell { grid-column: 1 / -1; }
-  #view-devices td.ptc-cell:empty { display: none; }
+  /* Update type on its own line, grey, under the name; serial then status share
+     the last row (serial in ink mono, status muted). */
+  #view-devices td.device-ota { grid-column: 1 / -1; }
+  #view-devices td:nth-child(4) { color: var(--muted); }
 }
 
 /* Between a phone and a desktop the store lists ran 45px wide, and the library,

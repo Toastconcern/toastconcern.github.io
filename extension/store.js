@@ -11,6 +11,10 @@
    extension's background worker, which reads it the phone app's way. Nothing
    is asked of the store on a page that loads. */
 
+/* Firefox's promise-based API is `browser` (its `chrome.*` is callback-only);
+   Chrome's `chrome.*` is promise-based in MV3. Use `browser` where it exists. */
+if (typeof browser !== "undefined") globalThis.chrome = browser;
+
 const LOOK_FOR = 10000; // how long meta.com gets to draw a page that shows nothing at all, in ms
 const BROKEN =
   /this page isn['’]t available|page (?:isn['’]t|is not) available|this content isn['’]t available|no longer available/i;
@@ -258,11 +262,13 @@ function draw() {
   document.body.append(host);
   window.scrollTo(0, 0);
 
-  chrome.runtime.sendMessage({ type: "store-item", id: app.id, kind: app.kind }, (answer) => {
+  const failed = () => {
     if (current !== app || !host) return;
-    if (chrome.runtime.lastError || !answer) {
-      return body.replaceChildren(h("p.status.bad", { role: "status" }, "MetaDB could not load this app. Reload the page to try again."));
-    }
+    body.replaceChildren(h("p.status.bad", { role: "status" }, "MetaDB could not load this app. Reload the page to try again."));
+  };
+  chrome.runtime.sendMessage({ type: "store-item", id: app.id, kind: app.kind }).then((answer) => {
+    if (current !== app || !host) return;
+    if (!answer) return failed();
     if (answer.error) {
       return body.replaceChildren(
         h("p.status.bad", { role: "status" }, answer.error,
@@ -271,7 +277,7 @@ function draw() {
     }
     document.title = `${answer.item.name} on ${answer.item.kind === "pcvr" ? "Oculus Rift" : "Meta Quest"} | Meta Store`;
     body.replaceChildren(render(answer.item));
-  });
+  }, failed);
 }
 
 function gallery(item) {

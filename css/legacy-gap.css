@@ -23,10 +23,37 @@ details.hint > summary::before { margin-right: .35rem; }
 @media (max-width: 520px) { .nav > * + * { margin-left: .6rem; } }
 .companion-tabs > * + * { margin-left: .25rem; }
 .companion-tabs > * { margin-top: .25rem; }
-.companion-cmd-form > * + * { margin-left: .6rem; }
+.companion-cmd > * + * { margin-left: .9rem; }
+.companion-cmd > * { margin-top: .2rem; }
+.companion-cmd-form > * + * { margin-left: .5rem; }
 .companion-cmd-form > * { margin-top: .4rem; }
+.companion-toggle > * + * { margin-left: .35rem; }
 .companion-field > * + * { margin-top: .15rem; }
 .companion-field.is-check > * + * { margin-left: .35rem; }
+.companion-conn-head > * + * { margin-left: .6rem; }
+.companion-conn-head > * { margin-top: .25rem; }
+.companion-conn-state > * + * { margin-left: .45rem; }
+.companion-conn-state::before { margin-right: .45rem; }
+.companion-conn-grid > * + * { margin-left: 1.4rem; }
+.companion-conn-grid > * { margin-top: .9rem; }
+.companion-conn-field > * + * { margin-top: .3rem; }
+.companion-conn-secret-row > * + * { margin-left: .4rem; }
+.companion-conn-secret-row > * { margin-top: .4rem; }
+.upd-sec-head > * + * { margin-left: 1.5rem; }
+.upd-sec-head > * { margin-top: .75rem; }
+.upd-tile > * + * { margin-left: .65rem; }
+.upd-actions > * + * { margin-left: 1rem; }
+.upd-actions > * { margin-top: .5rem; }
+.upd-tools > * + * { margin-left: .5rem; }
+.upd-tools > * { margin-top: .5rem; }
+.upd-send-head > * + * { margin-left: 1rem; }
+.upd-send-head > * { margin-top: .25rem; }
+.upd-run-head > * + * { margin-left: .75rem; }
+.upd-run-head > * { margin-top: .2rem; }
+.upd-chips > * + * { margin-left: .4rem; }
+.upd-chips > * { margin-top: .4rem; }
+.notfound-links > * + * { margin-left: 1.25rem; }
+.notfound-links > * { margin-top: .25rem; }
 .wifi-bar > * + * { margin-left: .75rem; }
 .wifi-bar > * { margin-top: .5rem; }
 .wifi-row > * + * { margin-left: .6rem; }

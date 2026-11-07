@@ -37,6 +37,23 @@ trying each headset's store until one answers.
 2. Open `chrome://extensions` (or `edge://extensions`) and turn on **Developer mode**.
 3. Press **Load unpacked** and choose the unzipped folder.
 
+## Add it (Firefox)
+
+Firefox needs version **128 or newer** (the account sign-in uses an API added there).
+
+1. Download `MetaDB-extension.zip` and unzip it.
+2. Open `about:debugging#/runtime/this-firefox`.
+3. Press **Load Temporary Add-on** and pick any file inside the unzipped folder (for
+   example `manifest.json`).
+
+A temporary add-on stays until you close Firefox; load it again next time (or, in Firefox
+Developer Edition / Nightly / ESR, set `xpinstall.signatures.required` to `false` in
+`about:config` and install the zip permanently). Updating is the same as elsewhere: unzip
+the new version over the folder and press **Reload** in the extension's menu.
+
+The same code runs in both browsers — Firefox is given the promise-based `browser` API and an
+event-page background script, where Chrome and Edge use the `chrome` API and a service worker.
+
 ## Files
 
 - `manifest.json`: permissions: cookies on Meta's domains, a content script on MetaDB, and
