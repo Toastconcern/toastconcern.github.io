@@ -1892,6 +1892,15 @@ details.hint > p {
   .upd-build-parts { grid-template-columns: 1fr; }
 }
 .upd-find-note { margin: 0 0 .4rem; font-size: .8125rem; color: var(--text); }
+/* Builds found: one list under Ask and the sweep — a title with its count, the
+   two buttons that act on the list, then the build cards. */
+.upd-found { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.upd-found-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin-bottom: .9rem; }
+.upd-found-title { display: flex; align-items: baseline; gap: .5rem; margin: 0; font-size: .9375rem; font-weight: 600; }
+.upd-found-count:not(:empty) { font-family: var(--mono); font-size: .75rem; font-weight: 400; color: var(--muted); }
+.upd-found-tools { display: flex; flex-wrap: wrap; gap: .5rem; }
+.upd-found > .upd-empty { margin: 0; }
+.upd-part .upd-find-note, .upd-part > .settings-out { margin: .6rem 0 0; }
 /* Sweep a build: the box that fills in the parts below. */
 .upd-start { margin-bottom: .85rem; }
 .upd-find-plan { margin: .6rem 0 0; font-size: .8125rem; color: var(--muted); }

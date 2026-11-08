@@ -15,6 +15,13 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Site v=266 — 2026-11-07
+
+- **Specific build lists its builds in one place.** Whatever **Ask for it** and the sweep
+  turn up goes into one **Builds found** list under both, newest first, each build once,
+  with **Save as CSV** and **Clear results** on the list itself. Ask says under its button
+  whether the build was added, was already there, or came back empty.
+
 ## Site v=265 — 2026-11-07
 
 - **Rift (PC) downloads are fast and light now.** A build used to come down a piece at a

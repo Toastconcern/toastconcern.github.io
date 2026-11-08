@@ -5610,7 +5610,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
   if (view === "watchlist") renderWatch();
   if (view === "companion") {
-    import("./companion.js?v=265").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
+    import("./companion.js?v=266").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
       var _a2;
       console.error("companion init failed", e);
       if (!navigator.bluetooth) (_a2 = el.viewCompanion.querySelector("#companionUnsupported")) == null ? void 0 : _a2.removeAttribute("hidden");
@@ -8082,7 +8082,8 @@ function updSectionEl(sec, title, lead, opts) {
   body.className = "upd-body";
   if (opts.mode === "advanced") updAdvanced(sec, opts, body);
   else updEasy(opts, body);
-  box.append(body, updResultsEl(sec));
+  box.append(body);
+  if (sec !== "build") box.appendChild(updResultsEl(sec));
   return box;
 }
 function updCheckButton(sec, idle, onClick) {
@@ -8209,14 +8210,34 @@ function updCandidates(find) {
   for (let m = Number(from); m <= Number(to); m++) out.push(`${prefix}${String(m).padStart(width, "0")}${suffix}`);
   return out;
 }
-async function updAskBuild() {
+function updAddFound(list, n) {
   var _a2;
+  let added = 0;
+  for (const b of list) {
+    const key = `${n}>${b.download_uri}`;
+    if (updFind.found.some((x) => `${x.foundAt}>${x.download_uri}` === key)) continue;
+    updFind.found.push({ ...b, target_version: (_a2 = b.target_version) != null ? _a2 : n, foundAt: n });
+    added++;
+  }
+  return added;
+}
+async function updAskBuild() {
   const opts = loadUpd();
   const n = String(opts.find.build || "").trim();
-  if (!/^\d+$/.test(n)) return updNote("build", "Type the build number to ask for.");
-  const req = updBuildRequest(updBuildBase(opts), n);
-  const runs = await updRun("build", [req]);
-  for (const run of runs) for (const b of updOtaList(run.json)) (_a2 = b.target_version) != null ? _a2 : b.target_version = n;
+  const say2 = (note2, bad = false) => updResults.set("build", { busy: null, runs: [], note: note2, bad });
+  if (!/^\d+$/.test(n)) {
+    say2("Type the build incremental to ask for.", true);
+    return renderUpdater();
+  }
+  updResults.set("build", { busy: "Asking\u2026", runs: [] });
+  renderUpdater();
+  try {
+    const list = updOtaList(await otaRequest(updBuildRequest(updBuildBase(opts), n)));
+    const added = updAddFound(list, n);
+    say2(!list.length ? `Nothing came back for ${n}.` : added ? `Added to Builds found below.` : `Already in Builds found below.`);
+  } catch (e) {
+    say2(e.message, true);
+  }
   renderUpdater();
 }
 var updIsRate = (e) => UPD_RATE_CODES.includes(Number(e == null ? void 0 : e.code)) || (e == null ? void 0 : e.status) === 429 || /too fast|temporarily blocked/i.test((e == null ? void 0 : e.message) || "");
@@ -8269,10 +8290,8 @@ async function updFindRun() {
     gate.next = at + gap;
     if (at > now) await updSleep(at - now);
   };
-  const seenBuild = new Set(updFind.found.map((b) => `${b.foundAt}>${b.download_uri}`));
   let failsInRow = 0;
   const probe = async (n) => {
-    var _a2;
     let rateTries = 0;
     for (; ; ) {
       if (updFind.stop) return false;
@@ -8282,12 +8301,7 @@ async function updFindRun() {
       try {
         const json = await otaRequest(updBuildRequest(base, n));
         failsInRow = 0;
-        for (const b of updOtaList(json)) {
-          const key = `${n}>${b.download_uri}`;
-          if (seenBuild.has(key)) continue;
-          seenBuild.add(key);
-          updFind.found.push({ ...b, target_version: (_a2 = b.target_version) != null ? _a2 : n, foundAt: n });
-        }
+        updAddFound(updOtaList(json), n);
         done.add(n);
         return true;
       } catch (e) {
@@ -8371,6 +8385,8 @@ function updDrawFind() {
   const box = el.updaterBody.querySelector("[data-upd-find]");
   if (!box) return;
   box.replaceChildren(...updFindOut());
+  const list = el.updaterBody.querySelector("[data-upd-found]");
+  if (list) list.replaceWith(updBuildsFound());
   const btn = el.updaterBody.querySelector("[data-upd-find-btn]");
   if (btn) btn.textContent = updFind.running ? "Stop" : "Find builds";
 }
@@ -8396,17 +8412,56 @@ function updFindOut() {
     }
   }
   if (updFind.errors && updFind.lastError && !updFind.error) out.push(elp("upd-hint", `Last refusal: ${updFind.lastError}`));
-  if (found) {
-    const big = (b) => BigInt(/^\d+$/.test(String(b.foundAt)) ? b.foundAt : 0);
-    const sorted2 = [...updFind.found].sort((a, b) => big(b) > big(a) ? 1 : big(b) < big(a) ? -1 : 0);
-    const result = document.createElement("div");
-    result.className = "updater-result";
-    renderUpdaterResult({ ota: sorted2 }, result);
-    out.push(result);
-  } else if (!updFind.running && updFind.total && !updFind.error) {
-    out.push(elp("upd-empty", "Nothing came back for those numbers."));
-  }
+  if (!updFind.running && updFind.total && !updFind.error && !found) out.push(elp("upd-empty", "Nothing came back for those numbers."));
   return out;
+}
+function updBuildsFound() {
+  const box = document.createElement("div");
+  box.className = "upd-found";
+  box.dataset.updFound = "";
+  const found = updFind.found;
+  const head = document.createElement("div");
+  head.className = "upd-found-head";
+  const h = document.createElement("h4");
+  h.className = "upd-found-title";
+  h.textContent = "Builds found";
+  const count = document.createElement("span");
+  count.className = "upd-found-count";
+  count.textContent = found.length ? String(found.length) : "";
+  h.appendChild(count);
+  const csv = document.createElement("button");
+  csv.type = "button";
+  csv.className = "ptc-btn";
+  csv.textContent = "Save as CSV";
+  csv.disabled = !found.length;
+  csv.addEventListener("click", updFindCsv);
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "ptc-btn";
+  clear.textContent = "Clear results";
+  clear.disabled = updFind.running || !found.length && !updFind.done.size && !updFind.total;
+  clear.addEventListener("click", () => {
+    Object.assign(updFind, { error: "", note: "", tried: 0, total: 0, skipped: 0, errors: 0, found: [], lastError: "" });
+    updFind.done.clear();
+    updResults.delete("build");
+    renderUpdater();
+  });
+  const tools = document.createElement("div");
+  tools.className = "upd-found-tools";
+  tools.append(csv, clear);
+  head.append(h, tools);
+  box.appendChild(head);
+  if (!found.length) {
+    box.appendChild(elp("upd-empty", "Builds you ask for or sweep up appear here."));
+    return box;
+  }
+  const big = (b) => BigInt(/^\d+$/.test(String(b.foundAt)) ? b.foundAt : 0);
+  const sorted2 = [...found].sort((a, b) => big(b) > big(a) ? 1 : big(b) < big(a) ? -1 : 0);
+  const result = document.createElement("div");
+  result.className = "updater-result";
+  renderUpdaterResult({ ota: sorted2 }, result);
+  box.appendChild(result);
+  return box;
 }
 function updSplitBuild(n) {
   var _a2;
@@ -8499,6 +8554,8 @@ function updBuildControls(opts, body) {
     field("build", "Build incremental", { placeholder: "e.g. 51154110129000520", enter: updAskBuild, hint: "Sent as requested_version, every path shown." }),
     updActions(updCheckButton("build", "Ask for it", updAskBuild), "")
   );
+  const asked = updResults.get("build");
+  if (asked == null ? void 0 : asked.note) ask.appendChild(elp(asked.bad ? "settings-out bad" : "upd-find-note", asked.note));
   const find = document.createElement("div");
   find.className = "upd-part";
   const startId = "upd-find-start-from";
@@ -8551,24 +8608,7 @@ function updBuildControls(opts, body) {
   btn.dataset.updFindBtn = "";
   btn.textContent = updFind.running ? "Stop" : "Find builds";
   btn.addEventListener("click", updFindRun);
-  const csv = document.createElement("button");
-  csv.type = "button";
-  csv.className = "ptc-btn";
-  csv.textContent = "Save as CSV";
-  csv.disabled = !updFind.found.length;
-  csv.addEventListener("click", updFindCsv);
-  const clear = document.createElement("button");
-  clear.type = "button";
-  clear.className = "ptc-btn";
-  clear.textContent = "Clear results";
-  clear.disabled = updFind.running || !updFind.found.length && !updFind.done.size && !updFind.total;
-  clear.addEventListener("click", () => {
-    Object.assign(updFind, { error: "", note: "", tried: 0, total: 0, skipped: 0, errors: 0, found: [], lastError: "" });
-    updFind.done.clear();
-    renderUpdater();
-  });
   const actions = updActions(btn, "");
-  actions.append(csv, clear);
   const plan = elp("upd-find-plan", "");
   const showPlan = () => {
     const p = updFindPlan(loadUpd());
@@ -8584,7 +8624,7 @@ function updBuildControls(opts, body) {
   out.append(...updFindOut());
   find.append(elp("upd-choice-h", "Sweep for builds"), start, sweep, sweepHint, how, actions, plan, out);
   parts.append(ask, find);
-  body.appendChild(parts);
+  body.append(parts, updBuildsFound());
 }
 function updAdvanced(sec, opts, body) {
   var _a2, _b2, _c;

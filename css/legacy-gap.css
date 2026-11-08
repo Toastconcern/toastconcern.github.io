@@ -50,6 +50,11 @@ details.hint > summary::before { margin-right: .35rem; }
 .upd-send-head > * { margin-top: .25rem; }
 .upd-run-head > * + * { margin-left: .75rem; }
 .upd-run-head > * { margin-top: .2rem; }
+.upd-found-head > * + * { margin-left: 1rem; }
+.upd-found-head > * { margin-top: .5rem; }
+.upd-found-title > * + * { margin-left: .5rem; }
+.upd-found-tools > * + * { margin-left: .5rem; }
+.upd-found-tools > * { margin-top: .5rem; }
 .notfound-links > * + * { margin-left: 1.25rem; }
 .notfound-links > * { margin-top: .25rem; }
 .wifi-bar > * + * { margin-left: .75rem; }
