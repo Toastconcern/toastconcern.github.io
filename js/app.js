@@ -5084,7 +5084,7 @@ function updEasy(opts, body) {
 
 const UPD_FIND_MAX = 10000;
 const FIND_SELECTION =
-  "{download_uri,size,base_version,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,semantic_version}";
+  "{download_uri,extra_install_options,base_version,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,semantic_version}";
 const UPD_RATE_CODES = [368, 613];
 const updSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -5296,7 +5296,8 @@ function updFindCsv() {
     const s = String(v ?? "");
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const rows = updFind.found.map((b) => cols.map((c) => cell(c === "requested_incremental" ? b.foundAt : b[c])).join(","));
+  const rows = updFind.found.map((b) => cols.map((c) =>
+    cell(c === "requested_incremental" ? b.foundAt : c === "size" ? (updBytes(b.extra_install_options) || "") : b[c])).join(","));
   const blob = new Blob([[cols.join(","), ...rows].join("\n") + "\n"], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -5806,11 +5807,32 @@ function updDate(t) {
   return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-/** An OTA's download size: Meta reports plain bytes. GB once it is at least a gigabyte
-    (OS updates usually are), MB below that; nothing when the store sends no size. */
-function updSize(bytes) {
-  const n = Number(bytes);
-  if (!Number.isFinite(n) || n <= 0) return "";
+/** An OTA's download size in bytes. There is no size field on the build itself; it lives
+    inside extra_install_options (the file the headset fetches), as `size`, mirrored by the
+    FILE_SIZE header. That value can arrive as one install option, an array of them, or the
+    JSON string of either — the largest file wins. 0 when the store sends none. */
+function updBytes(opts) {
+  let v = opts;
+  if (typeof v === "string") { try { v = JSON.parse(v); } catch { return 0; } }
+  const list = !v ? [] : Array.isArray(v) ? v : [v];
+  let best = 0;
+  for (const o of list) {
+    if (!o || typeof o !== "object") continue;
+    let n = Number(o.size);
+    if (!(Number.isFinite(n) && n > 0)) {
+      const h = Array.isArray(o.headers) ? o.headers.find((x) => typeof x === "string" && x.startsWith("FILE_SIZE=")) : null;
+      n = h ? Number(h.slice(10)) : 0;
+    }
+    if (Number.isFinite(n) && n > best) best = n;
+  }
+  return best > 0 ? best : 0;
+}
+
+/** That download size as text: GB once it is at least a gigabyte (OS updates often are),
+    MB below that; nothing when the store sends no size. */
+function updSize(opts) {
+  const n = updBytes(opts);
+  if (n <= 0) return "";
   return n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
@@ -5843,7 +5865,7 @@ function renderUpdaterResult(json, result) {
       ["Build Number", b.formatted_build_number],
       ["Release Channel", b.release_channel_name],
       ["Released", updDate(b.creation_time)],
-      ["Size", updSize(b.size)],
+      ["Size", updSize(b.extra_install_options)],
     ].filter(([, v]) => v != null && v !== "");
     const dl = document.createElement("dl");
     dl.className = "upd-facts";

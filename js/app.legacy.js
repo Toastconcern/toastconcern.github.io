@@ -4629,7 +4629,7 @@ var OTA_DEVICE_TYPES = [
   { hmd: "LAGUNA", label: "Laguna (unreleased)", type: "ota.laguna.user" },
   { hmd: "GEMINI", label: "Gemini (unreleased)", type: "ota.gemini.user" }
 ];
-var OTA_SELECTION = "{download_uri,size,target_version,base_version,extra_install_options,file_checksum,release_channel_id,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,controller_fw_version,semantic_version}";
+var OTA_SELECTION = "{download_uri,target_version,base_version,extra_install_options,file_checksum,release_channel_id,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,controller_fw_version,semantic_version}";
 var OTA_PUBLIC_TOKEN = "OC|3733290306686872|";
 function otaFields(opts = {}) {
   let ota = "ota";
@@ -8401,7 +8401,7 @@ function updEasy(opts, body) {
   body.appendChild(actions);
 }
 var UPD_FIND_MAX = 1e4;
-var FIND_SELECTION = "{download_uri,size,base_version,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,semantic_version}";
+var FIND_SELECTION = "{download_uri,extra_install_options,base_version,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,semantic_version}";
 var UPD_RATE_CODES = [368, 613];
 var updSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function updBuildBase(opts) {
@@ -8603,7 +8603,7 @@ function updFindCsv() {
     const s = String(v != null ? v : "");
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const rows = updFind.found.map((b) => cols.map((c) => cell(c === "requested_incremental" ? b.foundAt : b[c])).join(","));
+  const rows = updFind.found.map((b) => cols.map((c) => cell(c === "requested_incremental" ? b.foundAt : c === "size" ? updBytes(b.extra_install_options) || "" : b[c])).join(","));
   const blob = new Blob([[cols.join(","), ...rows].join("\n") + "\n"], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -9067,9 +9067,31 @@ function updDate(t) {
   if (Number.isNaN(d.getTime())) return String(t);
   return d.toLocaleString(void 0, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
-function updSize(bytes) {
-  const n = Number(bytes);
-  if (!Number.isFinite(n) || n <= 0) return "";
+function updBytes(opts) {
+  let v = opts;
+  if (typeof v === "string") {
+    try {
+      v = JSON.parse(v);
+    } catch {
+      return 0;
+    }
+  }
+  const list = !v ? [] : Array.isArray(v) ? v : [v];
+  let best = 0;
+  for (const o of list) {
+    if (!o || typeof o !== "object") continue;
+    let n = Number(o.size);
+    if (!(Number.isFinite(n) && n > 0)) {
+      const h = Array.isArray(o.headers) ? o.headers.find((x) => typeof x === "string" && x.startsWith("FILE_SIZE=")) : null;
+      n = h ? Number(h.slice(10)) : 0;
+    }
+    if (Number.isFinite(n) && n > best) best = n;
+  }
+  return best > 0 ? best : 0;
+}
+function updSize(opts) {
+  const n = updBytes(opts);
+  if (n <= 0) return "";
   return n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 function updVersion(b) {
@@ -9095,7 +9117,7 @@ function renderUpdaterResult(json, result) {
       ["Build Number", b.formatted_build_number],
       ["Release Channel", b.release_channel_name],
       ["Released", updDate(b.creation_time)],
-      ["Size", updSize(b.size)]
+      ["Size", updSize(b.extra_install_options)]
     ].filter(([, v]) => v != null && v !== "");
     const dl = document.createElement("dl");
     dl.className = "upd-facts";

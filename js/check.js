@@ -3674,7 +3674,7 @@ export const OTA_DEVICE_TYPES = [
   { hmd: "GEMINI", label: "Gemini (unreleased)", type: "ota.gemini.user" },
 ];
 
-const OTA_SELECTION = "{download_uri,size,target_version,base_version,extra_install_options,file_checksum,release_channel_id,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,controller_fw_version,semantic_version}";
+const OTA_SELECTION = "{download_uri,target_version,base_version,extra_install_options,file_checksum,release_channel_id,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,controller_fw_version,semantic_version}";
 
 /* OSUpdater's own fallback app token (OC_ACCESS_TOKEN in OSUpdateProvider): what the
    headset sends when Horizon hands it no user token. Lets a check run without
