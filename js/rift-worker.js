@@ -13,10 +13,23 @@
    pass, ZIP64 throughout (PC builds carry files and archives past 4 GB), each entry's
    CRC and size in a data descriptor after its data, so nothing is known in advance.
 
-   Messages in:  { type: "start", files: [{ path, size, urls }], parallel, fflateUrl,
-                   target: { kind: "file", handle } | { kind: "port", port } }
-   Messages out: { type: "progress", done, total, file, files }, { type: "done" },
-                 { type: "error", message } */
+   Each segment is asked of Meta's CDN directly first (`directs`), and through the
+   site's relay (`urls`, /dl) once a direct fetch has failed — the browser refusing a
+   cross-site reply, or the CDN refusing the request — for the rest of the download.
+   Every relay fetch is one Cloudflare request, so direct, when it works, costs none.
+
+   Each segment is checked against its SHA-256 (`hashes`, from the manifest), as the
+   desktop client's downloader does. Which bytes the hash covers — the stored
+   (compressed) segment or the inflated one — is worked out on the first segment; if
+   neither matches even after a second fetch, the hashes are taken to be something else
+   and checking is switched off for the download rather than failing every segment.
+   Once known, a mismatch is a corrupt segment: fetched again, and an error after three.
+
+   Messages in:  { type: "start", files: [{ path, size, urls, directs, hashes }], parallel,
+                   fflateUrl, target: { kind: "file", handle } | { kind: "port", port } }
+   Messages out: { type: "progress", done, total, file, files, way },
+                 { type: "done", way, verified }, { type: "error", message }
+                 way: "direct" | "relay"; verified: "raw" | "inflated" | "off" */
 
 /* CRC-32, eight bytes a step (slice-by-8). */
 const CRC_TABLE = (() => {
@@ -185,12 +198,56 @@ async function inflate(raw) {
   }
 }
 
-async function fetchSegment(url) {
+/* Direct from the CDN until it fails once; then the relay for the rest. */
+let direct = true;
+/* Which bytes a segment's SHA-256 covers: null until the first segment says, then
+   "raw", "inflated", or "off" (neither — not checked). */
+let verify = null;
+let verifyMisses = 0;
+
+const hex = (buf) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
+const sha256 = async (bytes) => hex(await crypto.subtle.digest("SHA-256", bytes));
+const canHash = typeof crypto !== "undefined" && Boolean(crypto.subtle);
+
+async function getBytes(seg) {
+  if (direct && seg.direct) {
+    try {
+      const res = await fetch(seg.direct, { mode: "cors", credentials: "omit" });
+      if (res.ok) return new Uint8Array(await res.arrayBuffer());
+    } catch {}
+    direct = false;
+  }
+  const res = await fetch(seg.url);
+  if (!res.ok) throw new Error(`a segment was refused (HTTP ${res.status})`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+/* The segment, inflated, or throws once its hash is known to be wrong. */
+async function checkedSegment(seg) {
+  const raw = await getBytes(seg);
+  const want = canHash && seg.sha256 ? String(seg.sha256).toLowerCase() : null;
+  if (!want || verify === "off") return inflate(raw);
+  if (verify === "raw") {
+    if ((await sha256(raw)) !== want) throw new Error("a segment failed its SHA-256 check");
+    return inflate(raw);
+  }
+  const out = await inflate(raw);
+  if (verify === "inflated") {
+    if ((await sha256(out)) !== want) throw new Error("a segment failed its SHA-256 check");
+    return out;
+  }
+  /* Not known yet: whichever matches decides it for the whole download. */
+  if ((await sha256(raw)) === want) verify = "raw";
+  else if ((await sha256(out)) === want) verify = "inflated";
+  else if (++verifyMisses >= 2) verify = "off";
+  else throw new Error("a segment failed its SHA-256 check");
+  return out;
+}
+
+async function fetchSegment(seg) {
   for (let attempt = 1; ; attempt++) {
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`a segment was refused (HTTP ${res.status})`);
-      return await inflate(new Uint8Array(await res.arrayBuffer()));
+      return await checkedSegment(seg);
     } catch (err) {
       if (attempt >= 3) throw err;
       await new Promise((r) => setTimeout(r, 1000 * attempt));
@@ -244,7 +301,9 @@ self.onmessage = async ({ data }) => {
     sink = data.target.kind === "file" ? await fileSink(data.target.handle) : portSink(data.target.port);
     const files = data.files;
     const parallel = Math.max(1, data.parallel || 8);
-    const urls = files.flatMap((f) => f.urls);
+    const urls = files.flatMap((f) =>
+      f.urls.map((url, i) => ({ url, direct: f.directs?.[i] ?? null, sha256: f.hashes?.[i] ?? null }))
+    );
     const total = files.reduce((n, f) => n + (f.size || 0), 0) || 1;
 
     /* Segments up to `parallel` past the one being written are fetched now; a failed
@@ -273,13 +332,13 @@ self.onmessage = async ({ data }) => {
         await zip.data(bytes);
         if (Date.now() - shown > 250) {
           shown = Date.now();
-          self.postMessage({ type: "progress", done, total, file: i + 1, files: files.length });
+          self.postMessage({ type: "progress", done, total, file: i + 1, files: files.length, way: direct ? "direct" : "relay" });
         }
       }
       await zip.end();
     }
     await zip.finish();
-    self.postMessage({ type: "done" });
+    self.postMessage({ type: "done", way: direct ? "direct" : "relay", verified: verify ?? "off" });
   } catch (err) {
     sink?.abort();
     self.postMessage({ type: "error", message: err?.message || String(err) });

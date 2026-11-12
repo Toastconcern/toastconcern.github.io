@@ -17,6 +17,18 @@ window.addEventListener("message", (e) => {
       .sendMessage({ type: "sign-in" })
       .then(say, (err) => say({ type: "error", message: err.message }));
   }
+  /* A store request for the page (1.5): graph.oculus.com answers only facebook.com's
+     pages, but it answers the extension, so MetaDB asks through here instead of its
+     relay. The answer goes back tagged with the page's own id. */
+  if (e.data.type === "relay") {
+    const { id, url, method, body, headers } = e.data;
+    chrome.runtime
+      .sendMessage({ type: "relay", url, method, body, headers })
+      .then(
+        (r) => say({ type: "relay-reply", id, ...(r ?? { error: "no answer from the extension" }) }),
+        (err) => say({ type: "relay-reply", id, error: err.message })
+      );
+  }
   if (e.data.type === "frl-token") {
     chrome.runtime
       .sendMessage({ type: "frl-token", token: e.data.token })
@@ -37,7 +49,7 @@ async function announce() {
     ({ updates } = await chrome.storage.sync.get({ updates: true }));
     ({ update } = await chrome.storage.local.get("update"));
   } catch {}
-  say({ type: "here", version: chrome.runtime.getManifest().version, update: updates ? (update ?? null) : null });
+  say({ type: "here", version: chrome.runtime.getManifest().version, update: updates ? (update ?? null) : null, relay: true });
 }
 
 /* Announced as well as asked, so a page that loaded first still finds out. */

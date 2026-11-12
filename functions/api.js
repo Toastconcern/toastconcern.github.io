@@ -12,12 +12,15 @@
 
 /* Every request goes out as the headset's own app manager (OCMS) sends it: its
    User-Agent (carrying the OCMS version), the OS build header, and the language
-   replies are written in. The values live in one file, data/ocms-headers.json,
-   which this relay, tools/relay.mjs and the site (and through it the headset app)
-   all read, so an OCMS version bump is one edit. `User-Agent` is a forbidden header
-   name in a browser, which is the other reason downloads come through here rather
-   than going straight to the CDN. */
-import OCMS_HEADERS from "../data/ocms-headers.json";
+   replies are written in. Two sets, shared with tools/relay.mjs and the site (and
+   through it the headset app): data/ocms-headers.json, set by hand and used by
+   default, and data/ocms-headers-latest.json, the newest OCMS seen on a headset,
+   used only for a request signed with a person's own token (tools/ocms-pick.mjs).
+   `User-Agent` is a forbidden header name in a browser, which is the other reason
+   downloads come through here rather than going straight to the CDN. */
+import OCMS_FIXED from "../data/ocms-headers.json";
+import OCMS_LATEST from "../data/ocms-headers-latest.json";
+import { pickHeaders, tokenOf } from "../tools/ocms-pick.mjs";
 
 /* Some builds are only served to the headset they were made for: the CDN reads
    the device out of the User-Agent and refuses the rest. Build records do not say
@@ -66,6 +69,10 @@ export async function onRequest({ request, env }) {
      Cloudflare serves the site — often Europe on the free plan. Downloads are not
      priced, so they stay direct. Unbound, or if the relay fails, it is direct too. */
   const viaUs = !download && host === "graph.oculus.com" && env?.US_RELAY;
+  /* Form bodies are tiny, so read the text rather than streaming — simpler, and
+     avoids the duplex-stream requirement. Read first: the token in it picks the headers. */
+  const body = isPost ? await request.text() : undefined;
+  const OCMS_HEADERS = pickHeaders(OCMS_FIXED, OCMS_LATEST, tokenOf(target, body));
   const init = {
     method: isPost ? "POST" : "GET",
     headers: pc ? {} : {
@@ -80,9 +87,7 @@ export async function onRequest({ request, env }) {
             }
           : { Accept: "application/json" }),
     },
-    /* Form bodies are tiny, so read the text rather than streaming — simpler,
-       and avoids the duplex-stream requirement. */
-    body: isPost ? await request.text() : undefined,
+    body,
   };
   let upstream = null;
   let route = "direct";

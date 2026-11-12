@@ -15,6 +15,69 @@ Newest first. Every update gets an entry before it is pushed.
   those bullets for someone wearing the headset: short and plain, one change each, each on a
   single line (the build reads one line per bullet).
 
+## Extension 1.5 — 2026-11-11
+
+- MetaDB now asks the store through the extension instead of through its own server, so
+  pages load the same but nothing goes through the site's relay. Only MetaDB's pages can
+  use this, only for Meta's store, and no cookies are sent.
+- Requests go out as a headset's app manager would send them, like before. Adds the
+  "declarativeNetRequestWithHostAccess" permission, which sets that one header.
+
+## Site v=268 — 2026-11-11
+
+- **OS builds show when they were released, and how big they are:** each build the Updater
+  turns up now lists its release date and time (from the build's creation time) and its
+  download size among its main facts, instead of being tucked under Details. The date reads
+  whether the store sends it as a number or a timestamp like `2026-11-10T17:33:18+0000`, and
+  the size rides along in the finder's CSV too.
+- **Import tokens** in Settings reads a `metadb-tokens.json` (what Export tokens saves) back
+  in, so a sign-in can be carried from one browser to another: it fills in and saves whichever
+  of your access, account, Meta and updater tokens the file holds.
+- **Cloud tab reads normally again:** an opened backup's note (and the "no download address"
+  line) was being drawn in the table's monospace font and running off the side instead of
+  wrapping. It now uses the body font and wraps like the rest of the prose.
+- **With the extension installed, store requests go through it** (MetaDB Sign-in 1.5 or
+  newer), not through the site's relay. If the extension ever fails, the relay takes over
+  for the rest of the visit. Downloads still use the relay.
+- **Leaderboards tab** on an opened app: each of its leaderboards, as everyone's top scores,
+  your friends', or the scores around yours, with your best rank. Needs your own token.
+- **Rift downloads check every segment** against its SHA-256 from the manifest, and fetch
+  again if one arrives damaged. They also try Meta's servers directly first and only use the
+  relay if that is refused. The Downloaded button's tooltip says which way it came and
+  whether it was checked.
+- **The watchlist shows each app's real icon**, whether or not app art is on for search
+  results, using the app's square cover or icon rather than whatever picture the list it
+  was added from had. An icon whose address has expired is replaced the next time that
+  app shows up in a list, and falls back to the app's initial meanwhile, never a broken
+  image.
+- **A Cloud tab on each app** gathers its cloud backups in one place: the backups Meta holds
+  for it across your headsets, each openable for its download address, size, segment count and
+  checksum, plus what its developer puts in a backup (which paths are left out). A backup is
+  end-to-end encrypted with a key kept on the headset, so it can be downloaded but only
+  restored to a headset — the Cloud tab says so. Moved out of the Entitlement tab. Needs your
+  own token.
+- **Export tokens** in Settings saves your sign-in (the access, account, Meta and updater
+  tokens) to a `metadb-tokens.json` file, to keep or move to another browser.
+- **"Watchlist3" is fixed:** the setup guide and the default-screen picker no longer read
+  the new-build count into the Watchlist's name.
+- **A clear message for an app ID the store won't show**, saying why that might be and
+  whether signing in could help, in place of "No apps matched."
+- **Store requests now go out as the newer app manager** (OCMS 1050.0.0.0.677, headset
+  build 53145330020900520).
+- **Running the site locally is one command.** `node tools/serve.mjs` now serves the relay
+  at `/api` and `/dl` too, the same addresses as the live site, and starts the ADB bridge,
+  so there is nothing else to start and no relay URL to set. With a headset connected over
+  adb it also reads the newest OCMS version and OS build off it.
+- **Signed-in requests use the newest app-manager version.** Requests made with your own
+  token go out as the newest OCMS seen on a headset; requests on the built-in public token
+  keep the version set by hand.
+- **The site's relay only answers the site.** Other websites, scripts and bots are turned
+  away from `/api`, `/dl` and `/frl`, so they cannot use up the free hosting's daily
+  allowance. Nothing changes for anyone using the site or the headset app, and the FRL-token
+  snippet on Settings still works from auth.meta.com.
+- **Downloads have their own address** (`/dl`), so a limit on store requests can never cut
+  a Rift download off halfway.
+
 ## Site v=266 — 2026-11-07
 
 - **Specific build lists its builds in one place.** Whatever **Ask for it** and the sweep

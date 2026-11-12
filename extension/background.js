@@ -562,3 +562,70 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   getFrlToken(msg.token).then((frlToken) => reply({ type: "frl-token", frlToken }), (err) => reply({ type: "error", message: err.message }));
   return true;
 });
+
+/* ---------- store requests for MetaDB's pages (1.5) ----------
+   graph.oculus.com lets only facebook.com's pages read its answers, which is why
+   MetaDB runs a relay. An extension with access to oculus.com is not held to that, so
+   MetaDB's pages ask through here when the extension is installed, and the relay is
+   not used (or paid for) at all.
+
+   Kept narrow on purpose:
+   - only MetaDB's own pages may ask (content.js runs nowhere else, and the sender's
+     address is checked again here), and only of graph.oculus.com and
+     realitylabs-graph.oculus.com — this is not a general proxy;
+   - no cookies go with a request (credentials: "omit"), exactly like the relay: the
+     token the page put in the request is the only sign-in it carries;
+   - the request goes out as the headset's app manager (OCMS) asks, with the headers the
+     page sends (the same ones its relay would add). User-Agent cannot be set on a fetch
+     in Chrome, so a session rule sets it — on requests marked metadb_ext=1 only, which
+     the store ignores, so the store pages drawn on meta.com keep the browser's own. */
+const RELAY_HOSTS = /^https:\/\/(graph|realitylabs-graph)\.oculus\.com\//;
+const RELAY_PAGES = /^(https:\/\/metadb\.toastconcern\.dev|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)\//;
+const RELAY_MARK = "metadb_ext";
+const RELAY_RULE = 1;
+let relayUa = null;
+
+async function setRelayUserAgent(ua) {
+  if (!ua || ua === relayUa || !chrome.declarativeNetRequest?.updateSessionRules) return;
+  await chrome.declarativeNetRequest.updateSessionRules({
+    removeRuleIds: [RELAY_RULE],
+    addRules: [
+      {
+        id: RELAY_RULE,
+        priority: 1,
+        action: { type: "modifyHeaders", requestHeaders: [{ header: "User-Agent", operation: "set", value: ua }] },
+        condition: { urlFilter: `${RELAY_MARK}=1`, requestDomains: ["graph.oculus.com", "realitylabs-graph.oculus.com"] },
+      },
+    ],
+  });
+  relayUa = ua;
+}
+
+async function relayFetch({ url, method, body, headers }) {
+  if (!RELAY_HOSTS.test(String(url))) throw new Error("the extension only asks graph.oculus.com for MetaDB");
+  const given = headers && typeof headers === "object" ? headers : {};
+  try {
+    await setRelayUserAgent(given["User-Agent"]);
+  } catch {}
+  const target = new URL(url);
+  target.searchParams.set(RELAY_MARK, "1");
+  const send = {};
+  for (const name of ["X-Build-Version-Incremental", "Accept-Language", "Content-Type", "Accept"]) {
+    if (typeof given[name] === "string") send[name] = given[name];
+  }
+  const post = method === "POST";
+  const res = await fetch(target, {
+    method: post ? "POST" : "GET",
+    headers: send,
+    body: post ? String(body ?? "") : undefined,
+    credentials: "omit",
+    cache: "no-store",
+  });
+  return { status: res.status, contentType: res.headers.get("content-type"), text: await res.text() };
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (msg?.type !== "relay" || !sender.tab || !RELAY_PAGES.test(sender.url ?? "")) return;
+  relayFetch(msg).then(reply, (err) => reply({ error: err.message || "the extension could not ask the store" }));
+  return true;
+});

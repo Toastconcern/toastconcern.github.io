@@ -236,6 +236,13 @@ export function clearSettings() {
    what `builtInMissing` ends up recording. */
 const BUILT_IN_RELAY = "/api?url={url}";
 
+/* Downloads (APKs, OBBs, Rift manifests and segments) take their own path to the
+   same relay, so the host can rate-limit store queries on /api tightly without
+   ever cutting off a download: a Rift build is thousands of segment fetches in a
+   row. functions/dl.js forwards only the download CDN. */
+const BUILT_IN_DOWNLOADS = "/dl?url={url}";
+const DOWNLOAD_HOST = /^https:\/\/securecdn(-[a-z0-9-]+)?\.oculus\.com\//;
+
 let builtInMissing = false;
 
 /** True once the built-in relay has turned out not to exist on this host. */
@@ -345,11 +352,11 @@ export function clearSecrets() {
 
 /**
  * Put a URL through a relay. A relay set in Settings wins; otherwise the site's
- * own /api is used. `{url}` is replaced with the encoded target, or the encoded
+ * own /api is used, or /dl for a download. `{url}` is replaced with the encoded target, or the encoded
  * target is appended if the pattern has no placeholder.
  */
 function route(url) {
-  const relay = loadSettings().relay || BUILT_IN_RELAY;
+  const relay = loadSettings().relay || (DOWNLOAD_HOST.test(url) ? BUILT_IN_DOWNLOADS : BUILT_IN_RELAY);
   return relay.includes("{url}")
     ? relay.replace("{url}", encodeURIComponent(url))
     : relay + encodeURIComponent(url);
@@ -379,6 +386,52 @@ function emitLog(detail) {
 }
 
 const REQUEST_TIMEOUT_MS = 90_000;
+
+/* ---------- the extension as relay ----------
+   With the MetaDB Sign-in extension (1.5+) installed, store queries go through it
+   instead of the relay: an extension may read graph.oculus.com's answers, a page may
+   not, so nothing goes through the site's own /api and nothing is spent on it. app.js
+   switches this on when the extension says it can. A relay set in Settings still wins,
+   downloads still take /dl, and if the extension fails once the relay takes over again
+   for the rest of the visit. */
+const EXT_HOSTS = /^https:\/\/(graph|realitylabs-graph)\.oculus\.com\//;
+let extRelay = false;
+let extSeq = 0;
+const extWaiting = new Map();
+
+/** On when the extension has said it can ask the store for this page. */
+export function useExtensionRelay(on) {
+  extRelay = Boolean(on);
+}
+export const extensionRelayOn = () => extRelay;
+
+try {
+  window.addEventListener("message", (e) => {
+    if (e.source !== window || e.origin !== location.origin || e.data?.metadbExt !== true || e.data.type !== "relay-reply") return;
+    const done = extWaiting.get(e.data.id);
+    if (done) {
+      extWaiting.delete(e.data.id);
+      done(e.data);
+    }
+  });
+} catch {}
+
+async function viaExtension(url, init) {
+  const headers = { ...(await ocmsHeaders().catch(() => ({}))), ...init.headers };
+  const id = ++extSeq;
+  const reply = await new Promise((resolve) => {
+    extWaiting.set(id, resolve);
+    window.postMessage({ metadbPage: true, type: "relay", id, url, method: init.method || "GET", body: init.body ?? null, headers }, location.origin);
+    setTimeout(() => {
+      if (extWaiting.delete(id)) resolve({ error: "the extension did not answer in time" });
+    }, REQUEST_TIMEOUT_MS);
+  });
+  if (reply.error || typeof reply.status !== "number") throw new Error(reply.error || "no answer from the extension");
+  return new Response(reply.text ?? "", {
+    status: reply.status,
+    headers: { "Content-Type": reply.contentType || "application/json", "X-MetaDB-Relay": "extension" },
+  });
+}
 
 async function getJSON(url) {
   const { relay, log } = loadSettings();
@@ -417,8 +470,16 @@ async function getJSON(url) {
   /* What the log box shows: the endpoint and every field but the token. */
   const logUrl = post ? `${ENDPOINT}?${withoutToken(query)}` : forLog(url);
 
-  let res;
-  try {
+  let res = null;
+  if (extRelay && !relay && EXT_HOSTS.test(post ? ENDPOINT : url)) {
+    try {
+      res = await viaExtension(post ? ENDPOINT : url, init);
+    } catch {
+      /* The relay takes over for the rest of the visit. */
+      extRelay = false;
+    }
+  }
+  if (!res) try {
     res = await fetch(target, init);
   } catch (err) {
     if (err?.name === "TimeoutError") {
@@ -436,7 +497,8 @@ async function getJSON(url) {
   /* One line per request, emitted here so every path below — a 404, a bad body,
      a store error, a success — is logged the same way. */
   if (log) {
-    emitLog({ url: logUrl, status: res.status, ms: Math.round(performance.now() - started) });
+    const via = res.headers.get("X-MetaDB-Relay") === "extension" ? " (via extension)" : "";
+    emitLog({ url: logUrl + via, status: res.status, ms: Math.round(performance.now() - started) });
   }
 
   /* A static host has no /api, so the built-in relay 404s. Say so once rather
@@ -743,14 +805,47 @@ export async function checkApp(app) {
 
 /* The headers Meta's own app manager (OCMS) sends, which every relay sends on every
    request: its User-Agent (carrying the OCMS version), the OS build header, and the
-   language replies are written in. They live in data/ocms-headers.json, which the
-   Cloudflare relay and tools/relay.mjs read too, so an OCMS version bump is one edit.
-   The headset app (1.3 and later) is handed them from here at start-up. Fetched
-   beside this file, with its own ?v=, like the other data files. */
+   language replies are written in. Two sets, read by the Cloudflare relay and
+   tools/relay.mjs too: data/ocms-headers.json, set by hand, and
+   data/ocms-headers-latest.json, the newest OCMS seen on a headset. The latest set is
+   only for a person's own token, and only while it is newer (the rule in
+   tools/ocms-pick.mjs, repeated here). The headset app (1.3 and later) is handed the
+   set for the saved token at start-up. Fetched beside this file, with its own ?v=,
+   like the other data files. */
+const headerFiles = new Map();
+function headersFile(name) {
+  if (!headerFiles.has(name)) {
+    const p = fetch(new URL(`../data/${name}${new URL(import.meta.url).search}`, import.meta.url)).then((res) => {
+      if (!res.ok) throw new Error(`${name} answered ${res.status}`);
+      return res.json();
+    });
+    p.catch(() => headerFiles.delete(name));
+    headerFiles.set(name, p);
+  }
+  return headerFiles.get(name);
+}
+
+function ocmsNewer(b, a) {
+  const v = (h) => (h?.["User-Agent"]?.match(/FBAV\/([\d.]+)/)?.[1] ?? "").split(".").map((n) => Number(n) || 0);
+  const x = v(b);
+  const y = v(a);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  }
+  try {
+    return BigInt(b["X-Build-Version-Incremental"] || 0) > BigInt(a["X-Build-Version-Incremental"] || 0);
+  } catch {
+    return false;
+  }
+}
+
 export async function ocmsHeaders() {
-  const res = await fetch(new URL(`../data/ocms-headers.json${new URL(import.meta.url).search}`, import.meta.url));
-  if (!res.ok) throw new Error(`ocms-headers.json answered ${res.status}`);
-  return res.json();
+  const fixed = await headersFile("ocms-headers.json");
+  const token = (loadSettings().token || "").trim();
+  /* A public token ("OC|app id|") keeps the hand-set headers; a person's own has no "|". */
+  if (!token || token.includes("|")) return fixed;
+  const latest = await headersFile("ocms-headers-latest.json").catch(() => null);
+  return latest && ocmsNewer(latest, fixed) ? latest : fixed;
 }
 
 /* ---------- GitHub releases ----------
@@ -1873,6 +1968,73 @@ export async function cloudBackups(serials) {
     }));
 }
 
+/* OCDevManagePlatformServicesCloudStorageViewQuery, from the developer dashboard
+   (developers.meta.com → Platform Services → Cloud Storage): whether an app's data is
+   backed up to the cloud at all, and the paths its developer left out of the backup.
+   What a backup holds is the app's data minus those paths. The same persisted query
+   answers on graph.oculus.com with a signed-in token. */
+const BACKUP_RULES_DOC_ID = "24749575598037757";
+
+/* FetchUserCloudBackup (OCMS, client_doc_id): one backup's download details by its id —
+   where the encrypted blob lives, its size and checksum, and the crypto envelope. The blob
+   is end-to-end encrypted with a key sealed in the headset's keystore (and an optional user
+   PIN), so it can be downloaded but only restored to a headset, never read off-device.
+   Recovered from OCMS.apk. Reading only; restore and delete are separate mutations MetaDB
+   does not send. The reply shape is nested (an Application, segments), so the fields are
+   pulled out wherever they sit, the way riftMetadata does. */
+const FETCH_BACKUP_DOC_ID = "27955676008592068447410816227";
+
+/** { downloadUri, fallbackUris, size, checksum, type, backedUpAt, segments, encrypted }. */
+export async function fetchCloudBackup(backupId) {
+  /* fetch__UserCloudBackup(id:) — the Meta fetch__Type convention; the backup's node id
+     from GetUserCloudBackups. (backup_id resolves the node to null and the store throws.) */
+  const json = await storeQuery(FETCH_BACKUP_DOC_ID, { id: String(backupId) }, { client: true });
+  refuse(json, "Backup details");
+
+  let downloadUri, size, checksum, type, time, segments, fallbacks;
+  (function walk(n) {
+    if (!n || typeof n !== "object") return;
+    for (const [k, v] of Object.entries(n)) {
+      if (typeof v === "string") {
+        if (/^download_ur[il]$/i.test(k) && !downloadUri) downloadUri = v;
+        else if (/(checksum|sha256)/i.test(k) && !checksum) checksum = v;
+        else if (/backup_type/i.test(k) && !type) type = v;
+      } else if (typeof v === "number") {
+        if (/(file|total)_size/i.test(k) && !size) size = v;
+        else if (/backup_time/i.test(k) && time == null) time = v;
+      } else if (Array.isArray(v)) {
+        if (/fallback.*url/i.test(k) && !fallbacks) fallbacks = v.filter((x) => typeof x === "string");
+        else if (/segment/i.test(k) && segments == null) segments = v.length;
+      }
+      walk(v);
+    }
+  })(json.data);
+
+  if (!downloadUri && size == null) throw new Error("the store returned no details for this backup");
+  return {
+    downloadUri: downloadUri ?? null,
+    fallbackUris: fallbacks ?? [],
+    size: Number(size) || null,
+    checksum: checksum ?? null,
+    type: type ?? null,
+    backedUpAt: Number(time) || null,
+    segments: segments ?? null,
+    encrypted: true,
+  };
+}
+
+/** { enabled, excluded: [path] } for one app. */
+export async function backupRules(appId) {
+  const json = await storeQuery(BACKUP_RULES_DOC_ID, { applicationID: String(appId) });
+  refuse(json, "Backup settings");
+  const node = json.data?.node;
+  if (!node) throw new Error("the store did not say how this app is backed up");
+  return {
+    enabled: typeof node.cloud_backup_enabled === "boolean" ? node.cloud_backup_enabled : null,
+    excluded: (node.cloud_backup_rules?.excluded_file_paths ?? []).filter((p) => typeof p === "string" && p),
+  };
+}
+
 /* SavedWorldsV2: the Horizon worlds this account has saved. The one variable
    is the size of the square art, as a number of pixels. */
 const SAVED_WORLDS_DOC_ID = "27679804063342994800600718755";
@@ -2301,6 +2463,58 @@ export function viewerId() {
     viewer = entry;
   }
   return viewer.id;
+}
+
+/* Leaderboards, from the PC (Meta Horizon desktop) client like Add-ons and
+   Achievements: AppLeaderboardsRouterQuery lists an app's leaderboards (id + title),
+   AppLeaderboardsQuery reads one — its entries for a view (GLOBAL, FRIENDS, or SELF:
+   the entries around your own), your best entry's rank, and how many friends are on
+   it. The reply fields carry the client's own aliases (application, viewerLeaderboards,
+   myEntry, friendsWithEntries, profilePhoto); the raw names are read too in case the
+   store ever answers without them. Both want a logged-in token. */
+const LEADERBOARDS_DOC_ID = "9565763956824872";
+const LEADERBOARD_DOC_ID = "9537594396277058";
+export const LEADERBOARD_VIEWS = [
+  ["GLOBAL", "Everyone"],
+  ["FRIENDS", "Friends"],
+  ["SELF", "Around you"],
+];
+
+/** An app's leaderboards: [{ id, title }]. */
+export async function appLeaderboards(appId) {
+  const data = await relayQuery(LEADERBOARDS_DOC_ID, { applicationId: String(appId) }, "Leaderboards");
+  const app = data.application ?? data.node ?? {};
+  const conn = app.platform_services?.viewerLeaderboards ?? app.platform_services?.viewer_leaderboards;
+  return (conn?.nodes ?? [])
+    .filter((n) => n?.id)
+    .map((n) => ({ id: String(n.id), title: n.title || String(n.id) }));
+}
+
+/**
+ * One leaderboard in one view.
+ * { id, title, myRank, friends, entries: [{ rank, score, name, photo }] }
+ */
+export async function leaderboardEntries(leaderboardId, view = "GLOBAL") {
+  const data = await relayQuery(
+    LEADERBOARD_DOC_ID,
+    { leaderboardId: String(leaderboardId), selectedType: view },
+    "Leaderboards"
+  );
+  const lb = data.leaderboard ?? data.node;
+  if (!lb) throw new Error("the store returned no leaderboard");
+  const photo = (u) => (u?.profilePhoto ?? u?.profile_photo)?.uri ?? null;
+  return {
+    id: String(lb.id ?? leaderboardId),
+    title: lb.title ?? null,
+    myRank: (lb.myEntry ?? lb.my_top_entry)?.rank ?? null,
+    friends: (lb.friendsWithEntries ?? lb.friends_with_entries)?.count ?? null,
+    entries: (lb.entries ?? []).map((e) => ({
+      rank: e?.rank ?? null,
+      score: e?.entry?.score ?? null,
+      name: e?.entry?.user?.alias ?? null,
+      photo: photo(e?.entry?.user),
+    })),
+  };
 }
 
 /* AppDownloadableContentSectionQuery (from the PC client): an app's purchasable
@@ -3240,6 +3454,15 @@ export async function riftManifestBytes(manifestUri) {
   throw err;
 }
 
+/** The same segment straight from Meta's CDN — signed, not routed — which the worker
+    tries first: when the CDN lets the page read it, it costs the relay nothing. */
+export function riftSegmentDirectUrl(segmentsBaseUri, sha256) {
+  const sep = segmentsBaseUri.includes("?") ? "&" : "?";
+  const url = `${segmentsBaseUri}${sep}segment_sha256=${encodeURIComponent(sha256)}`;
+  const value = riftWay.token ? (loadSettings()[riftWay.token] || "").trim() : "";
+  return value ? `${url}&access_token=${encodeURIComponent(value)}` : url;
+}
+
 /** A build segment's URL — routed through the relay and signed the way the manifest
     last answered — for js/rift-worker.js, which fetches and inflates it off the page. */
 export function riftSegmentUrl(segmentsBaseUri, sha256) {
@@ -3451,7 +3674,7 @@ export const OTA_DEVICE_TYPES = [
   { hmd: "GEMINI", label: "Gemini (unreleased)", type: "ota.gemini.user" },
 ];
 
-const OTA_SELECTION = "{download_uri,target_version,base_version,extra_install_options,file_checksum,release_channel_id,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,controller_fw_version,semantic_version}";
+const OTA_SELECTION = "{download_uri,size,target_version,base_version,extra_install_options,file_checksum,release_channel_id,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,controller_fw_version,semantic_version}";
 
 /* OSUpdater's own fallback app token (OC_ACCESS_TOKEN in OSUpdateProvider): what the
    headset sends when Horizon hands it no user token. Lets a check run without

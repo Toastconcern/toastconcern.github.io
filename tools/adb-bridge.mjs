@@ -351,6 +351,14 @@ http
       send(res, 400, { error: err.message });
     }
   })
+  .on("error", (err) => {
+    console.error(
+      err.code === "EADDRINUSE"
+        ? `ADB bridge: port ${PORT} is already in use — another bridge (or another serve.mjs) is running, and that one answers.`
+        : `ADB bridge could not start: ${err.message}`
+    );
+    process.exit(1);
+  })
   .listen(PORT, "127.0.0.1", async () => {
     console.log(`adb bridge listening on http://127.0.0.1:${PORT}`);
     try {

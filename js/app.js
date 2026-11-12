@@ -19,6 +19,8 @@ import {
   myReleaseChannels,
   headsetPlaytime,
   cloudBackups,
+  backupRules,
+  fetchCloudBackup,
   savedWorlds,
   ownedIaps,
   binaryDetails,
@@ -35,6 +37,9 @@ import {
   REVIEW_SORTS,
   appAddons,
   appAchievements,
+  appLeaderboards,
+  leaderboardEntries,
+  LEADERBOARD_VIEWS,
   releaseNotes,
   purchaseHistory,
   morePurchases,
@@ -56,6 +61,8 @@ import {
   riftMetadata,
   riftManifestBytes,
   riftSegmentUrl,
+  riftSegmentDirectUrl,
+  useExtensionRelay,
   searchStore,
   defaultApps,
   DEFAULT_APP_TRIGGERS,
@@ -71,7 +78,7 @@ import {
   OTA_PUBLIC_TOKEN,
   OTA_SELECTION,
   otaParams,
-} from "./check.js?v=266";
+} from "./check.js?v=268";
 
 const DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 
@@ -419,6 +426,9 @@ const el = {
   relay: document.getElementById("relay"),
   testBtn: document.getElementById("testBtn"),
   clearBtn: document.getElementById("clearBtn"),
+  exportTokens: document.getElementById("exportTokens"),
+  importTokens: document.getElementById("importTokens"),
+  importTokensFile: document.getElementById("importTokensFile"),
   settingsOut: document.getElementById("settingsOut"),
   images: document.getElementById("images"),
   details: document.getElementById("details"),
@@ -538,6 +548,11 @@ const addonsCache = new Map();
 
 /* App ID -> its achievements and this account's progress once fetched. */
 const achCache = new Map();
+
+/* App ID -> its leaderboards once the Leaderboards tab has fetched them:
+   { boards: [{ id, title }], board, view, shown } — `shown` is the last
+   leaderboardEntries answer, for the board and view picked. */
+const lbCache = new Map();
 
 /* App ID -> its developer posts once the Posts tab has fetched them. */
 const postsCache = new Map();
@@ -692,7 +707,7 @@ let storeArtAsking = false;
 let restoringRoute = false;
 /* The address is a path — /apps/<id>/builds, /search/<words> — read by the "links"
    section further down; what has to exist before the init block runs is here. */
-const PANEL_TABS = ["store", "builds", "reviews", "posts", "addons", "achievements", "mine"];
+const PANEL_TABS = ["store", "builds", "reviews", "posts", "addons", "achievements", "leaderboards", "cloud", "mine"];
 const VIEWS = ["apps", "search", "mine", "purchases", "wishlist", "watchlist", "avatar", "devices", "updater", "worlds", "orgs", "default",
   "plus", "store", "adb", "companion", "settings", "getapp", "downgrade"];
 /* Screens still being built: no nav link, and their address shows the 404 screen.
@@ -746,6 +761,14 @@ const myChannels = new Map();
    state. */
 const playState = { rows: [], asked: false, loading: false, note: "", promise: null };
 const backupState = { rows: [], asked: false, loading: false, note: "", promise: null };
+
+/* App ID -> its backup settings once asked for: { loading } while asking, then
+   { rules: { enabled, excluded } } or { error }. One request per app, on its button. */
+const backupRulesCache = new Map();
+
+/* Backup id -> its download details once asked for (FetchUserCloudBackup):
+   { loading } while asking, then { detail } (open) or { error }. Absent = closed. */
+const backupDetailCache = new Map();
 
 /* The in-app purchases the account owns, by app ID, for the DLC section of an
    opened entitlement. One library-wide fetch, the first time a panel wants it. */
@@ -803,6 +826,9 @@ let stagedScope = null;
 /** What the Apps and games table is currently showing. */
 let listing = [];
 let listingNote = "";
+/* Why a search came back empty, in plain words, when the store refused it; shown as
+   the list's empty message (in warn colour) instead of "No apps matched." */
+let listingError = "";
 let searching = false;
 
 /* The guided tour in progress, if any. Up here for the same TDZ reason:
@@ -1600,6 +1626,14 @@ function firstEnabledSection(off) {
 
 /* Hide the nav links (and any menu left with nothing in it) for screens turned
    off in the setup guide. Settings and Get the app are never hidden. */
+/* A nav link's name without its count badge — the Watchlist link carries one, and
+   reading its whole text gives "Watchlist3". */
+function navLabel(a) {
+  const copy = a.cloneNode(true);
+  for (const badge of copy.querySelectorAll(".navbadge")) badge.remove();
+  return copy.textContent.replace(/\s+/g, " ").trim();
+}
+
 function applyFeatureVisibility() {
   const off = new Set(loadSettings().sectionsOff);
   for (const a of el.navLinks) {
@@ -1676,7 +1710,7 @@ function applyView() {
   if (view === "watchlist") renderWatch();
 
   if (view === "companion") {
-    import("./companion.js?v=266")
+    import("./companion.js?v=268")
       .then((m) => m.initCompanion(el.viewCompanion))
       .catch((e) => {
         /* An engine that cannot even read companion.js (the Quest 1's) has no
@@ -3294,6 +3328,49 @@ function watchToggle(app) {
   return `<button type="button" class="watch-toggle${on ? " is-on" : ""}" data-watch-toggle="${esc(keyOf(app))}" aria-pressed="${on}" title="${on ? "Remove from" : "Add to"} your watchlist" aria-label="${on ? "Remove" : "Add"} ${esc(app.name)} ${on ? "from" : "to"} your watchlist"></button>`;
 }
 
+/* An app's own square art for the watchlist's icon: the square cover or the icon
+   when the list it came from carried them, else whatever picture it had. Lists differ —
+   an organization's apps carry landscape art, which looks wrong cropped to a square. */
+/* A function, not a module-level const: renderAll (which reaches here) can run during
+   start-up, before a const this far down would exist. */
+function squareLabels() {
+  return ["Cover", "Icon", "Icon (VR)"];
+}
+function squareArt(app) {
+  for (const label of squareLabels()) {
+    const m = (app?.media ?? []).find((x) => x?.label === label && x.uri);
+    if (m) return m.uri;
+  }
+  return app?.image ?? null;
+}
+function hasSquareArt(app) {
+  return (app?.media ?? []).some((x) => squareLabels().includes(x?.label) && x.uri);
+}
+
+/* Meta's image addresses are signed and expire, so a saved icon stops loading in
+   time. Whenever a watched app turns up in a list with its square art (or the entry
+   has none at all), the entry takes the fresh address. No requests: only what a list
+   already carries. */
+function refreshWatchArt(apps) {
+  const list = readWatch();
+  if (!list.length) return;
+  const byId = new Map(list.map((w) => [w.id, w]));
+  let changed = false;
+  for (const app of apps) {
+    const w = app?.id != null ? byId.get(String(app.id)) : null;
+    if (!w) continue;
+    const art = squareArt(app);
+    if (art && art !== w.image && (hasSquareArt(app) || !w.image)) {
+      w.image = art;
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveWatch(list);
+    if (el.viewWatchlist && !el.viewWatchlist.hidden) renderWatch();
+  }
+}
+
 function addWatch(app) {
   if (!app?.id) return;
   const list = readWatch();
@@ -3309,7 +3386,7 @@ function addWatch(app) {
     name: app.name ?? String(app.id),
     slug: app.slug ?? null,
     platform: app.platform ?? null,
-    image: app.image ?? null,
+    image: squareArt(app),
     seen: head?.versionCode ?? null,
     seenVer: head?.version ?? null,
     seenAt: head?.releasedAt ?? null,
@@ -3443,8 +3520,6 @@ function renderWatch() {
   if (!el.watchRows) return;
   const list = readWatch();
   const busy = sweepWatch.busy;
-  const showArt = loadSettings().images;
-
   /* Keep any open drop-down's live node across the rebuild, so a background
      check (or Mark seen) doesn't collapse a panel the reader has open. */
   const livePanels = new Map();
@@ -3453,10 +3528,13 @@ function renderWatch() {
     if (id) livePanels.set(id, d);
   }
 
+  /* The app's own icon, always — it is how a watched app is recognised at a glance.
+     The letter tile stands in only when there is no icon or it will not load. */
+  const letter = (w) => esc((w.name || "?").trim().charAt(0).toUpperCase());
   const icon = (w) =>
-    showArt && w.image
-      ? `<img class="wl-ic" src="${esc(w.image)}" alt="" loading="lazy">`
-      : `<span class="wl-ic wl-ic--ph" aria-hidden="true">${esc((w.name || "?").trim().charAt(0).toUpperCase())}</span>`;
+    w.image
+      ? `<img class="wl-ic" src="${esc(w.image)}" alt="" loading="lazy" data-letter="${letter(w)}">`
+      : `<span class="wl-ic wl-ic--ph" aria-hidden="true">${letter(w)}</span>`;
   /* A build cell: the version (monospace) over its release date (muted). */
   const buildCell = (ver, date, cls = "") =>
     ver == null && date == null
@@ -3495,6 +3573,19 @@ function renderWatch() {
       </tr>`;
     })
     .join("");
+
+  /* An icon whose address has expired (or never loaded) becomes the letter tile. */
+  for (const img of el.watchRows.querySelectorAll("img.wl-ic")) {
+    const fallBack = () => {
+      const ph = document.createElement("span");
+      ph.className = "wl-ic wl-ic--ph";
+      ph.setAttribute("aria-hidden", "true");
+      ph.textContent = img.dataset.letter || "?";
+      img.replaceWith(ph);
+    };
+    if (img.complete && !img.naturalWidth) fallBack();
+    else img.addEventListener("error", fallBack, { once: true });
+  }
 
   /* Re-insert any drop-down that was open before this redraw (reuse the live
      node where we kept it, else rebuild from the stored entry). */
@@ -3612,6 +3703,8 @@ const SETUP_PANELS = [
   ["posts", "Posts"],
   ["addons", "Add-ons"],
   ["achievements", "Achievements"],
+  ["leaderboards", "Leaderboards"],
+  ["cloud", "Cloud"],
 ];
 /* Existing settings keys, surfaced in the guide. They stay booleans in the
    settings schema, so the guide writes them straight through saveSettings. */
@@ -3638,7 +3731,7 @@ function buildSetup() {
 
   el.setupSections.innerHTML = [...el.navLinks]
     .filter((a) => a.dataset.view !== "settings" && a.dataset.view !== "getapp")
-    .map((a) => setupCheckbox("section", a.dataset.view, a.textContent.replace(/\s+/g, " ").trim(), !secOff.has(a.dataset.view)))
+    .map((a) => setupCheckbox("section", a.dataset.view, navLabel(a), !secOff.has(a.dataset.view)))
     .join("");
 
   el.setupPanels.innerHTML = SETUP_PANELS.map(([name, label]) => setupCheckbox("panel", name, label, !panOff.has(name))).join("");
@@ -4991,7 +5084,7 @@ function updEasy(opts, body) {
 
 const UPD_FIND_MAX = 10000;
 const FIND_SELECTION =
-  "{download_uri,base_version,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,semantic_version}";
+  "{download_uri,size,base_version,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,semantic_version}";
 const UPD_RATE_CODES = [368, 613];
 const updSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -5198,7 +5291,7 @@ async function updFindRun() {
 /** The finder's results as a CSV, the script's columns. */
 function updFindCsv() {
   const cols = ["requested_incremental", "base_version", "semantic_version", "formatted_build_number", "build_number_display_name",
-    "release_channel_name", "creation_time", "release_tag", "download_uri"];
+    "release_channel_name", "creation_time", "release_tag", "size", "download_uri"];
   const cell = (v) => {
     const s = String(v ?? "");
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -5702,12 +5795,23 @@ function updDownload(href, label) {
   return a;
 }
 
-/** A creation_time as a date: Meta sends unix seconds; anything else is shown as is. */
+/** A creation_time as a date and time: Meta sends it either as unix seconds or as an
+    ISO string (2026-11-10T17:33:18+0000). Both become a local date + time; anything that
+    is neither is shown as it came. */
 function updDate(t) {
   if (t == null || t === "") return "";
   const n = Number(t);
-  if (!Number.isFinite(n) || n <= 0) return String(t);
-  return new Date(n * 1000).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  const d = Number.isFinite(n) && n > 0 ? new Date(n * 1000) : new Date(String(t));
+  if (Number.isNaN(d.getTime())) return String(t);
+  return d.toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+/** An OTA's download size: Meta reports plain bytes. GB once it is at least a gigabyte
+    (OS updates usually are), MB below that; nothing when the store sends no size. */
+function updSize(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
 /** A build's version as people write it: the semantic version with a v in front
@@ -5738,6 +5842,8 @@ function renderUpdaterResult(json, result) {
       ["Incremental", b.target_version],
       ["Build Number", b.formatted_build_number],
       ["Release Channel", b.release_channel_name],
+      ["Released", updDate(b.creation_time)],
+      ["Size", updSize(b.size)],
     ].filter(([, v]) => v != null && v !== "");
     const dl = document.createElement("dl");
     dl.className = "upd-facts";
@@ -5754,7 +5860,6 @@ function renderUpdaterResult(json, result) {
     card.appendChild(dl);
 
     const extra = [
-      ["Released", updDate(b.creation_time)],
       ["Display name", b.build_number_display_name],
       ["Checksum", b.file_checksum],
       ["Channel id", b.release_channel_id],
@@ -6575,7 +6680,11 @@ function initExtSignIn() {
     if (m.type === "here") {
       found = true;
       button.dataset.found = "1";
-      out.textContent = "The MetaDB Sign-in extension is installed. Sign in with Meta fills in both tokens below from your Meta login.";
+      /* 1.5 and later ask the store for this page, so the relay is not needed. */
+      useExtensionRelay(m.relay === true);
+      out.textContent =
+        "The MetaDB Sign-in extension is installed. Sign in with Meta fills in both tokens below from your Meta login." +
+        (m.relay === true ? " Store requests go through the extension, not the relay." : "");
       syncExtSignIn();
       /* Only when the extension's own update check is on and found one. */
       if (m.update?.version) {
@@ -6935,6 +7044,89 @@ function initSettings() {
   });
   window.addEventListener("metadb:log", (e) => appendLog(e.detail));
 
+  /* Export tokens: downloads the saved sign-in as a JSON file, so it can be kept or
+     carried to another browser. It holds the tokens that sign in as you, so the status
+     line says to keep it private. Current input values win over what is stored. */
+  el.exportTokens?.addEventListener("click", () => {
+    const s = loadSettings();
+    const tokens = {
+      oc_www_at: el.token.value.trim() || localStorage.getItem("metadb.token") || "",
+      oc_ac_at: el.acToken.value.trim() || s.acToken || "",
+      frl_token: (el.frlToken && el.frlToken.value.trim()) || s.frlToken || "",
+      updater_token: (el.updToken && el.updToken.value.trim()) || s.upToken || "",
+      exported: new Date().toISOString(),
+    };
+    if (!tokens.oc_www_at && !tokens.oc_ac_at && !tokens.frl_token && !tokens.updater_token) {
+      tell("No tokens to export — sign in or paste a token first.", "bad");
+      return;
+    }
+    try {
+      const blob = new Blob([JSON.stringify(tokens, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "metadb-tokens.json";
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 0);
+      tell("Saved metadb-tokens.json. It holds the tokens that sign in as you — keep it private, and delete it when you are done.", "ok");
+    } catch (err) {
+      tell(`Could not export: ${err.message}`, "bad");
+    }
+  });
+
+  /* Import tokens: reads a metadb-tokens.json (what Export tokens writes) back in, so a
+     sign-in can be carried between browsers. The button opens the file picker; the hidden
+     input does the reading. Only the tokens present in the file are changed; the rest stay. */
+  el.importTokens?.addEventListener("click", () => el.importTokensFile?.click());
+  el.importTokensFile?.addEventListener("change", async () => {
+    const file = el.importTokensFile.files?.[0];
+    el.importTokensFile.value = ""; // so the same file can be picked again
+    if (!file) return;
+    let data;
+    try {
+      data = JSON.parse(await file.text());
+    } catch {
+      tell("That is not a readable tokens file — expected the JSON that Export tokens saves.", "bad");
+      return;
+    }
+    if (!data || typeof data !== "object") {
+      tell("That file has no tokens in it.", "bad");
+      return;
+    }
+    /* Accept the export's own key names, and the internal ones as a fallback. */
+    const pick = (...names) => {
+      for (const n of names) {
+        const v = data[n];
+        if (typeof v === "string" && v.trim()) return v.trim();
+      }
+      return null;
+    };
+    const found = {
+      token: pick("oc_www_at", "token"),
+      acToken: pick("oc_ac_at", "acToken"),
+      frlToken: pick("frl_token", "frlToken"),
+      upToken: pick("updater_token", "upToken"),
+    };
+    const patch = Object.fromEntries(Object.entries(found).filter(([, v]) => v));
+    if (!Object.keys(patch).length) {
+      tell("No tokens in that file — expected oc_www_at, oc_ac_at, frl_token or updater_token.", "bad");
+      return;
+    }
+    saveSettings(patch);
+    if (patch.token != null) el.token.value = patch.token;
+    if (patch.acToken != null) el.acToken.value = patch.acToken;
+    if (el.frlToken && patch.frlToken != null) el.frlToken.value = patch.frlToken;
+    if (el.updToken && patch.upToken != null) el.updToken.value = patch.upToken;
+    syncAppSignIn();
+    syncExtSignIn();
+    renderAll();
+    const labels = { token: "access", acToken: "account", frlToken: "Meta", upToken: "updater" };
+    const which = Object.keys(patch).map((k) => labels[k]).join(", ");
+    const n = Object.keys(patch).length;
+    tell(`Imported and saved the ${which} token${n === 1 ? "" : "s"} — you are signed in on this browser now.`, "ok");
+  });
+
   el.clearBtn.addEventListener("click", () => {
     clearSettings();
     /* In the headset app, Reset also signs out of Meta there, and keeps the
@@ -6986,7 +7178,7 @@ function initSettings() {
     el.relay.value = "http://127.0.0.1:8788/?url={url}";
     saveSettings({ relay: el.relay.value });
     syncRelayNote();
-    say("Set to the local relay. Start it with: node tools/relay.mjs", "ok");
+    say("Set to the local relay. Start it with: node tools/serve.mjs", "ok");
   });
 
   el.testBtn.addEventListener("click", async () => {
@@ -7028,7 +7220,7 @@ function initDefaults() {
     el.defView,
     [...el.navLinks]
       .filter((a) => a.dataset.view !== "getapp")
-      .map((a) => [a.dataset.view, a.textContent.replace(/\s+/g, " ").trim()])
+      .map((a) => [a.dataset.view, navLabel(a)])
   );
   fillOptions(el.defHmd, HMD_TYPES.map(([v, label]) => [v, `${label} (${v})`]));
   fillOptions(el.defSort, [...el.sort.options].map((o) => [o.value, o.textContent]));
@@ -7330,6 +7522,7 @@ async function runSearch() {
   if (!raw) {
     listing = [];
     listingNote = "";
+    listingError = "";
     searching = false;
     el.searchGo.disabled = false;
     el.searchGo.textContent = "Search";
@@ -7341,10 +7534,12 @@ async function runSearch() {
   el.searchGo.disabled = true;
   el.searchGo.textContent = "Searching…";
   listingNote = "";
+  listingError = "";
   renderAll();
 
   let found;
   let note;
+  let error = "";
   try {
     const id = parseAppId(raw);
     const hmdType = el.hmd.value;
@@ -7365,17 +7560,35 @@ async function runSearch() {
   } catch (err) {
     found = [];
     note = `search failed: ${err.message}`;
+    error = hiddenIdMessage(err.message);
   }
   if (seq !== searchSeq) return;
 
   listing = found;
   listingNote = note;
+  listingError = error;
   searching = false;
   el.searchGo.disabled = false;
   el.searchGo.textContent = "Search";
   renderAll();
 }
 
+
+/* The store's answer for an ID it will not show — "Object with ID … does not exist,
+   cannot be loaded due to missing permissions…" — put plainly. Which token asked
+   decides the advice: the built-in public one sees only released apps, so signing in
+   may help; your own token seeing nothing means the store keeps it from you too. */
+function hiddenIdMessage(message) {
+  if (!/does not exist, cannot be loaded due to missing permissions/i.test(message ?? "")) return "";
+  const own = !(loadSettings().token || "").includes("|");
+  return own
+    ? "The store won't show this ID to your account. It may be an app that isn't released to you " +
+        "(in development, or on a release channel you're not on), one that was taken down, " +
+        "or an ID that isn't an app at all (an add-on, a world or a person)."
+    : "The store won't show this ID to the built-in public token, which only sees released apps. " +
+        "It may be unreleased or on a private channel, taken down, or not an app ID. " +
+        "Sign in on the Settings page: your own account may be able to see it.";
+}
 
 /* ---------- rendering ---------- */
 
@@ -7451,6 +7664,7 @@ function renderSoon() {
 
 function renderAll() {
   clearTimeout(renderTimer);
+  refreshWatchArt([...listing, ...mineList, ...orgList]);
   /* Only tint when the setting is on and there is a library to match against. */
   ownedKeys =
     loadSettings().autoOwned && mineKind !== "expired"
@@ -7467,7 +7681,8 @@ function renderAll() {
     ? "Search the store to begin."
     : searching
       ? ""
-      : "No apps matched.";
+      : listingError || "No apps matched.";
+  el.empty.classList.toggle("warn", Boolean(listingError) && !searching);
 
   el.count.textContent = searching
     ? "Asking the store…"
@@ -8022,10 +8237,10 @@ function appPanel(app, { staged = false, scope = null } = {}) {
        role="tab" aria-selected="${tab === name}">${label}</button>`;
 
   /* The app's actions — check, manifest, claim, store link — sit under the
-     tabs and serve Store and Builds alike. The Reviews, Posts, Add-ons, Achievements
-     and Entitlement tabs stand on their own — their own Get button fetches them — so the shared
+     tabs and serve Store and Builds alike. The Reviews, Posts, Add-ons, Achievements,
+     Leaderboards and Entitlement tabs stand on their own — their own Get button fetches them — so the shared
      actions step aside on those. */
-  const actionsHidden = ["mine", "reviews", "posts", "addons", "achievements"].includes(tab);
+  const actionsHidden = ["mine", "reviews", "posts", "addons", "achievements", "leaderboards", "cloud"].includes(tab);
   const sharedActions = `<div data-app-actions${actionsHidden ? " hidden" : ""}>
          ${actions ? `<div class="actions">${actions}</div>` : ""}
          <div class="claim-out"></div>
@@ -8034,7 +8249,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
        </div>`;
 
   const main = `<div class="companion-tabs panel-tabs" role="tablist" aria-label="${esc(app.name)}">
-         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${panelOn("reviews") ? tabButton("reviews", "Reviews") : ""}${panelOn("posts") ? tabButton("posts", "Posts") : ""}${panelOn("addons") ? tabButton("addons", "Add-ons") : ""}${panelOn("achievements") ? tabButton("achievements", "Achievements") : ""}${tabButton("mine", "Entitlement")}
+         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${panelOn("reviews") ? tabButton("reviews", "Reviews") : ""}${panelOn("posts") ? tabButton("posts", "Posts") : ""}${panelOn("addons") ? tabButton("addons", "Add-ons") : ""}${panelOn("achievements") ? tabButton("achievements", "Achievements") : ""}${panelOn("leaderboards") ? tabButton("leaderboards", "Leaderboards") : ""}${panelOn("cloud") ? tabButton("cloud", "Cloud") : ""}${tabButton("mine", "Entitlement")}
        </div>
        ${sharedActions}
        <div ${pane("store")}>${storeFacts || "<p>Not checked yet — the listing arrives with Check this app.</p>"}</div>
@@ -8047,6 +8262,8 @@ function appPanel(app, { staged = false, scope = null } = {}) {
        ${panelOn("posts") ? `<div ${pane("posts")} class="posts-pane">${postsPaneHtml(app)}</div>` : ""}
        ${panelOn("addons") ? `<div ${pane("addons")} class="addons-pane">${addonsPaneHtml(app)}</div>` : ""}
        ${panelOn("achievements") ? `<div ${pane("achievements")} class="ach-pane">${achPaneHtml(app)}</div>` : ""}
+       ${panelOn("leaderboards") ? `<div ${pane("leaderboards")} class="lb-pane">${lbPaneHtml(app)}</div>` : ""}
+       ${panelOn("cloud") ? `<div ${pane("cloud")} class="cloud-pane">${cloudPaneHtml(app)}</div>` : ""}
        <div ${pane("mine")}>${yourCopy(app)}</div>`;
 
   /* Which tab is showing, for the stylesheet: Latest Binary Info belongs to
@@ -8102,7 +8319,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
       for (const p of panel.querySelectorAll("[data-pane]")) p.hidden = p.dataset.pane !== name;
       panel.dataset.tab = name;
       const shared = panel.querySelector("[data-app-actions]");
-      if (shared) shared.hidden = ["mine", "reviews", "posts", "addons", "achievements"].includes(name);
+      if (shared) shared.hidden = ["mine", "reviews", "posts", "addons", "achievements", "leaderboards", "cloud"].includes(name);
       if (name === "mine") wantYourCopy();
     });
   }
@@ -8200,6 +8417,16 @@ function appPanel(app, { staged = false, scope = null } = {}) {
 
   const achPane = panel.querySelector('[data-pane="achievements"]');
   if (achPane) wireAch(app, achPane);
+
+  for (const b of panel.querySelectorAll("[data-backup-detail]")) {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleBackupDetail(b.dataset.backupDetail);
+    });
+  }
+
+  const lbPane = panel.querySelector('[data-pane="leaderboards"]');
+  if (lbPane) wireLb(app, lbPane);
 
   const postsPane = panel.querySelector('[data-pane="posts"]');
   if (postsPane) wirePosts(app, postsPane);
@@ -8603,6 +8830,118 @@ async function loadAch(app, pane, button) {
       button.textContent = "Get achievements";
     }
     paneError(pane, "ach-error", `Could not load achievements: ${err.message}`);
+  }
+}
+
+/* ---------- leaderboards ----------
+   An app's leaderboards, on their own tab. Get lists them and opens the first;
+   picking another board or view (everyone, friends, around you) reads that one.
+   Each read is one request; nothing is fetched until Get is pressed. */
+
+function lbPaneHtml(app) {
+  if (!app.id) return `<p>No store ID to read leaderboards for.</p>`;
+  const c = lbCache.get(app.id);
+  if (c) return renderLb(c);
+  return `<div class="controls"><button type="button" data-lb-get>Get leaderboards</button></div>
+       <p class="hint">This app's leaderboards: the top scores, your friends', and where you stand. Needs your own access token.</p>`;
+}
+
+function renderLb(c) {
+  if (!c.boards.length) return `<p>This app has no leaderboards.</p>`;
+  const boardPick = `<select data-lb-board aria-label="Leaderboard">${c.boards
+    .map((b) => `<option value="${esc(b.id)}"${b.id === c.board ? " selected" : ""}>${esc(b.title)}</option>`)
+    .join("")}</select>`;
+  const viewPick = `<select data-lb-view aria-label="Whose scores">${LEADERBOARD_VIEWS.map(
+    ([value, label]) => `<option value="${value}"${value === c.view ? " selected" : ""}>${label}</option>`
+  ).join("")}</select>`;
+  const s = c.shown;
+  let body = "";
+  if (s) {
+    const facts = [
+      s.myRank != null ? `your best rank: ${bigNumber(s.myRank)}` : null,
+      s.friends != null ? `${bigNumber(s.friends)} friend${s.friends === 1 ? "" : "s"} on it` : null,
+    ].filter(Boolean);
+    const score = (v) => (v != null && /^-?\d+$/.test(String(v)) ? bigNumber(v) : esc(v ?? "—"));
+    const rows = s.entries
+      .map(
+        (e) => `<tr>
+          <td class="lb-rank">${e.rank != null ? bigNumber(e.rank) : "—"}</td>
+          <td><span class="lb-player">${e.photo ? `<img src="${esc(e.photo)}" alt="" loading="lazy">` : ""}${esc(e.name ?? "—")}</span></td>
+          <td class="lb-score">${score(e.score)}</td>
+        </tr>`
+      )
+      .join("");
+    const none =
+      c.view === "FRIENDS" ? " from your friends" : c.view === "SELF" ? " around you — you may not have a score on this one" : "";
+    body = `<p class="count">${bigNumber(s.entries.length)} entr${s.entries.length === 1 ? "y" : "ies"}${facts.length ? ` · ${facts.join(" · ")}` : ""}</p>
+      ${
+        s.entries.length
+          ? `<table><thead><tr><th>Rank</th><th>Player</th><th>Score</th></tr></thead><tbody>${rows}</tbody></table>`
+          : `<p class="empty">No entries${none}.</p>`
+      }`;
+  }
+  return `<div class="controls">${boardPick}${viewPick}</div>${body}`;
+}
+
+function wireLb(app, pane) {
+  if (!app.id) return;
+  pane.querySelector("[data-lb-get]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    loadLb(app, pane, e.currentTarget);
+  });
+  for (const pick of pane.querySelectorAll("[data-lb-board], [data-lb-view]")) {
+    pick.addEventListener("click", (e) => e.stopPropagation());
+    pick.addEventListener("change", () => {
+      const c = lbCache.get(app.id);
+      if (!c) return;
+      c.board = pane.querySelector("[data-lb-board]").value;
+      c.view = pane.querySelector("[data-lb-view]").value;
+      showLb(app, pane, c);
+    });
+  }
+}
+
+async function loadLb(app, pane, button) {
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Loading leaderboards…";
+  }
+  try {
+    const boards = await appLeaderboards(app.id);
+    const c = { boards, board: boards[0]?.id ?? null, view: "GLOBAL", shown: null };
+    lbCache.set(app.id, c);
+    if (redrawnMeanwhile(app, pane)) return;
+    if (!c.board) {
+      pane.innerHTML = renderLb(c);
+      return;
+    }
+    await showLb(app, pane, c);
+  } catch (err) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Get leaderboards";
+    }
+    paneError(pane, "lb-error", `Could not load leaderboards: ${err.message}`);
+  }
+}
+
+/* Read the picked board in the picked view; the pickers are disabled and the count
+   line says "Loading…" meanwhile. */
+async function showLb(app, pane, c) {
+  for (const p of pane.querySelectorAll("[data-lb-board], [data-lb-view]")) p.disabled = true;
+  const status = pane.querySelector(".count");
+  if (status) status.textContent = "Loading…";
+  try {
+    c.shown = await leaderboardEntries(c.board, c.view);
+    if (redrawnMeanwhile(app, pane)) return;
+    pane.innerHTML = renderLb(c);
+    wireLb(app, pane);
+  } catch (err) {
+    c.shown = null;
+    if (redrawnMeanwhile(app, pane)) return;
+    pane.innerHTML = renderLb(c);
+    wireLb(app, pane);
+    paneError(pane, "lb-error", `Could not load this leaderboard: ${err.message}`);
   }
 }
 
@@ -9045,18 +9384,27 @@ async function downloadRiftBuild(app, data, button) {
     const manifest = JSON.parse(riftManifestText(await loadFflate(), await riftManifestBytes(manifestUri)));
     const entries = Object.entries(manifest.files || {});
     if (!entries.length) throw new Error("the manifest listed no files");
-    const files = entries.map(([name, file], i) => ({
-      path: String(name).split(/[\\/]+/).filter((p) => p && p !== "." && p !== "..").join("/") || `file${i}`,
-      size: file.size || 0,
-      urls: (file.segments || []).map((seg) => riftSegmentUrl(segmentsBaseUri, Array.isArray(seg) ? seg[1] : seg.sha256 ?? seg)),
-    }));
+    /* A segment is [locator, sha256, stored size] (or an object with sha256): the hash
+       names it on the CDN and checks it once it arrives. */
+    const segHash = (seg) => String(Array.isArray(seg) ? seg[1] : seg.sha256 ?? seg);
+    const files = entries.map(([name, file], i) => {
+      const hashes = (file.segments || []).map(segHash);
+      return {
+        path: String(name).split(/[\\/]+/).filter((p) => p && p !== "." && p !== "..").join("/") || `file${i}`,
+        size: file.size || 0,
+        hashes,
+        urls: hashes.map((h) => riftSegmentUrl(segmentsBaseUri, h)),
+        directs: hashes.map((h) => riftSegmentDirectUrl(segmentsBaseUri, h)),
+      };
+    });
 
     say("Downloading 0%");
+    let how = null;
     worker = new Worker(new URL(`js/rift-worker.js${siteVersion()}`, document.baseURI), { type: "module" });
     await new Promise((resolve, reject) => {
       worker.onmessage = ({ data: m }) => {
         if (m.type === "progress") say(`Downloading ${Math.min(99, Math.floor((m.done / m.total) * 100))}% · ${m.file} of ${m.files} files`);
-        else if (m.type === "done") resolve();
+        else if (m.type === "done") resolve((how = m));
         else if (m.type === "error") reject(new Error(m.message));
       };
       worker.onerror = (e) => reject(new Error(e.message || "the download worker could not start"));
@@ -9072,7 +9420,11 @@ async function downloadRiftBuild(app, data, button) {
       );
     });
     button.textContent = "Downloaded";
-    button.title = target.where === "file" ? `${app.name}: saved ${files.length} files as ${zipName}` : `${app.name}: ${zipName} is in your downloads`;
+    /* How it came: straight from Meta or through the relay, and whether every segment's
+       SHA-256 was checked. */
+    const came = how?.way === "direct" ? "straight from Meta" : "through the relay";
+    const checked = how?.verified && how.verified !== "off" ? "every segment's SHA-256 checked" : "segments not hash-checked";
+    button.title = `${target.where === "file" ? `${app.name}: saved ${files.length} files as ${zipName}` : `${app.name}: ${zipName} is in your downloads`} (${came}; ${checked})`;
   } catch (err) {
     /* Nothing was handed to the worker yet: the stream it would have written is shut. */
     if (!worker && target.kind === "port") target.port.postMessage({ abort: true });
@@ -10409,7 +10761,115 @@ function yourCopy(app) {
 
   return `<h3>Ownership</h3>${ownLine}${channelSection(app)}${
     app.platform === "PC" ? "" : dlcTable(app)
-  }${accountSections(app, "play", { load: true })}${accountSections(app, "backup", { load: true })}`;
+  }${accountSections(app, "play", { load: true })}`;
+}
+
+/* ---------- the Cloud tab ----------
+   An app's cloud backups on their own tab: the backups Meta holds for it across your
+   headsets, each openable for its download details (FetchUserCloudBackup), and what its
+   developer puts in a backup (backupRulesSection). Backups are one account-wide fetch
+   (backupState), so a press here fills them in for every app at once. Needs your own token. */
+function cloudPaneHtml(app) {
+  if (!app.id) return `<p>No store ID to read cloud backups for.</p>`;
+  let list;
+  if (!backupState.asked) {
+    list = `<div class="controls"><button type="button" data-load="cloudbackups">Get cloud backups</button></div>
+       <p class="hint">The app-data backups Meta holds for this app across your headsets — a game's saves, progress and settings. Needs your own access token.</p>`;
+  } else if (backupState.loading) {
+    list = `<div class="controls"><button type="button" disabled>Loading…</button></div>`;
+  } else if (backupState.note && !backupState.rows.length) {
+    list = `<p class="warn">${esc(backupState.note)}</p>`;
+  } else {
+    const backs = backupState.rows
+      .filter((r) => recordKey(r) === keyOf(app))
+      .sort((a, b) => (b.backedUpAt ?? 0) - (a.backedUpAt ?? 0));
+    list = backs.length ? backupsTable(backs) : `<p>No cloud backups for this app.</p>`;
+  }
+  return `${list}${app.platform !== "PC" ? backupRulesSection(app) : ""}`;
+}
+
+/* The backups table, each row openable for its details. */
+function backupsTable(backs) {
+  const size = backs.reduce((sum, r) => sum + r.size, 0);
+  const rows = backs
+    .map((r) => {
+      const open = Boolean(backupDetailCache.get(r.id));
+      return `<tr>
+          <td>${esc(r.serial ? headsetLabel(r.serial) : "—")}</td>
+          <td>${esc(r.type ? words(r.type) : "—")}</td>
+          <td>${esc(mb(r.size) ?? "—")}</td>
+          <td>${esc(isoDay(r.backedUpAt))}</td>
+          <td class="backup-act"><button type="button" class="build-btn" data-backup-detail="${esc(r.id)}" aria-expanded="${open}">${open ? "Hide" : "Details"}</button></td>
+        </tr>${backupDetailRow(r)}`;
+    })
+    .join("");
+  return `<p class="hint">${plural(backs.length, "backup")}, ${esc(mb(size) ?? "0 MB")} in all, the latest ${esc(
+    isoDay(backs[0]?.backedUpAt)
+  )}.</p>
+    <div class="vscroll short">
+      <table class="vtable plain">
+        <thead><tr><th>Headset</th><th>Type</th><th>Size</th><th>Backed up</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+/* One backup's details, in a row under it — fetched on Details, cached, toggled on Hide. */
+function backupDetailRow(r) {
+  const c = backupDetailCache.get(r.id);
+  if (!c) return "";
+  let inner;
+  if (c.loading) inner = `<span class="muted">Loading backup details…</span>`;
+  else if (c.error) inner = `<span class="warn">${esc(c.error)}</span>`;
+  else {
+    const d = c.detail;
+    const facts = [
+      d.segments != null ? `${bigNumber(d.segments)} segment${d.segments === 1 ? "" : "s"}` : null,
+      d.checksum ? `checksum ${esc(d.checksum.slice(0, 20))}${d.checksum.length > 20 ? "…" : ""}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    inner = `${d.downloadUri ? `<div class="backup-uri">${esc(d.downloadUri)}</div>` : `<span class="muted">No download address returned.</span>`}
+        ${facts ? `<div class="backup-facts">${facts}</div>` : ""}
+        <p class="hint backup-note">End-to-end encrypted with a key kept in the headset that made it (and your PIN, if you set one). The blob can be downloaded, but it can only be restored to a headset — its contents can't be read here.</p>`;
+  }
+  return `<tr class="backup-detail"><td colspan="5">${inner}</td></tr>`;
+}
+
+/* Details opens (fetching once), Hide closes. */
+function toggleBackupDetail(id) {
+  const cur = backupDetailCache.get(id);
+  if (cur?.loading) return;
+  if (cur) {
+    backupDetailCache.delete(id);
+    renderAccountTabs();
+    return;
+  }
+  backupDetailCache.set(id, { loading: true });
+  renderAccountTabs();
+  fetchCloudBackup(id)
+    .then((detail) => backupDetailCache.set(id, { detail }))
+    .catch((err) => backupDetailCache.set(id, { error: `Could not load backup details: ${err.message}` }))
+    .finally(() => renderAccountTabs());
+}
+
+/* What an app's cloud backups hold: whether it is backed up at all, and the paths its
+   developer left out. Everything else in its data is in the backup. */
+function backupRulesSection(app) {
+  const c = backupRulesCache.get(app.id);
+  let body;
+  if (!c) body = `<button type="button" data-load="backuprules">Get backup settings</button>`;
+  else if (c.loading) body = `<button type="button" disabled>Loading…</button>`;
+  else if (c.error) body = `<p class="warn">${esc(c.error)}</p>`;
+  else if (c.rules.enabled === false) body = `<p class="hint">This app is not backed up to the cloud: its developer has cloud backup switched off.</p>`;
+  else {
+    const on = c.rules.enabled ? "This app's data is backed up to the cloud" : "The store did not say whether this app is backed up";
+    body = c.rules.excluded.length
+      ? `<p class="hint">${on}, except ${plural(c.rules.excluded.length, "path")} its developer left out:</p>
+         <ul class="backup-excluded">${c.rules.excluded.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>`
+      : `<p class="hint">${on}, all of it: its developer left nothing out.</p>`;
+  }
+  return `<h3>What gets backed up</h3>${body}`;
 }
 
 /* ReleaseChannelsQuery, from the account's side: the channel this account is on
@@ -10461,7 +10921,16 @@ function wantYourCopy() {
 function loadForApp(app, what) {
   if (what === "dlc") return loadIaps();
   if (what === "play") return loadPlaytime();
-  if (what === "backup") return loadBackups();
+  if (what === "backup" || what === "cloudbackups") return loadBackups();
+  if (what === "backuprules" && app?.id && !backupRulesCache.get(app.id)?.loading) {
+    backupRulesCache.set(app.id, { loading: true });
+    renderAccountTabs();
+    backupRules(app.id)
+      .then((rules) => backupRulesCache.set(app.id, { rules }))
+      .catch((err) => backupRulesCache.set(app.id, { error: `Could not load backup settings: ${err.message}` }))
+      .finally(() => renderAccountTabs());
+    return;
+  }
   if (what === "channels" && app?.id && !layoutState.channelAsked.has(app.id)) {
     layoutState.channelAsked.add(app.id);
     layoutState.channelErrors.delete(app.id);

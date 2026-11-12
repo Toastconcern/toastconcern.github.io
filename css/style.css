@@ -2445,6 +2445,49 @@ tr.build-detail .panel { font-family: var(--sans, inherit); }
 .ach-desc { color: var(--muted); font-size: .85rem; margin-top: .15rem; }
 .ach-prog { color: var(--muted); font-size: .78rem; margin-top: .25rem; }
 
+/* ---------- leaderboards tab ---------- */
+.lb-pane .lb-rank,
+.lb-pane .lb-score { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lb-pane .lb-score { text-align: right; }
+/* The paths an app leaves out of its cloud backups (Entitlement tab). */
+/* The Cloud tab's per-backup details. */
+.cloud-pane .backup-act { text-align: right; white-space: nowrap; }
+/* The open row holds prose, not table data, so it leaves the table's mono
+   font (and 12px size) for the body sans — otherwise the note reads as code. */
+.cloud-pane tr.backup-detail td {
+  background: var(--field);
+  border-top: none;
+  font-family: var(--sans);
+  font-size: .8125rem;
+  white-space: normal;
+}
+.backup-uri {
+  font-family: var(--mono);
+  font-size: .78rem;
+  word-break: break-all;
+  user-select: all;
+  padding: .35rem .5rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.backup-facts { color: var(--muted); font-size: .8rem; margin-top: .35rem; }
+.cloud-pane .muted { color: var(--muted); }
+.backup-note { margin-top: .4rem; }
+
+.backup-excluded { margin: .25rem 0 1rem; padding-left: 1.2rem; font-size: .85rem; }
+.backup-excluded li { margin: .15rem 0; overflow-wrap: anywhere; font-family: var(--mono); }
+
+.lb-player { display: inline-flex; align-items: center; gap: .5rem; min-width: 0; }
+.lb-player img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: none;
+  background: var(--panel);
+}
+
 /* ---------- developer posts tab ---------- */
 .post-list { display: grid; gap: .6rem; margin-top: .25rem; }
 .post {

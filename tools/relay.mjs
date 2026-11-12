@@ -1,8 +1,12 @@
 /* A minimal CORS relay for local development.
  *
+ * You do not normally run this yourself: `node tools/serve.mjs` imports it and
+ * answers /api?url=… with it, the same address the live site's relay has, so the
+ * page needs no relay setting. Run on its own it listens on a port:
+ *
  *   node tools/relay.mjs
  *
- * Then on the Settings page set the relay URL to:
+ * and the Settings page's relay URL is then:
  *
  *   http://127.0.0.1:8788/?url={url}
  *
@@ -25,6 +29,8 @@ import http from "node:http";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+import { pickHeaders, tokenOf } from "./ocms-pick.mjs";
 
 const PORT = Number(process.env.PORT) || 8788;
 const ALLOWED = /^https:\/\/((graph|www|securecdn(-[a-z0-9-]+)?|realitylabs-graph)\.oculus\.com|meta\.graph\.meta\.com)\//;
@@ -32,8 +38,18 @@ const ALLOWED = /^https:\/\/((graph|www|securecdn(-[a-z0-9-]+)?|realitylabs-grap
 /* Every request goes out as the headset's own app manager (OCMS) sends it: its
    User-Agent (carrying the OCMS version), the OS build header, and the language
    replies are written in. One file holds them for every relay and the site:
-   data/ocms-headers.json. Read once, at start. */
-const OCMS_HEADERS = JSON.parse(readFileSync(new URL("../data/ocms-headers.json", import.meta.url), "utf8"));
+   data/ocms-headers.json. Read at start, and again by reloadHeaders() when
+   tools/ocms-sync.mjs has moved the latest set on. */
+const readJson = (name) => JSON.parse(readFileSync(new URL(`../data/${name}`, import.meta.url), "utf8"));
+/* Two sets: the hand-set one for everything, and the newest one a headset showed
+   (tools/ocms-sync.mjs) for requests signed with a person's own token. tools/ocms-pick.mjs
+   says which. */
+let OCMS_FIXED = readJson("ocms-headers.json");
+let OCMS_LATEST = readJson("ocms-headers-latest.json");
+export function reloadHeaders() {
+  OCMS_FIXED = readJson("ocms-headers.json");
+  OCMS_LATEST = readJson("ocms-headers-latest.json");
+}
 
 /* Some builds are only served to the headset they were made for: the CDN reads
    the device out of the User-Agent and refuses the rest. Build records do not say
@@ -52,9 +68,13 @@ const asDevice = (ua, device) =>
    early and truncate the body. Length is set below, only when it still holds. */
 const PASS = ["content-type", "content-disposition"];
 
-http
-  .createServer(async (req, res) => {
+/** Answers one relay request (`?url=…`, plus `pc=1` for a Rift build). Used by
+    serve.mjs for /api, and by the standalone server below. */
+export async function relay(req, res) {
     res.setHeader("Access-Control-Allow-Origin", "*");
+    /* Marks every reply as the relay's, as functions/api.js does, so the page can
+       tell a store 404 from a host that has no relay at all. */
+    res.setHeader("X-MetaDB-Relay", "local");
     res.setHeader("Access-Control-Allow-Headers", "*");
 
     if (req.method === "OPTIONS") {
@@ -90,6 +110,8 @@ http
       for await (const chunk of req) chunks.push(chunk);
       inBody = Buffer.concat(chunks);
     }
+
+    const OCMS_HEADERS = pickHeaders(OCMS_FIXED, OCMS_LATEST, tokenOf(target, inBody?.toString("utf8")));
 
     try {
       const init = {
@@ -162,8 +184,12 @@ http
       res.writeHead(502, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: { message: String(err.message) } }));
     }
-  })
-  .listen(PORT, "127.0.0.1", () => {
+}
+
+/* Run directly (node tools/relay.mjs): a relay on its own port. Imported: nothing starts. */
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  http.createServer(relay).listen(PORT, "127.0.0.1", () => {
     console.log(`relay listening on http://127.0.0.1:${PORT}`);
     console.log(`settings relay URL:  http://127.0.0.1:${PORT}/?url={url}`);
   });
+}

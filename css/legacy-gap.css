@@ -73,6 +73,7 @@ details.hint > summary::before { margin-right: .35rem; }
 .rev-sorts > * + * { margin-left: .35rem; }
 .review-head > * + * { margin-left: .6rem; }
 .ach > * + * { margin-left: .7rem; }
+.lb-player > * + * { margin-left: .5rem; }
 .post > * + * { margin-left: .7rem; }
 .dg-bar > * + * { margin-left: .6rem; }
 .dg-app > * + * { margin-left: .75rem; }

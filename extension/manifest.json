@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "MetaDB Sign-in",
-  "version": "1.4",
-  "description": "Signs MetaDB in with your Meta account, and draws meta.com store pages that fail to load from the store's own data.",
-  "permissions": ["cookies", "storage", "alarms", "scripting"],
+  "version": "1.5",
+  "description": "Signs MetaDB in with your Meta account, asks the store for MetaDB's pages, and draws meta.com store pages that fail to load from the store's own data.",
+  "permissions": ["cookies", "storage", "alarms", "scripting", "declarativeNetRequestWithHostAccess"],
   "host_permissions": ["https://*.oculus.com/*", "https://*.meta.com/*", "https://metadb.toastconcern.dev/*"],
   "browser_specific_settings": {
     "gecko": { "id": "metadb-signin@toastconcern.dev", "strict_min_version": "128.0" }

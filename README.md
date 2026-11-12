@@ -28,7 +28,7 @@ CompanionServer). No screen fetches anything until you press its button.
 | User → Avatar | Your avatar's style, the features it is allowed to use, and every setting saved on it, from the same queries the Horizon Worlds desktop editor runs. Filter the settings by name. |
 | Get the app | The headset app (MetaDB for Quest) and the sign-in extension: downloads and the steps to add each. See below. |
 | Apps → Worlds | Horizon worlds, in four tabs like an opened app's: **Top worlds** (the top, trending and genre lists the Horizon app shows), **Creator** (everything one creator has published — find them by username), **Look up** (any world by its ID or a horizon.meta.com link) and **Saved** (the worlds your account has saved). Shows each world's lifetime visits, players online now and likes. Open one for its world and destination IDs, when you last visited, the app it opens in, its launch link, and its pictures. |
-| Device → ADB | Lists what is installed on a connected headset next to the store's latest build, and installs an older build over it. Needs `node tools/adb-bridge.mjs` running. |
+| Device → ADB | Lists what is installed on a connected headset next to the store's latest build, and installs an older build over it. Needs the ADB bridge, which `node tools/serve.mjs` starts (or `node tools/adb-bridge.mjs` on its own). |
 | Device → CompanionServer | Talks to the headset's own CompanionServer over Web Bluetooth — the service the Meta phone app uses. Chrome or Edge only. |
 
 The address is always a link to what is on screen, so it can be shared and a reload comes
@@ -43,7 +43,7 @@ switched on in Settings (*Show download by binary ID*); it is off by default.
 
 ### An opened app
 
-Every app, whichever list it is in, opens to six tabs. Under the tabs on Store and Builds
+Every app, whichever list it is in, opens to its tabs. Under the tabs on Store and Builds
 sit the app's buttons: **Check this app**, **Get entitlement** (free apps only, and
 not on Entitlements) and **Open in store** — plus **Latest Binary Info** on Builds alone.
 
@@ -59,6 +59,8 @@ not on Entitlements) and **Open in store** — plus **Latest Binary Info** on Bu
 - **Achievements** — the app's achievements with art and descriptions, and how far your
   account has got in each (earned count, per-achievement progress, secret ones hidden until
   unlocked), fetched with **Get achievements**.
+- **Leaderboards** — the app's leaderboards: pick one, and see everyone's top scores, your
+  friends', or the scores around yours, with your best rank. Fetched with **Get leaderboards**.
 - **Entitlement** — your account's side of it. Whether you own it is read when the tab
   opens; the rest each wait for their own button: **Get release channels** (the channel your
   account is on, and every channel it can see), **Get DLC** (the DLC and in-app purchases you
@@ -122,8 +124,9 @@ developer mode. Build it with `android/build.sh`; see `android/README.md`.
 
 `extension/` is a Chrome/Edge/Brave extension (Manifest V3) that signs the site in on a
 computer. It reads the two Meta login cookies and hands them to MetaDB's own pages when
-Settings asks, and nowhere else. It checks for newer versions of itself (switchable in its
-menu). It is not in the extension stores, so add it by hand: unzip
+Settings asks, and nowhere else. From 1.5 it also asks the store for MetaDB's pages, so a
+computer with the extension never uses the site's relay (downloads aside). It checks for
+newer versions of itself (switchable in its menu). It is not in the extension stores, so add it by hand: unzip
 `downloads/MetaDB-extension.zip`, open `chrome://extensions`, turn on **Developer mode**,
 and press **Load unpacked**. See `extension/README.md`.
 
@@ -174,19 +177,28 @@ There is no build step and no dependencies. It won't run from `file://` (ES modu
 `fetch` need a real origin), so serve it:
 
 ```
-node tools/serve.mjs            # the site, at http://localhost:8791/
-node tools/relay.mjs            # CORS relay on 127.0.0.1:8788
-node tools/adb-bridge.mjs       # only for the ADB screen, on 127.0.0.1:8789
+node tools/serve.mjs            # everything: the site, its relay and the ADB bridge
 ```
 
 `tools/serve.mjs` serves `index.html` for any path that is not a file, as the live host
-does, so links like `/apps/<id>` open. `python -m http.server` 404s them.
+does, so links like `/apps/<id>` open. `python -m http.server` 404s them. It also answers
+`/api?url=…` and `/dl?url=…` itself, the same addresses the live site's relay has, so there
+is no relay to start or set in Settings, and it starts the ADB bridge (127.0.0.1:8789) for
+the ADB screen; if adb is missing the site still runs. `--no-adb` leaves the bridge out, and
+a number picks another port (`node tools/serve.mjs 8795`). Ctrl+C stops it all.
+
+The store is asked as a headset's own app manager (OCMS) would ask, with the version and
+OS build in `data/ocms-headers.json`, which you set by hand. Connect a headset over adb and
+`serve.mjs` also reads its OCMS version and OS build (at start and every 10 minutes) into
+`data/ocms-headers-latest.json` whenever they are newer. That latest set is used only for
+requests signed with your own token; requests on the built-in public token always use the
+hand-set file. Push the files to use them on the live site. `--no-ocms-sync` turns the
+reading off; `node tools/ocms-sync.mjs --check` shows what it would change. (`node tools/relay.mjs` still runs the relay on its own, on
+127.0.0.1:8788, for a copy of the site served some other way.)
 
 The ADB bridge only answers pages from metadb.toastconcern.dev, toastconcern.github.io and
 localhost, so another site open in the browser cannot drive the headset. To use it from
 another copy of the site, list that origin: `METADB_ORIGINS=https://example.com node tools/adb-bridge.mjs`.
-
-Then in Settings, open *Relay URL → What this is* and press **use the local relay**.
 
 ## Files
 

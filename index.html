@@ -83,7 +83,7 @@
     });
   })();
 </script>
-<link rel="stylesheet" href="css/style.css?v=266">
+<link rel="stylesheet" href="css/style.css?v=268">
 <script>
   /* Set the theme before first paint so there is no flash. Anything saved wins;
      with nothing saved the system decides. Whatever name is stored is used as
@@ -1629,8 +1629,9 @@
             the target should go, or leave it off and it will be appended.
           </p>
           <p>
-            Running locally? Start <code>node tools/relay.mjs</code> in the project folder,
-            then <button type="button" id="useLocal" class="linkbtn">use the local relay</button>.
+            Running locally with <code>node tools/serve.mjs</code>? Leave this empty: it has
+            the relay built in. To reach that relay from another copy of the site while it
+            runs, <button type="button" id="useLocal" class="linkbtn">use the local relay</button>.
           </p>
         </details>
       </div>
@@ -1641,6 +1642,9 @@
         <button type="submit">Save</button>
         <button type="button" id="testBtn">Test connection</button>
         <button type="button" id="clearBtn">Reset</button>
+        <button type="button" id="exportTokens">Export tokens</button>
+        <button type="button" id="importTokens">Import tokens</button>
+        <input type="file" id="importTokensFile" accept="application/json,.json" hidden>
         <p id="settingsOut" class="settings-out" role="status"></p>
       </div>
 
@@ -1810,21 +1814,21 @@
       link.href = href;
       main.parentNode.insertBefore(link, main);
     };
-    if (!flexGap) addCss("css/legacy-gap.css?v=266");
-    if (compat) addCss("css/compat.css?v=266");
+    if (!flexGap) addCss("css/legacy-gap.css?v=268");
+    if (compat) addCss("css/compat.css?v=268");
 
     /* app.js only finds out it needs check.js once it has arrived and been read;
        asking for both at once saves a round trip before anything can run. */
     if (modern) {
       var pre = document.createElement("link");
       pre.rel = "modulepreload";
-      pre.href = "js/check.js?v=266";
+      pre.href = "js/check.js?v=268";
       document.head.appendChild(pre);
     }
 
     var js = document.createElement("script");
     js.type = "module";
-    js.src = modern ? "js/app.js?v=266" : "js/app.legacy.js?v=266";
+    js.src = modern ? "js/app.js?v=268" : "js/app.legacy.js?v=268";
     document.body.appendChild(js);
   })();
 </script>

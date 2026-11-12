@@ -2529,6 +2529,8 @@ function clearSettings() {
   clearSecrets();
 }
 var BUILT_IN_RELAY = "/api?url={url}";
+var BUILT_IN_DOWNLOADS = "/dl?url={url}";
+var DOWNLOAD_HOST = /^https:\/\/securecdn(-[a-z0-9-]+)?\.oculus\.com\//;
 var builtInMissing = false;
 var needsRelay = () => builtInMissing && !loadSettings().relay;
 var SECRET_COOKIE = "metadb.secrets";
@@ -2550,7 +2552,7 @@ function clearSecrets() {
   writeCookie(SECRET_COOKIE, "", 0);
 }
 function route(url) {
-  const relay = loadSettings().relay || BUILT_IN_RELAY;
+  const relay = loadSettings().relay || (DOWNLOAD_HOST.test(url) ? BUILT_IN_DOWNLOADS : BUILT_IN_RELAY);
   return relay.includes("{url}") ? relay.replace("{url}", encodeURIComponent(url)) : relay + encodeURIComponent(url);
 }
 var forLog = (url) => String(url).replace(/(access_token=)[^&]*/i, "$1<token>");
@@ -2566,6 +2568,43 @@ function emitLog(detail) {
   }
 }
 var REQUEST_TIMEOUT_MS = 9e4;
+var EXT_HOSTS = /^https:\/\/(graph|realitylabs-graph)\.oculus\.com\//;
+var extRelay = false;
+var extSeq = 0;
+var extWaiting = /* @__PURE__ */ new Map();
+function useExtensionRelay(on) {
+  extRelay = Boolean(on);
+}
+try {
+  window.addEventListener("message", (e) => {
+    var _a2;
+    if (e.source !== window || e.origin !== location.origin || ((_a2 = e.data) == null ? void 0 : _a2.metadbExt) !== true || e.data.type !== "relay-reply") return;
+    const done = extWaiting.get(e.data.id);
+    if (done) {
+      extWaiting.delete(e.data.id);
+      done(e.data);
+    }
+  });
+} catch {
+}
+async function viaExtension(url, init) {
+  var _a2;
+  const headers = { ...await ocmsHeaders().catch(() => ({})), ...init.headers };
+  const id = ++extSeq;
+  const reply = await new Promise((resolve) => {
+    var _a3;
+    extWaiting.set(id, resolve);
+    window.postMessage({ metadbPage: true, type: "relay", id, url, method: init.method || "GET", body: (_a3 = init.body) != null ? _a3 : null, headers }, location.origin);
+    setTimeout(() => {
+      if (extWaiting.delete(id)) resolve({ error: "the extension did not answer in time" });
+    }, REQUEST_TIMEOUT_MS);
+  });
+  if (reply.error || typeof reply.status !== "number") throw new Error(reply.error || "no answer from the extension");
+  return new Response((_a2 = reply.text) != null ? _a2 : "", {
+    status: reply.status,
+    headers: { "Content-Type": reply.contentType || "application/json", "X-MetaDB-Relay": "extension" }
+  });
+}
 async function getJSON(url) {
   const { relay, log } = loadSettings();
   const started = log ? performance.now() : 0;
@@ -2586,8 +2625,15 @@ async function getJSON(url) {
     init.signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   }
   const logUrl = post ? `${ENDPOINT}?${withoutToken(query)}` : forLog(url);
-  let res;
-  try {
+  let res = null;
+  if (extRelay && !relay && EXT_HOSTS.test(post ? ENDPOINT : url)) {
+    try {
+      res = await viaExtension(post ? ENDPOINT : url, init);
+    } catch {
+      extRelay = false;
+    }
+  }
+  if (!res) try {
     res = await fetch(target, init);
   } catch (err2) {
     if ((err2 == null ? void 0 : err2.name) === "TimeoutError") {
@@ -2600,7 +2646,8 @@ async function getJSON(url) {
     );
   }
   if (log) {
-    emitLog({ url: logUrl, status: res.status, ms: Math.round(performance.now() - started) });
+    const via = res.headers.get("X-MetaDB-Relay") === "extension" ? " (via extension)" : "";
+    emitLog({ url: logUrl + via, status: res.status, ms: Math.round(performance.now() - started) });
   }
   if (!relay && res.status === 404 && !res.headers.has("X-MetaDB-Relay")) {
     builtInMissing = true;
@@ -2758,10 +2805,40 @@ async function checkApp(app) {
     revisions
   };
 }
+var headerFiles = /* @__PURE__ */ new Map();
+function headersFile(name) {
+  if (!headerFiles.has(name)) {
+    const p = fetch(new URL(`../data/${name}${new URL(import.meta.url).search}`, import.meta.url)).then((res) => {
+      if (!res.ok) throw new Error(`${name} answered ${res.status}`);
+      return res.json();
+    });
+    p.catch(() => headerFiles.delete(name));
+    headerFiles.set(name, p);
+  }
+  return headerFiles.get(name);
+}
+function ocmsNewer(b, a) {
+  const v = (h) => {
+    var _a2, _b2, _c;
+    return ((_c = (_b2 = (_a2 = h == null ? void 0 : h["User-Agent"]) == null ? void 0 : _a2.match(/FBAV\/([\d.]+)/)) == null ? void 0 : _b2[1]) != null ? _c : "").split(".").map((n) => Number(n) || 0);
+  };
+  const x = v(b);
+  const y = v(a);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  }
+  try {
+    return BigInt(b["X-Build-Version-Incremental"] || 0) > BigInt(a["X-Build-Version-Incremental"] || 0);
+  } catch {
+    return false;
+  }
+}
 async function ocmsHeaders() {
-  const res = await fetch(new URL(`../data/ocms-headers.json${new URL(import.meta.url).search}`, import.meta.url));
-  if (!res.ok) throw new Error(`ocms-headers.json answered ${res.status}`);
-  return res.json();
+  const fixed = await headersFile("ocms-headers.json");
+  const token = (loadSettings().token || "").trim();
+  if (!token || token.includes("|")) return fixed;
+  const latest = await headersFile("ocms-headers-latest.json").catch(() => null);
+  return latest && ocmsNewer(latest, fixed) ? latest : fixed;
 }
 function parseRepo(input) {
   var _a2;
@@ -3463,6 +3540,52 @@ async function cloudBackups(serials) {
     };
   });
 }
+var BACKUP_RULES_DOC_ID = "24749575598037757";
+var FETCH_BACKUP_DOC_ID = "27955676008592068447410816227";
+async function fetchCloudBackup(backupId) {
+  const json = await storeQuery(FETCH_BACKUP_DOC_ID, { id: String(backupId) }, { client: true });
+  refuse(json, "Backup details");
+  let downloadUri, size, checksum, type, time, segments, fallbacks;
+  (function walk(n) {
+    if (!n || typeof n !== "object") return;
+    for (const [k, v] of Object.entries(n)) {
+      if (typeof v === "string") {
+        if (/^download_ur[il]$/i.test(k) && !downloadUri) downloadUri = v;
+        else if (/(checksum|sha256)/i.test(k) && !checksum) checksum = v;
+        else if (/backup_type/i.test(k) && !type) type = v;
+      } else if (typeof v === "number") {
+        if (/(file|total)_size/i.test(k) && !size) size = v;
+        else if (/backup_time/i.test(k) && time == null) time = v;
+      } else if (Array.isArray(v)) {
+        if (/fallback.*url/i.test(k) && !fallbacks) fallbacks = v.filter((x) => typeof x === "string");
+        else if (/segment/i.test(k) && segments == null) segments = v.length;
+      }
+      walk(v);
+    }
+  })(json.data);
+  if (!downloadUri && size == null) throw new Error("the store returned no details for this backup");
+  return {
+    downloadUri: downloadUri != null ? downloadUri : null,
+    fallbackUris: fallbacks != null ? fallbacks : [],
+    size: Number(size) || null,
+    checksum: checksum != null ? checksum : null,
+    type: type != null ? type : null,
+    backedUpAt: Number(time) || null,
+    segments: segments != null ? segments : null,
+    encrypted: true
+  };
+}
+async function backupRules(appId) {
+  var _a2, _b2, _c;
+  const json = await storeQuery(BACKUP_RULES_DOC_ID, { applicationID: String(appId) });
+  refuse(json, "Backup settings");
+  const node = (_a2 = json.data) == null ? void 0 : _a2.node;
+  if (!node) throw new Error("the store did not say how this app is backed up");
+  return {
+    enabled: typeof node.cloud_backup_enabled === "boolean" ? node.cloud_backup_enabled : null,
+    excluded: ((_c = (_b2 = node.cloud_backup_rules) == null ? void 0 : _b2.excluded_file_paths) != null ? _c : []).filter((p) => typeof p === "string" && p)
+  };
+}
 var SAVED_WORLDS_DOC_ID = "27679804063342994800600718755";
 async function savedWorlds() {
   var _a2, _b2;
@@ -3786,6 +3909,49 @@ function viewerId() {
     viewer = entry;
   }
   return viewer.id;
+}
+var LEADERBOARDS_DOC_ID = "9565763956824872";
+var LEADERBOARD_DOC_ID = "9537594396277058";
+var LEADERBOARD_VIEWS = [
+  ["GLOBAL", "Everyone"],
+  ["FRIENDS", "Friends"],
+  ["SELF", "Around you"]
+];
+async function appLeaderboards(appId) {
+  var _a2, _b2, _c, _d, _e, _f;
+  const data = await relayQuery(LEADERBOARDS_DOC_ID, { applicationId: String(appId) }, "Leaderboards");
+  const app = (_b2 = (_a2 = data.application) != null ? _a2 : data.node) != null ? _b2 : {};
+  const conn = (_e = (_c = app.platform_services) == null ? void 0 : _c.viewerLeaderboards) != null ? _e : (_d = app.platform_services) == null ? void 0 : _d.viewer_leaderboards;
+  return ((_f = conn == null ? void 0 : conn.nodes) != null ? _f : []).filter((n) => n == null ? void 0 : n.id).map((n) => ({ id: String(n.id), title: n.title || String(n.id) }));
+}
+async function leaderboardEntries(leaderboardId, view = "GLOBAL") {
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j;
+  const data = await relayQuery(
+    LEADERBOARD_DOC_ID,
+    { leaderboardId: String(leaderboardId), selectedType: view },
+    "Leaderboards"
+  );
+  const lb = (_a2 = data.leaderboard) != null ? _a2 : data.node;
+  if (!lb) throw new Error("the store returned no leaderboard");
+  const photo = (u) => {
+    var _a3, _b3, _c2;
+    return (_c2 = (_b3 = (_a3 = u == null ? void 0 : u.profilePhoto) != null ? _a3 : u == null ? void 0 : u.profile_photo) == null ? void 0 : _b3.uri) != null ? _c2 : null;
+  };
+  return {
+    id: String((_b2 = lb.id) != null ? _b2 : leaderboardId),
+    title: (_c = lb.title) != null ? _c : null,
+    myRank: (_f = (_e = (_d = lb.myEntry) != null ? _d : lb.my_top_entry) == null ? void 0 : _e.rank) != null ? _f : null,
+    friends: (_i = (_h = (_g = lb.friendsWithEntries) != null ? _g : lb.friends_with_entries) == null ? void 0 : _h.count) != null ? _i : null,
+    entries: ((_j = lb.entries) != null ? _j : []).map((e) => {
+      var _a3, _b3, _c2, _d2, _e2, _f2, _g2;
+      return {
+        rank: (_a3 = e == null ? void 0 : e.rank) != null ? _a3 : null,
+        score: (_c2 = (_b3 = e == null ? void 0 : e.entry) == null ? void 0 : _b3.score) != null ? _c2 : null,
+        name: (_f2 = (_e2 = (_d2 = e == null ? void 0 : e.entry) == null ? void 0 : _d2.user) == null ? void 0 : _e2.alias) != null ? _f2 : null,
+        photo: photo((_g2 = e == null ? void 0 : e.entry) == null ? void 0 : _g2.user)
+      };
+    })
+  };
 }
 var ADDONS_DOC_ID = "10041200072603920";
 var ADDONS_PAGE = 24;
@@ -4423,6 +4589,12 @@ async function riftManifestBytes(manifestUri) {
   err2.message += ` \u2014 tried ${tried.join("; ")}`;
   throw err2;
 }
+function riftSegmentDirectUrl(segmentsBaseUri, sha256) {
+  const sep = segmentsBaseUri.includes("?") ? "&" : "?";
+  const url = `${segmentsBaseUri}${sep}segment_sha256=${encodeURIComponent(sha256)}`;
+  const value = riftWay.token ? (loadSettings()[riftWay.token] || "").trim() : "";
+  return value ? `${url}&access_token=${encodeURIComponent(value)}` : url;
+}
 function riftSegmentUrl(segmentsBaseUri, sha256) {
   const sep = segmentsBaseUri.includes("?") ? "&" : "?";
   return new URL(riftFetchUrl(`${segmentsBaseUri}${sep}segment_sha256=${encodeURIComponent(sha256)}`, riftWay), document.baseURI).href;
@@ -4457,7 +4629,7 @@ var OTA_DEVICE_TYPES = [
   { hmd: "LAGUNA", label: "Laguna (unreleased)", type: "ota.laguna.user" },
   { hmd: "GEMINI", label: "Gemini (unreleased)", type: "ota.gemini.user" }
 ];
-var OTA_SELECTION = "{download_uri,target_version,base_version,extra_install_options,file_checksum,release_channel_id,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,controller_fw_version,semantic_version}";
+var OTA_SELECTION = "{download_uri,size,target_version,base_version,extra_install_options,file_checksum,release_channel_id,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,controller_fw_version,semantic_version}";
 var OTA_PUBLIC_TOKEN = "OC|3733290306686872|";
 function otaFields(opts = {}) {
   let ota = "ota";
@@ -4817,6 +4989,9 @@ var el = {
   relay: document.getElementById("relay"),
   testBtn: document.getElementById("testBtn"),
   clearBtn: document.getElementById("clearBtn"),
+  exportTokens: document.getElementById("exportTokens"),
+  importTokens: document.getElementById("importTokens"),
+  importTokensFile: document.getElementById("importTokensFile"),
   settingsOut: document.getElementById("settingsOut"),
   images: document.getElementById("images"),
   details: document.getElementById("details"),
@@ -4902,6 +5077,7 @@ var obbs = /* @__PURE__ */ new Map();
 var reviewCache = /* @__PURE__ */ new Map();
 var addonsCache = /* @__PURE__ */ new Map();
 var achCache = /* @__PURE__ */ new Map();
+var lbCache = /* @__PURE__ */ new Map();
 var postsCache = /* @__PURE__ */ new Map();
 var relNotesCache = /* @__PURE__ */ new Map();
 var obbChecked = /* @__PURE__ */ new Set();
@@ -4984,7 +5160,7 @@ var storeArt = (() => {
 })();
 var storeArtAsking = false;
 var restoringRoute = false;
-var PANEL_TABS = ["store", "builds", "reviews", "posts", "addons", "achievements", "mine"];
+var PANEL_TABS = ["store", "builds", "reviews", "posts", "addons", "achievements", "leaderboards", "cloud", "mine"];
 var VIEWS = [
   "apps",
   "search",
@@ -5035,6 +5211,8 @@ var mineKind = "quest";
 var myChannels = /* @__PURE__ */ new Map();
 var playState = { rows: [], asked: false, loading: false, note: "", promise: null };
 var backupState = { rows: [], asked: false, loading: false, note: "", promise: null };
+var backupRulesCache = /* @__PURE__ */ new Map();
+var backupDetailCache = /* @__PURE__ */ new Map();
 var iapState = { rows: [], byApp: /* @__PURE__ */ new Map(), asked: false, loading: false, note: "", promise: null };
 var ROW_SPAN = { mine: 12 };
 var layoutState = {
@@ -5061,6 +5239,7 @@ var stagedApp = null;
 var stagedScope = null;
 var listing = [];
 var listingNote = "";
+var listingError = "";
 var searching = false;
 var tour = null;
 initTheme();
@@ -5555,6 +5734,11 @@ function firstEnabledSection(off) {
   const order = ["apps", "store", "default", "plus", "worlds", "orgs", "watchlist", "devices", "updater", "mine", "purchases", "wishlist", "avatar", "adb"];
   return (_a2 = order.find((v) => !off.includes(v))) != null ? _a2 : "settings";
 }
+function navLabel(a) {
+  const copy = a.cloneNode(true);
+  for (const badge of copy.querySelectorAll(".navbadge")) badge.remove();
+  return copy.textContent.replace(/\s+/g, " ").trim();
+}
 function applyFeatureVisibility() {
   const off = new Set(loadSettings().sectionsOff);
   for (const a of el.navLinks) {
@@ -5610,7 +5794,7 @@ function applyView() {
   if (view === "getapp") showAppInfo();
   if (view === "watchlist") renderWatch();
   if (view === "companion") {
-    import("./companion.js?v=266").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
+    import("./companion.js?v=268").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
       var _a2;
       console.error("companion init failed", e);
       if (!navigator.bluetooth) (_a2 = el.viewCompanion.querySelector("#companionUnsupported")) == null ? void 0 : _a2.removeAttribute("hidden");
@@ -6857,8 +7041,42 @@ function watchToggle(app) {
   const on = isWatched(app);
   return `<button type="button" class="watch-toggle${on ? " is-on" : ""}" data-watch-toggle="${esc(keyOf(app))}" aria-pressed="${on}" title="${on ? "Remove from" : "Add to"} your watchlist" aria-label="${on ? "Remove" : "Add"} ${esc(app.name)} ${on ? "from" : "to"} your watchlist"></button>`;
 }
+function squareLabels() {
+  return ["Cover", "Icon", "Icon (VR)"];
+}
+function squareArt(app) {
+  var _a2, _b2;
+  for (const label of squareLabels()) {
+    const m = ((_a2 = app == null ? void 0 : app.media) != null ? _a2 : []).find((x) => (x == null ? void 0 : x.label) === label && x.uri);
+    if (m) return m.uri;
+  }
+  return (_b2 = app == null ? void 0 : app.image) != null ? _b2 : null;
+}
+function hasSquareArt(app) {
+  var _a2;
+  return ((_a2 = app == null ? void 0 : app.media) != null ? _a2 : []).some((x) => squareLabels().includes(x == null ? void 0 : x.label) && x.uri);
+}
+function refreshWatchArt(apps) {
+  const list = readWatch();
+  if (!list.length) return;
+  const byId = new Map(list.map((w) => [w.id, w]));
+  let changed = false;
+  for (const app of apps) {
+    const w = (app == null ? void 0 : app.id) != null ? byId.get(String(app.id)) : null;
+    if (!w) continue;
+    const art = squareArt(app);
+    if (art && art !== w.image && (hasSquareArt(app) || !w.image)) {
+      w.image = art;
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveWatch(list);
+    if (el.viewWatchlist && !el.viewWatchlist.hidden) renderWatch();
+  }
+}
 function addWatch(app) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j;
   if (!(app == null ? void 0 : app.id)) return;
   const list = readWatch();
   if (list.some((w) => w.id === String(app.id))) return;
@@ -6868,13 +7086,13 @@ function addWatch(app) {
     name: (_b2 = app.name) != null ? _b2 : String(app.id),
     slug: (_c = app.slug) != null ? _c : null,
     platform: (_d = app.platform) != null ? _d : null,
-    image: (_e = app.image) != null ? _e : null,
-    seen: (_f = head == null ? void 0 : head.versionCode) != null ? _f : null,
-    seenVer: (_g = head == null ? void 0 : head.version) != null ? _g : null,
-    seenAt: (_h = head == null ? void 0 : head.releasedAt) != null ? _h : null,
-    latest: (_i = head == null ? void 0 : head.versionCode) != null ? _i : null,
-    latestVer: (_j = head == null ? void 0 : head.version) != null ? _j : null,
-    latestAt: (_k = head == null ? void 0 : head.releasedAt) != null ? _k : null,
+    image: squareArt(app),
+    seen: (_e = head == null ? void 0 : head.versionCode) != null ? _e : null,
+    seenVer: (_f = head == null ? void 0 : head.version) != null ? _f : null,
+    seenAt: (_g = head == null ? void 0 : head.releasedAt) != null ? _g : null,
+    latest: (_h = head == null ? void 0 : head.versionCode) != null ? _h : null,
+    latestVer: (_i = head == null ? void 0 : head.version) != null ? _i : null,
+    latestAt: (_j = head == null ? void 0 : head.releasedAt) != null ? _j : null,
     checkedAt: head ? Date.now() : 0,
     error: null
   });
@@ -6972,13 +7190,13 @@ function renderWatch() {
   if (!el.watchRows) return;
   const list = readWatch();
   const busy = sweepWatch.busy;
-  const showArt = loadSettings().images;
   const livePanels = /* @__PURE__ */ new Map();
   for (const d of el.watchRows.querySelectorAll(":scope > tr.detail")) {
     const id = (_a2 = d.previousElementSibling) == null ? void 0 : _a2.dataset.id;
     if (id) livePanels.set(id, d);
   }
-  const icon = (w) => showArt && w.image ? `<img class="wl-ic" src="${esc(w.image)}" alt="" loading="lazy">` : `<span class="wl-ic wl-ic--ph" aria-hidden="true">${esc((w.name || "?").trim().charAt(0).toUpperCase())}</span>`;
+  const letter = (w) => esc((w.name || "?").trim().charAt(0).toUpperCase());
+  const icon = (w) => w.image ? `<img class="wl-ic" src="${esc(w.image)}" alt="" loading="lazy" data-letter="${letter(w)}">` : `<span class="wl-ic wl-ic--ph" aria-hidden="true">${letter(w)}</span>`;
   const buildCell = (ver, date, cls = "") => ver == null && date == null ? `<span class="wl-dash">\u2014</span>` : `<span class="wl-b ${cls}"><span class="wl-bv mono">${ver ? `v${esc(ver)}` : "\u2014"}</span><span class="wl-bd">${date ? esc(date) : ""}</span></span>`;
   const ordered = [...list].sort(
     (a, b) => (watchUpdated(b) ? 1 : 0) - (watchUpdated(a) ? 1 : 0)
@@ -6996,6 +7214,17 @@ function renderWatch() {
         </td>
       </tr>`;
   }).join("");
+  for (const img of el.watchRows.querySelectorAll("img.wl-ic")) {
+    const fallBack = () => {
+      const ph = document.createElement("span");
+      ph.className = "wl-ic wl-ic--ph";
+      ph.setAttribute("aria-hidden", "true");
+      ph.textContent = img.dataset.letter || "?";
+      img.replaceWith(ph);
+    };
+    if (img.complete && !img.naturalWidth) fallBack();
+    else img.addEventListener("error", fallBack, { once: true });
+  }
   for (const tr of el.watchRows.querySelectorAll("tr.watch-row")) {
     const w = list.find((x) => x.id === tr.dataset.id);
     if (w && open.has("watchlist:" + w.id)) {
@@ -7072,7 +7301,9 @@ var SETUP_PANELS = [
   ["reviews", "Reviews"],
   ["posts", "Posts"],
   ["addons", "Add-ons"],
-  ["achievements", "Achievements"]
+  ["achievements", "Achievements"],
+  ["leaderboards", "Leaderboards"],
+  ["cloud", "Cloud"]
 ];
 var SETUP_DATA = [
   ["images", "App art in search results"],
@@ -7090,7 +7321,7 @@ function buildSetup() {
   const opts = loadSettings();
   const secOff = new Set(opts.sectionsOff);
   const panOff = new Set(opts.panelsOff);
-  el.setupSections.innerHTML = [...el.navLinks].filter((a) => a.dataset.view !== "settings" && a.dataset.view !== "getapp").map((a) => setupCheckbox("section", a.dataset.view, a.textContent.replace(/\s+/g, " ").trim(), !secOff.has(a.dataset.view))).join("");
+  el.setupSections.innerHTML = [...el.navLinks].filter((a) => a.dataset.view !== "settings" && a.dataset.view !== "getapp").map((a) => setupCheckbox("section", a.dataset.view, navLabel(a), !secOff.has(a.dataset.view))).join("");
   el.setupPanels.innerHTML = SETUP_PANELS.map(([name, label]) => setupCheckbox("panel", name, label, !panOff.has(name))).join("");
   el.setupData.innerHTML = SETUP_DATA.map(([name, label]) => setupCheckbox("data", name, label, Boolean(opts[name]))).join("");
 }
@@ -8170,7 +8401,7 @@ function updEasy(opts, body) {
   body.appendChild(actions);
 }
 var UPD_FIND_MAX = 1e4;
-var FIND_SELECTION = "{download_uri,base_version,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,semantic_version}";
+var FIND_SELECTION = "{download_uri,size,base_version,release_channel_name,creation_time,release_tag,formatted_build_number,build_number_display_name,semantic_version}";
 var UPD_RATE_CODES = [368, 613];
 var updSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function updBuildBase(opts) {
@@ -8365,6 +8596,7 @@ function updFindCsv() {
     "release_channel_name",
     "creation_time",
     "release_tag",
+    "size",
     "download_uri"
   ];
   const cell = (v) => {
@@ -8831,8 +9063,14 @@ function updDownload(href, label) {
 function updDate(t) {
   if (t == null || t === "") return "";
   const n = Number(t);
-  if (!Number.isFinite(n) || n <= 0) return String(t);
-  return new Date(n * 1e3).toLocaleDateString(void 0, { year: "numeric", month: "short", day: "numeric" });
+  const d = Number.isFinite(n) && n > 0 ? new Date(n * 1e3) : new Date(String(t));
+  if (Number.isNaN(d.getTime())) return String(t);
+  return d.toLocaleString(void 0, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+function updSize(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  return n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 function updVersion(b) {
   var _a2;
@@ -8855,7 +9093,9 @@ function renderUpdaterResult(json, result) {
       ["Version", updVersion(b)],
       ["Incremental", b.target_version],
       ["Build Number", b.formatted_build_number],
-      ["Release Channel", b.release_channel_name]
+      ["Release Channel", b.release_channel_name],
+      ["Released", updDate(b.creation_time)],
+      ["Size", updSize(b.size)]
     ].filter(([, v]) => v != null && v !== "");
     const dl = document.createElement("dl");
     dl.className = "upd-facts";
@@ -8871,7 +9111,6 @@ function renderUpdaterResult(json, result) {
     }
     card.appendChild(dl);
     const extra = [
-      ["Released", updDate(b.creation_time)],
       ["Display name", b.build_number_display_name],
       ["Checksum", b.file_checksum],
       ["Channel id", b.release_channel_id],
@@ -9466,7 +9705,8 @@ function initExtSignIn() {
     if (m.type === "here") {
       found = true;
       button.dataset.found = "1";
-      out.textContent = "The MetaDB Sign-in extension is installed. Sign in with Meta fills in both tokens below from your Meta login.";
+      useExtensionRelay(m.relay === true);
+      out.textContent = "The MetaDB Sign-in extension is installed. Sign in with Meta fills in both tokens below from your Meta login." + (m.relay === true ? " Store requests go through the extension, not the relay." : "");
       syncExtSignIn();
       if ((_b2 = m.update) == null ? void 0 : _b2.version) {
         const note2 = document.getElementById("extUpdate");
@@ -9551,7 +9791,7 @@ function syncExtSignIn() {
   document.getElementById("extSignedIn").hidden = !signed;
 }
 function initSettings() {
-  var _a2, _b2;
+  var _a2, _b2, _c, _d, _e;
   if (IN_APP) {
     document.getElementById("appSignInField").hidden = false;
     document.getElementById("appSignIn").addEventListener("click", () => window.MetaDBApp.signIn("settings"));
@@ -9758,6 +9998,84 @@ function initSettings() {
     el.logBox.replaceChildren();
   });
   window.addEventListener("metadb:log", (e) => appendLog(e.detail));
+  (_c = el.exportTokens) == null ? void 0 : _c.addEventListener("click", () => {
+    const s = loadSettings();
+    const tokens = {
+      oc_www_at: el.token.value.trim() || localStorage.getItem("metadb.token") || "",
+      oc_ac_at: el.acToken.value.trim() || s.acToken || "",
+      frl_token: el.frlToken && el.frlToken.value.trim() || s.frlToken || "",
+      updater_token: el.updToken && el.updToken.value.trim() || s.upToken || "",
+      exported: (/* @__PURE__ */ new Date()).toISOString()
+    };
+    if (!tokens.oc_www_at && !tokens.oc_ac_at && !tokens.frl_token && !tokens.updater_token) {
+      tell("No tokens to export \u2014 sign in or paste a token first.", "bad");
+      return;
+    }
+    try {
+      const blob = new Blob([JSON.stringify(tokens, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "metadb-tokens.json";
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 0);
+      tell("Saved metadb-tokens.json. It holds the tokens that sign in as you \u2014 keep it private, and delete it when you are done.", "ok");
+    } catch (err2) {
+      tell(`Could not export: ${err2.message}`, "bad");
+    }
+  });
+  (_d = el.importTokens) == null ? void 0 : _d.addEventListener("click", () => {
+    var _a3;
+    return (_a3 = el.importTokensFile) == null ? void 0 : _a3.click();
+  });
+  (_e = el.importTokensFile) == null ? void 0 : _e.addEventListener("change", async () => {
+    var _a3;
+    const file = (_a3 = el.importTokensFile.files) == null ? void 0 : _a3[0];
+    el.importTokensFile.value = "";
+    if (!file) return;
+    let data;
+    try {
+      data = JSON.parse(await file.text());
+    } catch {
+      tell("That is not a readable tokens file \u2014 expected the JSON that Export tokens saves.", "bad");
+      return;
+    }
+    if (!data || typeof data !== "object") {
+      tell("That file has no tokens in it.", "bad");
+      return;
+    }
+    const pick = (...names) => {
+      for (const n2 of names) {
+        const v = data[n2];
+        if (typeof v === "string" && v.trim()) return v.trim();
+      }
+      return null;
+    };
+    const found = {
+      token: pick("oc_www_at", "token"),
+      acToken: pick("oc_ac_at", "acToken"),
+      frlToken: pick("frl_token", "frlToken"),
+      upToken: pick("updater_token", "upToken")
+    };
+    const patch = Object.fromEntries(Object.entries(found).filter(([, v]) => v));
+    if (!Object.keys(patch).length) {
+      tell("No tokens in that file \u2014 expected oc_www_at, oc_ac_at, frl_token or updater_token.", "bad");
+      return;
+    }
+    saveSettings(patch);
+    if (patch.token != null) el.token.value = patch.token;
+    if (patch.acToken != null) el.acToken.value = patch.acToken;
+    if (el.frlToken && patch.frlToken != null) el.frlToken.value = patch.frlToken;
+    if (el.updToken && patch.upToken != null) el.updToken.value = patch.upToken;
+    syncAppSignIn();
+    syncExtSignIn();
+    renderAll();
+    const labels = { token: "access", acToken: "account", frlToken: "Meta", upToken: "updater" };
+    const which = Object.keys(patch).map((k) => labels[k]).join(", ");
+    const n = Object.keys(patch).length;
+    tell(`Imported and saved the ${which} token${n === 1 ? "" : "s"} \u2014 you are signed in on this browser now.`, "ok");
+  });
   el.clearBtn.addEventListener("click", () => {
     clearSettings();
     if (IN_APP) {
@@ -9805,7 +10123,7 @@ function initSettings() {
     el.relay.value = "http://127.0.0.1:8788/?url={url}";
     saveSettings({ relay: el.relay.value });
     syncRelayNote();
-    say("Set to the local relay. Start it with: node tools/relay.mjs", "ok");
+    say("Set to the local relay. Start it with: node tools/serve.mjs", "ok");
   });
   el.testBtn.addEventListener("click", async () => {
     saveSettings({
@@ -9831,7 +10149,7 @@ function initDefaults() {
   const saved = loadSettings();
   fillOptions(
     el.defView,
-    [...el.navLinks].filter((a) => a.dataset.view !== "getapp").map((a) => [a.dataset.view, a.textContent.replace(/\s+/g, " ").trim()])
+    [...el.navLinks].filter((a) => a.dataset.view !== "getapp").map((a) => [a.dataset.view, navLabel(a)])
   );
   fillOptions(el.defHmd, HMD_TYPES.map(([v, label]) => [v, `${label} (${v})`]));
   fillOptions(el.defSort, [...el.sort.options].map((o) => [o.value, o.textContent]));
@@ -10039,6 +10357,7 @@ async function runSearch() {
   if (!raw) {
     listing = [];
     listingNote = "";
+    listingError = "";
     searching = false;
     el.searchGo.disabled = false;
     el.searchGo.textContent = "Search";
@@ -10049,9 +10368,11 @@ async function runSearch() {
   el.searchGo.disabled = true;
   el.searchGo.textContent = "Searching\u2026";
   listingNote = "";
+  listingError = "";
   renderAll();
   let found;
   let note2;
+  let error = "";
   try {
     const id = parseAppId(raw);
     const hmdType = el.hmd.value;
@@ -10068,14 +10389,21 @@ async function runSearch() {
   } catch (err2) {
     found = [];
     note2 = `search failed: ${err2.message}`;
+    error = hiddenIdMessage(err2.message);
   }
   if (seq !== searchSeq) return;
   listing = found;
   listingNote = note2;
+  listingError = error;
   searching = false;
   el.searchGo.disabled = false;
   el.searchGo.textContent = "Search";
   renderAll();
+}
+function hiddenIdMessage(message) {
+  if (!/does not exist, cannot be loaded due to missing permissions/i.test(message != null ? message : "")) return "";
+  const own = !(loadSettings().token || "").includes("|");
+  return own ? "The store won't show this ID to your account. It may be an app that isn't released to you (in development, or on a release channel you're not on), one that was taken down, or an ID that isn't an app at all (an add-on, a world or a person)." : "The store won't show this ID to the built-in public token, which only sees released apps. It may be unreleased or on a private channel, taken down, or not an app ID. Sign in on the Settings page: your own account may be able to see it.";
 }
 var focusId = null;
 var focusScope = null;
@@ -10134,12 +10462,14 @@ function renderSoon() {
 function renderAll() {
   var _a2;
   clearTimeout(renderTimer);
+  refreshWatchArt([...listing, ...mineList, ...orgList]);
   ownedKeys = loadSettings().autoOwned && mineKind !== "expired" ? new Set(mineList.map(keyOf)) : /* @__PURE__ */ new Set();
   const list = visible();
   const idle = !searching && !el.q.value.trim() && !listingNote;
   buildRows(el.rows, list, "main");
   el.empty.hidden = list.length > 0 || searching;
-  el.empty.textContent = idle ? "Search the store to begin." : searching ? "" : "No apps matched.";
+  el.empty.textContent = idle ? "Search the store to begin." : searching ? "" : listingError || "No apps matched.";
+  el.empty.classList.toggle("warn", Boolean(listingError) && !searching);
   el.count.textContent = searching ? "Asking the store\u2026" : idle ? "" : `${list.length} app${list.length === 1 ? "" : "s"}` + (listingNote ? ` \u2014 ${listingNote}` : "");
   const mine = mineApps();
   buildRows(el.mineRows, mine, "mine");
@@ -10443,7 +10773,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   const pane = (name) => `data-pane="${name}"${tab === name ? "" : " hidden"}`;
   const tabButton = (name, label) => `<button type="button" class="companion-tab${tab === name ? " on" : ""}" data-panel-tab="${name}"
        role="tab" aria-selected="${tab === name}">${label}</button>`;
-  const actionsHidden = ["mine", "reviews", "posts", "addons", "achievements"].includes(tab);
+  const actionsHidden = ["mine", "reviews", "posts", "addons", "achievements", "leaderboards", "cloud"].includes(tab);
   const sharedActions = `<div data-app-actions${actionsHidden ? " hidden" : ""}>
          ${actions ? `<div class="actions">${actions}</div>` : ""}
          <div class="claim-out"></div>
@@ -10451,7 +10781,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
          <div class="info-out"></div>
        </div>`;
   const main = `<div class="companion-tabs panel-tabs" role="tablist" aria-label="${esc(app.name)}">
-         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${panelOn("reviews") ? tabButton("reviews", "Reviews") : ""}${panelOn("posts") ? tabButton("posts", "Posts") : ""}${panelOn("addons") ? tabButton("addons", "Add-ons") : ""}${panelOn("achievements") ? tabButton("achievements", "Achievements") : ""}${tabButton("mine", "Entitlement")}
+         ${tabButton("store", "Store")}${tabButton("builds", "Builds")}${panelOn("reviews") ? tabButton("reviews", "Reviews") : ""}${panelOn("posts") ? tabButton("posts", "Posts") : ""}${panelOn("addons") ? tabButton("addons", "Add-ons") : ""}${panelOn("achievements") ? tabButton("achievements", "Achievements") : ""}${panelOn("leaderboards") ? tabButton("leaderboards", "Leaderboards") : ""}${panelOn("cloud") ? tabButton("cloud", "Cloud") : ""}${tabButton("mine", "Entitlement")}
        </div>
        ${sharedActions}
        <div ${pane("store")}>${storeFacts || "<p>Not checked yet \u2014 the listing arrives with Check this app.</p>"}</div>
@@ -10460,6 +10790,8 @@ function appPanel(app, { staged = false, scope = null } = {}) {
        ${panelOn("posts") ? `<div ${pane("posts")} class="posts-pane">${postsPaneHtml(app)}</div>` : ""}
        ${panelOn("addons") ? `<div ${pane("addons")} class="addons-pane">${addonsPaneHtml(app)}</div>` : ""}
        ${panelOn("achievements") ? `<div ${pane("achievements")} class="ach-pane">${achPaneHtml(app)}</div>` : ""}
+       ${panelOn("leaderboards") ? `<div ${pane("leaderboards")} class="lb-pane">${lbPaneHtml(app)}</div>` : ""}
+       ${panelOn("cloud") ? `<div ${pane("cloud")} class="cloud-pane">${cloudPaneHtml(app)}</div>` : ""}
        <div ${pane("mine")}>${yourCopy(app)}</div>`;
   panel.dataset.tab = tab;
   panel.innerHTML = `
@@ -10494,7 +10826,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
       for (const p of panel.querySelectorAll("[data-pane]")) p.hidden = p.dataset.pane !== name;
       panel.dataset.tab = name;
       const shared = panel.querySelector("[data-app-actions]");
-      if (shared) shared.hidden = ["mine", "reviews", "posts", "addons", "achievements"].includes(name);
+      if (shared) shared.hidden = ["mine", "reviews", "posts", "addons", "achievements", "leaderboards", "cloud"].includes(name);
       if (name === "mine") wantYourCopy();
     });
   }
@@ -10570,6 +10902,14 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   if (addonsPane) wireAddons(app, addonsPane);
   const achPane = panel.querySelector('[data-pane="achievements"]');
   if (achPane) wireAch(app, achPane);
+  for (const b of panel.querySelectorAll("[data-backup-detail]")) {
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleBackupDetail(b.dataset.backupDetail);
+    });
+  }
+  const lbPane = panel.querySelector('[data-pane="leaderboards"]');
+  if (lbPane) wireLb(app, lbPane);
   const postsPane = panel.querySelector('[data-pane="posts"]');
   if (postsPane) wirePosts(app, postsPane);
   const relnotesOut = panel.querySelector(".relnotes-out");
@@ -10868,6 +11208,102 @@ async function loadAch(app, pane, button) {
     paneError(pane, "ach-error", `Could not load achievements: ${err2.message}`);
   }
 }
+function lbPaneHtml(app) {
+  if (!app.id) return `<p>No store ID to read leaderboards for.</p>`;
+  const c = lbCache.get(app.id);
+  if (c) return renderLb(c);
+  return `<div class="controls"><button type="button" data-lb-get>Get leaderboards</button></div>
+       <p class="hint">This app's leaderboards: the top scores, your friends', and where you stand. Needs your own access token.</p>`;
+}
+function renderLb(c) {
+  if (!c.boards.length) return `<p>This app has no leaderboards.</p>`;
+  const boardPick = `<select data-lb-board aria-label="Leaderboard">${c.boards.map((b) => `<option value="${esc(b.id)}"${b.id === c.board ? " selected" : ""}>${esc(b.title)}</option>`).join("")}</select>`;
+  const viewPick = `<select data-lb-view aria-label="Whose scores">${LEADERBOARD_VIEWS.map(
+    ([value, label]) => `<option value="${value}"${value === c.view ? " selected" : ""}>${label}</option>`
+  ).join("")}</select>`;
+  const s = c.shown;
+  let body = "";
+  if (s) {
+    const facts = [
+      s.myRank != null ? `your best rank: ${bigNumber(s.myRank)}` : null,
+      s.friends != null ? `${bigNumber(s.friends)} friend${s.friends === 1 ? "" : "s"} on it` : null
+    ].filter(Boolean);
+    const score = (v) => v != null && /^-?\d+$/.test(String(v)) ? bigNumber(v) : esc(v != null ? v : "\u2014");
+    const rows = s.entries.map(
+      (e) => {
+        var _a2;
+        return `<tr>
+          <td class="lb-rank">${e.rank != null ? bigNumber(e.rank) : "\u2014"}</td>
+          <td><span class="lb-player">${e.photo ? `<img src="${esc(e.photo)}" alt="" loading="lazy">` : ""}${esc((_a2 = e.name) != null ? _a2 : "\u2014")}</span></td>
+          <td class="lb-score">${score(e.score)}</td>
+        </tr>`;
+      }
+    ).join("");
+    const none = c.view === "FRIENDS" ? " from your friends" : c.view === "SELF" ? " around you \u2014 you may not have a score on this one" : "";
+    body = `<p class="count">${bigNumber(s.entries.length)} entr${s.entries.length === 1 ? "y" : "ies"}${facts.length ? ` \xB7 ${facts.join(" \xB7 ")}` : ""}</p>
+      ${s.entries.length ? `<table><thead><tr><th>Rank</th><th>Player</th><th>Score</th></tr></thead><tbody>${rows}</tbody></table>` : `<p class="empty">No entries${none}.</p>`}`;
+  }
+  return `<div class="controls">${boardPick}${viewPick}</div>${body}`;
+}
+function wireLb(app, pane) {
+  var _a2;
+  if (!app.id) return;
+  (_a2 = pane.querySelector("[data-lb-get]")) == null ? void 0 : _a2.addEventListener("click", (e) => {
+    e.stopPropagation();
+    loadLb(app, pane, e.currentTarget);
+  });
+  for (const pick of pane.querySelectorAll("[data-lb-board], [data-lb-view]")) {
+    pick.addEventListener("click", (e) => e.stopPropagation());
+    pick.addEventListener("change", () => {
+      const c = lbCache.get(app.id);
+      if (!c) return;
+      c.board = pane.querySelector("[data-lb-board]").value;
+      c.view = pane.querySelector("[data-lb-view]").value;
+      showLb(app, pane, c);
+    });
+  }
+}
+async function loadLb(app, pane, button) {
+  var _a2, _b2;
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Loading leaderboards\u2026";
+  }
+  try {
+    const boards = await appLeaderboards(app.id);
+    const c = { boards, board: (_b2 = (_a2 = boards[0]) == null ? void 0 : _a2.id) != null ? _b2 : null, view: "GLOBAL", shown: null };
+    lbCache.set(app.id, c);
+    if (redrawnMeanwhile(app, pane)) return;
+    if (!c.board) {
+      pane.innerHTML = renderLb(c);
+      return;
+    }
+    await showLb(app, pane, c);
+  } catch (err2) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = "Get leaderboards";
+    }
+    paneError(pane, "lb-error", `Could not load leaderboards: ${err2.message}`);
+  }
+}
+async function showLb(app, pane, c) {
+  for (const p of pane.querySelectorAll("[data-lb-board], [data-lb-view]")) p.disabled = true;
+  const status = pane.querySelector(".count");
+  if (status) status.textContent = "Loading\u2026";
+  try {
+    c.shown = await leaderboardEntries(c.board, c.view);
+    if (redrawnMeanwhile(app, pane)) return;
+    pane.innerHTML = renderLb(c);
+    wireLb(app, pane);
+  } catch (err2) {
+    c.shown = null;
+    if (redrawnMeanwhile(app, pane)) return;
+    pane.innerHTML = renderLb(c);
+    wireLb(app, pane);
+    paneError(pane, "lb-error", `Could not load this leaderboard: ${err2.message}`);
+  }
+}
 function postsPaneHtml(app) {
   if (!app.id) return `<p>No store ID to read posts for.</p>`;
   const c = postsCache.get(app.id);
@@ -11151,20 +11587,27 @@ async function downloadRiftBuild(app, data, button) {
     const manifest = JSON.parse(riftManifestText(await loadFflate(), await riftManifestBytes(manifestUri)));
     const entries = Object.entries(manifest.files || {});
     if (!entries.length) throw new Error("the manifest listed no files");
-    const files = entries.map(([name, file], i) => ({
-      path: String(name).split(/[\\/]+/).filter((p) => p && p !== "." && p !== "..").join("/") || `file${i}`,
-      size: file.size || 0,
-      urls: (file.segments || []).map((seg) => {
-        var _a2;
-        return riftSegmentUrl(segmentsBaseUri, Array.isArray(seg) ? seg[1] : (_a2 = seg.sha256) != null ? _a2 : seg);
-      })
-    }));
+    const segHash = (seg) => {
+      var _a2;
+      return String(Array.isArray(seg) ? seg[1] : (_a2 = seg.sha256) != null ? _a2 : seg);
+    };
+    const files = entries.map(([name, file], i) => {
+      const hashes = (file.segments || []).map(segHash);
+      return {
+        path: String(name).split(/[\\/]+/).filter((p) => p && p !== "." && p !== "..").join("/") || `file${i}`,
+        size: file.size || 0,
+        hashes,
+        urls: hashes.map((h) => riftSegmentUrl(segmentsBaseUri, h)),
+        directs: hashes.map((h) => riftSegmentDirectUrl(segmentsBaseUri, h))
+      };
+    });
     say2("Downloading 0%");
+    let how = null;
     worker = new Worker(new URL(`js/rift-worker.js${siteVersion()}`, document.baseURI), { type: "module" });
     await new Promise((resolve, reject) => {
       worker.onmessage = ({ data: m }) => {
         if (m.type === "progress") say2(`Downloading ${Math.min(99, Math.floor(m.done / m.total * 100))}% \xB7 ${m.file} of ${m.files} files`);
-        else if (m.type === "done") resolve();
+        else if (m.type === "done") resolve(how = m);
         else if (m.type === "error") reject(new Error(m.message));
       };
       worker.onerror = (e) => reject(new Error(e.message || "the download worker could not start"));
@@ -11180,7 +11623,9 @@ async function downloadRiftBuild(app, data, button) {
       );
     });
     button.textContent = "Downloaded";
-    button.title = target.where === "file" ? `${app.name}: saved ${files.length} files as ${zipName}` : `${app.name}: ${zipName} is in your downloads`;
+    const came = (how == null ? void 0 : how.way) === "direct" ? "straight from Meta" : "through the relay";
+    const checked = (how == null ? void 0 : how.verified) && how.verified !== "off" ? "every segment's SHA-256 checked" : "segments not hash-checked";
+    button.title = `${target.where === "file" ? `${app.name}: saved ${files.length} files as ${zipName}` : `${app.name}: ${zipName} is in your downloads`} (${came}; ${checked})`;
   } catch (err2) {
     if (!worker && target.kind === "port") target.port.postMessage({ abort: true });
     button.textContent = "Failed";
@@ -12139,7 +12584,94 @@ function yourCopy(app) {
   const ownLine = !names ? "<p>Asking the store what this account owns\u2026</p>" : libraryError ? `<p class="warn">Could not read your Quest library: ${esc(libraryError)}</p>` : own ? `<p class="hint">In your Quest library \u2014 ${esc(own.state ? words2(own.state) : "owned")}, from ${esc(
     grantLabel(own.grant)
   )}${own.lastUsed ? `, last played ${esc(isoDay(own.lastUsed))}` : ""}.</p>` : `<p class="hint">Not in your Quest library.</p>`;
-  return `<h3>Ownership</h3>${ownLine}${channelSection(app)}${app.platform === "PC" ? "" : dlcTable(app)}${accountSections(app, "play", { load: true })}${accountSections(app, "backup", { load: true })}`;
+  return `<h3>Ownership</h3>${ownLine}${channelSection(app)}${app.platform === "PC" ? "" : dlcTable(app)}${accountSections(app, "play", { load: true })}`;
+}
+function cloudPaneHtml(app) {
+  if (!app.id) return `<p>No store ID to read cloud backups for.</p>`;
+  let list;
+  if (!backupState.asked) {
+    list = `<div class="controls"><button type="button" data-load="cloudbackups">Get cloud backups</button></div>
+       <p class="hint">The app-data backups Meta holds for this app across your headsets \u2014 a game's saves, progress and settings. Needs your own access token.</p>`;
+  } else if (backupState.loading) {
+    list = `<div class="controls"><button type="button" disabled>Loading\u2026</button></div>`;
+  } else if (backupState.note && !backupState.rows.length) {
+    list = `<p class="warn">${esc(backupState.note)}</p>`;
+  } else {
+    const backs = backupState.rows.filter((r) => recordKey(r) === keyOf(app)).sort((a, b) => {
+      var _a2, _b2;
+      return ((_a2 = b.backedUpAt) != null ? _a2 : 0) - ((_b2 = a.backedUpAt) != null ? _b2 : 0);
+    });
+    list = backs.length ? backupsTable(backs) : `<p>No cloud backups for this app.</p>`;
+  }
+  return `${list}${app.platform !== "PC" ? backupRulesSection(app) : ""}`;
+}
+function backupsTable(backs) {
+  var _a2, _b2;
+  const size = backs.reduce((sum, r) => sum + r.size, 0);
+  const rows = backs.map((r) => {
+    var _a3;
+    const open2 = Boolean(backupDetailCache.get(r.id));
+    return `<tr>
+          <td>${esc(r.serial ? headsetLabel(r.serial) : "\u2014")}</td>
+          <td>${esc(r.type ? words2(r.type) : "\u2014")}</td>
+          <td>${esc((_a3 = mb(r.size)) != null ? _a3 : "\u2014")}</td>
+          <td>${esc(isoDay(r.backedUpAt))}</td>
+          <td class="backup-act"><button type="button" class="build-btn" data-backup-detail="${esc(r.id)}" aria-expanded="${open2}">${open2 ? "Hide" : "Details"}</button></td>
+        </tr>${backupDetailRow(r)}`;
+  }).join("");
+  return `<p class="hint">${plural(backs.length, "backup")}, ${esc((_a2 = mb(size)) != null ? _a2 : "0 MB")} in all, the latest ${esc(
+    isoDay((_b2 = backs[0]) == null ? void 0 : _b2.backedUpAt)
+  )}.</p>
+    <div class="vscroll short">
+      <table class="vtable plain">
+        <thead><tr><th>Headset</th><th>Type</th><th>Size</th><th>Backed up</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+function backupDetailRow(r) {
+  const c = backupDetailCache.get(r.id);
+  if (!c) return "";
+  let inner;
+  if (c.loading) inner = `<span class="muted">Loading backup details\u2026</span>`;
+  else if (c.error) inner = `<span class="warn">${esc(c.error)}</span>`;
+  else {
+    const d = c.detail;
+    const facts = [
+      d.segments != null ? `${bigNumber(d.segments)} segment${d.segments === 1 ? "" : "s"}` : null,
+      d.checksum ? `checksum ${esc(d.checksum.slice(0, 20))}${d.checksum.length > 20 ? "\u2026" : ""}` : null
+    ].filter(Boolean).join(" \xB7 ");
+    inner = `${d.downloadUri ? `<div class="backup-uri">${esc(d.downloadUri)}</div>` : `<span class="muted">No download address returned.</span>`}
+        ${facts ? `<div class="backup-facts">${facts}</div>` : ""}
+        <p class="hint backup-note">End-to-end encrypted with a key kept in the headset that made it (and your PIN, if you set one). The blob can be downloaded, but it can only be restored to a headset \u2014 its contents can't be read here.</p>`;
+  }
+  return `<tr class="backup-detail"><td colspan="5">${inner}</td></tr>`;
+}
+function toggleBackupDetail(id) {
+  const cur = backupDetailCache.get(id);
+  if (cur == null ? void 0 : cur.loading) return;
+  if (cur) {
+    backupDetailCache.delete(id);
+    renderAccountTabs();
+    return;
+  }
+  backupDetailCache.set(id, { loading: true });
+  renderAccountTabs();
+  fetchCloudBackup(id).then((detail) => backupDetailCache.set(id, { detail })).catch((err2) => backupDetailCache.set(id, { error: `Could not load backup details: ${err2.message}` })).finally(() => renderAccountTabs());
+}
+function backupRulesSection(app) {
+  const c = backupRulesCache.get(app.id);
+  let body;
+  if (!c) body = `<button type="button" data-load="backuprules">Get backup settings</button>`;
+  else if (c.loading) body = `<button type="button" disabled>Loading\u2026</button>`;
+  else if (c.error) body = `<p class="warn">${esc(c.error)}</p>`;
+  else if (c.rules.enabled === false) body = `<p class="hint">This app is not backed up to the cloud: its developer has cloud backup switched off.</p>`;
+  else {
+    const on = c.rules.enabled ? "This app's data is backed up to the cloud" : "The store did not say whether this app is backed up";
+    body = c.rules.excluded.length ? `<p class="hint">${on}, except ${plural(c.rules.excluded.length, "path")} its developer left out:</p>
+         <ul class="backup-excluded">${c.rules.excluded.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : `<p class="hint">${on}, all of it: its developer left nothing out.</p>`;
+  }
+  return `<h3>What gets backed up</h3>${body}`;
 }
 function channelSection(app) {
   const mine = myChannels.get(app.id);
@@ -12177,9 +12709,16 @@ function wantYourCopy() {
   if (!library()) appNames().then(() => renderAccountTabs());
 }
 function loadForApp(app, what) {
+  var _a2;
   if (what === "dlc") return loadIaps();
   if (what === "play") return loadPlaytime();
-  if (what === "backup") return loadBackups();
+  if (what === "backup" || what === "cloudbackups") return loadBackups();
+  if (what === "backuprules" && (app == null ? void 0 : app.id) && !((_a2 = backupRulesCache.get(app.id)) == null ? void 0 : _a2.loading)) {
+    backupRulesCache.set(app.id, { loading: true });
+    renderAccountTabs();
+    backupRules(app.id).then((rules) => backupRulesCache.set(app.id, { rules })).catch((err2) => backupRulesCache.set(app.id, { error: `Could not load backup settings: ${err2.message}` })).finally(() => renderAccountTabs());
+    return;
+  }
   if (what === "channels" && (app == null ? void 0 : app.id) && !layoutState.channelAsked.has(app.id)) {
     layoutState.channelAsked.add(app.id);
     layoutState.channelErrors.delete(app.id);
