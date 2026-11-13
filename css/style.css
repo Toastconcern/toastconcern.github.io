@@ -382,6 +382,9 @@ html:not(.in-app) [data-in-app] { display: none !important; }
 }
 
 h1 { font-size: 1.0625rem; font-weight: 600; margin: 0; }
+/* The logo links to the home page, but it stays the wordmark — the heading's
+   own color, no link blue, no underline. */
+.bar > h1 > a { color: inherit; text-decoration: none; }
 h2 { font-size: 1.0625rem; font-weight: 600; margin: 0; }
 
 .sub { margin: .25rem 0 0; color: var(--muted); font-size: .875rem; }
@@ -539,6 +542,20 @@ tbody tr.app > td.name { font-weight: 600; font-size: .9375rem; }
   padding-right: 6rem;
 }
 
+/* The app's name is a bar that stays at the top of the sheet, and the Close
+   button sits on it: what scrolls passes under the bar, never under a lone button. */
+.stage .stage-title {
+  position: sticky;
+  top: 0;
+  /* Over everything positioned in the panel (a table's sticky headings are 2),
+     and still under the Close button (61). */
+  z-index: 10;
+  background: var(--bg);
+  margin: -1.5rem -2rem .25rem;
+  padding: 1.5rem 8rem .9rem 2rem;
+  border-bottom: 1px solid var(--line);
+}
+
 .stage .panel__side { grid-area: side; }
 .stage .panel__main { grid-area: main; min-width: 0; }
 
@@ -655,6 +672,7 @@ html.staged { overflow: hidden; }
 
   .stage .stage-btn,
   .gallery .stage-btn { top: 1.1rem; right: 1rem; }
+  .stage .stage-title { margin: -1.25rem -1rem .25rem; padding: 1.25rem 6.5rem .8rem 1rem; }
 }
 
 /* Columns switched off in settings. Kept to a single class each so nothing here
@@ -670,11 +688,9 @@ body.hide-c-state .c-state,
 body.hide-c-grant .c-grant,
 body.hide-c-devb  .c-devb { display: none; }
 
-/* Meta records carry no price, so that column never appears on their screen.
-   This only ever hides, so it cannot fight the toggles above. */
 /* Neither list carries a price: Meta apps have none, and the library query
-   reports what you own rather than what it costs. */
-#view-meta .c-price,
+   reports what you own rather than what it costs. This only ever hides, so it
+   cannot fight the toggles above. */
 #view-mine .c-price,
 #view-default .c-price { display: none; }
 
@@ -710,6 +726,15 @@ body.hide-c-devb  .c-devb { display: none; }
   margin-right: .5rem;
   background: var(--panel);
 }
+/* A row whose list carried no art: a blank slot the same size, filled with the
+   app's icon once it is fetched by ID — so rows do not jump when it lands. */
+.art-fill { display: inline-block; }
+
+/* People: online in green, offline and the store's activity line muted. */
+.ppl-on { color: var(--green); font-weight: 600; }
+.ppl-off { color: var(--muted); }
+.ppl-pres { color: var(--muted); font-size: .8125rem; margin-top: .15rem; }
+.ppl-alias { color: var(--muted); font-weight: 400; }
 
 /* Scoped under .form so these beat the full-width text-input rules there. */
 .form .check {
@@ -877,21 +902,19 @@ tr.detail > td {
    `anywhere`: `anywhere` lets the column be sized narrower than its longest
    word, which is what used to split "Touch Controlle/rs". */
 .facts dd { overflow-wrap: break-word; }
-.facts dl { grid-template-columns: max-content minmax(0, 1fr); margin-bottom: 1rem; }
+/* A long label (a world or app name in Similar worlds, More like this) wraps rather
+   than taking the row: its value always keeps room for a few words. */
+.facts dl { grid-template-columns: minmax(0, max-content) minmax(8.5rem, 1fr); margin-bottom: 1rem; }
+.facts dt { overflow-wrap: break-word; }
 
-/* Channels on the left, the revisions table beside them on the right. Both are
-   the build-history table in miniature. Below the room for two they wrap and
-   stack, channels first; each takes an even share of the row. */
-.chan-rev {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .25rem 2.5rem;
-  align-items: flex-start;
-}
-.chan-rev .chans-col { flex: 1 1 14rem; min-width: 0; }
-/* Revisions carries eight columns to the channels table's four, so it takes the
-   larger share of the row wherever both still fit. */
-.chan-rev .revisions { flex: 2 1 34rem; min-width: 0; }
+/* Channels, then the revisions under them, each the full width of the panel.
+   Side by side, each got half a column: the channels' dates scrolled out of
+   sight and an opened revision's details were squeezed into a strip. */
+.chan-rev { display: flex; flex-direction: column; gap: 1.5rem; }
+.chan-rev > * { min-width: 0; }
+.chan-rev h3 { margin-top: 0; }
+/* Revisions can run to a hundred rows: room for about ten before it scrolls. */
+.revisions .vscroll.short { max-height: 21rem; }
 
 /* Every cell here is a single value: a wrapped "Scheduled" reads as two words
    and a wrapped date as two dates, so they stay on one line and the box scrolls
@@ -1213,26 +1236,6 @@ main > section > .sub,
 .headset-panel .hint { margin-top: 0; }
 .headset-panel .settings-out { margin: .6rem 0 0; }
 
-/* store lookup */
-
-.lookup {
-  border: 1px solid var(--line);
-  border-radius: 3px;
-  margin-bottom: 1.25rem;
-}
-
-.lookup summary {
-  padding: .6rem .75rem;
-  cursor: pointer;
-  font-size: .875rem;
-}
-.lookup summary:hover { background: var(--hover); }
-
-.lookup__body {
-  padding: 0 .75rem .75rem;
-  border-top: 1px solid var(--line);
-}
-
 .hint {
   margin: .75rem 0;
   font-size: .8125rem;
@@ -1273,15 +1276,11 @@ main > section > .sub,
 .ptc-btn.ptc-on:disabled,
 .ptc-btn.ptc-off:disabled { color: var(--muted); border-color: var(--border); }
 
-.lookup__out:empty,
 .resolve-out:empty { display: none; }
-.lookup__out,
 .resolve-out { font-size: .875rem; }
 
-.lookup__out .warn,
 .resolve-out .warn { color: var(--red); }
 
-.lookup__out pre,
 .resolve-out pre {
   margin: .5rem 0 0;
   padding: .6rem .75rem;
@@ -1305,17 +1304,23 @@ main > section > .sub,
   font-size: .875rem;
 }
 
+/* A phrase in prose that acts: neutral text with a light, offset underline that
+   darkens on hover — clearly pressable, never the browser's default blue link. */
 .linkbtn {
   border: 0;
   background: none;
   padding: 0;
   min-height: 0;
   font-size: inherit;
-  color: var(--link);
+  font-weight: 500;
+  color: var(--text);
   text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
   cursor: pointer;
 }
-.linkbtn:hover { background: none; }
+.linkbtn:hover { background: none; text-decoration-color: currentColor; }
 
 /* Not a problem, unlike the notice this borrows from — a new build is waiting,
    that is all — so it is marked in the ordinary accent rather than in red. */
@@ -1438,44 +1443,20 @@ details.hint > p {
 
 /* fixed corners */
 
+/* How many results to show: a labelled picker in the Apps controls row (moved there
+   by initLimit), not a box floating over the list. */
 .limitbar:not([hidden]) {
-  position: fixed;
-  left: 1rem;
-  bottom: 1rem;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: .5rem;
-  padding: .35rem .6rem;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  background: var(--bg);
-  font-size: .8125rem;
+  font-size: .875rem;
   color: var(--muted);
-}
-.limitbar select {
-  min-height: 30px;
-  padding: .2rem .35rem;
-  font-size: .8125rem;
 }
 
 /* github corner */
 
-.gh {
-  position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  display: inline-flex;
-  align-items: center;
-  padding: .5rem .9rem;
-  min-height: 38px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  background: var(--bg);
-  color: var(--text);
-  text-decoration: none;
-  font-size: .8125rem;
-}
-.gh:hover { background: var(--hover); }
+/* GitHub: a link in the footer line, styled like the other text actions. */
+.foot .gh { font-size: inherit; }
 
 /* misc */
 
@@ -1537,6 +1518,23 @@ details.hint > p {
   border-color: var(--border);
 }
 .companion-tab:hover:not(.on) { background: var(--hover); }
+/* A grouped screen's tabs (Library, Headsets, Store) are links to each tab's own
+   address, drawn like the button tabs above. */
+.panel-tabs.screen-tabs { margin: .6rem 0 .75rem; }
+.screen-tabs[hidden] { display: none; }
+a.companion-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: .5rem 1rem;
+  font-size: .875rem;
+  text-decoration: none;
+}
+a.companion-tab.on { cursor: default; }
+@media (prefers-reduced-motion: no-preference) {
+  a.companion-tab { transition: background-color .12s, color .12s; }
+}
 
 /* ---------- command tabs: feature groups of command rows ----------
    A tab is its commands grouped by feature (Wi-Fi, Casting, Controllers…). Each
@@ -2010,6 +2008,253 @@ details.hint > p {
   .notfound { grid-template-columns: 1fr; padding-top: 1.5rem; }
   .notfound-code { margin-bottom: .75rem; }
 }
+
+/* The home button, shared by the 404 screen and the sign-in prompt. A clear,
+   prominent action — but not blue: blue belongs to the build-row download alone. */
+.home-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: .55rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--text);
+  font-weight: 600;
+  font-size: .9rem;
+  text-decoration: none;
+}
+.home-btn:hover { background: var(--hover); }
+.home-btn--sm { min-height: 38px; padding: .4rem .9rem; font-weight: 500; font-size: .85rem; }
+.notfound-actions { margin: 1rem 0 1.25rem; }
+
+/* ---------- home ----------
+   A dashboard of panels built from this browser's own state (watchlist, recently
+   viewed, account/setup) plus a map of links. No pills, no blue underlines. */
+.home-hero { max-width: 70ch; }
+.home-hero h2 { margin: 0; }
+
+.home-dash {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 0;
+  align-items: start;
+}
+.home-panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: .85rem 1rem 1rem;
+}
+.home-ph { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.home-ph h3 { margin: 0; font-size: .9375rem; }
+.home-more { font-size: .8125rem; color: var(--text); text-decoration: none; white-space: nowrap; }
+.home-more:hover { text-decoration: underline; }
+.home-more--foot { color: var(--muted); }
+.home-more--foot { display: inline-block; margin-top: .5rem; }
+.home-empty { margin: .6rem 0 .1rem; color: var(--muted); font-size: .8125rem; max-width: 46ch; }
+
+.home-list { display: grid; gap: .1rem; margin-top: .55rem; }
+.home-appline {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .35rem .3rem;
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+}
+.home-appline:hover { background: var(--hover); }
+.home-ic { width: 26px; height: 26px; border-radius: 5px; object-fit: cover; flex: none; background: var(--hover); }
+.home-ic--ph {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--field); color: var(--muted); border: 1px solid var(--line);
+  font-weight: 600; font-size: .8rem;
+}
+.home-appnm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; font-size: .875rem; }
+/* A status word, not a pill: plain coloured text, no background. */
+.home-tag { flex: none; font-size: .75rem; color: var(--muted); }
+.home-tag.is-new { color: var(--green); font-weight: 600; }
+.home-tag.is-bad { color: var(--red); }
+
+
+/* Your account: a large full-width section under the watchlist and recently viewed
+   panels — who you are, big, then every fact in an even grid with room around it.
+   Plain label-over-value pairs, not oversized numbers. */
+.home-acct {
+  margin: 1rem 0 0;
+  padding: 1.4rem 1.6rem 1.6rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.home-acct .home-ph h3 { font-size: 1rem; }
+/* Three sets under the header: Account details, Activity, This browser — each its
+   own titled grid, divided by a hairline. */
+.home-group { margin-top: 1.4rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+.home-group h4 {
+  margin: 0;
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.home-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1.3rem 2.5rem;
+  margin: .9rem 0 0;
+}
+/* "Show account ID": a quiet text control in the header line, not a link. */
+.home-reveal {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.home-reveal:hover { color: var(--muted); background: none; }
+.home-reveal:focus-visible { outline: 2px solid var(--border); outline-offset: 2px; border-radius: 2px; }
+.home-stat { min-width: 0; }
+.home-stat dt { color: var(--muted); font-size: .8125rem; margin-bottom: .3rem; }
+.home-stat dd { margin: 0; font-size: 1rem; font-weight: 500; line-height: 1.4; overflow-wrap: anywhere; }
+/* An action in a fact (load the library, fetch the headsets): plain text and an
+   arrow, never the default blue underline. */
+.home-stat dd a { color: var(--text); text-decoration: none; }
+.home-stat dd a::after { content: " →"; color: var(--muted); }
+.home-stat dd a:hover { color: var(--muted); }
+.home-stat-note { display: block; color: var(--muted); font-weight: 400; font-size: .8125rem; margin-top: .15rem; }
+
+/* The profile's background picture, which is square: shown whole, the photo ringed
+   in the panel colour over its lower-right corner. Without it (images off, or the
+   address expired) the row keeps its plain layout. */
+.home-me-media { position: relative; flex: none; width: 168px; height: 168px; }
+.home-me-bg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--hover);
+  border: 1px solid var(--line);
+}
+.home-me--bg { gap: 2rem; }
+.home-me--bg .home-me-media .home-me-pic {
+  position: absolute;
+  right: -14px;
+  bottom: -14px;
+  width: 72px;
+  height: 72px;
+  border: 4px solid var(--panel);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.home-me--bg .home-me-media .home-me-pic--ph { font-size: 1.3rem; }
+.home-me--bg .home-me-name { font-size: 1.6rem; }
+@media (max-width: 600px) {
+  .home-me-media { width: 112px; height: 112px; }
+  .home-me--bg { gap: 1.4rem; }
+  .home-me--bg .home-me-media .home-me-pic { width: 52px; height: 52px; right: -10px; bottom: -10px; border-width: 3px; border-radius: 11px; }
+  .home-me--bg .home-me-name { font-size: 1.2rem; white-space: normal; }
+}
+/* Photos: thumbnails in a grid, each a link to its full-size copy, with where it
+   was taken under it. A video carries its length in the corner. */
+.photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: .9rem; margin-top: .75rem; }
+.photo { position: relative; display: block; color: var(--text); text-decoration: none; min-width: 0; }
+.photo img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); background: var(--hover); }
+.photo:hover img { border-color: var(--border); }
+.photo:focus-visible { outline: 2px solid var(--border); outline-offset: 3px; border-radius: 8px; }
+.photo-badge { position: absolute; top: .45rem; right: .45rem; padding: .1rem .4rem; border-radius: 4px; background: rgba(0, 0, 0, .7); color: #fff; font-size: .75rem; font-weight: 600; }
+.photo-cap { display: block; margin-top: .35rem; font-size: .8125rem; line-height: 1.35; }
+.photo-where { display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photo-when { display: block; color: var(--muted); }
+@media (max-width: 600px) { .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; } }
+/* A labelled field sitting in a controls row (the Photos date range). */
+.inline-field { display: inline-flex; align-items: center; gap: .4rem; color: var(--muted); font-size: .875rem; }
+.inline-field input { min-height: 38px; }
+/* Every avatar on the account: a full-body preview each, with its style and profile. */
+.avatars-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .9rem; margin-top: .75rem; }
+.avatar-card { margin: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); padding: .6rem; }
+.avatar-card img { display: block; width: 100%; aspect-ratio: 3 / 4; object-fit: cover; object-position: center 40%; }
+.avatar-card figcaption { margin-top: .4rem; font-size: .8125rem; line-height: 1.35; }
+.avatar-card figcaption strong { display: block; }
+.avatar-card figcaption span { color: var(--muted); }
+/* The avatar's stickers: a plain grid of the animated images. */
+.section-h { margin: 2rem 0 .25rem; font-size: 1rem; }
+.sticker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: .75rem; margin-top: .75rem; }
+.sticker-grid img { width: 100%; aspect-ratio: 1; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+#exploreQ { flex: 1 1 22rem; min-width: 0; }
+#storeQ { flex: 1 1 16rem; min-width: 0; }
+.credit-amt { text-align: right; }
+#creditRows td.num { text-align: right; }
+/* An app's Revisions table: a revision row opens, and what it holds sits under it. */
+.revisions tr.rev-row { cursor: pointer; }
+.revisions tr.rev-row:hover td { background: var(--hover); }
+.revisions tr.rev-row[aria-expanded="true"] td { background: var(--panel); }
+.rev-body { padding: .4rem .25rem .6rem; white-space: normal; font-family: var(--sans); }
+.rev-body h4 { margin: .75rem 0 .3rem; font-size: .8125rem; }
+/* The groups side by side where they fit. A wrapping row rather than the facts
+   grid: inside a table cell the grid cannot tell how wide it is and stacks them. */
+.rev-body .facts { display: flex; flex-wrap: wrap; gap: 0 2.5rem; }
+.rev-body .facts section { flex: 1 1 15rem; max-width: 24rem; }
+/* A phone drops the submissions count (nearly always 0) and lets the long ID
+   wrap, so the table fits its box and an opened revision is not cut off. */
+@media (max-width: 640px) {
+  .revisions .rev-subs { display: none; }
+  .revisions .vtable td.bid { white-space: normal; word-break: break-all; }
+}
+.rev-changes { margin: 0; padding-left: 1.1rem; font-size: .8125rem; line-height: 1.6; }
+.rev-field { color: var(--muted); }
+/* An open revision is read in place, not in the short scroll box the list sits in. */
+.revisions .vscroll:has(tr.rev-detail) { max-height: none; }
+/* A movie or series opened in Search everything: its art beside what it is and
+   where to watch it. */
+.media-detail { display: flex; gap: 1.25rem; align-items: flex-start; }
+.media-art { width: 180px; flex: none; border-radius: 8px; border: 1px solid var(--line); }
+.media-text { min-width: 0; flex: 1 1 auto; }
+.media-text p { max-width: 65ch; line-height: 1.55; }
+.watch-list { list-style: none; display: flex; flex-wrap: wrap; gap: .4rem 1.25rem; padding: 0; margin: .4rem 0 0; }
+@media (max-width: 600px) { .media-detail { flex-direction: column; } .media-art { width: 140px; } }
+/* Search everything: what kind each result is, as a quiet line under its title,
+   and details (package names, long titles) that wrap rather than squeeze the title. */
+.ex-title { display: inline-block; vertical-align: middle; }
+.ex-kind { display: block; color: var(--muted); font-size: .8125rem; font-weight: 400; margin-top: .1rem; }
+.ex-detail { overflow-wrap: anywhere; }
+@media (max-width: 600px) { #view-explore td.name { min-width: 9rem; } }
+/* Who: profile photo, name, then @alias and account ID. */
+.home-me { display: flex; align-items: center; gap: 1rem; margin-top: 1.1rem; min-width: 0; }
+.home-me-pic {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--hover);
+}
+.home-me-pic--ph {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--field); color: var(--muted); border: 1px solid var(--line);
+  font-weight: 600; font-size: 1.6rem;
+}
+.home-me-text { min-width: 0; flex: 1 1 auto; }
+.home-me-name { font-weight: 600; font-size: 1.35rem; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-me-alias { display: flex; flex-wrap: wrap; gap: .15rem 1rem; color: var(--muted); font-size: .875rem; margin-top: .2rem; min-width: 0; }
+.home-me-alias > * { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .home-acct { padding: 1.1rem 1rem 1.2rem; }
+  .home-me-pic { width: 56px; height: 56px; }
+  .home-me-name { font-size: 1.15rem; }
+  .home-stats { grid-template-columns: 1fr 1fr; gap: 1rem 1.25rem; }
+}
+
+@media (max-width: 760px) {
+  .home-dash { grid-template-columns: 1fr; }
+}
 @media (prefers-reduced-motion: reduce) {
   .upd-tile { transition: none; }
 }
@@ -2461,17 +2706,25 @@ tr.build-detail .panel { font-family: var(--sans, inherit); }
   font-size: .8125rem;
   white-space: normal;
 }
-.backup-uri {
-  font-family: var(--mono);
-  font-size: .78rem;
-  word-break: break-all;
-  user-select: all;
-  padding: .35rem .5rem;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 3px;
-}
 .backup-facts { color: var(--muted); font-size: .8rem; margin-top: .35rem; }
+/* Download the backup blob (or each segment): an ordinary neutral button — blue is
+   kept for a build row's own action. */
+.backup-dl-row { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .45rem; }
+.backup-dl {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: .35rem .85rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--field);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: .8125rem;
+}
+.backup-dl:hover { background: var(--hover); }
+.backup-fields { color: var(--muted); font-size: .8rem; margin-top: .35rem; overflow-wrap: anywhere; }
 .cloud-pane .muted { color: var(--muted); }
 .backup-note { margin-top: .4rem; }
 
@@ -2840,7 +3093,7 @@ button.primary:hover:not(:disabled) { background: var(--blue-hi); border-color: 
 button.primary:disabled { color: #fff; opacity: .6; }
 
 /* The corner controls float over the page, so they get a little lift off it. */
-.limitbar:not([hidden]), .gh { box-shadow: 0 2px 10px rgba(0, 0, 0, .12); }
+
 
 /* On a phone an app's seven tabs wrapped onto three rows, under the Expand
    button, and the Worlds tabs left one alone on a second row. They stay on one
@@ -2995,9 +3248,6 @@ tbody tr.watch-row > td.name { font-weight: 600; font-size: .9375rem; }
 /* Own column classes, not the shared c-* ones: those are toggled by the Columns
    settings and hidden at phone breakpoints for the main tables, which would
    silently drop or shift the watchlist's (differently-meaning) columns. */
-/* A blank art slot (panel-coloured, like the downgrade list) when an entry has
-   no stored image, so every row is the same height whether or not art loaded. */
-.art-ph { display: inline-block; }
 
 /* The watch control hangs in the gutter just to the left of each app row —
    outside the table columns (no reserved cell, no header slot), so the columns
@@ -3052,14 +3302,6 @@ body:not(.watch-on) tr.app .watch-toggle { display: none; }
 @media (min-width: 72rem) {
   .watch-toggle { margin-right: .45rem; }
 }
-.watch-row.is-updated .wl-latest { color: var(--green); font-weight: 600; }
-.watch-new { color: var(--green); }
-.watch-arrow { color: var(--green); font-weight: 700; }
-/* Text-link actions (the site's .linkbtn), not boxed buttons — kept light and
-   small like the rest of the in-row actions. Separated by a thin divider. */
-.watch-actions { display: flex; gap: .6rem; flex-wrap: wrap; align-items: baseline; }
-.watch-actions .linkbtn { white-space: nowrap; }
-.watch-actions .linkbtn + .linkbtn { border-left: 1px solid var(--line); padding-left: .6rem; }
 
 /* ---------- setup guide overlay ----------
    A centered dialog over a dimmed page. Square corners throughout (the site's

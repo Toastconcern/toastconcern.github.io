@@ -93,8 +93,20 @@ export async function onRequest({ request, env }) {
   let route = "direct";
   if (viaUs) {
     try {
-      upstream = await env.US_RELAY.fetch(target, init);
-      route = "us";
+      const r = await env.US_RELAY.fetch(target, init);
+      /* Keep the US reply only when it is usable: Meta's own answer, even an
+         error, is JSON and passes through. A Durable Object that threw comes
+         back as Cloudflare's HTML error page — unusable as a store reply, and
+         the page would read it as "could not reach the relay" — so drop it and
+         let the direct path below answer instead (right data, wrong currency
+         beats no data). */
+      const ct = (r.headers.get("Content-Type") || "").toLowerCase();
+      if (r.ok || ct.includes("json")) {
+        upstream = r;
+        route = "us";
+      } else {
+        await r.body?.cancel();
+      }
     } catch {
       upstream = null;
     }

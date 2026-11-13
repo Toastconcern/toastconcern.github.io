@@ -258,7 +258,7 @@ function strFromU8(dat, latin1) {
   } else if (td) {
     return td.decode(dat);
   } else {
-    var _a2 = dutf8(dat), s = _a2.s, r = _a2.r;
+    var _a3 = dutf8(dat), s = _a3.s, r = _a3.r;
     if (r.length)
       err(8);
     return s;
@@ -310,7 +310,7 @@ function zip(data, opts, cb) {
     cbf();
   var _loop_1 = function(i2) {
     var fn = k[i2];
-    var _a2 = r[fn], file = _a2[0], p = _a2[1];
+    var _a3 = r[fn], file = _a3[0], p = _a3[1];
     var c = crc(), size = file.length;
     c.p(file);
     var f = strToU8(fn), s = f.length;
@@ -365,7 +365,7 @@ function zipSync(data, opts) {
   var o = 0;
   var tot = 0;
   for (var fn in r) {
-    var _a2 = r[fn], file = _a2[0], p = _a2[1];
+    var _a3 = r[fn], file = _a3[0], p = _a3[1];
     var compression = p.level == 0 ? 0 : 8;
     var f = strToU8(fn), s = f.length;
     var com = p.comment, m = com && strToU8(com), ms = m && m.length;
@@ -441,7 +441,7 @@ function unzip(data, opts, cb) {
     }
     var fltr = opts && opts.filter;
     var _loop_3 = function(i2) {
-      var _a2 = zh(data, o, z), c_1 = _a2[0], sc = _a2[1], su = _a2[2], fn = _a2[3], no = _a2[4], off = _a2[5], b = slzh(data, off);
+      var _a3 = zh(data, o, z), c_1 = _a3[0], sc = _a3[1], su = _a3[2], fn = _a3[3], no = _a3[4], off = _a3[5], b = slzh(data, off);
       o = no;
       var cbl = function(e2, d) {
         if (e2) {
@@ -507,7 +507,7 @@ function unzipSync(data, opts) {
   }
   var fltr = opts && opts.filter;
   for (var i = 0; i < c; ++i) {
-    var _a2 = zh(data, o, z), c_2 = _a2[0], sc = _a2[1], su = _a2[2], fn = _a2[3], no = _a2[4], off = _a2[5], b = slzh(data, off);
+    var _a3 = zh(data, o, z), c_2 = _a3[0], sc = _a3[1], su = _a3[2], fn = _a3[3], no = _a3[4], off = _a3[5], b = slzh(data, off);
     o = no;
     if (!fltr || fltr({
       name: fn,
@@ -1047,8 +1047,8 @@ var init_fflate_module = __esm({
     wblk = function(dat, out, final, syms, lf, df, eb, li, bs, bl, p) {
       wbits(out, p++, final);
       ++lf[256];
-      var _a2 = hTree(lf, 15), dlt = _a2.t, mlb = _a2.l;
-      var _b2 = hTree(df, 15), ddt = _b2.t, mdb = _b2.l;
+      var _a3 = hTree(lf, 15), dlt = _a3.t, mlb = _a3.l;
+      var _b3 = hTree(df, 15), ddt = _b3.t, mdb = _b3.l;
       var _c = lc(dlt), lclt = _c.c, nlc = _c.n;
       var _d = lc(ddt), lcdt = _d.c, ndc = _d.n;
       var lcfreq = new u16(19);
@@ -1874,7 +1874,7 @@ var init_fflate_module = __esm({
         var dat = new u8(this.p.length + chunk.length);
         dat.set(this.p);
         dat.set(chunk, this.p.length);
-        var _a2 = dutf8(dat), s = _a2.s, r = _a2.r;
+        var _a3 = dutf8(dat), s = _a3.s, r = _a3.r;
         if (final) {
           if (r.length)
             err(8);
@@ -1906,7 +1906,7 @@ var init_fflate_module = __esm({
     };
     zh = function(d, b, z) {
       var fnl = b2(d, b + 28), fn = strFromU8(d.subarray(b + 46, b + 46 + fnl), !(b2(d, b + 8) & 2048)), es = b + 46 + fnl, bs = b4(d, b + 20);
-      var _a2 = z && bs == 4294967295 ? z64e(d, es) : [bs, b4(d, b + 24), b4(d, b + 42)], sc = _a2[0], su = _a2[1], off = _a2[2];
+      var _a3 = z && bs == 4294967295 ? z64e(d, es) : [bs, b4(d, b + 24), b4(d, b + 42)], sc = _a3[0], su = _a3[1], off = _a3[2];
       return [b2(d, b + 10), sc, su, fn, es + b2(d, b + 30) + b2(d, b + 32), off];
     };
     z64e = function(d, b) {
@@ -2139,13 +2139,13 @@ var init_fflate_module = __esm({
       };
       Zip2.prototype.e = function() {
         var bt = 0, l = 0, tl = 0;
-        for (var _i = 0, _a2 = this.u; _i < _a2.length; _i++) {
-          var f = _a2[_i];
+        for (var _i = 0, _a3 = this.u; _i < _a3.length; _i++) {
+          var f = _a3[_i];
           tl += 46 + f.f.length + exfl(f.extra) + (f.o ? f.o.length : 0);
         }
         var out = new u8(tl + 22);
-        for (var _b2 = 0, _c = this.u; _b2 < _c.length; _b2++) {
-          var f = _c[_b2];
+        for (var _b3 = 0, _c = this.u; _b3 < _c.length; _b3++) {
+          var f = _c[_b3];
           wzh(out, bt, f, f.f, f.u, -f.c - 2, l, f.o);
           bt += 46 + f.f.length + exfl(f.extra) + (f.o ? f.o.length : 0), l += f.b;
         }
@@ -2154,8 +2154,8 @@ var init_fflate_module = __esm({
         this.d = 2;
       };
       Zip2.prototype.terminate = function() {
-        for (var _i = 0, _a2 = this.u; _i < _a2.length; _i++) {
-          var f = _a2[_i];
+        for (var _i = 0, _a3 = this.u; _i < _a3.length; _i++) {
+          var f = _a3[_i];
           f.t();
         }
         this.d = 2;
@@ -2248,7 +2248,7 @@ var init_fflate_module = __esm({
           }
           var l = buf.length, oc = this.c, add = oc && this.d;
           var _loop_2 = function() {
-            var _a2;
+            var _a3;
             var sig = b4(buf, i);
             if (sig == 67324752) {
               f = 1, is = i;
@@ -2262,7 +2262,7 @@ var init_fflate_module = __esm({
                 var sc_1 = b4(buf, i + 18), su_1 = b4(buf, i + 22);
                 var fn_1 = strFromU8(buf.subarray(i + 30, i += 30 + fnl), !u);
                 if (sc_1 == 4294967295) {
-                  _a2 = dd ? [-2] : z64e(buf, i), sc_1 = _a2[0], su_1 = _a2[1];
+                  _a3 = dd ? [-2] : z64e(buf, i), sc_1 = _a3[0], su_1 = _a3[1];
                 } else if (dd)
                   sc_1 = -1;
                 i += es;
@@ -2379,7 +2379,7 @@ function loadSettings() {
   return { ...settingsCache, hidden: [...settingsCache.hidden] };
 }
 function readSettings() {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c, _d;
   try {
     return {
       token: localStorage.getItem("metadb.token") || DEFAULT_TOKEN,
@@ -2449,15 +2449,18 @@ function readSettings() {
       /* Developer: log every request to the console. Off by default. */
       log: localStorage.getItem("metadb.log") === "1",
       /* Column classes the user has switched off. */
-      hidden: ((_a2 = localStorage.getItem("metadb.hidden")) != null ? _a2 : "").split(",").filter(Boolean),
+      hidden: ((_a3 = localStorage.getItem("metadb.hidden")) != null ? _a3 : "").split(",").filter(Boolean),
       /* Set once the setup guide has been completed (or skipped). */
       setupDone: localStorage.getItem("metadb.setupDone") === "1",
       /* Top-level screens the reader turned off in the setup guide: each is
          hidden from the nav and never fetched until switched back on. */
-      sectionsOff: ((_b2 = localStorage.getItem("metadb.sectionsOff")) != null ? _b2 : "").split(",").filter(Boolean),
+      sectionsOff: ((_b3 = localStorage.getItem("metadb.sectionsOff")) != null ? _b3 : "").split(",").filter(Boolean),
       /* Per-app panel tabs turned off the same way (reviews, posts, add-ons,
          achievements). */
-      panelsOff: ((_c = localStorage.getItem("metadb.panelsOff")) != null ? _c : "").split(",").filter(Boolean)
+      panelsOff: ((_c = localStorage.getItem("metadb.panelsOff")) != null ? _c : "").split(",").filter(Boolean),
+      /* Extra lookups turned off in the setup guide (EXTRAS in app.js): each is a
+         request MetaDB otherwise sends alongside something else. */
+      extrasOff: ((_d = localStorage.getItem("metadb.extrasOff")) != null ? _d : "").split(",").filter(Boolean)
     };
   } catch {
     return {
@@ -2497,9 +2500,13 @@ function readSettings() {
       hidden: [],
       setupDone: false,
       sectionsOff: [],
-      panelsOff: []
+      panelsOff: [],
+      extrasOff: []
     };
   }
+}
+function extraOn(name) {
+  return !loadSettings().extrasOff.includes(name);
 }
 function saveSettings(patch) {
   settingsCache = null;
@@ -2521,7 +2528,7 @@ function saveSettings(patch) {
 function clearSettings() {
   settingsCache = null;
   try {
-    for (const key of ["token", "acToken", "frlToken", "upToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "watchAuto", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll", "watchButtons", "setupDone", "sectionsOff", "panelsOff", "updaterOpts"]) {
+    for (const key of ["token", "acToken", "frlToken", "upToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "watchAuto", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll", "watchButtons", "setupDone", "sectionsOff", "panelsOff", "extrasOff", "updaterOpts"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {
@@ -2575,10 +2582,11 @@ var extWaiting = /* @__PURE__ */ new Map();
 function useExtensionRelay(on) {
   extRelay = Boolean(on);
 }
+var extensionRelayOn = () => extRelay;
 try {
   window.addEventListener("message", (e) => {
-    var _a2;
-    if (e.source !== window || e.origin !== location.origin || ((_a2 = e.data) == null ? void 0 : _a2.metadbExt) !== true || e.data.type !== "relay-reply") return;
+    var _a3;
+    if (e.source !== window || e.origin !== location.origin || ((_a3 = e.data) == null ? void 0 : _a3.metadbExt) !== true || e.data.type !== "relay-reply") return;
     const done = extWaiting.get(e.data.id);
     if (done) {
       extWaiting.delete(e.data.id);
@@ -2588,19 +2596,19 @@ try {
 } catch {
 }
 async function viaExtension(url, init) {
-  var _a2;
+  var _a3;
   const headers = { ...await ocmsHeaders().catch(() => ({})), ...init.headers };
   const id = ++extSeq;
   const reply = await new Promise((resolve) => {
-    var _a3;
+    var _a4;
     extWaiting.set(id, resolve);
-    window.postMessage({ metadbPage: true, type: "relay", id, url, method: init.method || "GET", body: (_a3 = init.body) != null ? _a3 : null, headers }, location.origin);
+    window.postMessage({ metadbPage: true, type: "relay", id, url, method: init.method || "GET", body: (_a4 = init.body) != null ? _a4 : null, headers }, location.origin);
     setTimeout(() => {
       if (extWaiting.delete(id)) resolve({ error: "the extension did not answer in time" });
     }, REQUEST_TIMEOUT_MS);
   });
   if (reply.error || typeof reply.status !== "number") throw new Error(reply.error || "no answer from the extension");
-  return new Response((_a2 = reply.text) != null ? _a2 : "", {
+  return new Response((_a3 = reply.text) != null ? _a3 : "", {
     status: reply.status,
     headers: { "Content-Type": reply.contentType || "application/json", "X-MetaDB-Relay": "extension" }
   });
@@ -2611,8 +2619,8 @@ async function getJSON(url) {
   const q = url.indexOf("?");
   const base = q === -1 ? url : url.slice(0, q);
   const query = q === -1 ? "" : url.slice(q + 1);
-  const post = base === ENDPOINT;
-  const target = post ? route(ENDPOINT) : route(url);
+  const post = base === ENDPOINT || base === "https://meta.graph.meta.com/graphql";
+  const target = post ? route(base) : route(url);
   const init = post ? {
     method: "POST",
     headers: {
@@ -2624,9 +2632,9 @@ async function getJSON(url) {
   if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) {
     init.signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   }
-  const logUrl = post ? `${ENDPOINT}?${withoutToken(query)}` : forLog(url);
+  const logUrl = post ? `${base}?${withoutToken(query)}` : forLog(url);
   let res = null;
-  if (extRelay && !relay && EXT_HOSTS.test(post ? ENDPOINT : url)) {
+  if (extRelay && !relay && EXT_HOSTS.test(post ? base : url)) {
     try {
       res = await viaExtension(post ? ENDPOINT : url, init);
     } catch {
@@ -2714,9 +2722,9 @@ function split(text) {
   return out;
 }
 function stitch(text) {
-  var _a2;
+  var _a3;
   const parts = split(text);
-  const root = (_a2 = parts.find((p) => p.data || p.errors || p.error)) != null ? _a2 : null;
+  const root = (_a3 = parts.find((p) => p.data || p.errors || p.error)) != null ? _a3 : null;
   if (!(root == null ? void 0 : root.data)) return root;
   for (const part of parts) {
     if (part === root || !Array.isArray(part.path)) continue;
@@ -2736,19 +2744,19 @@ function stitch(text) {
 }
 var day = (secs) => new Date(secs * 1e3).toISOString().slice(0, 10);
 function parseHistory(json) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
-  if ((_a2 = json == null ? void 0 : json.errors) == null ? void 0 : _a2.length) throw new Error(json.errors[0].message);
-  if (json == null ? void 0 : json.error) throw new Error((_b2 = json.error.message) != null ? _b2 : "request rejected");
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  if ((_a3 = json == null ? void 0 : json.errors) == null ? void 0 : _a3.length) throw new Error(json.errors[0].message);
+  if (json == null ? void 0 : json.error) throw new Error((_b3 = json.error.message) != null ? _b3 : "request rejected");
   const nodes = (_e = (_d = (_c = json == null ? void 0 : json.data) == null ? void 0 : _c.node) == null ? void 0 : _d.primary_binaries) == null ? void 0 : _e.nodes;
   if (!nodes) throw new Error("no build history in the reply");
   const builds = nodes.map((b) => {
-    var _a3, _b3, _c2, _d2, _e2;
+    var _a4, _b4, _c2, _d2, _e2;
     return {
       id: b.id,
-      version: (_a3 = b.version) != null ? _a3 : "\u2014",
+      version: (_a4 = b.version) != null ? _a4 : "\u2014",
       versionCode: b.version_code,
       releasedAt: b.created_date ? day(b.created_date) : null,
-      createdAt: (_b3 = b.created_date) != null ? _b3 : 0,
+      createdAt: (_b4 = b.created_date) != null ? _b4 : 0,
       fileName: (_c2 = b.file_name) != null ? _c2 : "",
       channels: ((_e2 = (_d2 = b.binary_release_channels) == null ? void 0 : _d2.nodes) != null ? _e2 : []).map((c) => c.channel_name).filter(Boolean)
     };
@@ -2776,12 +2784,12 @@ function parseHistory(json) {
   const channels = [...byChannel.values()];
   const live = (_j = (_i = channels.find((c) => c.name === "LIVE")) != null ? _i : channels[0]) != null ? _j : null;
   const revisions = ((_n = (_m = (_l = (_k = json == null ? void 0 : json.data) == null ? void 0 : _k.node) == null ? void 0 : _l.revisions) == null ? void 0 : _m.nodes) != null ? _n : []).map((r) => {
-    var _a3, _b3, _c2;
+    var _a4, _b4, _c2;
     return {
-      id: (_a3 = r.id) != null ? _a3 : null,
+      id: (_a4 = r.id) != null ? _a4 : null,
       status: r.administration_status ? words(r.administration_status) : null,
       created: r.created_date ? day(r.created_date) : null,
-      submissions: (_c2 = (_b3 = r.submission_events) == null ? void 0 : _b3.count) != null ? _c2 : 0
+      submissions: (_c2 = (_b4 = r.submission_events) == null ? void 0 : _b4.count) != null ? _c2 : 0
     };
   });
   return { builds, channels, live, newest: (_o = builds[0]) != null ? _o : null, revisions };
@@ -2805,6 +2813,47 @@ async function checkApp(app) {
     revisions
   };
 }
+var SUBMISSION_DOC_ID = "28182136738069293";
+async function submissionDetail(submissionID) {
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  const json = await storeQuery(SUBMISSION_DOC_ID, { submissionID: String(submissionID) });
+  refuse(json, "Viewing a submission");
+  const sub = (_a3 = json.data) == null ? void 0 : _a3.fetch__ApplicationSubmission;
+  if (!sub) throw new Error("no submission in the reply");
+  const p = (_b3 = sub.pdp_metadata_with_fallback) != null ? _b3 : {};
+  const b = (_d = (_c = sub.binary_with_fallback) != null ? _c : sub.binary) != null ? _d : null;
+  const bool2 = (v) => typeof v === "boolean" ? v : null;
+  return {
+    id: sub.id ? String(sub.id) : String(submissionID),
+    status: sub.status ? words(sub.status) : null,
+    reviewStatus: sub.review_status ? words(sub.review_status) : null,
+    releaseType: sub.release_type ? words(sub.release_type) : null,
+    releaseStatus: sub.release_status ? words(sub.release_status) : null,
+    publishDate: sub.publish_date ? day(sub.publish_date) : null,
+    autoApproved: bool2(sub.was_auto_approved),
+    isInitial: bool2(sub.is_initial_release),
+    previousId: ((_e = sub.previous_revision) == null ? void 0 : _e.id) ? String(sub.previous_revision.id) : null,
+    binary: b ? {
+      id: b.id ? String(b.id) : null,
+      version: (_f = b.version) != null ? _f : null,
+      appMode: b.app_mode ? words(b.app_mode) : null,
+      releaseStatus: b.release_status ? words(b.release_status) : null
+    } : null,
+    listing: {
+      publisher: (_g = p.publisher_name) != null ? _g : null,
+      website: (_h = p.website_url) != null ? _h : null,
+      category: p.category ? words(p.category) : null,
+      comfort: p.comfort_rating ? words(p.comfort_rating) : null,
+      internet: p.internet_connection ? words(p.internet_connection) : null,
+      playArea: p.play_area ? words(p.play_area) : null,
+      subscription: p.subscription_type ? words(p.subscription_type) : null,
+      earlyAccess: p.early_access_status ? words(p.early_access_status) : null,
+      genres: ((_i = p.genres) != null ? _i : []).filter(Boolean).map(String),
+      languages: ((_j = p.supported_in_app_languages) != null ? _j : []).filter(Boolean).map(String),
+      iarc: (_l = (_k = p.iarc_cert) == null ? void 0 : _k.external_id) != null ? _l : null
+    }
+  };
+}
 var headerFiles = /* @__PURE__ */ new Map();
 function headersFile(name) {
   if (!headerFiles.has(name)) {
@@ -2819,8 +2868,8 @@ function headersFile(name) {
 }
 function ocmsNewer(b, a) {
   const v = (h) => {
-    var _a2, _b2, _c;
-    return ((_c = (_b2 = (_a2 = h == null ? void 0 : h["User-Agent"]) == null ? void 0 : _a2.match(/FBAV\/([\d.]+)/)) == null ? void 0 : _b2[1]) != null ? _c : "").split(".").map((n) => Number(n) || 0);
+    var _a3, _b3, _c;
+    return ((_c = (_b3 = (_a3 = h == null ? void 0 : h["User-Agent"]) == null ? void 0 : _a3.match(/FBAV\/([\d.]+)/)) == null ? void 0 : _b3[1]) != null ? _c : "").split(".").map((n) => Number(n) || 0);
   };
   const x = v(b);
   const y = v(a);
@@ -2841,14 +2890,14 @@ async function ocmsHeaders() {
   return latest && ocmsNewer(latest, fixed) ? latest : fixed;
 }
 function parseRepo(input) {
-  var _a2;
+  var _a3;
   const s = String(input != null ? input : "").trim();
-  const m = (_a2 = s.match(/^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:[/?#].*)?$/i)) != null ? _a2 : s.match(/^([\w.-]+)\/([\w.-]+?)(?:\.git)?$/);
+  const m = (_a3 = s.match(/^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:[/?#].*)?$/i)) != null ? _a3 : s.match(/^([\w.-]+)\/([\w.-]+?)(?:\.git)?$/);
   return m ? `${m[1]}/${m[2]}` : null;
 }
 var GITHUB_PAGES = 10;
 async function githubReleases(repo) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const all = [];
   let url = `https://api.github.com/repos/${repo}/releases?per_page=100`;
   for (let page = 0; url && page < GITHUB_PAGES; page++) {
@@ -2865,29 +2914,29 @@ async function githubReleases(repo) {
     }
     if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
     all.push(...await res.json());
-    url = (_c = (_b2 = ((_a2 = res.headers.get("link")) != null ? _a2 : "").match(/<([^>]+)>;\s*rel="next"/)) == null ? void 0 : _b2[1]) != null ? _c : null;
+    url = (_c = (_b3 = ((_a3 = res.headers.get("link")) != null ? _a3 : "").match(/<([^>]+)>;\s*rel="next"/)) == null ? void 0 : _b3[1]) != null ? _c : null;
   }
   return all.filter((r) => !r.draft).map((r) => {
-    var _a3, _b3;
+    var _a4, _b4;
     return {
       tag: r.tag_name,
       name: r.name || r.tag_name,
-      published: ((_a3 = r.published_at) != null ? _a3 : "").slice(0, 10),
+      published: ((_a4 = r.published_at) != null ? _a4 : "").slice(0, 10),
       prerelease: Boolean(r.prerelease),
       url: r.html_url,
-      assets: ((_b3 = r.assets) != null ? _b3 : []).filter((a) => /\.apk$/i.test(a.name)).map((a) => ({ id: String(a.id), name: a.name, size: a.size, url: a.browser_download_url }))
+      assets: ((_b4 = r.assets) != null ? _b4 : []).filter((a) => /\.apk$/i.test(a.name)).map((a) => ({ id: String(a.id), name: a.name, size: a.size, url: a.browser_download_url }))
     };
   }).filter((r) => r.assets.length);
 }
 async function storeNames(ids) {
-  var _a2;
+  var _a3;
   const list = [...new Set(ids.map(String))].filter(Boolean);
   if (!list.length) return /* @__PURE__ */ new Map();
   const { token } = loadSettings();
   const json = await getJSON(
     `${NODE}/?` + new URLSearchParams({ ids: list.join(","), fields: "display_name", access_token: token })
   );
-  if (json.error) throw new Error((_a2 = json.error.message) != null ? _a2 : "request rejected");
+  if (json.error) throw new Error((_a3 = json.error.message) != null ? _a3 : "request rejected");
   const out = /* @__PURE__ */ new Map();
   for (const [id, node] of Object.entries(json)) {
     if (node == null ? void 0 : node.display_name) out.set(String(id), node.display_name);
@@ -2895,18 +2944,32 @@ async function storeNames(ids) {
   return out;
 }
 async function lookupApp(id) {
-  var _a2, _b2;
+  var _a3, _b3, _c, _d, _e;
   const { token } = loadSettings();
   const meta = await getJSON(
     `${NODE}/${encodeURIComponent(id)}/?` + new URLSearchParams({ access_token: token, fields: "display_name,platform" })
   );
-  if (meta.error) throw new Error((_a2 = meta.error.message) != null ? _a2 : "app not found");
+  if (meta.error) throw new Error((_a3 = meta.error.message) != null ? _a3 : "app not found");
   const latest = await checkApp({ id });
+  const hmd = meta.platform === "PC" ? "RIFT" : "EUREKA";
+  let image = await appIcon(id, hmd);
+  if (!image) {
+    try {
+      const page = await appPage(id, hmd);
+      const byLabel = (label) => {
+        var _a4, _b4, _c2;
+        return (_c2 = (_b4 = (_a4 = page.media) == null ? void 0 : _a4.find((m) => m.label === label && m.uri)) == null ? void 0 : _b4.uri) != null ? _c2 : null;
+      };
+      image = (_d = (_c = (_b3 = byLabel("Poster")) != null ? _b3 : byLabel("Hero")) != null ? _c : byLabel("Trailer still")) != null ? _d : null;
+    } catch {
+    }
+  }
   return {
     id: String(id),
     name: meta.display_name,
     platform: meta.platform,
-    channels: (_b2 = latest.channels) != null ? _b2 : []
+    image,
+    channels: (_e = latest.channels) != null ? _e : []
   };
 }
 var SEARCH_DOC_ID = "3928907833885295";
@@ -2927,8 +2990,8 @@ var HMD_PLATFORM = {
   LAGUNA: "PC"
 };
 function extractApps(json, fallbackPlatform = null) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
-  const categories = (_c = (_b2 = (_a2 = json == null ? void 0 : json.data) == null ? void 0 : _a2.viewer) == null ? void 0 : _b2.contextual_search) == null ? void 0 : _c.all_category_results;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A;
+  const categories = (_c = (_b3 = (_a3 = json == null ? void 0 : json.data) == null ? void 0 : _a3.viewer) == null ? void 0 : _b3.contextual_search) == null ? void 0 : _c.all_category_results;
   if (!Array.isArray(categories)) return [];
   const out = /* @__PURE__ */ new Map();
   for (const category of categories) {
@@ -2953,7 +3016,10 @@ function extractApps(json, fallbackPlatform = null) {
         offerId: ((_n = app.current_offer) == null ? void 0 : _n.id) ? String(app.current_offer.id) : null,
         free: ((_p = (_o = app.current_offer) == null ? void 0 : _o.price) == null ? void 0 : _p.offset_amount) === "0",
         releasedAt: app.release_date ? new Date(app.release_date * 1e3).toISOString().slice(0, 10) : null,
-        image: (_r = (_q = app.cover_square_image) == null ? void 0 : _q.uri) != null ? _r : null,
+        /* Square cover first, then the launcher/VR icon, then the portrait poster
+           or the hero — some apps publish only one of these, so without the chain
+           their row is blank. Whatever the search node actually carries is used. */
+        image: (_A = (_z = (_x = (_u = (_s = (_q = app.cover_square_image) == null ? void 0 : _q.uri) != null ? _s : (_r = app.icon_image) == null ? void 0 : _r.uri) != null ? _u : (_t = app.vr_icon_image) == null ? void 0 : _t.uri) != null ? _x : (_w = (_v = app.mobilePoster) == null ? void 0 : _v.thumbnail) == null ? void 0 : _w.uri) != null ? _z : (_y = app.hero_image) == null ? void 0 : _y.uri) != null ? _A : null,
         media: nodeMedia(app)
       });
     }
@@ -2969,7 +3035,7 @@ var PATCH_ALGORITHMS = [
   "SUPERPACK_V1_NOSOURCE"
 ];
 async function appDetails(id) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
   const json = await storeQuery(DETAILS_DOC_ID, {
     params: {
       app_params: [
@@ -2990,21 +3056,21 @@ async function appDetails(id) {
     gpu_hash: ""
   }, { client: true });
   refuse(json, "The build manifest");
-  const update = (_c = (_b2 = (_a2 = json == null ? void 0 : json.data) == null ? void 0 : _a2.app_binary_updates) == null ? void 0 : _b2.updates) == null ? void 0 : _c[0];
+  const update = (_c = (_b3 = (_a3 = json == null ? void 0 : json.data) == null ? void 0 : _a3.app_binary_updates) == null ? void 0 : _b3.updates) == null ? void 0 : _c[0];
   const binary = update == null ? void 0 : update.new_binary;
   if (!binary) throw new Error("no binary manifest in the reply");
   const deps = (_g = (_f = (_e = (_d = update.application) == null ? void 0 : _d.latest_available_binary) == null ? void 0 : _e.dependency_configs) == null ? void 0 : _f.edges) != null ? _g : [];
   const depNodes = deps.map((e) => e.node);
   const requiredOs = (_h = depNodes.find(
     (n) => {
-      var _a3;
-      return /required_os_version/i.test((_a3 = n == null ? void 0 : n.identifier) != null ? _a3 : "");
+      var _a4;
+      return /required_os_version/i.test((_a4 = n == null ? void 0 : n.identifier) != null ? _a4 : "");
     }
   )) == null ? void 0 : _h.version;
   const requiredPsdk = (_i = depNodes.find(
     (n) => {
-      var _a3;
-      return /required_psdk_version/i.test((_a3 = n == null ? void 0 : n.identifier) != null ? _a3 : "");
+      var _a4;
+      return /required_psdk_version/i.test((_a4 = n == null ? void 0 : n.identifier) != null ? _a4 : "");
     }
   )) == null ? void 0 : _i.version;
   return {
@@ -3015,10 +3081,10 @@ async function appDetails(id) {
   };
 }
 function binaryFields(binary) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   return {
-    packageName: (_a2 = binary.package_name) != null ? _a2 : null,
-    version: (_b2 = binary.version) != null ? _b2 : null,
+    packageName: (_a3 = binary.package_name) != null ? _a3 : null,
+    version: (_b3 = binary.version) != null ? _b3 : null,
     versionCode: (_c = binary.version_code) != null ? _c : null,
     size: Number(binary.size) || null,
     requiredSpace: Number(binary.required_space) || null,
@@ -3035,13 +3101,13 @@ function binaryFields(binary) {
 }
 var BINARY_DOC_ID = "23514803210732035698740817391";
 async function binaryDetails(appId, versionCode) {
-  var _a2, _b2, _c, _d, _e, _f;
+  var _a3, _b3, _c, _d, _e, _f;
   const json = await storeQuery(BINARY_DOC_ID, {
     params: { app_params: [{ app_id: String(appId), version_code: String(versionCode) }] },
     fetch_fallback_uris: false
   }, { client: true });
   refuse(json, "Build details");
-  const binary = (_d = (_c = (_b2 = (_a2 = json == null ? void 0 : json.data) == null ? void 0 : _a2.app_binary_info) == null ? void 0 : _b2.info) == null ? void 0 : _c[0]) == null ? void 0 : _d.binary;
+  const binary = (_d = (_c = (_b3 = (_a3 = json == null ? void 0 : json.data) == null ? void 0 : _a3.app_binary_info) == null ? void 0 : _b3.info) == null ? void 0 : _c[0]) == null ? void 0 : _d.binary;
   if (!binary) throw new Error("the store has no details for this build");
   return {
     ...binaryFields(binary),
@@ -3058,7 +3124,7 @@ var PLAYER_MODES = {
 };
 var gb = (bytes) => Number(bytes) ? `${(Number(bytes) / 1024 ** 3).toFixed(2)} GB` : null;
 async function storeListing(id, hmdType = loadSettings().hmd) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
   const json = await storeQuery(STORE_DOC_ID, {
     hmdType,
     itemId: String(id),
@@ -3068,14 +3134,14 @@ async function storeListing(id, hmdType = loadSettings().hmd) {
     __relay_internal__pv__MDCAppStoreGenAIReviewSummaryEnabledrelayprovider: false
   });
   refuse(json, "The store listing");
-  const app = (_a2 = json == null ? void 0 : json.data) == null ? void 0 : _a2.app_store_item;
+  const app = (_a3 = json == null ? void 0 : json.data) == null ? void 0 : _a3.app_store_item;
   if (!app) throw new Error("no listing in the reply");
   if (app.genre_names === void 0 && app.category_name === void 0) {
     throw new Error(
       "the store sent the description but not the details \u2014 that half needs a logged-in access token, set on the Settings page"
     );
   }
-  const binary = (_b2 = app.latest_supported_binary) != null ? _b2 : {};
+  const binary = (_b3 = app.latest_supported_binary) != null ? _b3 : {};
   const count = app.quality_rating_i18n_count_string;
   return {
     name: (_c = app.display_name) != null ? _c : null,
@@ -3083,8 +3149,8 @@ async function storeListing(id, hmdType = loadSettings().hmd) {
     category: (_e = app.category_name) != null ? _e : null,
     modes: (_f = app.user_interaction_mode_names) != null ? _f : [],
     playerModes: ((_g = app.supported_player_modes) != null ? _g : []).map((m) => {
-      var _a3;
-      return (_a3 = PLAYER_MODES[m]) != null ? _a3 : words(m);
+      var _a4;
+      return (_a4 = PLAYER_MODES[m]) != null ? _a4 : words(m);
     }),
     controllers: (_h = app.supported_input_device_names) != null ? _h : [],
     platforms: (_i = app.supported_platforms_i18n) != null ? _i : [],
@@ -3104,8 +3170,8 @@ async function storeListing(id, hmdType = loadSettings().hmd) {
 }
 var OFFER_DOC_ID = "27653348084360166";
 var mediaSize = (uri) => {
-  var _a2, _b2;
-  return Number((_b2 = (_a2 = /_s(\d+)x/.exec(uri)) == null ? void 0 : _a2[1]) != null ? _b2 : 0);
+  var _a3, _b3;
+  return Number((_b3 = (_a3 = /_s(\d+)x/.exec(uri)) == null ? void 0 : _a3[1]) != null ? _b3 : 0);
 };
 function mediaKey(uri) {
   const [path, query = ""] = uri.split("?");
@@ -3124,10 +3190,10 @@ function mediaSet() {
     },
     list() {
       return [...found.values()].map((m) => {
-        var _a2;
+        var _a3;
         return {
           ...m,
-          width: (_a2 = m.width) != null ? _a2 : mediaSize(m.uri) || null
+          width: (_a3 = m.width) != null ? _a3 : mediaSize(m.uri) || null
         };
       });
     }
@@ -3156,11 +3222,11 @@ var IMAGE_FIELDS = {
   logo_image: "Logo"
 };
 function nodeMedia(node) {
-  var _a2;
+  var _a3;
   if (!node || typeof node !== "object") return [];
   const set = mediaSet();
   for (const [field, label] of Object.entries(IMAGE_FIELDS)) {
-    set.add(label, (_a2 = node[field]) == null ? void 0 : _a2.uri);
+    set.add(label, (_a3 = node[field]) == null ? void 0 : _a3.uri);
   }
   for (const [field, value] of Object.entries(node)) {
     if (field in IMAGE_FIELDS) continue;
@@ -3186,10 +3252,10 @@ var SPATIAL_THEMES = {
   aura: ["Tile background (Aura)", "Tile foreground (Aura)"]
 };
 async function spatialIcons(packageName) {
-  var _a2;
+  var _a3;
   if (!packageName) return [];
   const table = await spatialAssets();
-  const themes = (_a2 = table == null ? void 0 : table.apps) == null ? void 0 : _a2[packageName];
+  const themes = (_a3 = table == null ? void 0 : table.apps) == null ? void 0 : _a3[packageName];
   if (!themes) return [];
   const set = mediaSet();
   for (const [theme, entries] of Object.entries(themes)) {
@@ -3202,10 +3268,10 @@ async function spatialIcons(packageName) {
   return set.list();
 }
 function pageMedia(app) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j;
   const set = mediaSet();
-  set.add("Hero", (_a2 = app.hero_image) == null ? void 0 : _a2.uri);
-  ((_b2 = app.screenshots) != null ? _b2 : []).forEach(
+  set.add("Hero", (_a3 = app.hero_image) == null ? void 0 : _a3.uri);
+  ((_b3 = app.screenshots) != null ? _b3 : []).forEach(
     (shot, i) => set.add(`Screenshot ${i + 1}`, shot == null ? void 0 : shot.uri)
   );
   set.add("Poster", (_d = (_c = app.mobilePoster) == null ? void 0 : _c.thumbnail) == null ? void 0 : _d.uri);
@@ -3217,29 +3283,57 @@ function pageMedia(app) {
   return set.list();
 }
 async function appPage(id, hmdType = loadSettings().hmd) {
-  var _a2, _b2;
+  var _a3, _b3;
   const json = await storeQuery(OFFER_DOC_ID, { itemId: String(id), hmdType });
   refuse(json, "The app page");
-  const app = (_a2 = json == null ? void 0 : json.data) == null ? void 0 : _a2.app_store_item;
+  const app = (_a3 = json == null ? void 0 : json.data) == null ? void 0 : _a3.app_store_item;
   if (!app) throw new Error("no app in the reply");
   const offer = app.current_offer;
   return {
     offer: (offer == null ? void 0 : offer.id) ? {
       offerId: String(offer.id),
-      free: ((_b2 = offer.price) == null ? void 0 : _b2.offset_amount) === "0"
+      free: ((_b3 = offer.price) == null ? void 0 : _b3.offset_amount) === "0"
     } : null,
     media: pageMedia(app)
   };
 }
+var PDP_DOC_ID = "28952468254442061";
+var pdpVariables = (appID, hmdType) => ({
+  appID: String(appID),
+  hmdType,
+  encode: "JPEG",
+  LIBRARY_INFO_LAST_ACTIVE_WINDOW: -1,
+  SELECTED_DEVICE_SERIAL: null,
+  metaStoreCatalogID: "517700695939066",
+  shouldShowNewPostPurchaseCTAs: false,
+  shouldRenderRelatedItemsSubsection: false,
+  shouldShowUninstallAction: false,
+  __relay_internal__pv__loggingPriceTyperelayprovider: false,
+  __relay_internal__pv__showPremiumBundlerelayprovider: false,
+  __relay_internal__pv__showPreOrderBundlerelayprovider: false,
+  __relay_internal__pv__showExclusiveIapForBundlesrelayprovider: false,
+  __relay_internal__pv__horizonPlusBadgerelayprovider: false,
+  __relay_internal__pv__shouldEnableMetaCreditrelayprovider: false
+});
+async function appIcon(id, hmdType = "EUREKA") {
+  var _a3, _b3, _c, _d, _e;
+  try {
+    const json = await storeQuery(PDP_DOC_ID, pdpVariables(id, hmdType));
+    const it = (_a3 = json == null ? void 0 : json.data) == null ? void 0 : _a3.item;
+    return (_e = (_d = (_b3 = it == null ? void 0 : it.coverSquare) == null ? void 0 : _b3.uri) != null ? _d : (_c = it == null ? void 0 : it.coverLandscape) == null ? void 0 : _c.uri) != null ? _e : null;
+  } catch {
+    return null;
+  }
+}
 async function searchStore(query, { limit = 5, hmdType = "EUREKA" } = {}) {
-  var _a2;
+  var _a3;
   const json = await storeQuery(SEARCH_DOC_ID, {
     query,
     hmdType,
     firstSearchResultItems: limit
   });
   refuse(json, "Store search");
-  return extractApps(json, (_a2 = HMD_PLATFORM[hmdType]) != null ? _a2 : "ANDROID_6DOF").slice(0, limit);
+  return extractApps(json, (_a3 = HMD_PLATFORM[hmdType]) != null ? _a3 : "ANDROID_6DOF").slice(0, limit);
 }
 var DEFAULT_APPS_DOC_ID = "401634805713809711258408144";
 var DEFAULT_APPS_STORE_ID = "215871315640047";
@@ -3254,7 +3348,7 @@ var DEFAULT_APPS_VARS = {
   coverSquareImageSize: "360x360"
 };
 async function defaultApps(hmdType = "HOLLYWOOD", trigger = "AUTO_UPDATER") {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const json = await storeQuery(DEFAULT_APPS_DOC_ID, {
     hmd: hmdType,
     node_id: DEFAULT_APPS_STORE_ID,
@@ -3262,17 +3356,17 @@ async function defaultApps(hmdType = "HOLLYWOOD", trigger = "AUTO_UPDATER") {
     ...DEFAULT_APPS_VARS
   }, { client: true });
   refuse(json, "Default apps");
-  const nodes = (_c = (_b2 = (_a2 = json.data) == null ? void 0 : _a2.fetch__AppStore) == null ? void 0 : _b2.default_applications) != null ? _c : [];
+  const nodes = (_c = (_b3 = (_a3 = json.data) == null ? void 0 : _a3.fetch__AppStore) == null ? void 0 : _b3.default_applications) != null ? _c : [];
   return nodes.map(defaultAppRow);
 }
 function defaultAppRow(n) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i;
   const b = n.latest_supported_binary;
   return {
     id: String(n.id),
     name: n.display_name || n.package_name || String(n.id),
-    packageName: (_a2 = n.package_name) != null ? _a2 : null,
-    platform: (_b2 = n.platform) != null ? _b2 : null,
+    packageName: (_a3 = n.package_name) != null ? _a3 : null,
+    platform: (_b3 = n.platform) != null ? _b3 : null,
     image: (_f = (_e = (_c = n.cover_square_image) == null ? void 0 : _c.uri) != null ? _e : (_d = n.icon_image) == null ? void 0 : _d.uri) != null ? _f : null,
     /* This query asks for icon, landscape and square art by size, so a default
        app arrives with more than the one picture the row shows. */
@@ -3298,7 +3392,7 @@ function extractPackageIds(json, wanted) {
   const found = /* @__PURE__ */ new Map();
   const isId = (v) => typeof v === "string" && /^\d{8,}$/.test(v);
   (function walk(node) {
-    var _a2;
+    var _a3;
     if (!node || typeof node !== "object") return;
     if (Array.isArray(node)) {
       node.forEach(walk);
@@ -3312,7 +3406,7 @@ function extractPackageIds(json, wanted) {
       found.set(pkg, {
         id: String(id),
         name: display && display !== pkg ? display : null,
-        platform: (_a2 = node.platform) != null ? _a2 : "ANDROID_6DOF"
+        platform: (_a3 = node.platform) != null ? _a3 : "ANDROID_6DOF"
       });
     }
     values.forEach(walk);
@@ -3331,16 +3425,17 @@ async function lookupPackages(packageNames) {
   return found;
 }
 async function lookupByPackage(packageName) {
-  var _a2;
+  var _a3;
   const hit = (await lookupPackages([packageName])).get(packageName);
   if (!hit) throw new Error("no app matched that package name");
   const out = { id: hit.id, packageName, platform: hit.platform };
   if (hit.name) out.name = hit.name;
   try {
-    out.channels = (_a2 = (await checkApp({ id: out.id })).channels) != null ? _a2 : [];
+    out.channels = (_a3 = (await checkApp({ id: out.id })).channels) != null ? _a3 : [];
   } catch {
     out.channels = [];
   }
+  out.image = await appIcon(out.id, hit.platform === "PC" ? "RIFT" : "EUREKA");
   return out;
 }
 var ENTITLEMENTS_DOC_IDS = {
@@ -3370,14 +3465,14 @@ var ENTITLEMENTS_VARIABLES = {
 };
 var ENTITLEMENT_PAGES = 10;
 function entitlementApp(node, platform, owned = true) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
   const app = node == null ? void 0 : node.item;
   if (!(app == null ? void 0 : app.id)) return null;
-  const binary = (_a2 = app.latest_supported_binary) != null ? _a2 : null;
+  const binary = (_a3 = app.latest_supported_binary) != null ? _a3 : null;
   return {
     id: String(app.id),
     name: app.display_name || app.package_name || String(app.id),
-    packageName: (_b2 = app.package_name) != null ? _b2 : null,
+    packageName: (_b3 = app.package_name) != null ? _b3 : null,
     /* Each library is one store's worth, so the query answers this rather than
        the row — unless the reply says otherwise for itself. */
     platform: (_c = app.platform) != null ? _c : platform,
@@ -3406,13 +3501,13 @@ function entitlementApp(node, platform, owned = true) {
   };
 }
 function entitlementConnection(json) {
-  var _a2, _b2;
-  const root = (_a2 = json == null ? void 0 : json.data) == null ? void 0 : _a2.entitlements;
+  var _a3, _b3;
+  const root = (_a3 = json == null ? void 0 : json.data) == null ? void 0 : _a3.entitlements;
   if (!root || typeof root !== "object") return null;
-  return (_b2 = Object.values(root).find((v) => v && Array.isArray(v.edges))) != null ? _b2 : null;
+  return (_b3 = Object.values(root).find((v) => v && Array.isArray(v.edges))) != null ? _b3 : null;
 }
 async function myEntitlements(kind = "quest") {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const clientDocId = ENTITLEMENTS_DOC_IDS[kind];
   if (!clientDocId) throw new Error(`no entitlements query for "${kind}"`);
   const platform = kind === "pc" ? "PC" : "ANDROID_6DOF";
@@ -3430,20 +3525,20 @@ async function myEntitlements(kind = "quest") {
         "the store returned no entitlements list \u2014 this one needs an access token belonging to a logged-in account, set on the Settings page"
       );
     }
-    for (const edge of (_a2 = list.edges) != null ? _a2 : []) {
+    for (const edge of (_a3 = list.edges) != null ? _a3 : []) {
       const app = entitlementApp(edge == null ? void 0 : edge.node, platform, kind !== "expired");
       if (app && !out.has(app.id)) out.set(app.id, app);
     }
-    if (!((_b2 = list.page_info) == null ? void 0 : _b2.has_next_page)) break;
+    if (!((_b3 = list.page_info) == null ? void 0 : _b3.has_next_page)) break;
     cursor = (_c = list.page_info.end_cursor) != null ? _c : null;
     if (!cursor) break;
   }
   return [...out.values()];
 }
 function accountError(json, what) {
-  var _a2, _b2, _c;
-  if ((_a2 = json.errors) == null ? void 0 : _a2.length) {
-    const msg = (_b2 = json.errors[0].message) != null ? _b2 : "query refused";
+  var _a3, _b3, _c;
+  if ((_a3 = json.errors) == null ? void 0 : _a3.length) {
+    const msg = (_b3 = json.errors[0].message) != null ? _b3 : "query refused";
     return new Error(
       /logged out|unauthorized/i.test(msg) ? `${msg} ${what} needs your own access token, set on the Settings page.` : msg
     );
@@ -3466,14 +3561,14 @@ async function storeQuery(id, variables, { client = false } = {}) {
   );
 }
 async function accountQuery(clientDocId, variables, what) {
-  var _a2;
+  var _a3;
   const json = await storeQuery(clientDocId, variables, { client: true });
   refuse(json, what);
-  return (_a2 = json.data) != null ? _a2 : {};
+  return (_a3 = json.data) != null ? _a3 : {};
 }
 var RELEASE_CHANNELS_DOC_ID = "18030355666629348722465830248";
 async function myReleaseChannels(appId) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   if (loadSettings().token === DEFAULT_TOKEN) return null;
   const data = await accountQuery(
     RELEASE_CHANNELS_DOC_ID,
@@ -3483,15 +3578,15 @@ async function myReleaseChannels(appId) {
   const app = data.fetch__Application;
   if (!app) return null;
   return {
-    current: ((_a2 = app.viewer_release_channel) == null ? void 0 : _a2.id) ? String(app.viewer_release_channel.id) : null,
-    channels: ((_c = (_b2 = app.release_channels) == null ? void 0 : _b2.edges) != null ? _c : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
-      var _a3, _b3, _c2, _d, _e;
+    current: ((_a3 = app.viewer_release_channel) == null ? void 0 : _a3.id) ? String(app.viewer_release_channel.id) : null,
+    channels: ((_c = (_b3 = app.release_channels) == null ? void 0 : _b3.edges) != null ? _c : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
+      var _a4, _b4, _c2, _d, _e;
       return {
         id: String(n.id),
-        name: (_a3 = n.channel_name) != null ? _a3 : String(n.id),
+        name: (_a4 = n.channel_name) != null ? _a4 : String(n.id),
         live: Boolean(n.is_live),
         public: Boolean(n.is_public),
-        version: (_c2 = (_b3 = n.latest_supported_binary) == null ? void 0 : _b3.version) != null ? _c2 : null,
+        version: (_c2 = (_b4 = n.latest_supported_binary) == null ? void 0 : _b4.version) != null ? _c2 : null,
         versionCode: (_e = (_d = n.latest_supported_binary) == null ? void 0 : _d.version_code) != null ? _e : null
       };
     })
@@ -3499,38 +3594,38 @@ async function myReleaseChannels(appId) {
 }
 var PLAYTIME_DOC_ID = "73337722012186324592102292727";
 async function headsetPlaytime(serial) {
-  var _a2;
+  var _a3;
   const data = await accountQuery(
     PLAYTIME_DOC_ID,
     { input: { device_serial: serial } },
     "Playtime"
   );
-  return ((_a2 = data.xoc_user_installed_app_time_spent) != null ? _a2 : []).filter((r) => {
-    var _a3;
-    return (_a3 = r == null ? void 0 : r.platform_app) == null ? void 0 : _a3.id;
+  return ((_a3 = data.xoc_user_installed_app_time_spent) != null ? _a3 : []).filter((r) => {
+    var _a4;
+    return (_a4 = r == null ? void 0 : r.platform_app) == null ? void 0 : _a4.id;
   }).map((r) => {
-    var _a3;
+    var _a4;
     return {
       appId: String(r.platform_app.id),
-      packageName: (_a3 = r.platform_app.package_name) != null ? _a3 : null,
+      packageName: (_a4 = r.platform_app.package_name) != null ? _a4 : null,
       seconds: Number(r.immersive_time_spent_sec_28d) || 0
     };
   });
 }
 var CLOUD_BACKUPS_DOC_ID = "212972260414518954213137032242";
 async function cloudBackups(serials) {
-  var _a2, _b2;
+  var _a3, _b3;
   const data = await accountQuery(
     CLOUD_BACKUPS_DOC_ID,
     { input: { device_serials: serials, application_ids: [] } },
     "Cloud backups"
   );
-  return ((_b2 = (_a2 = data.xoc_oculus_cloud_backups) == null ? void 0 : _a2.edges) != null ? _b2 : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
-    var _a3, _b3, _c, _d, _e;
+  return ((_b3 = (_a3 = data.xoc_oculus_cloud_backups) == null ? void 0 : _a3.edges) != null ? _b3 : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
+    var _a4, _b4, _c, _d, _e;
     return {
       id: String(n.id),
-      appId: ((_a3 = n.application) == null ? void 0 : _a3.id) ? String(n.application.id) : null,
-      packageName: (_c = (_b3 = n.application) == null ? void 0 : _b3.package_name) != null ? _c : null,
+      appId: ((_a4 = n.application) == null ? void 0 : _a4.id) ? String(n.application.id) : null,
+      packageName: (_c = (_b4 = n.application) == null ? void 0 : _b4.package_name) != null ? _c : null,
       serial: (_d = n.device_serial) != null ? _d : null,
       size: Number(n.file_size) || 0,
       /* Seconds since the epoch. */
@@ -3543,67 +3638,81 @@ async function cloudBackups(serials) {
 var BACKUP_RULES_DOC_ID = "24749575598037757";
 var FETCH_BACKUP_DOC_ID = "27955676008592068447410816227";
 async function fetchCloudBackup(backupId) {
+  var _a3, _b3, _c, _d;
   const json = await storeQuery(FETCH_BACKUP_DOC_ID, { id: String(backupId) }, { client: true });
   refuse(json, "Backup details");
-  let downloadUri, size, checksum, type, time, segments, fallbacks;
-  (function walk(n) {
+  let size, checksum, type, time, segments, fallbacks;
+  const links = [];
+  const fields = /* @__PURE__ */ new Set();
+  (function walk(n, path) {
     if (!n || typeof n !== "object") return;
     for (const [k, v] of Object.entries(n)) {
+      const p = path ? `${path}.${k}` : k;
+      if (!/^\d+$/.test(k)) fields.add(k);
       if (typeof v === "string") {
-        if (/^download_ur[il]$/i.test(k) && !downloadUri) downloadUri = v;
-        else if (/(checksum|sha256)/i.test(k) && !checksum) checksum = v;
+        if (/^https?:\/\//i.test(v) && !/image|icon|photo|thumbnail|cover|logo|avatar/i.test(p)) {
+          links.push({ path: p, key: k, url: v });
+        } else if (/(checksum|sha256)/i.test(k) && !checksum) checksum = v;
         else if (/backup_type/i.test(k) && !type) type = v;
       } else if (typeof v === "number") {
         if (/(file|total)_size/i.test(k) && !size) size = v;
         else if (/backup_time/i.test(k) && time == null) time = v;
       } else if (Array.isArray(v)) {
-        if (/fallback.*url/i.test(k) && !fallbacks) fallbacks = v.filter((x) => typeof x === "string");
+        if (/fallback/i.test(k) && !fallbacks) fallbacks = v.filter((x) => typeof x === "string");
         else if (/segment/i.test(k) && segments == null) segments = v.length;
       }
-      walk(v);
+      walk(v, p);
     }
-  })(json.data);
-  if (!downloadUri && size == null) throw new Error("the store returned no details for this backup");
+  })(json.data, "");
+  const inSegment = (l) => /segment/i.test(l.path);
+  const segmentUris = links.filter(inSegment).map((l) => l.url);
+  const whole = links.filter((l) => !inSegment(l) && !/fallback/i.test(l.path));
+  const downloadUri = (_d = (_c = (_a3 = whole.find((l) => /download/i.test(l.key))) == null ? void 0 : _a3.url) != null ? _c : (_b3 = whole.find((l) => /ur[il]$/i.test(l.key))) == null ? void 0 : _b3.url) != null ? _d : whole.length === 1 ? whole[0].url : null;
+  if (!downloadUri && !segmentUris.length && size == null) throw new Error("the store returned no details for this backup");
   return {
     downloadUri: downloadUri != null ? downloadUri : null,
+    segmentUris,
     fallbackUris: fallbacks != null ? fallbacks : [],
     size: Number(size) || null,
     checksum: checksum != null ? checksum : null,
     type: type != null ? type : null,
     backedUpAt: Number(time) || null,
-    segments: segments != null ? segments : null,
+    segments: segments != null ? segments : segmentUris.length || null,
+    /* Only what the reply was made of — names, never values — for when no address
+       turns up. */
+    fields: [...fields].sort(),
     encrypted: true
   };
 }
 async function backupRules(appId) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const json = await storeQuery(BACKUP_RULES_DOC_ID, { applicationID: String(appId) });
   refuse(json, "Backup settings");
-  const node = (_a2 = json.data) == null ? void 0 : _a2.node;
+  const node = (_a3 = json.data) == null ? void 0 : _a3.node;
   if (!node) throw new Error("the store did not say how this app is backed up");
   return {
     enabled: typeof node.cloud_backup_enabled === "boolean" ? node.cloud_backup_enabled : null,
-    excluded: ((_c = (_b2 = node.cloud_backup_rules) == null ? void 0 : _b2.excluded_file_paths) != null ? _c : []).filter((p) => typeof p === "string" && p)
+    excluded: ((_c = (_b3 = node.cloud_backup_rules) == null ? void 0 : _b3.excluded_file_paths) != null ? _c : []).filter((p) => typeof p === "string" && p)
   };
 }
 var SAVED_WORLDS_DOC_ID = "27679804063342994800600718755";
 async function savedWorlds() {
-  var _a2, _b2;
+  var _a3, _b3;
   const data = await accountQuery(
     SAVED_WORLDS_DOC_ID,
     { coverSquareImageSize: 225 },
     "Saved worlds"
   );
-  const saved = (_a2 = data.me) == null ? void 0 : _a2.horizon_saved_worlds;
-  const worlds = ((_b2 = saved == null ? void 0 : saved.edges) != null ? _b2 : []).map((e) => {
-    var _a3;
-    return (_a3 = e == null ? void 0 : e.node) == null ? void 0 : _a3.horizon_world;
+  const saved = (_a3 = data.me) == null ? void 0 : _a3.horizon_saved_worlds;
+  const worlds = ((_b3 = saved == null ? void 0 : saved.edges) != null ? _b3 : []).map((e) => {
+    var _a4;
+    return (_a4 = e == null ? void 0 : e.node) == null ? void 0 : _a4.horizon_world;
   }).filter((w) => w == null ? void 0 : w.id).map((w) => {
-    var _a3, _b3, _c, _d, _e;
+    var _a4, _b4, _c, _d, _e;
     return {
       id: String(w.id),
       name: w.name || String(w.id),
-      image: (_d = (_c = (_a3 = w.square_image) == null ? void 0 : _a3.image_uri) != null ? _c : (_b3 = w.image) == null ? void 0 : _b3.image_uri) != null ? _d : null,
+      image: (_d = (_c = (_a4 = w.square_image) == null ? void 0 : _a4.image_uri) != null ? _c : (_b4 = w.image) == null ? void 0 : _b4.image_uri) != null ? _d : null,
       /* The world's place in the VR shell, which the details query is keyed by. */
       destinationId: ((_e = w.oc_destination) == null ? void 0 : _e.id) ? String(w.oc_destination.id) : null
     };
@@ -3613,36 +3722,36 @@ async function savedWorlds() {
 var WORLD_DESTINATION_DOC_ID = "20471214089623756944511508210";
 var WORLD_DOC_ID = "55217164010924076863732658967";
 async function lookupWorld(id) {
-  var _a2, _b2, _c, _d, _e;
+  var _a3, _b3, _c, _d, _e;
   const data = await accountQuery(WORLD_DOC_ID, { id: String(id), coverSquareImageSize: 225 }, "World lookup");
   const w = data.fetch__XFBHorizonWorld;
   if (!(w == null ? void 0 : w.id)) throw new Error("no Horizon world has that ID");
   return {
     id: String(w.id),
     name: w.name || String(w.id),
-    image: (_d = (_c = (_a2 = w.square_image) == null ? void 0 : _a2.image_uri) != null ? _c : (_b2 = w.image) == null ? void 0 : _b2.image_uri) != null ? _d : null,
+    image: (_d = (_c = (_a3 = w.square_image) == null ? void 0 : _a3.image_uri) != null ? _c : (_b3 = w.image) == null ? void 0 : _b3.image_uri) != null ? _d : null,
     destinationId: ((_e = w.oc_destination) == null ? void 0 : _e.id) ? String(w.oc_destination.id) : null
   };
 }
 function parseWorldId(input) {
-  var _a2;
+  var _a3;
   const text = String(input).trim();
   if (/^\d{5,}$/.test(text)) return text;
-  const m = (_a2 = text.match(/world\/(?:[^/?#]*\/)?(\d{5,})/i)) != null ? _a2 : text.match(/(\d{8,})/);
+  const m = (_a3 = text.match(/world\/(?:[^/?#]*\/)?(\d{5,})/i)) != null ? _a3 : text.match(/(\d{8,})/);
   return m ? m[1] : null;
 }
 function worldImages(w) {
-  var _a2, _b2, _c, _d, _e;
+  var _a3, _b3, _c, _d, _e;
   return [
-    ["Cover", (_a2 = w == null ? void 0 : w.image) == null ? void 0 : _a2.image_uri],
-    ["Square", (_b2 = w == null ? void 0 : w.square_image) == null ? void 0 : _b2.image_uri],
+    ["Cover", (_a3 = w == null ? void 0 : w.image) == null ? void 0 : _a3.image_uri],
+    ["Square", (_b3 = w == null ? void 0 : w.square_image) == null ? void 0 : _b3.image_uri],
     ["Travel preview", (_c = w == null ? void 0 : w.travel_preview_img) == null ? void 0 : _c.image_uri],
     ["Portal", (_d = w == null ? void 0 : w.portal_img) == null ? void 0 : _d.image_uri],
     ["Portal fallback", (_e = w == null ? void 0 : w.portal_fallback_img) == null ? void 0 : _e.image_uri]
   ].filter(([, uri]) => uri).map(([label, uri]) => ({ label, uri }));
 }
 async function worldDestination(destinationId) {
-  var _a2, _b2, _c, _d;
+  var _a3, _b3, _c, _d;
   const data = await accountQuery(
     WORLD_DESTINATION_DOC_ID,
     { id: destinationId, coverSquareImageSize: 225 },
@@ -3651,9 +3760,11 @@ async function worldDestination(destinationId) {
   const d = data.fetch__ApplicationPresenceStatusDefinition;
   if (!d) throw new Error("the store has no details for this world");
   return {
-    world: (_a2 = d.horizon_world) != null ? _a2 : null,
+    world: (_a3 = d.horizon_world) != null ? _a3 : null,
     details: {
-      destinationId: (_b2 = d.destination_id) != null ? _b2 : destinationId,
+      destinationId: (_b3 = d.destination_id) != null ? _b3 : destinationId,
+      /* The store's id for the destination, which its similar-worlds list is keyed by. */
+      storeDestinationId: d.app_store_destination_id ? String(d.app_store_destination_id) : null,
       /* Seconds since the epoch, when the account has been there at all. */
       lastVisit: Number(d.last_visit_time) || null,
       launchLink: (_c = d.launch_deeplink) != null ? _c : null,
@@ -3682,7 +3793,7 @@ var WORLD_PORTAL_INFO_DOC_ID = "24888047720798282";
 var HORIZON_APP_ID = "2057013231240274";
 var bool = (v) => typeof v === "boolean" ? v : null;
 async function worldFlags(id) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A;
   const [content, streaming, door, xscreen, portal, info] = await Promise.allSettled([
     accountQuery(WORLD_CONTENT_DOC_ID, { world_id: String(id) }, "World details"),
     accountQuery(WORLD_STREAMING_DOC_ID, { worldId: String(id) }, "World details"),
@@ -3695,8 +3806,8 @@ async function worldFlags(id) {
     relayQuery(WORLD_DOORS_DOC_ID, { ids: [String(id)] }, "World details"),
     relayQuery(WORLD_PORTAL_INFO_DOC_ID, { id: String(id) }, "World details")
   ]);
-  const i = (_a2 = info.value) == null ? void 0 : _a2.world;
-  const p = (_d = (_c = (_b2 = portal.value) == null ? void 0 : _b2.multifetch__XFBHorizonWorld) == null ? void 0 : _c[0]) == null ? void 0 : _d.node;
+  const i = (_a3 = info.value) == null ? void 0 : _a3.world;
+  const p = (_d = (_c = (_b3 = portal.value) == null ? void 0 : _b3.multifetch__XFBHorizonWorld) == null ? void 0 : _c[0]) == null ? void 0 : _d.node;
   const capacity = Number(p == null ? void 0 : p.capacity);
   const d = (_e = door.value) == null ? void 0 : _e.fetch__XFBHorizonWorld;
   const x = (_f = xscreen.value) == null ? void 0 : _f.fetch__XFBHorizonWorld;
@@ -3731,9 +3842,9 @@ async function relayQuery(docId, variables, what) {
 }
 var HZW_FLAGS = { __relay_internal__pv__showSocialContextInHzwFeedsrelayprovider: false };
 function worldTile(edge) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
-  const t = (_a2 = edge == null ? void 0 : edge.node) == null ? void 0 : _a2.target_object;
-  if (!/World/.test((_b2 = t == null ? void 0 : t.__typename) != null ? _b2 : "")) return null;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i;
+  const t = (_a3 = edge == null ? void 0 : edge.node) == null ? void 0 : _a3.target_object;
+  if (!/World/.test((_b3 = t == null ? void 0 : t.__typename) != null ? _b3 : "")) return null;
   const dest = t.vr_destination;
   const id = (_d = (_c = dest == null ? void 0 : dest.horizon_world) == null ? void 0 : _c.id) != null ? _d : t.id;
   if (!id) return null;
@@ -3748,10 +3859,10 @@ function worldTile(edge) {
   };
 }
 function worldPage(conn) {
-  var _a2, _b2;
+  var _a3, _b3;
   return {
-    worlds: ((_a2 = conn == null ? void 0 : conn.edges) != null ? _a2 : []).map(worldTile).filter(Boolean),
-    cursor: ((_b2 = conn == null ? void 0 : conn.page_info) == null ? void 0 : _b2.has_next_page) ? conn.page_info.end_cursor : null
+    worlds: ((_a3 = conn == null ? void 0 : conn.edges) != null ? _a3 : []).map(worldTile).filter(Boolean),
+    cursor: ((_b3 = conn == null ? void 0 : conn.page_info) == null ? void 0 : _b3.has_next_page) ? conn.page_info.end_cursor : null
   };
 }
 var WORLD_SHELF_DOC_ID = "26668802406145854";
@@ -3774,20 +3885,51 @@ var WORLD_SHELVES = [
   ["HORIZON_TWILIGHT_RACING_WORLDS", "Racing"],
   ["HORIZON_TWILIGHT_SIMULATION_WORLDS", "Simulation"],
   ["HORIZON_TWILIGHT_SPORTS_WORLDS", "Sports"],
-  ["HORIZON_TWILIGHT_STORY_WORLDS", "Story"]
+  ["HORIZON_TWILIGHT_STORY_WORLDS", "Story"],
+  /* Not a shelf: the headset's own Worlds feed (HorizonWorldsFeedQuery), one page. */
+  ["HEADSET_FEED", "Your headset's feed"]
 ];
+var WORLD_FEED_DOC_ID = "18313389642418814290992361446";
+async function worldFeed() {
+  var _a3, _b3, _c;
+  const d = await accountRead(WORLD_FEED_DOC_ID);
+  const worlds = ((_c = (_b3 = (_a3 = d.viewer) == null ? void 0 : _a3.hubble) == null ? void 0 : _b3.edges) != null ? _c : []).map((e) => e == null ? void 0 : e.node).filter((n) => {
+    var _a4;
+    return ((_a4 = n == null ? void 0 : n.target_object) == null ? void 0 : _a4.id) || (n == null ? void 0 : n.target_object_id);
+  }).map((n) => {
+    var _a4, _b4, _c2, _d, _e, _f, _g, _h, _i, _j, _k;
+    const dest = String((_b4 = (_a4 = n.target_object) == null ? void 0 : _a4.id) != null ? _b4 : n.target_object_id);
+    let link = (_d = (_c2 = n.cta_info) == null ? void 0 : _c2.oculus_deeplink) != null ? _d : "";
+    try {
+      link = (_g = (_f = (_e = JSON.parse(link)) == null ? void 0 : _e.ovr_social_launch) == null ? void 0 : _f.deeplink_message) != null ? _g : link;
+    } catch {
+    }
+    const worldId = (_i = (_h = String(link).match(/world_id=(\d+)/)) == null ? void 0 : _h[1]) != null ? _i : null;
+    return {
+      id: worldId != null ? worldId : dest,
+      name: n.title || worldId || dest,
+      image: (_k = (_j = n.thumbnail_image) == null ? void 0 : _j.uri) != null ? _k : null,
+      destinationId: dest,
+      visits: null,
+      online: null,
+      likes: null
+    };
+  });
+  return { worlds, cursor: null };
+}
 async function worldShelf(feedSource, cursor = null) {
-  var _a2, _b2;
+  var _a3, _b3;
+  if (feedSource === "HEADSET_FEED") return worldFeed();
   const data = await relayQuery(
     WORLD_SHELF_DOC_ID,
     { count: 30, cursor, feedSource, ...HZW_FLAGS },
     "Top worlds"
   );
-  return worldPage((_b2 = (_a2 = data.viewer) == null ? void 0 : _a2.pipelines) == null ? void 0 : _b2.popular);
+  return worldPage((_b3 = (_a3 = data.viewer) == null ? void 0 : _a3.pipelines) == null ? void 0 : _b3.popular);
 }
 var PEOPLE_SEARCH_DOC_ID = "26529290379993220";
 async function searchPeople(text) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const data = await relayQuery(
     PEOPLE_SEARCH_DOC_ID,
     {
@@ -3798,23 +3940,23 @@ async function searchPeople(text) {
     },
     "People search"
   );
-  return ((_c = (_b2 = (_a2 = data.user_search) == null ? void 0 : _a2.results) == null ? void 0 : _b2.edges) != null ? _c : []).map((e) => {
-    var _a3;
-    return (_a3 = e == null ? void 0 : e.node) == null ? void 0 : _a3.user;
+  return ((_c = (_b3 = (_a3 = data.user_search) == null ? void 0 : _a3.results) == null ? void 0 : _b3.edges) != null ? _c : []).map((e) => {
+    var _a4;
+    return (_a4 = e == null ? void 0 : e.node) == null ? void 0 : _a4.user;
   }).filter((u) => u == null ? void 0 : u.id).map((u) => {
-    var _a3, _b3;
-    return { id: String(u.id), alias: (_a3 = u.alias) != null ? _a3 : null, name: (_b3 = u.display_name) != null ? _b3 : null };
+    var _a4, _b4;
+    return { id: String(u.id), alias: (_a4 = u.alias) != null ? _a4 : null, name: (_b4 = u.display_name) != null ? _b4 : null };
   });
 }
 var PUBLISHED_WORLDS_DOC_ID = "26869339619355285";
 async function publishedWorlds(userId, cursor = null) {
-  var _a2, _b2;
+  var _a3, _b3;
   const data = await relayQuery(
     PUBLISHED_WORLDS_DOC_ID,
     { count: 30, cursor, userID: String(userId), ...HZW_FLAGS },
     "Published worlds"
   );
-  return worldPage((_b2 = (_a2 = data.user) == null ? void 0 : _a2.world_data) == null ? void 0 : _b2.published_worlds_list);
+  return worldPage((_b3 = (_a3 = data.user) == null ? void 0 : _a3.world_data) == null ? void 0 : _b3.published_worlds_list);
 }
 var REVIEWS_SUMMARY_DOC_ID = "29127926413476795";
 var REVIEWS_LIST_DOC_ID = "27358267370522650";
@@ -3823,7 +3965,7 @@ var REVIEW_SORTS = [
   ["most_recent", "Most recent"]
 ];
 async function appReviewSummary(appId) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const data = await relayQuery(
     REVIEWS_SUMMARY_DOC_ID,
     { itemID: String(appId), ratingScores: null, sortOrder: null },
@@ -3831,11 +3973,11 @@ async function appReviewSummary(appId) {
   );
   const it = data.item;
   if (!it) throw new Error("the store has no page for this app");
-  const histogram = ((_a2 = it.quality_rating_histogram_aggregate_all) != null ? _a2 : []).map((h) => ({ star: Number(h == null ? void 0 : h.star_rating), count: Number(h == null ? void 0 : h.count) || 0 })).filter((h) => h.star >= 1 && h.star <= 5).sort((a, b) => b.star - a.star);
+  const histogram = ((_a3 = it.quality_rating_histogram_aggregate_all) != null ? _a3 : []).map((h) => ({ star: Number(h == null ? void 0 : h.star_rating), count: Number(h == null ? void 0 : h.count) || 0 })).filter((h) => h.star >= 1 && h.star <= 5).sort((a, b) => b.star - a.star);
   const ratingCount = Number(it.quality_rating_count);
   return {
     score: typeof it.quality_rating_score === "number" ? it.quality_rating_score : null,
-    scoreText: (_b2 = it.quality_rating_i18n_score_string) != null ? _b2 : null,
+    scoreText: (_b3 = it.quality_rating_i18n_score_string) != null ? _b3 : null,
     ratingCount: Number.isFinite(ratingCount) ? ratingCount : null,
     ratingCountText: (_c = it.quality_rating_i18n_count_string) != null ? _c : null,
     reviewCount: Number(it.quality_review_count) || 0,
@@ -3844,19 +3986,19 @@ async function appReviewSummary(appId) {
   };
 }
 async function appReviews(appId, { count = 15, cursor = null, sort = "top" } = {}) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const data = await relayQuery(
     REVIEWS_LIST_DOC_ID,
     { count, cursor, id: String(appId), itemID: String(appId), rating_scores: null, sort_order: sort },
     "App reviews"
   );
-  const conn = (_a2 = data.node) == null ? void 0 : _a2.user_reviews2;
-  const reviews = ((_b2 = conn == null ? void 0 : conn.edges) != null ? _b2 : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
-    var _a3, _b3, _c2, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
+  const conn = (_a3 = data.node) == null ? void 0 : _a3.user_reviews2;
+  const reviews = ((_b3 = conn == null ? void 0 : conn.edges) != null ? _b3 : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
+    var _a4, _b4, _c2, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
     const dr = n.developer_response;
     return {
       id: String(n.id),
-      title: (_b3 = (_a3 = n.translated_review_title) != null ? _a3 : n.review_title) != null ? _b3 : null,
+      title: (_b4 = (_a4 = n.translated_review_title) != null ? _a4 : n.review_title) != null ? _b4 : null,
       body: (_d = (_c2 = n.translated_review_description) != null ? _c2 : n.review_description) != null ? _d : null,
       score: Number(n.score) || null,
       helpful: Number(n.review_helpful_count) || 0,
@@ -3879,9 +4021,9 @@ async function appReviews(appId, { count = 15, cursor = null, sort = "top" } = {
 }
 var RELEASE_NOTES_DOC_ID = "9533163156782107";
 async function releaseNotes(appId) {
-  var _a2, _b2, _c, _d, _e, _f;
+  var _a3, _b3, _c, _d, _e, _f;
   const data = await relayQuery(RELEASE_NOTES_DOC_ID, { id: String(appId) }, "Release notes");
-  const edges = (_c = (_b2 = (_a2 = data.node) == null ? void 0 : _a2.supportedBinaries) == null ? void 0 : _b2.edges) != null ? _c : [];
+  const edges = (_c = (_b3 = (_a3 = data.node) == null ? void 0 : _a3.supportedBinaries) == null ? void 0 : _b3.edges) != null ? _c : [];
   const map = /* @__PURE__ */ new Map();
   for (const e of edges) {
     const n = e == null ? void 0 : e.node;
@@ -3898,8 +4040,8 @@ function viewerId() {
   if (viewer.token !== token) {
     const entry = { token, id: null };
     entry.id = relayQuery(VIEWER_DOC_ID, {}, "Account").then((data) => {
-      var _a2, _b2;
-      const id = (_b2 = (_a2 = data.viewer) == null ? void 0 : _a2.user) == null ? void 0 : _b2.id;
+      var _a3, _b3;
+      const id = (_b3 = (_a3 = data.viewer) == null ? void 0 : _a3.user) == null ? void 0 : _b3.id;
       if (!id) throw new Error("the store would not say who this token belongs to");
       return String(id);
     });
@@ -3910,6 +4052,737 @@ function viewerId() {
   }
   return viewer.id;
 }
+var ACCOUNT_DOC = {
+  /* HorizonMyUserProfileQuery: id, email, name, alias, profile photo. */
+  profile: "15781071945474818381929742825",
+  /* IsSalsaQuery: is_salsa, and the account's age (frlm_age). */
+  salsa: "11463303871393809524197000268",
+  /* UserAccountQuery: whether the account is a developer account. */
+  account: "31772769717381786053600513641",
+  /* LivestreamCheckFbAccountLinkedQuery: whether a Facebook account is linked. */
+  facebook: "13622734023337182406839690626",
+  /* IntegrityProfileCCVEStatusQuery: policy violations on the profile. */
+  standing: "113253097215972460514425058861",
+  /* PrivateProfile: the account's privacy settings — asked only when the audience
+     query below is refused. */
+  privacy: "413585144715035790835233513414",
+  /* UserStatusQuery: the active-status setting — likewise only a fallback. */
+  status: "281760966115686460002451747815",
+  /* AudienceAndVisibilityQuery: every audience setting with the choice it is set to,
+     in the words the headset's Settings shows. Supersedes privacy + status when it answers. */
+  audience: "61321609115891111603464934425",
+  /* OCVoiceChannelQuery: who can talk to you by default, and whether a parent set it. */
+  voice: "296047381212925687328552986458",
+  /* XMFCFetaSupervisionNotificationSettingsQuery: supervision notifications — asked
+     only for a supervised (Salsa) account, where it means something. */
+  supervision: "8021600106917781191779105",
+  /* OCCommunityCreationEligibility: which kinds of community you may create. */
+  communities: "39795877206476994265164377408",
+  /* HorizonPlusSubscriptionStatusQuery: whether this account has Horizon+ now. */
+  horizonPlus: "159912708818125870982669045338",
+  /* ProfileBackgroundQuery: the picture behind your profile — only with images on. */
+  background: "8892860606036005149334457836"
+};
+var accountTokenOk = null;
+async function accountRead(docId, variables = {}, { plain = false, endpoint = ENDPOINT } = {}) {
+  var _a3, _b3, _c, _d, _e, _f;
+  const { token, frlToken } = loadSettings();
+  const tokens = [.../* @__PURE__ */ new Set([(frlToken || "").trim(), (token || "").trim()])].filter(
+    (t) => t && !t.includes("|")
+  );
+  if (accountTokenOk && tokens.includes(accountTokenOk)) tokens.sort((a, b) => (b === accountTokenOk) - (a === accountTokenOk));
+  let last = "no signed-in token saved";
+  for (const t of tokens) {
+    try {
+      const json = await getJSON(
+        `${endpoint}?` + new URLSearchParams({ access_token: t, [plain ? "doc_id" : "client_doc_id"]: docId, variables: JSON.stringify(variables) })
+      );
+      const fatal = ((_a3 = json == null ? void 0 : json.errors) != null ? _a3 : []).some((e) => (e == null ? void 0 : e.severity) !== "WARNING");
+      if ((json == null ? void 0 : json.data) && (!fatal || Object.values(json.data).some((v) => v != null))) {
+        accountTokenOk = t;
+        return json.data;
+      }
+      last = (_f = (_e = (_c = (_b3 = json == null ? void 0 : json.errors) == null ? void 0 : _b3[0]) == null ? void 0 : _c.message) != null ? _e : (_d = json == null ? void 0 : json.error) == null ? void 0 : _d.message) != null ? _f : "the store refused";
+    } catch (err2) {
+      last = err2.message;
+    }
+  }
+  throw new Error(last);
+}
+var PEOPLE_DOC = {
+  /* PeopleFollowCountsQuery: followers, following, follow requests, recently met. */
+  counts: "1517111573189500436995675608",
+  /* PeopleTabFollowsQuery: followers and following together, with presence. */
+  list: "209115519317059146500281110007",
+  /* PeopleTabFollowRequestsQuery: who has asked to follow you. */
+  requests: "6867526546653215924743625714",
+  /* PeopleTabRecentlyMetQuery: people you were in a world or app with, and where. */
+  met: "35520022493517897887369417634",
+  /* RecentlyMetRosterQuery: the same people, with when you last met them. */
+  metRoster: "75720102512560747509655454325",
+  /* PeopleTabNearbyQuery: who is in the same lobby as you right now. */
+  nearby: "24887553057711262502737685",
+  /* PeopleTabGroupsQuery: your chats, with their last message. */
+  chats: "51633306317420163998488732751",
+  /* PeopleTabPYMKQuery: people you may know. { initial_load, first } */
+  suggested: "33314788255216183693165770553",
+  /* OculusFollowersQuery / OculusFollowsQuery: every follower and everyone you follow,
+     paged — complete where the blended list above stops short, but with no photos.
+     { node_id, first, after, profile_picture_size_string } */
+  followers: "12787062841172923645609902350",
+  follows: "252407844718047616381546991557",
+  /* MiniProfileUserQDSQuery: one person, as the headset's mini profile shows them. { user_id } */
+  person: "307214475610106213041554219891",
+  /* OculusFollowCountsQuery: anyone's follower and following counts, and the
+     Instagram accounts they show. { node_id } */
+  personCounts: "3653406633392707327058615055"
+};
+function personOf(u) {
+  var _a3, _b3, _c, _d, _e, _f, _g;
+  return {
+    id: String(u.id),
+    name: u.profile_name || u.display_name || u.alias || String(u.id),
+    alias: (_a3 = u.alias) != null ? _a3 : null,
+    photo: (_d = (_c = (_b3 = u.profile_picture) != null ? _b3 : u.profile_photo) == null ? void 0 : _c.uri) != null ? _d : null,
+    online: u.presence_status === "ONLINE",
+    presence: ((_e = u.rich_presence) != null ? _e : []).map((r) => {
+      var _a4;
+      return (_a4 = r == null ? void 0 : r.content) == null ? void 0 : _a4.text;
+    }).filter(Boolean).join(" \xB7 ") || (typeof u.presence === "string" && !/^(online|offline)$/i.test(u.presence) ? u.presence : null),
+    follow: (_f = u.follow_status) != null ? _f : null,
+    canMessage: Boolean(u.can_viewer_message),
+    salsa: Boolean(u.is_salsa),
+    suspended: Boolean(u.is_social_suspended),
+    blocked: Boolean(u.is_blocked_by_viewer),
+    /* Why the store shows them ("Followed by …"), when it says. */
+    context: [u.mutual_context_string, ...((_g = u.profile_contexts) != null ? _g : []).map((c) => {
+      var _a4;
+      return (_a4 = c == null ? void 0 : c.content) == null ? void 0 : _a4.text;
+    })].filter(Boolean).join(" \xB7 ") || null
+  };
+}
+async function peopleCounts() {
+  var _a3, _b3, _c;
+  const d = await accountRead(PEOPLE_DOC.counts);
+  const u = (_b3 = (_a3 = d.viewer) == null ? void 0 : _a3.user) != null ? _b3 : {};
+  const n = (c) => Number.isFinite(Number(c == null ? void 0 : c.count)) ? Number(c.count) : null;
+  return {
+    followers: n(u.followers),
+    following: n(u.follows),
+    requests: n(u.follower_requests_received),
+    recentlyMet: n((_c = d.viewer) == null ? void 0 : _c.recently_met),
+    contacts: n(u.approved_contacts)
+  };
+}
+async function peopleList() {
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  const me = extraOn("fullFollows") ? await accountRead(ACCOUNT_DOC.profile).then((d) => {
+    var _a4, _b4;
+    return ((_b4 = (_a4 = d.viewer) == null ? void 0 : _a4.user) == null ? void 0 : _b4.id) ? String(d.viewer.user.id) : null;
+  }, () => null) : null;
+  const [blended, followers, follows] = await Promise.all([
+    accountRead(PEOPLE_DOC.list).catch((e) => ({ error: e })),
+    me && extraOn("fullFollows") ? everyPage(PEOPLE_DOC.followers, me, "followers").catch(() => null) : null,
+    me && extraOn("fullFollows") ? everyPage(PEOPLE_DOC.follows, me, "follows").catch(() => null) : null
+  ]);
+  const conn = blended.error ? null : (_b3 = (_a3 = blended.viewer) == null ? void 0 : _a3.user) == null ? void 0 : _b3.blended_followers_and_following;
+  if (!conn && !followers && !follows) throw (_c = blended.error) != null ? _c : new Error("the store gave no people");
+  const byId = /* @__PURE__ */ new Map();
+  for (const u of ((_d = conn == null ? void 0 : conn.edges) != null ? _d : []).map((e) => e == null ? void 0 : e.node)) if ((u == null ? void 0 : u.id) && !u.is_viewer) byId.set(String(u.id), personOf(u));
+  const inFollowers = new Set(((_e = followers == null ? void 0 : followers.nodes) != null ? _e : []).map((u) => String(u == null ? void 0 : u.id)));
+  const inFollows = new Set(((_f = follows == null ? void 0 : follows.nodes) != null ? _f : []).map((u) => String(u == null ? void 0 : u.id)));
+  for (const u of [...(_g = followers == null ? void 0 : followers.nodes) != null ? _g : [], ...(_h = follows == null ? void 0 : follows.nodes) != null ? _h : []]) {
+    if (!(u == null ? void 0 : u.id) || u.is_viewer) continue;
+    const id = String(u.id);
+    const had = byId.get(id);
+    const p = personOf(u);
+    (_i = p.follow) != null ? _i : p.follow = inFollowers.has(id) && inFollows.has(id) ? "FOLLOWS_EACH_OTHER" : inFollowers.has(id) ? "PROFILE_FOLLOWS_VIEWER" : "VIEWER_FOLLOWS_PROFILE";
+    byId.set(id, had ? { ...p, ...Object.fromEntries(Object.entries(had).filter(([, v]) => v != null && v !== "")) } : p);
+  }
+  const people = await fillPhotos([...byId.values()]);
+  return {
+    people,
+    total: people.length,
+    more: false,
+    followers: (_j = followers == null ? void 0 : followers.count) != null ? _j : null,
+    following: (_k = follows == null ? void 0 : follows.count) != null ? _k : null
+  };
+}
+async function everyPage(docId, nodeId, key) {
+  var _a3, _b3, _c;
+  const nodes = [];
+  let after = null;
+  let count = null;
+  for (let i = 0; i < 20; i++) {
+    const d = await accountRead(docId, { node_id: String(nodeId), first: 100, after, profile_picture_size_string: "96" });
+    const c = (_a3 = d.node) == null ? void 0 : _a3[key];
+    count != null ? count : count = Number(c == null ? void 0 : c.count) || null;
+    nodes.push(...((_b3 = c == null ? void 0 : c.edges) != null ? _b3 : []).map((e) => e == null ? void 0 : e.node).filter(Boolean));
+    if (!((_c = c == null ? void 0 : c.page_info) == null ? void 0 : _c.has_next_page) || !c.page_info.end_cursor) break;
+    after = c.page_info.end_cursor;
+  }
+  return { count, nodes };
+}
+async function peopleSuggested() {
+  var _a3, _b3, _c;
+  const d = await accountRead(PEOPLE_DOC.suggested, { initial_load: true, first: 50 });
+  const conn = (_a3 = d.viewer) == null ? void 0 : _a3.people_you_may_know;
+  const people = ((_b3 = conn == null ? void 0 : conn.edges) != null ? _b3 : []).map((e) => e == null ? void 0 : e.node).filter((u) => (u == null ? void 0 : u.id) && !u.is_viewer).map(personOf);
+  return { people, total: people.length, more: Boolean((_c = conn == null ? void 0 : conn.page_info) == null ? void 0 : _c.has_next_page) };
+}
+async function personDetails(userId) {
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i;
+  const [d, c] = await Promise.all([
+    accountRead(PEOPLE_DOC.person, { user_id: String(userId) }),
+    extraOn("personCounts") ? accountRead(PEOPLE_DOC.personCounts, { node_id: String(userId) }).catch(() => null) : null
+  ]);
+  const u = d.node;
+  const cn = (_a3 = c == null ? void 0 : c.node) != null ? _a3 : {};
+  const num = (x) => Number.isFinite(Number(x == null ? void 0 : x.count)) ? Number(x.count) : null;
+  if (!(u == null ? void 0 : u.id)) throw new Error("the store has no profile for this person");
+  return {
+    name: (_b3 = u.profile_name) != null ? _b3 : null,
+    alias: (_c = u.profile_username) != null ? _c : null,
+    bio: u.biography || null,
+    photo: (_e = (_d = u.profile_picture) == null ? void 0 : _d.uri) != null ? _e : null,
+    privateProfile: u.profile_status ? u.profile_status === "PRIVATE_PROFILE" : null,
+    facebookName: u.facebook_name || null,
+    canCall: (_f = u.can_viewer_vr_call) != null ? _f : null,
+    unread: typeof u.has_unread_message === "boolean" ? u.has_unread_message : null,
+    presence: ((_g = u.rich_presence) != null ? _g : []).map((r) => {
+      var _a4;
+      return (_a4 = r == null ? void 0 : r.content) == null ? void 0 : _a4.text;
+    }).filter(Boolean).join(" \xB7 ") || u.presence || null,
+    follow: (_h = u.follow_status) != null ? _h : null,
+    joinable: Boolean(u.is_presence_deeplink_joinable),
+    followers: num(cn.followers),
+    following: num(cn.follows),
+    instagram: ((_i = cn.instagram_usernames) != null ? _i : []).filter((x) => typeof x === "string" && x)
+  };
+}
+async function peopleRequests() {
+  var _a3, _b3, _c, _d, _e, _f;
+  const d = await accountRead(PEOPLE_DOC.requests);
+  const conn = (_d = (_a3 = d.me) == null ? void 0 : _a3.follower_requests_received) != null ? _d : (_c = (_b3 = d.viewer) == null ? void 0 : _b3.user) == null ? void 0 : _c.follower_requests_received;
+  const people = ((_e = conn == null ? void 0 : conn.edges) != null ? _e : []).map((e) => e == null ? void 0 : e.node).filter((u) => (u == null ? void 0 : u.id) && !u.is_viewer).map(personOf);
+  return { people, total: Number(conn == null ? void 0 : conn.count) || people.length, more: Boolean((_f = conn == null ? void 0 : conn.page_info) == null ? void 0 : _f.has_next_page) };
+}
+async function peopleRecentlyMet() {
+  var _a3, _b3, _c, _d, _e, _f;
+  const [list, roster] = await Promise.all([
+    accountRead(PEOPLE_DOC.met),
+    extraOn("metTimes") ? accountRead(PEOPLE_DOC.metRoster).catch(() => null) : null
+  ]);
+  const when = new Map(
+    ((_c = (_b3 = (_a3 = roster == null ? void 0 : roster.viewer) == null ? void 0 : _a3.recently_met) == null ? void 0 : _b3.edges) != null ? _c : []).map((e) => e == null ? void 0 : e.node).filter((n) => {
+      var _a4;
+      return (_a4 = n == null ? void 0 : n.peer) == null ? void 0 : _a4.id;
+    }).map((n) => [String(n.peer.id), Number(n.last_encounter_time) || null])
+  );
+  const conn = (_d = list.viewer) == null ? void 0 : _d.recently_met;
+  const people = ((_e = conn == null ? void 0 : conn.edges) != null ? _e : []).map((e) => e == null ? void 0 : e.node).filter((n) => {
+    var _a4;
+    return (_a4 = n == null ? void 0 : n.peer) == null ? void 0 : _a4.id;
+  }).map((n) => {
+    var _a4, _b4;
+    return { ...personOf(n.peer), met: (_a4 = n.detailed_context_string) != null ? _a4 : null, metAt: (_b4 = when.get(String(n.peer.id))) != null ? _b4 : null };
+  });
+  return { people, total: Number(conn == null ? void 0 : conn.count) || people.length, more: Boolean((_f = conn == null ? void 0 : conn.page_info) == null ? void 0 : _f.has_next_page) };
+}
+async function peopleNearby() {
+  var _a3, _b3, _c, _d;
+  const d = await accountRead(PEOPLE_DOC.nearby);
+  const conn = (_b3 = (_a3 = d.viewer) == null ? void 0 : _a3.user) == null ? void 0 : _b3.lobby_roster;
+  const people = ((_c = conn == null ? void 0 : conn.edges) != null ? _c : []).map((e) => {
+    var _a4, _b4, _c2, _d2;
+    return (_d2 = (_c2 = (_a4 = e == null ? void 0 : e.node) == null ? void 0 : _a4.user) != null ? _c2 : (_b4 = e == null ? void 0 : e.node) == null ? void 0 : _b4.peer) != null ? _d2 : e == null ? void 0 : e.node;
+  }).filter((u) => (u == null ? void 0 : u.id) && !u.is_viewer).map(personOf);
+  return { people, total: Number(conn == null ? void 0 : conn.count) || people.length, more: Boolean((_d = conn == null ? void 0 : conn.page_info) == null ? void 0 : _d.has_next_page) };
+}
+async function peopleChats() {
+  var _a3, _b3, _c, _d;
+  const d = await accountRead(PEOPLE_DOC.chats);
+  const chats = ((_b3 = (_a3 = d.vr_group_list) == null ? void 0 : _a3.vr_group) != null ? _b3 : []).filter((c) => c == null ? void 0 : c.id).map((c) => {
+    var _a4, _b4, _c2, _d2, _e, _f, _g, _h, _i, _j, _k;
+    const members = ((_c2 = (_b4 = (_a4 = c.group) == null ? void 0 : _a4.users) == null ? void 0 : _b4.edges) != null ? _c2 : []).map((e) => e == null ? void 0 : e.node).filter((u) => (u == null ? void 0 : u.id) && !u.is_viewer).map(personOf);
+    return {
+      id: String(c.id),
+      name: ((_d2 = c.group) == null ? void 0 : _d2.name) || members.map((m) => m.name).join(", ") || "Chat",
+      members,
+      photo: (_i = (_h = (_f = (_e = c.group) == null ? void 0 : _e.group_thread_image) == null ? void 0 : _f.uri) != null ? _h : (_g = members[0]) == null ? void 0 : _g.photo) != null ? _i : null,
+      snippet: (_j = c.last_message_snippet) != null ? _j : null,
+      unread: Boolean(c.is_unread),
+      active: Boolean(c.has_active_member),
+      oneToOne: Boolean((_k = c.group) == null ? void 0 : _k.is_one_to_one)
+    };
+  });
+  return { chats, party: Boolean((_d = (_c = d.viewer) == null ? void 0 : _c.user) == null ? void 0 : _d.current_party) };
+}
+var GLOBAL_SEARCH_DOC_ID = "30670291099668386557224565653";
+var GLOBAL_SUGGEST_DOC_ID = "2985838347370243137379424618";
+async function globalSearch(text) {
+  var _a3;
+  const d = String(text).trim() ? await accountRead(GLOBAL_SEARCH_DOC_ID, {
+    query: String(text),
+    include_movies: true,
+    include_tvseries: true,
+    include_sports_events: true,
+    include_xbox: true
+  }) : await accountRead(GLOBAL_SUGGEST_DOC_ID);
+  const pe = (_a3 = d.partitioned_entities) != null ? _a3 : {};
+  const list = (k) => {
+    var _a4, _b3;
+    return ((_b3 = (_a4 = pe[k]) == null ? void 0 : _a4.edges) != null ? _b3 : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id);
+  };
+  const base = (n) => {
+    var _a4, _b3;
+    return { id: String(n.id), title: n.title || n.display_name || String(n.id), image: (_b3 = (_a4 = n.icon) == null ? void 0 : _a4.uri) != null ? _b3 : null };
+  };
+  const people = await fillPhotos(
+    list("people").map((n) => {
+      var _a4, _b3, _c;
+      return {
+        ...base(n),
+        alias: (_a4 = n.alias) != null ? _a4 : null,
+        presence: (_b3 = n.presence_string) != null ? _b3 : null,
+        follow: (_c = n.viewer_follow_status) != null ? _c : null
+      };
+    }),
+    "image"
+  );
+  return {
+    apps: list("apps").map((n) => {
+      var _a4;
+      return {
+        ...base(n),
+        packageName: (_a4 = n.package_name) != null ? _a4 : null,
+        lastOpened: Number(n.last_considered_time) || null
+      };
+    }),
+    movies: list("movie").map((n) => {
+      var _a4, _b3;
+      return {
+        ...base(n),
+        year: (_a4 = n.release_year) != null ? _a4 : null,
+        genre: (_b3 = n.genre) != null ? _b3 : null,
+        runtime: Number(n.run_time_in_seconds) || null
+      };
+    }),
+    series: list("series").map((n) => {
+      var _a4, _b3, _c;
+      return { ...base(n), year: (_a4 = n.release_year) != null ? _a4 : null, genre: (_b3 = n.genre) != null ? _b3 : null, seasons: (_c = n.season_count) != null ? _c : null };
+    }),
+    sports: list("sports_events").map((n) => {
+      var _a4;
+      return {
+        ...base(n),
+        start: Number(n.start_time) || null,
+        end: Number(n.end_time) || null,
+        live: Boolean(n.is_live),
+        app: (_a4 = n.app_name) != null ? _a4 : null
+      };
+    }),
+    xbox: list("xbox").map((n) => {
+      var _a4;
+      return { ...base(n), link: /^https:\/\//.test((_a4 = n.launch_deeplink) != null ? _a4 : "") ? n.launch_deeplink : null };
+    }),
+    people,
+    events: list("events").map((n) => ({ ...base(n), start: Number(n.start_time) || null })),
+    websites: list("browser").map((n) => {
+      var _a4, _b3, _c, _d;
+      return {
+        ...base(n),
+        image: (_c = (_b3 = n.icon_url) != null ? _b3 : (_a4 = n.icon) == null ? void 0 : _a4.uri) != null ? _c : null,
+        link: /^https?:\/\//.test((_d = n.website_url) != null ? _d : "") ? n.website_url : null
+      };
+    })
+  };
+}
+var AVATAR_STICKERS_DOC_ID = "28923220153412598514073512516";
+async function avatarStickers() {
+  var _a3, _b3, _c, _d, _e, _f;
+  const d = await accountRead(AVATAR_STICKERS_DOC_ID);
+  return ((_f = (_e = (_d = (_c = (_b3 = (_a3 = d.viewer) == null ? void 0 : _a3.user) == null ? void 0 : _b3.avatar_v3) == null ? void 0 : _c.messaging) == null ? void 0 : _d.stickers) == null ? void 0 : _e.edges) != null ? _f : []).map((e) => e == null ? void 0 : e.node).filter((n) => {
+    var _a4;
+    return (_a4 = n == null ? void 0 : n.preview_url) == null ? void 0 : _a4.url;
+  }).map((n) => {
+    var _a4;
+    return { id: String((_a4 = n.stable_id) != null ? _a4 : n.storage_key), url: n.preview_url.url };
+  });
+}
+var GALLERY_MEDIA_DOC_ID = "37605900805721531";
+async function headsetPhotos(cursor = null) {
+  var _a3, _b3, _c, _d, _e;
+  const d = await accountRead(
+    GALLERY_MEDIA_DOC_ID,
+    {
+      first: 48,
+      after: cursor,
+      filter_options: null,
+      server_updated_after: null,
+      mediaHeight: 1080,
+      mediaWidth: 1920,
+      thumbnailHeight: 320,
+      thumbnailWidth: 320
+    },
+    { plain: true, endpoint: "https://meta.graph.meta.com/graphql" }
+  );
+  const conn = (_c = (_b3 = (_a3 = d.viewer) == null ? void 0 : _a3.account) == null ? void 0 : _b3.photos_hub) == null ? void 0 : _c.filtered_media_items;
+  const items = ((_d = conn == null ? void 0 : conn.edges) != null ? _d : []).map((e) => e == null ? void 0 : e.node).filter((n) => (n == null ? void 0 : n.id) && (n.thumbnail_url || n.screen_size_media_url)).map((n) => {
+    var _a4, _b4;
+    return {
+      id: String(n.id),
+      video: /video/i.test(`${n.__typename} ${n.oculus_media_type}`) || Number(n.duration_in_ms) > 0,
+      thumb: (_a4 = n.thumbnail_url) != null ? _a4 : n.screen_size_media_url,
+      url: (_b4 = n.screen_size_media_url) != null ? _b4 : n.thumbnail_url,
+      app: n.oculus_app_display_name || null,
+      world: n.horizon_world_name || null,
+      taken: Number(n.datetime_taken) || null,
+      size: Number(n.server_file_size) || null,
+      width: Number(n.width) || null,
+      height: Number(n.height) || null,
+      duration: Number(n.duration_in_ms) || null,
+      favorite: Boolean(n.is_favorited),
+      stereo: n.stereoscopic_mode && n.stereoscopic_mode !== "MONO" ? n.stereoscopic_mode : null
+    };
+  });
+  return { items, cursor: ((_e = conn == null ? void 0 : conn.page_info) == null ? void 0 : _e.has_next_page) ? conn.page_info.end_cursor : null };
+}
+var STORE_DOC = {
+  credit: "25329845226649988",
+  // useStoreCreditBalanceQuery
+  settings: "27957534520541894",
+  // StoreAccountSettingsContainerQuery
+  subscriptions: "27994220820231578",
+  // StoreSubscriptionsMgmtContainerQuery
+  creditHistory: "38930029713262720",
+  // StoreWalletCreditHistoryQuery
+  related: "28316143671418456",
+  // StoreDiscoPDPRelatedItemsViewQuery { appID, imageScale, isControllerConnected }
+  includedIn: "28175204638768052",
+  // StoreDiscoPDPIncludedInViewPaginationQuery { id, count, cursor, … }
+  referrals: "28323344543939008",
+  // StoreAppReferralHubContainerQuery
+  worldPage: "35508296145483891",
+  // StoreWorldPDPRootQuery { itemID, imageScale }
+  similarWorlds: "38384761897836065",
+  // StoreWorldPDPSimilarWorldsViewQuery { worldID: store destination id, … }
+  avatars: "25033180872976625",
+  // AvatarEditorMaxSwitcherSideSheetQuery (Avatar Editor bundle)
+  users: "24033352489605925",
+  // relayFetchUsersQuery { userIDs } — many people in one request
+  media: "28354221460895045"
+  // StoreMiniMediaPDPRootQuery { itemID, enableTVODContent, imageScale }
+};
+async function mediaDetails(itemId) {
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  const d = await accountRead(STORE_DOC.media, { enableTVODContent: true, imageScale: 1, itemID: String(itemId) }, { plain: true });
+  const m = d.item;
+  if (!m) throw new Error("the store has no page for this title");
+  return {
+    kind: /Series/.test((_a3 = m.__typename) != null ? _a3 : "") ? "series" : "movie",
+    title: (_b3 = m.title) != null ? _b3 : null,
+    description: (_c = m.description) != null ? _c : null,
+    art: (_h = (_g = (_f = (_e = (_d = m.images) == null ? void 0 : _d.art) == null ? void 0 : _e.nodes) == null ? void 0 : _f[0]) == null ? void 0 : _g.uri) != null ? _h : null,
+    rating: (_i = m.media_age_rating) != null ? _i : null,
+    genres: Array.isArray(m.media_genres) ? m.media_genres.filter(Boolean) : [],
+    year: (_j = m.release_year) != null ? _j : null,
+    runtime: Number(m.run_time_in_seconds) || null,
+    seasons: Number((_k = m.seasons) == null ? void 0 : _k.count) || null,
+    watch: ((_m = (_l = m.watch_options) == null ? void 0 : _l.nodes) != null ? _m : []).filter((w) => w == null ? void 0 : w.provider_name).map((w) => {
+      var _a4, _b4, _c2;
+      return {
+        provider: w.provider_name,
+        url: /^https:\/\//.test((_b4 = (_a4 = w.deeplink) == null ? void 0 : _a4.data) != null ? _b4 : "") ? w.deeplink.data : null,
+        appId: ((_c2 = w.provider_app) == null ? void 0 : _c2.id) ? String(w.provider_app.id) : null
+      };
+    })
+  };
+}
+async function userPhotos(ids) {
+  var _a3, _b3, _c, _d;
+  const out = /* @__PURE__ */ new Map();
+  const list = [...new Set(ids.map(String))];
+  for (let i = 0; i < list.length; i += 50) {
+    const d = await accountRead(STORE_DOC.users, { userIDs: list.slice(i, i + 50) }, { plain: true }).catch(() => null);
+    for (const u of (_a3 = d == null ? void 0 : d.user_or_blocked_users) != null ? _a3 : []) {
+      const id = String((_c = (_b3 = u == null ? void 0 : u.id) != null ? _b3 : u == null ? void 0 : u.possibly_blocked_real_user_id) != null ? _c : "");
+      if (id && ((_d = u == null ? void 0 : u.profile_photo) == null ? void 0 : _d.uri)) out.set(id, u.profile_photo.uri);
+    }
+  }
+  return out;
+}
+async function fillPhotos(people, key = "photo") {
+  if (!extraOn("personPhotos")) return people;
+  const missing = people.filter((p) => !p[key]).map((p) => p.id);
+  if (!missing.length) return people;
+  const photos = await userPhotos(missing).catch(() => /* @__PURE__ */ new Map());
+  for (const p of people) if (!p[key] && photos.has(p.id)) p[key] = photos.get(p.id);
+  return people;
+}
+async function appBundles(appId) {
+  var _a3, _b3, _c, _d;
+  const d = await accountRead(
+    STORE_DOC.includedIn,
+    { id: String(appId), count: 20, cursor: null, imageScale: 1, isControllerConnected: true },
+    { plain: true }
+  );
+  const n = (_a3 = d.node) != null ? _a3 : {};
+  return [...(_b3 = n.premium_bundles) != null ? _b3 : [], ...((_d = (_c = n.included_bundles_connection) == null ? void 0 : _c.edges) != null ? _d : []).map((e) => e == null ? void 0 : e.node)].filter((b) => b == null ? void 0 : b.id).map((b) => {
+    var _a4, _b4;
+    return {
+      id: String(b.id),
+      name: b.display_unit_title || b.display_name || String(b.id),
+      price: (_b4 = (_a4 = b.surfaced_price_display) == null ? void 0 : _a4.text) != null ? _b4 : null
+    };
+  });
+}
+async function storeReferrals() {
+  var _a3, _b3, _c, _d, _e;
+  const d = await accountRead(STORE_DOC.referrals, {}, { plain: true });
+  const s = (_c = (_b3 = (_a3 = d.viewer) == null ? void 0 : _a3.user) == null ? void 0 : _b3.app_referral_program) == null ? void 0 : _c.program_stats;
+  if (!s) return null;
+  return {
+    accepted: Number(s.num_sent_app_referrals_accepted) || 0,
+    redeemed: Number(s.num_sent_app_referrals_reward_redeemed) || 0,
+    earned: (_d = s.yearly_credit_earned_formatted) != null ? _d : null,
+    limit: (_e = s.yearly_credit_limit_formatted) != null ? _e : null
+  };
+}
+async function worldStoreExtras(worldId, storeDestinationId) {
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  const [page, similar] = await Promise.all([
+    accountRead(STORE_DOC.worldPage, { itemID: String(worldId), imageScale: 1 }, { plain: true }).catch(() => null),
+    storeDestinationId ? accountRead(
+      STORE_DOC.similarWorlds,
+      { worldID: String(storeDestinationId), imageScale: 1, isControllerConnected: true },
+      { plain: true }
+    ).catch(() => null) : null
+  ]);
+  const w = (_f = (_e = (_d = (_c = (_b3 = (_a3 = page == null ? void 0 : page.item) == null ? void 0 : _a3.oc_destination) == null ? void 0 : _b3.vr_destination) == null ? void 0 : _c.app_store_destination) == null ? void 0 : _d.destination) == null ? void 0 : _e.horizon_world) != null ? _f : {};
+  return {
+    genres: Array.isArray(w.world_genre_names) ? w.world_genre_names.filter(Boolean) : [],
+    rating: (_h = (_g = w.horizon_content_rating) == null ? void 0 : _g.content_rating_text) != null ? _h : null,
+    visited: typeof w.viewer_has_visited === "boolean" ? w.viewer_has_visited : null,
+    creator: (_j = (_i = w.owner) == null ? void 0 : _i.owner_name) != null ? _j : null,
+    population: Number.isFinite(Number(w.total_population)) ? Number(w.total_population) : null,
+    likes: Number((_k = w.oc_destination) == null ? void 0 : _k.reactor_count) || null,
+    similar: ((_m = (_l = similar == null ? void 0 : similar.node) == null ? void 0 : _l.related_items_v1) != null ? _m : []).map((r) => r == null ? void 0 : r.item).filter((i) => i == null ? void 0 : i.id).map((i) => {
+      var _a4, _b4;
+      return { name: i.display_unit_title || String(i.id), price: (_b4 = (_a4 = i.surfaced_price_display) == null ? void 0 : _a4.text) != null ? _b4 : null };
+    })
+  };
+}
+async function accountAvatars() {
+  var _a3, _b3;
+  const d = await accountRead(STORE_DOC.avatars, {}, { plain: true });
+  return ((_b3 = (_a3 = d.xfb_avatar_max_get_avatars) == null ? void 0 : _a3.all_avatars) != null ? _b3 : []).filter((a) => (a == null ? void 0 : a.avatar_id) || (a == null ? void 0 : a.id)).map((a) => {
+    var _a4, _b4, _c, _d, _e;
+    return {
+      id: String((_a4 = a.avatar_id) != null ? _a4 : a.id),
+      kind: (_b4 = a.avatar_class) != null ? _b4 : null,
+      body: (_c = a.full_body_preview_uri) != null ? _c : null,
+      face: (_d = a.face_tile_preview_uri) != null ? _d : null,
+      profiles: ((_e = a.assigned_identities) != null ? _e : []).map((i) => {
+        var _a5;
+        const where = (_a5 = { FRL: "Meta", FB: "Facebook", FACEBOOK: "Facebook", IG: "Instagram", INSTAGRAM: "Instagram" }[i == null ? void 0 : i.profile_platform]) != null ? _a5 : i == null ? void 0 : i.profile_platform;
+        return [i == null ? void 0 : i.name, where].filter(Boolean).join(" on ");
+      }).filter(Boolean)
+    };
+  });
+}
+async function storeAccount() {
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  const read = (doc) => accountRead(doc, {}, { plain: true }).catch(() => null);
+  const [credit, settings, subs] = await Promise.all([read(STORE_DOC.credit), read(STORE_DOC.settings), read(STORE_DOC.subscriptions)]);
+  const su = (_a3 = settings == null ? void 0 : settings.viewer) == null ? void 0 : _a3.user;
+  return {
+    credit: (_g = (_f = (_e = (_d = (_c = (_b3 = credit == null ? void 0 : credit.viewer) == null ? void 0 : _b3.user) == null ? void 0 : _c.payment_account) == null ? void 0 : _d.credit) == null ? void 0 : _e.balance) == null ? void 0 : _f.formatted_amount) != null ? _g : null,
+    pinSet: typeof (su == null ? void 0 : su.is_pin_set) === "boolean" ? su.is_pin_set : null,
+    contentFilter: (_h = su == null ? void 0 : su.store_content_filter_preference) != null ? _h : null,
+    subscriptions: subs ? ((_l = (_k = (_j = (_i = subs.viewer) == null ? void 0 : _i.user) == null ? void 0 : _j.digital_subscriptions) == null ? void 0 : _k.nodes) != null ? _l : []).filter((n) => n == null ? void 0 : n.item).map((n) => {
+      var _a4, _b4, _c2, _d2, _e2;
+      return {
+        name: (_a4 = n.item.display_name) != null ? _a4 : null,
+        app: (_c2 = (_b4 = n.item.parent_application) == null ? void 0 : _b4.display_name) != null ? _c2 : null,
+        appId: ((_d2 = n.item.parent_application) == null ? void 0 : _d2.id) ? String(n.item.parent_application.id) : null,
+        active: Boolean(n.is_active),
+        next: (_e2 = n.term_expiration_details) != null ? _e2 : null
+      };
+    }) : null
+  };
+}
+async function storeCreditHistory() {
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i;
+  const d = await accountRead(STORE_DOC.creditHistory, {}, { plain: true });
+  const c = (_c = (_b3 = (_a3 = d.viewer) == null ? void 0 : _a3.user) == null ? void 0 : _b3.payment_account) == null ? void 0 : _c.credit;
+  return {
+    balance: (_e = (_d = c == null ? void 0 : c.balance) == null ? void 0 : _d.formatted_amount) != null ? _e : null,
+    entries: ((_g = (_f = c == null ? void 0 : c.transactions) == null ? void 0 : _f.edges) != null ? _g : []).map((e) => e == null ? void 0 : e.node).filter(Boolean).map((n) => {
+      var _a4, _b4, _c2, _d2, _e2, _f2, _g2;
+      return {
+        type: (_a4 = n.type) != null ? _a4 : null,
+        time: Number(n.time) || null,
+        title: (_b4 = n.title) != null ? _b4 : null,
+        detail: (_c2 = n.subtitle) != null ? _c2 : null,
+        amount: (_e2 = (_d2 = n.value) == null ? void 0 : _d2.formatted_amount) != null ? _e2 : null,
+        icon: (_g2 = (_f2 = n.icon) == null ? void 0 : _f2.uri) != null ? _g2 : null
+      };
+    }),
+    more: Boolean((_i = (_h = c == null ? void 0 : c.transactions) == null ? void 0 : _h.page_info) == null ? void 0 : _i.has_next_page)
+  };
+}
+async function relatedApps(appId) {
+  var _a3, _b3, _c;
+  const d = await accountRead(STORE_DOC.related, { appID: String(appId), imageScale: 1, isControllerConnected: true }, { plain: true });
+  return ((_c = (_b3 = (_a3 = d.node) == null ? void 0 : _a3.related_items_with_ranking_trace) == null ? void 0 : _b3.edges) != null ? _c : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
+    var _a4, _b4, _c2, _d, _e, _f, _g, _h;
+    return {
+      id: String(n.id),
+      name: n.display_unit_title || String(n.id),
+      price: (_b4 = (_a4 = n.surfaced_price_display) == null ? void 0 : _a4.text) != null ? _b4 : null,
+      image: (_h = (_g = (_d = (_c2 = n.assets) == null ? void 0 : _c2.square_image_180) == null ? void 0 : _d.uri) != null ? _g : (_f = (_e = n.assets) == null ? void 0 : _e.icon_image_80) == null ? void 0 : _f.uri) != null ? _h : null,
+      owned: Boolean(n.is_viewer_entitled)
+    };
+  });
+}
+var APP_DESTINATIONS_DOC_ID = "416618167111068373708718042057";
+async function appDestinations(appId) {
+  var _a3, _b3, _c, _d;
+  const d = await accountRead(APP_DESTINATIONS_DOC_ID, { app_id: String(appId) });
+  return ((_d = (_c = (_b3 = (_a3 = d.node) == null ? void 0 : _a3.grouping) == null ? void 0 : _b3.destinations) == null ? void 0 : _c.edges) != null ? _d : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
+    var _a4, _b4;
+    return {
+      id: String(n.id),
+      name: n.display_name || String(n.id),
+      capacity: Number(n.max_group_launch_capacity) || null,
+      image: typeof n.image === "string" ? n.image : (_b4 = (_a4 = n.image) == null ? void 0 : _a4.uri) != null ? _b4 : null
+    };
+  });
+}
+var APP_TAXONOMY_DOC_ID = "196995623014805601402940604810";
+var taxonomyCache = /* @__PURE__ */ new Map();
+function appTraits(appId) {
+  const id = String(appId);
+  if (!taxonomyCache.has(id)) {
+    const p = accountRead(APP_TAXONOMY_DOC_ID, { appIds: [id] }).then(
+      (d) => {
+        var _a3, _b3, _c, _d;
+        return ((_d = (_c = (_b3 = ((_a3 = d.multifetch__Application) != null ? _a3 : []).find((a) => {
+          var _a4;
+          return String((_a4 = a == null ? void 0 : a.node) == null ? void 0 : _a4.id) === id;
+        })) == null ? void 0 : _b3.node) == null ? void 0 : _c.ordered_dimensions) != null ? _d : []).filter((x) => (x == null ? void 0 : x.dimension_key) && (x == null ? void 0 : x.untranslated_display_name)).map((x) => ({ key: x.dimension_key, name: x.untranslated_display_name }));
+      }
+    );
+    p.catch(() => taxonomyCache.delete(id));
+    taxonomyCache.set(id, p);
+  }
+  return taxonomyCache.get(id);
+}
+var profileCache = { token: null, p: null };
+function accountProfile() {
+  const { token, frlToken, images, extrasOff } = loadSettings();
+  const key = `${token}
+${frlToken}
+${images}
+${extrasOff.join(",")}`;
+  if (profileCache.token === key && profileCache.p) return profileCache.p;
+  const p = (async () => {
+    var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P, _Q, _R, _S, _T, _U, _V, _W, _X, _Y, _Z, __, _$, _aa, _ba, _ca, _da, _ea, _fa, _ga, _ha, _ia, _ja, _ka, _la, _ma, _na, _oa, _pa;
+    const read = (doc) => accountRead(doc).then((d) => ({ d }), (e) => ({ e: e.message }));
+    const none = { d: null };
+    const salsaP = read(ACCOUNT_DOC.salsa);
+    const audienceP = read(ACCOUNT_DOC.audience);
+    const [profile, salsa, account, facebook, standing, audience, voice, communities, hplus, background, [privacy, status], supervision] = await Promise.all([
+      read(ACCOUNT_DOC.profile),
+      salsaP,
+      read(ACCOUNT_DOC.account),
+      read(ACCOUNT_DOC.facebook),
+      read(ACCOUNT_DOC.standing),
+      audienceP,
+      extraOn("homeSettings") ? read(ACCOUNT_DOC.voice) : none,
+      extraOn("homeSettings") ? read(ACCOUNT_DOC.communities) : none,
+      extraOn("homeHplus") ? read(ACCOUNT_DOC.horizonPlus) : none,
+      images && extraOn("homeBackground") ? read(ACCOUNT_DOC.background) : none,
+      audienceP.then(
+        (a) => {
+          var _a4, _b4, _c2, _d2, _e2;
+          return ((_e2 = (_d2 = (_c2 = (_b4 = (_a4 = a.d) == null ? void 0 : _a4.viewer) == null ? void 0 : _b4.user) == null ? void 0 : _c2.privacy_settings_list) == null ? void 0 : _d2.edges) == null ? void 0 : _e2.length) ? [none, none] : Promise.all([read(ACCOUNT_DOC.privacy), read(ACCOUNT_DOC.status)]);
+        }
+      ),
+      salsaP.then((r) => {
+        var _a4, _b4, _c2;
+        return ((_c2 = (_b4 = (_a4 = r.d) == null ? void 0 : _a4.viewer) == null ? void 0 : _b4.user) == null ? void 0 : _c2.is_salsa) ? read(ACCOUNT_DOC.supervision) : none;
+      })
+    ]);
+    const u = (_c = (_b3 = (_a3 = profile.d) == null ? void 0 : _a3.viewer) == null ? void 0 : _b3.user) != null ? _c : {};
+    const out = {
+      id: u.id ? String(u.id) : null,
+      name: (_d = u.name) != null ? _d : null,
+      alias: (_f = (_e = u.alias) != null ? _e : u.profile_name) != null ? _f : null,
+      email: (_g = u.email) != null ? _g : null,
+      photo: (_i = (_h = u.profile_photo) == null ? void 0 : _h.uri) != null ? _i : null,
+      background: null,
+      details: {},
+      detailsError: null
+    };
+    if (!out.id) {
+      try {
+        const v = (_k = (_j = (await relayQuery(VIEWER_DOC_ID, {}, "Account")).viewer) == null ? void 0 : _j.user) != null ? _k : {};
+        out.id = v.id ? String(v.id) : null;
+        (_n = out.name) != null ? _n : out.name = (_m = (_l = v.display_name) != null ? _l : v.name) != null ? _m : null;
+        (_p = out.alias) != null ? _p : out.alias = (_o = v.alias) != null ? _o : null;
+        (_t = out.photo) != null ? _t : out.photo = (_s = (_r = (_q = v.profile_photo) != null ? _q : v.profilePhoto) == null ? void 0 : _r.uri) != null ? _s : null;
+      } catch {
+      }
+    }
+    const su = (_w = (_v = (_u = salsa.d) == null ? void 0 : _u.viewer) == null ? void 0 : _v.user) != null ? _w : {};
+    const age = Number(su.frlm_age);
+    const cc = (_z = (_y = (_x = standing.d) == null ? void 0 : _x.viewer) == null ? void 0 : _y.user) == null ? void 0 : _z.profile_ccve_status;
+    const violations = cc ? (Array.isArray(cc.violations) ? cc.violations.length : 0) + (Array.isArray(cc.active_profile_violations_l7) ? cc.active_profile_violations_l7.length : 0) : null;
+    const audienceList = ((_E = (_D = (_C = (_B = (_A = audience.d) == null ? void 0 : _A.viewer) == null ? void 0 : _B.user) == null ? void 0 : _C.privacy_settings_list) == null ? void 0 : _D.edges) != null ? _E : []).map((e) => e == null ? void 0 : e.node).filter((n) => (n == null ? void 0 : n.key) || (n == null ? void 0 : n.description)).map((n) => {
+      var _a4, _b4, _c2, _d2, _e2;
+      return {
+        key: (_a4 = n.key) != null ? _a4 : null,
+        name: String(n.description || n.key),
+        value: (_b4 = n.selected_value) != null ? _b4 : null,
+        valueName: (_e2 = (_d2 = ((_c2 = n.options) != null ? _c2 : []).find((o) => (o == null ? void 0 : o.key) === n.selected_value)) == null ? void 0 : _d2.name) != null ? _e2 : null
+      };
+    });
+    const privacyList = audienceList.length ? audienceList : ((_J = (_I = (_H = (_G = (_F = privacy.d) == null ? void 0 : _F.viewer) == null ? void 0 : _G.user) == null ? void 0 : _H.privacy_settings_list) == null ? void 0 : _I.edges) != null ? _J : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.name).map((n) => {
+      var _a4;
+      return { key: null, name: String(n.name), value: (_a4 = n.selected_value) != null ? _a4 : null, valueName: null };
+    });
+    const linked = (_L = (_K = facebook.d) == null ? void 0 : _K.viewer) == null ? void 0 : _L.is_fb_linked_with_sso_enabled;
+    const active = audienceList.some((a) => a.key === "ACTIVE_STATUS") ? null : (_T = (_S = (_R = (_Q = (_P = (_O = (_N = (_M = status.d) == null ? void 0 : _M.viewer) == null ? void 0 : _N.user) == null ? void 0 : _O.activeStatus) == null ? void 0 : _P.edges) == null ? void 0 : _Q[0]) == null ? void 0 : _R.node) == null ? void 0 : _S.selected_value) != null ? _T : null;
+    const vu = (_W = (_V = (_U = voice.d) == null ? void 0 : _U.viewer) == null ? void 0 : _V.user) == null ? void 0 : _W.together_app_user;
+    const sup = (_Z = (_Y = (_X = supervision.d) == null ? void 0 : _X.xfb_youth_platform) == null ? void 0 : _Y.feta_supervision) == null ? void 0 : _Z.notification_settings;
+    const cv = (__ = communities.d) == null ? void 0 : __.viewer;
+    const bg = (_ba = (_aa = (_$ = background.d) == null ? void 0 : _$.viewer) == null ? void 0 : _aa.user) == null ? void 0 : _ba.profile_background;
+    const bool2 = (v) => typeof v === "boolean" ? v : null;
+    out.background = (bg == null ? void 0 : bg.uri) ? { uri: bg.uri, color: (_ca = bg.contextual_color) != null ? _ca : null, type: (_da = bg.background_type) != null ? _da : null } : null;
+    out.details = {
+      voiceChannel: (_ea = vu == null ? void 0 : vu.oc_voice_channel) != null ? _ea : null,
+      voiceParental: bool2(vu == null ? void 0 : vu.oc_parental_controls_enabled_for_voice_channel),
+      supervisionNotifications: bool2(sup == null ? void 0 : sup.is_supervision_notification_enabled),
+      communities: cv ? { adult: bool2(cv.can_create_adult_only_communities), minor: bool2(cv.can_create_minor_eligible_communities) } : null,
+      horizonPlus: typeof ((_ja = (_ia = (_ha = (_ga = (_fa = hplus.d) == null ? void 0 : _fa.viewer) == null ? void 0 : _ga.user) == null ? void 0 : _ha.platform_subscription_details) == null ? void 0 : _ia.item) == null ? void 0 : _ja.is_viewer_entitled) === "boolean" ? hplus.d.viewer.user.platform_subscription_details.item.is_viewer_entitled : null,
+      activeStatus: active,
+      age: Number.isFinite(age) && age > 0 ? age : null,
+      salsa: typeof su.is_salsa === "boolean" ? su.is_salsa : null,
+      developer: typeof ((_ma = (_la = (_ka = account.d) == null ? void 0 : _ka.viewer) == null ? void 0 : _la.user) == null ? void 0 : _ma.is_developer) === "boolean" ? account.d.viewer.user.is_developer : null,
+      facebookLinked: typeof linked === "boolean" ? linked : null,
+      violations,
+      privacy: privacyList
+    };
+    const anyDetail = Object.values(out.details).some((v) => Array.isArray(v) ? v.length : v != null);
+    if (!anyDetail) out.detailsError = (_pa = (_oa = (_na = salsa.e) != null ? _na : profile.e) != null ? _oa : account.e) != null ? _pa : "the store refused";
+    if (!out.id && !anyDetail && profileCache.p === p) profileCache = { token: null, p: null };
+    return out;
+  })();
+  profileCache = { token: key, p };
+  return p;
+}
 var LEADERBOARDS_DOC_ID = "9565763956824872";
 var LEADERBOARD_DOC_ID = "9537594396277058";
 var LEADERBOARD_VIEWS = [
@@ -3918,35 +4791,35 @@ var LEADERBOARD_VIEWS = [
   ["SELF", "Around you"]
 ];
 async function appLeaderboards(appId) {
-  var _a2, _b2, _c, _d, _e, _f;
+  var _a3, _b3, _c, _d, _e, _f;
   const data = await relayQuery(LEADERBOARDS_DOC_ID, { applicationId: String(appId) }, "Leaderboards");
-  const app = (_b2 = (_a2 = data.application) != null ? _a2 : data.node) != null ? _b2 : {};
+  const app = (_b3 = (_a3 = data.application) != null ? _a3 : data.node) != null ? _b3 : {};
   const conn = (_e = (_c = app.platform_services) == null ? void 0 : _c.viewerLeaderboards) != null ? _e : (_d = app.platform_services) == null ? void 0 : _d.viewer_leaderboards;
   return ((_f = conn == null ? void 0 : conn.nodes) != null ? _f : []).filter((n) => n == null ? void 0 : n.id).map((n) => ({ id: String(n.id), title: n.title || String(n.id) }));
 }
 async function leaderboardEntries(leaderboardId, view = "GLOBAL") {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j;
   const data = await relayQuery(
     LEADERBOARD_DOC_ID,
     { leaderboardId: String(leaderboardId), selectedType: view },
     "Leaderboards"
   );
-  const lb = (_a2 = data.leaderboard) != null ? _a2 : data.node;
+  const lb = (_a3 = data.leaderboard) != null ? _a3 : data.node;
   if (!lb) throw new Error("the store returned no leaderboard");
   const photo = (u) => {
-    var _a3, _b3, _c2;
-    return (_c2 = (_b3 = (_a3 = u == null ? void 0 : u.profilePhoto) != null ? _a3 : u == null ? void 0 : u.profile_photo) == null ? void 0 : _b3.uri) != null ? _c2 : null;
+    var _a4, _b4, _c2;
+    return (_c2 = (_b4 = (_a4 = u == null ? void 0 : u.profilePhoto) != null ? _a4 : u == null ? void 0 : u.profile_photo) == null ? void 0 : _b4.uri) != null ? _c2 : null;
   };
   return {
-    id: String((_b2 = lb.id) != null ? _b2 : leaderboardId),
+    id: String((_b3 = lb.id) != null ? _b3 : leaderboardId),
     title: (_c = lb.title) != null ? _c : null,
     myRank: (_f = (_e = (_d = lb.myEntry) != null ? _d : lb.my_top_entry) == null ? void 0 : _e.rank) != null ? _f : null,
     friends: (_i = (_h = (_g = lb.friendsWithEntries) != null ? _g : lb.friends_with_entries) == null ? void 0 : _h.count) != null ? _i : null,
     entries: ((_j = lb.entries) != null ? _j : []).map((e) => {
-      var _a3, _b3, _c2, _d2, _e2, _f2, _g2;
+      var _a4, _b4, _c2, _d2, _e2, _f2, _g2;
       return {
-        rank: (_a3 = e == null ? void 0 : e.rank) != null ? _a3 : null,
-        score: (_c2 = (_b3 = e == null ? void 0 : e.entry) == null ? void 0 : _b3.score) != null ? _c2 : null,
+        rank: (_a4 = e == null ? void 0 : e.rank) != null ? _a4 : null,
+        score: (_c2 = (_b4 = e == null ? void 0 : e.entry) == null ? void 0 : _b4.score) != null ? _c2 : null,
         name: (_f2 = (_e2 = (_d2 = e == null ? void 0 : e.entry) == null ? void 0 : _d2.user) == null ? void 0 : _e2.alias) != null ? _f2 : null,
         photo: photo((_g2 = e == null ? void 0 : e.entry) == null ? void 0 : _g2.user)
       };
@@ -3956,20 +4829,20 @@ async function leaderboardEntries(leaderboardId, view = "GLOBAL") {
 var ADDONS_DOC_ID = "10041200072603920";
 var ADDONS_PAGE = 24;
 async function appAddons(appId, { count = ADDONS_PAGE, cursor = null, loaded = 0 } = {}) {
-  var _a2, _b2, _c, _d, _e;
+  var _a3, _b3, _c, _d, _e;
   const data = await relayQuery(
     ADDONS_DOC_ID,
     { id: String(appId), first: count, forward: true, after: cursor, before: null, last: null },
     "Add-ons"
   );
-  const conn = (_b2 = (_a2 = data.node) == null ? void 0 : _a2.latest_supported_binary) == null ? void 0 : _b2.firstIapItems;
+  const conn = (_b3 = (_a3 = data.node) == null ? void 0 : _a3.latest_supported_binary) == null ? void 0 : _b3.firstIapItems;
   const edges = (_c = conn == null ? void 0 : conn.edges) != null ? _c : [];
   const items = edges.map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
-    var _a3, _b3, _c2, _d2, _e2, _f, _g, _h, _i, _j;
+    var _a4, _b4, _c2, _d2, _e2, _f, _g, _h, _i, _j;
     return {
       id: String(n.id),
-      name: (_a3 = n.display_name) != null ? _a3 : String(n.id),
-      description: (_b3 = n.display_short_description) != null ? _b3 : null,
+      name: (_a4 = n.display_name) != null ? _a4 : String(n.id),
+      description: (_b4 = n.display_short_description) != null ? _b4 : null,
       owned: Boolean(n.is_viewer_entitled),
       price: (_e2 = (_d2 = (_c2 = n.current_offer) == null ? void 0 : _c2.price) == null ? void 0 : _d2.formatted) != null ? _e2 : null,
       strikethrough: (_h = (_g = (_f = n.current_offer) == null ? void 0 : _f.strikethrough_price) == null ? void 0 : _g.formatted) != null ? _h : null,
@@ -3988,17 +4861,17 @@ async function appAddons(appId, { count = ADDONS_PAGE, cursor = null, loaded = 0
 }
 var ACHIEVEMENTS_DOC_ID = "9661547673890799";
 async function appAchievements(appId) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const uid = await viewerId();
   const data = await relayQuery(ACHIEVEMENTS_DOC_ID, { appId: String(appId), userId: uid }, "Achievements");
-  const ps = (_a2 = data.node) == null ? void 0 : _a2.platform_services;
+  const ps = (_a3 = data.node) == null ? void 0 : _a3.platform_services;
   if (!ps) throw new Error("the store has no achievements for this app");
-  const achievements = ((_c = (_b2 = ps.achievement_definitions) == null ? void 0 : _b2.edges) != null ? _c : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
-    var _a3, _b3, _c2, _d, _e, _f, _g, _h, _i;
-    const unlocked = Boolean((_a3 = n.progress_for_user) == null ? void 0 : _a3.is_unlocked);
+  const achievements = ((_c = (_b3 = ps.achievement_definitions) == null ? void 0 : _b3.edges) != null ? _c : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
+    var _a4, _b4, _c2, _d, _e, _f, _g, _h, _i;
+    const unlocked = Boolean((_a4 = n.progress_for_user) == null ? void 0 : _a4.is_unlocked);
     return {
       id: String(n.id),
-      title: (_b3 = n.title) != null ? _b3 : null,
+      title: (_b4 = n.title) != null ? _b4 : null,
       description: unlocked && n.unlocked_description_override || n.description || null,
       type: (_c2 = n.achievement_type) != null ? _c2 : null,
       target: Number(n.target) || 0,
@@ -4018,12 +4891,12 @@ async function appAchievements(appId) {
 var PURCHASES_DOC_ID = "28070162192637804";
 var PURCHASES_PAGE_DOC_ID = "27988212250838578";
 function parsePurchases(conn, accountId) {
-  var _a2, _b2;
-  const orders = ((_a2 = conn == null ? void 0 : conn.edges) != null ? _a2 : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
-    var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A;
-    const a = (_a3 = n.app_store_item) != null ? _a3 : {};
+  var _a3, _b3;
+  const orders = ((_a3 = conn == null ? void 0 : conn.edges) != null ? _a3 : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id).map((n) => {
+    var _a4, _b4, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A;
+    const a = (_a4 = n.app_store_item) != null ? _a4 : {};
     const pm = n.payment_method;
-    const payment = pm ? `${(_c = (_b3 = pm.card_type) != null ? _b3 : pm.display_name) != null ? _c : "Card"}${pm.last4 ? ` \u2022\u2022${pm.last4}` : ""}` : n.is_platform_currency ? "Meta credit" : (_d = n.funding_source) != null ? _d : null;
+    const payment = pm ? `${(_c = (_b4 = pm.card_type) != null ? _b4 : pm.display_name) != null ? _c : "Card"}${pm.last4 ? ` \u2022\u2022${pm.last4}` : ""}` : n.is_platform_currency ? "Meta credit" : (_d = n.funding_source) != null ? _d : null;
     return {
       id: String(n.id),
       name: (_g = (_e = a.display_name) != null ? _e : a.display_unit_title) != null ? _g : String((_f = a.id) != null ? _f : n.id),
@@ -4046,41 +4919,44 @@ function parsePurchases(conn, accountId) {
   return {
     accountId: accountId ? String(accountId) : null,
     orders,
-    cursor: ((_b2 = conn == null ? void 0 : conn.page_info) == null ? void 0 : _b2.has_next_page) ? conn.page_info.end_cursor : null
+    cursor: ((_b3 = conn == null ? void 0 : conn.page_info) == null ? void 0 : _b3.has_next_page) ? conn.page_info.end_cursor : null
   };
 }
 async function purchaseHistory() {
-  var _a2;
+  var _a3;
   const data = await relayQuery(PURCHASES_DOC_ID, {}, "Purchases");
-  const user = (_a2 = data.viewer) == null ? void 0 : _a2.user;
+  const user = (_a3 = data.viewer) == null ? void 0 : _a3.user;
   const acct = user == null ? void 0 : user.payment_account;
   if (!acct) throw new Error("the store returned no purchase history for this account");
   return parsePurchases(acct.digital_orders, user.id);
 }
 var PURCHASES_PAGE = 20;
 async function morePurchases(accountId, cursor) {
-  var _a2, _b2;
+  var _a3, _b3;
   const data = await relayQuery(
     PURCHASES_PAGE_DOC_ID,
     { count: PURCHASES_PAGE, cursor, encode: "PNG", id: String(accountId) },
     "Purchases"
   );
-  return parsePurchases((_b2 = (_a2 = data.node) == null ? void 0 : _a2.payment_account) == null ? void 0 : _b2.digital_orders, accountId);
+  return parsePurchases((_b3 = (_a3 = data.node) == null ? void 0 : _a3.payment_account) == null ? void 0 : _b3.digital_orders, accountId);
 }
 var HORIZON_PLUS_DOC_ID = "98891515114376018422795109374";
 async function horizonPlus() {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const data = await accountQuery(HORIZON_PLUS_DOC_ID, {}, "Horizon+");
-  const item = (_c = (_b2 = (_a2 = data.viewer) == null ? void 0 : _a2.user) == null ? void 0 : _b2.platform_subscription_details) == null ? void 0 : _c.item;
+  const item = (_c = (_b3 = (_a3 = data.viewer) == null ? void 0 : _a3.user) == null ? void 0 : _b3.platform_subscription_details) == null ? void 0 : _c.item;
   if (!item) throw new Error("the store returned no Horizon+ catalog for this account");
   const row = (n, plus) => {
-    var _a3, _b3, _c2, _d, _e;
+    var _a4, _b4, _c2, _d, _e, _f, _g;
     return {
       id: String(n.id),
       name: n.display_name || n.package_name || String(n.id),
-      packageName: (_a3 = n.package_name) != null ? _a3 : null,
+      packageName: (_a4 = n.package_name) != null ? _a4 : null,
       platform: "ANDROID_6DOF",
-      image: (_e = (_d = (_b3 = n.cover_square_image) == null ? void 0 : _b3.uri) != null ? _d : (_c2 = n.vr_icon_image) == null ? void 0 : _c2.uri) != null ? _e : null,
+      /* Square cover, then the launcher icon, then the VR icon — never blank when
+         the store sent any of them. */
+      image: (_g = (_f = (_d = (_b4 = n.cover_square_image) == null ? void 0 : _b4.uri) != null ? _d : (_c2 = n.icon_image) == null ? void 0 : _c2.uri) != null ? _f : (_e = n.vr_icon_image) == null ? void 0 : _e.uri) != null ? _g : null,
+      media: nodeMedia(n),
       price: null,
       offerId: null,
       free: false,
@@ -4091,8 +4967,8 @@ async function horizonPlus() {
     };
   };
   const nodes = (conn) => {
-    var _a3;
-    return ((_a3 = conn == null ? void 0 : conn.edges) != null ? _a3 : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id);
+    var _a4;
+    return ((_a4 = conn == null ? void 0 : conn.edges) != null ? _a4 : []).map((e) => e == null ? void 0 : e.node).filter((n) => n == null ? void 0 : n.id);
   };
   const out = /* @__PURE__ */ new Map();
   for (const n of nodes(item.platform_subscription_items)) out.set(String(n.id), row(n, "monthly"));
@@ -4100,6 +4976,107 @@ async function horizonPlus() {
     if (!out.has(String(n.id))) out.set(String(n.id), row(n, "catalog"));
   }
   return [...out.values()];
+}
+var STORE_HOME_DOC_ID = "28677966775147985";
+var STORE_SECTION_UNITS_DOC_ID = "38780697354876824";
+async function horizonPlusSections() {
+  var _a3, _b3, _c, _d, _e, _f;
+  const d = await accountRead(
+    STORE_HOME_DOC_ID,
+    {
+      count: 50,
+      cursor: null,
+      hmdType: "EUREKA",
+      imageScale: 1,
+      isControllerConnected: true,
+      isOsDefaultApp: false,
+      seedID: null,
+      shouldOnlyReturnFirstView: false,
+      storeIDOverride: null,
+      storeViewFilter: null,
+      storeViewTypes: ["STORE_VIEWS_WITH_CATEGORY_CONTEXT"],
+      useTestStore: false
+    },
+    { plain: true }
+  );
+  const out = /* @__PURE__ */ new Map();
+  for (const v of (_c = (_b3 = (_a3 = d.viewer) == null ? void 0 : _a3.appStore) == null ? void 0 : _b3.store_views) != null ? _c : []) {
+    if (!/^\s*(quest|horizon)\s*\+/i.test((_d = v == null ? void 0 : v.untranslated_display_name) != null ? _d : "")) continue;
+    for (const s of ((_f = (_e = v.subsections) == null ? void 0 : _e.edges) != null ? _f : []).map((e) => e == null ? void 0 : e.node)) {
+      if ((s == null ? void 0 : s.id) && s.section_name && !out.has(String(s.id))) out.set(String(s.id), { id: String(s.id), name: s.section_name });
+    }
+  }
+  return [...out.values()];
+}
+async function horizonPlusSection(sectionId) {
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
+  const apps = [];
+  const others = [];
+  let cursor = null;
+  for (let page = 0; page < 20; page++) {
+    const d = await accountRead(
+      STORE_SECTION_UNITS_DOC_ID,
+      {
+        id: String(sectionId),
+        count: 50,
+        cursor,
+        imageScale: 1,
+        initialCount: 50,
+        isControllerConnected: true,
+        seedID: null,
+        storeViewFilter: null,
+        ageRatingAnyFilter: null,
+        contentTopics: null,
+        interactionMode: null,
+        languageAnyFilter: null,
+        priceRange: null,
+        ratingAbove: null,
+        saleTypeAnyFilter: null,
+        sortOrder: null,
+        supportedControllers: null,
+        supportedPlayerModes: null,
+        surface: null,
+        unifiedTaxonomyDimensionIds: null
+      },
+      { plain: true }
+    );
+    const units = (_a3 = d.node) == null ? void 0 : _a3.units;
+    for (const u of ((_b3 = units == null ? void 0 : units.edges) != null ? _b3 : []).map((e) => e == null ? void 0 : e.node)) {
+      if (!(u == null ? void 0 : u.id)) continue;
+      const a = (_c = u.assets) != null ? _c : {};
+      const image = (_i = (_h = (_f = (_d = a.square_image_180) == null ? void 0 : _d.uri) != null ? _f : (_e = a.icon_image_80) == null ? void 0 : _e.uri) != null ? _h : (_g = a.square_image_360) == null ? void 0 : _g.uri) != null ? _i : null;
+      const title = u.display_unit_title || u.title || u.display_name || String(u.id);
+      if (u.__typename === "Application") {
+        apps.push({
+          id: String(u.id),
+          name: title,
+          packageName: null,
+          platform: "ANDROID_6DOF",
+          image,
+          media: [],
+          price: null,
+          offerId: null,
+          free: false,
+          channels: [],
+          claimed: Boolean(u.is_viewer_entitled)
+        });
+      } else {
+        const t = `${u.__typename} ${(_j = u.destination_content_type) != null ? _j : ""}`;
+        others.push({
+          id: String(u.id),
+          title,
+          kind: /XBOX/i.test(t) ? "Xbox cloud game" : /Series/i.test(t) ? "TV series" : /Movie|Media/i.test(t) ? "Movie" : "Other",
+          media: /Movie|Series|Media/i.test(t),
+          image,
+          genres: (_m = (_l = (_k = u.third_party_game) == null ? void 0 : _k.genre_names_ranked) != null ? _l : u.media_genres) != null ? _m : [],
+          note: (_o = (_n = u.surfaced_price_display) == null ? void 0 : _n.text) != null ? _o : null
+        });
+      }
+    }
+    cursor = ((_p = units == null ? void 0 : units.page_info) == null ? void 0 : _p.has_next_page) ? units.page_info.end_cursor : null;
+    if (!cursor) break;
+  }
+  return { apps, others };
 }
 var STORE_FRONT_DOC_ID = "27955155650852217";
 var STORE_SECTION_DOC_ID = "28264408599874874";
@@ -4113,13 +5090,13 @@ var LAYOUTS = {
   CategoryStrip: "Categories"
 };
 var layoutName = (type) => {
-  var _a2, _b2;
-  const key = (_a2 = /RenderingStrategy(\w+)$/.exec(type != null ? type : "")) == null ? void 0 : _a2[1];
-  return key ? (_b2 = LAYOUTS[key]) != null ? _b2 : key : null;
+  var _a3, _b3;
+  const key = (_a3 = /RenderingStrategy(\w+)$/.exec(type != null ? type : "")) == null ? void 0 : _a3[1];
+  return key ? (_b3 = LAYOUTS[key]) != null ? _b3 : key : null;
 };
 async function storeFront(hmdType = loadSettings().hmd, viewId = null) {
-  var _a2, _b2, _c, _d, _e, _f, _g;
-  const quest = ((_a2 = HMD_PLATFORM[hmdType]) != null ? _a2 : "ANDROID_6DOF") === "ANDROID_6DOF";
+  var _a3, _b3, _c, _d, _e, _f, _g;
+  const quest = ((_a3 = HMD_PLATFORM[hmdType]) != null ? _a3 : "ANDROID_6DOF") === "ANDROID_6DOF";
   const data = await relayQuery(
     STORE_FRONT_DOC_ID,
     {
@@ -4137,15 +5114,15 @@ async function storeFront(hmdType = loadSettings().hmd, viewId = null) {
     },
     "The store front"
   );
-  const store = (_b2 = data.viewer) == null ? void 0 : _b2.app_store;
+  const store = (_b3 = data.viewer) == null ? void 0 : _b3.app_store;
   if (!store) throw new Error("the store returned no store front for this headset");
   const view = (_d = (_c = store.store_views) == null ? void 0 : _c[0]) != null ? _d : null;
   const sections = ((_f = (_e = view == null ? void 0 : view.streamed_subsections) == null ? void 0 : _e.edges) != null ? _f : []).map((e) => e == null ? void 0 : e.node).filter((n) => (n == null ? void 0 : n.id) && n.section_name).map((n) => {
-    var _a3;
+    var _a4;
     return {
       id: String(n.id),
       name: n.section_name,
-      layout: layoutName((_a3 = n.rendering_strategy) == null ? void 0 : _a3.__typename),
+      layout: layoutName((_a4 = n.rendering_strategy) == null ? void 0 : _a4.__typename),
       ordered: Boolean(n.is_ordered_list)
     };
   });
@@ -4155,8 +5132,41 @@ async function storeFront(hmdType = loadSettings().hmd, viewId = null) {
     sections
   };
 }
+var FOR_YOU_SECTION = { id: "HEADSET_FOR_YOU", name: "Apps you might like (for your account)" };
+var STORE_NULL_STATE_DOC_ID = "28810240491893654";
+async function headsetForYou(hmdType) {
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u;
+  const d = await accountRead(
+    STORE_NULL_STATE_DOC_ID,
+    { imageScale: 1, isControllerConnected: true, shelfCount: 10, shelfCursor: null },
+    { plain: true }
+  );
+  const platform = (_a3 = HMD_PLATFORM[hmdType]) != null ? _a3 : "ANDROID_6DOF";
+  const apps = [];
+  for (const s of ((_f = (_e = (_d = (_c = (_b3 = d.viewer) == null ? void 0 : _b3.vr_search) == null ? void 0 : _c.null_state) == null ? void 0 : _d.shelves) == null ? void 0 : _e.edges) != null ? _f : []).map((e) => e == null ? void 0 : e.node)) {
+    for (const u of ((_j = (_i = (_h = (_g = s == null ? void 0 : s.rendering_strategy) == null ? void 0 : _g.section) == null ? void 0 : _h.units) == null ? void 0 : _i.edges) != null ? _j : []).map((e) => e == null ? void 0 : e.node)) {
+      if ((u == null ? void 0 : u.__typename) !== "Application" || !u.id || apps.some((a2) => a2.id === String(u.id))) continue;
+      const a = (_k = u.assets) != null ? _k : {};
+      apps.push({
+        id: String(u.id),
+        name: u.display_unit_title || String(u.id),
+        packageName: null,
+        platform,
+        image: (_q = (_p = (_n = (_l = a.square_image_180) == null ? void 0 : _l.uri) != null ? _n : (_m = a.icon_image_80) == null ? void 0 : _m.uri) != null ? _p : (_o = a.square_image_360) == null ? void 0 : _o.uri) != null ? _q : null,
+        media: [],
+        price: (_s = (_r = u.surfaced_price_display) == null ? void 0 : _r.text) != null ? _s : null,
+        offerId: null,
+        free: /^free$/i.test((_u = (_t = u.surfaced_price_display) == null ? void 0 : _t.text) != null ? _u : ""),
+        channels: [],
+        rank: apps.length + 1
+      });
+    }
+  }
+  return { apps, cursor: null };
+}
 async function storeSection(sectionId, hmdType = loadSettings().hmd, cursor = null, start = 0) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
+  if (sectionId === FOR_YOU_SECTION.id) return headsetForYou(hmdType);
   const data = await relayQuery(
     STORE_SECTION_DOC_ID,
     {
@@ -4168,8 +5178,8 @@ async function storeSection(sectionId, hmdType = loadSettings().hmd, cursor = nu
     },
     "The store section"
   );
-  const units = (_a2 = data.node) == null ? void 0 : _a2.units;
-  const platform = (_b2 = HMD_PLATFORM[hmdType]) != null ? _b2 : "ANDROID_6DOF";
+  const units = (_a3 = data.node) == null ? void 0 : _a3.units;
+  const platform = (_b3 = HMD_PLATFORM[hmdType]) != null ? _b3 : "ANDROID_6DOF";
   const apps = [];
   for (const edge of (_c = units == null ? void 0 : units.edges) != null ? _c : []) {
     const n = edge == null ? void 0 : edge.node;
@@ -4181,33 +5191,36 @@ async function storeSection(sectionId, hmdType = loadSettings().hmd, cursor = nu
       name: n.display_name || n.display_unit_title || String(n.id),
       packageName: (_e = n.package_name) != null ? _e : null,
       platform,
-      image: (_k = (_j = (_h = (_f = a.cover_square_image) == null ? void 0 : _f.uri) != null ? _h : (_g = n.cover_landscape_image) == null ? void 0 : _g.uri) != null ? _j : (_i = a.icon_image) == null ? void 0 : _i.uri) != null ? _k : null,
+      /* The icon before the landscape: a row shows a small square, and a wide
+         banner cropped into it is the wrong picture. */
+      image: (_s = (_r = (_p = (_n = (_l = (_j = (_h = (_f = a.cover_square_image) == null ? void 0 : _f.uri) != null ? _h : (_g = a.icon_image) == null ? void 0 : _g.uri) != null ? _j : (_i = n.cover_square_image) == null ? void 0 : _i.uri) != null ? _l : (_k = n.icon_image) == null ? void 0 : _k.uri) != null ? _n : (_m = a.vr_icon_image) == null ? void 0 : _m.uri) != null ? _p : (_o = n.vr_icon_image) == null ? void 0 : _o.uri) != null ? _r : (_q = n.cover_landscape_image) == null ? void 0 : _q.uri) != null ? _s : null,
+      media: [...nodeMedia(a), ...nodeMedia(n)],
       /* The store words the price itself ("Free", "$19.99", "Coming soon"),
          so that is shown as it is. */
-      price: ((_l = n.price_or_status_display) == null ? void 0 : _l.text) || ((_m = offer == null ? void 0 : offer.price) == null ? void 0 : _m.formatted) || null,
+      price: ((_t = n.price_or_status_display) == null ? void 0 : _t.text) || ((_u = offer == null ? void 0 : offer.price) == null ? void 0 : _u.formatted) || null,
       offerId: (offer == null ? void 0 : offer.id) ? String(offer.id) : null,
-      free: ((_n = offer == null ? void 0 : offer.price) == null ? void 0 : _n.offset_amount) === "0",
+      free: ((_v = offer == null ? void 0 : offer.price) == null ? void 0 : _v.offset_amount) === "0",
       channels: [],
       rank: start + apps.length + 1
     });
   }
   return {
     apps,
-    cursor: ((_o = units == null ? void 0 : units.page_info) == null ? void 0 : _o.has_next_page) ? units.page_info.end_cursor : null
+    cursor: ((_w = units == null ? void 0 : units.page_info) == null ? void 0 : _w.has_next_page) ? units.page_info.end_cursor : null
   };
 }
 var TOP_CHARTS_DOC_ID = "26156053534020750";
 var TOP_CHARTS_SECTION_ID = "1359505205516508";
 async function topCharts(hmdType = loadSettings().hmd) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const data = await relayQuery(
     TOP_CHARTS_DOC_ID,
     { hmdType, sectionID: TOP_CHARTS_SECTION_ID },
     "The top charts"
   );
-  return ((_c = (_b2 = (_a2 = data.section) == null ? void 0 : _a2.units) == null ? void 0 : _b2.edges) != null ? _c : []).map((e) => e == null ? void 0 : e.node).filter((n) => {
-    var _a3;
-    return ((_a3 = n == null ? void 0 : n.banner_target) == null ? void 0 : _a3.id) && n.display_unit_title;
+  return ((_c = (_b3 = (_a3 = data.section) == null ? void 0 : _a3.units) == null ? void 0 : _b3.edges) != null ? _c : []).map((e) => e == null ? void 0 : e.node).filter((n) => {
+    var _a4;
+    return ((_a4 = n == null ? void 0 : n.banner_target) == null ? void 0 : _a4.id) && n.display_unit_title;
   }).map((n) => ({
     id: String(n.banner_target.id),
     name: n.display_unit_title,
@@ -4233,13 +5246,13 @@ var DEV_POST_FLAGS = Object.fromEntries(
   ].map((n) => [`__relay_internal__pv__${n}relayprovider`, false])
 );
 async function appDevPosts(appId, hmdType = loadSettings().hmd) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const data = await relayQuery(
     DEV_POSTS_DOC_ID,
     {
       itemID: String(appId),
       hmdType,
-      platform: (_a2 = HMD_PLATFORM[hmdType]) != null ? _a2 : "ANDROID_6DOF",
+      platform: (_a3 = HMD_PLATFORM[hmdType]) != null ? _a3 : "ANDROID_6DOF",
       LIBRARY_INFO_LAST_ACTIVE_WINDOW: -1,
       ...DEV_POST_FLAGS
     },
@@ -4249,7 +5262,7 @@ async function appDevPosts(appId, hmdType = loadSettings().hmd) {
   if (!app) throw new Error("the store has no page for this app");
   const seen = /* @__PURE__ */ new Set();
   const posts = [];
-  for (const post of (_b2 = app.posts) != null ? _b2 : []) {
+  for (const post of (_b3 = app.posts) != null ? _b3 : []) {
     for (const s of (_d = (_c = post == null ? void 0 : post.target_object) == null ? void 0 : _c.story_previews) != null ? _d : []) {
       const r = s == null ? void 0 : s.tw_tile_rendering_strategy;
       if ((r == null ? void 0 : r.__typename) !== "XOCTwilightDevPostStoryRenderingStrategy" || !r.story) continue;
@@ -4272,24 +5285,58 @@ async function appDevPosts(appId, hmdType = loadSettings().hmd) {
 var PRESENCE_DOC_ID = "30449252678782676021745973837";
 var ROSTER_DOC_ID = "9609976019080474";
 async function recentPresence() {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
   const [data, roster] = await Promise.all([
     accountQuery(PRESENCE_DOC_ID, {}, "Last active"),
     relayQuery(ROSTER_DOC_ID, {}, "Last active").catch(() => null)
   ]);
-  const p = (_b2 = (_a2 = data.viewer) == null ? void 0 : _a2.user) == null ? void 0 : _b2.most_recent_presence;
+  const p = (_b3 = (_a3 = data.viewer) == null ? void 0 : _a3.user) == null ? void 0 : _b3.most_recent_presence;
   if (!p) return null;
   const r = (_c = roster == null ? void 0 : roster.viewer) == null ? void 0 : _c.user;
   const party = Number((_d = r == null ? void 0 : r.lobby_roster) == null ? void 0 : _d.count);
+  const rp = (_e = r == null ? void 0 : r.most_recent_presence) != null ? _e : {};
+  const facts = {};
+  const READ = /* @__PURE__ */ new Set([
+    "vr_last_active_time",
+    "is_current",
+    "destination_api_name",
+    "lobby_session_id",
+    "match_session_id",
+    "application_display_name",
+    "application_name",
+    "destination_display_name",
+    "destination_name",
+    "lobby_roster_count"
+  ]);
+  const collect = (o, prefix, depth) => {
+    for (const [k, v] of Object.entries(o || {})) {
+      if (k.startsWith("__") || k === "most_recent_presence") continue;
+      if (/^(alias|name|display_name|profile_name|unique_name|email)$/.test(k)) continue;
+      if (/(^|_)id$|Id$|ur[il]$|image|photo|token|session|cursor|hash/i.test(k)) continue;
+      const key = prefix ? `${prefix}_${k}` : k;
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        if (depth < 2) collect(v, key, depth + 1);
+        continue;
+      }
+      if (v == null || Array.isArray(v) || READ.has(key) || key in facts) continue;
+      if (typeof v === "string" && (/^https?:/i.test(v) || v.length > 80 || !v.trim())) continue;
+      facts[key] = v;
+    }
+  };
+  collect(p, "", 0);
+  collect(rp, "", 0);
+  if (r) collect(r, "", 0);
   return {
-    lobby: r ? Boolean((_e = r.most_recent_presence) == null ? void 0 : _e.lobby_session_id) : null,
-    match: r ? Boolean((_f = r.most_recent_presence) == null ? void 0 : _f.match_session_id) : null,
+    lobby: r ? Boolean(rp.lobby_session_id) : null,
+    match: r ? Boolean(rp.match_session_id) : null,
     party: Number.isFinite(party) && party > 0 ? party : null,
     /* Seconds since the epoch. */
     lastActive: Number(p.vr_last_active_time) || null,
     current: Boolean(p.is_current),
-    app: (_j = (_i = (_g = p.application) == null ? void 0 : _g.display_name) != null ? _i : (_h = p.application) == null ? void 0 : _h.name) != null ? _j : null,
-    destination: (_k = p.destination_api_name) != null ? _k : null
+    app: (_k = (_j = (_h = (_f = p.application) == null ? void 0 : _f.display_name) != null ? _h : (_g = p.application) == null ? void 0 : _g.name) != null ? _j : (_i = rp.application) == null ? void 0 : _i.display_name) != null ? _k : null,
+    destination: (_m = (_l = p.destination_api_name) != null ? _l : rp.destination_api_name) != null ? _m : null,
+    destinationName: (_s = (_r = (_p = (_n = p.destination) == null ? void 0 : _n.display_name) != null ? _p : (_o = p.destination) == null ? void 0 : _o.name) != null ? _r : (_q = rp.destination) == null ? void 0 : _q.display_name) != null ? _s : null,
+    facts
   };
 }
 var AVATAR_STYLE_DOC_ID = "8293863540666138";
@@ -4304,7 +5351,7 @@ function avatarValue(raw) {
   return { kind: "other", value: String(raw != null ? raw : "") };
 }
 async function avatarInfo() {
-  var _a2, _b2, _c, _d, _e, _f, _g;
+  var _a3, _b3, _c, _d, _e, _f, _g;
   const [style, gating, config] = await Promise.allSettled([
     relayQuery(AVATAR_STYLE_DOC_ID, {}, "Avatar"),
     relayQuery(AVATAR_GATING_DOC_ID, { data: {} }, "Avatar"),
@@ -4313,8 +5360,8 @@ async function avatarInfo() {
   if (style.status === "rejected" && gating.status === "rejected" && config.status === "rejected") {
     throw style.reason;
   }
-  const s = (_a2 = style.value) == null ? void 0 : _a2.avatar_vr_convergence_2;
-  const gates = Object.entries((_c = (_b2 = gating.value) == null ? void 0 : _b2.avatar_horizon_gating_values) != null ? _c : {}).filter(
+  const s = (_a3 = style.value) == null ? void 0 : _a3.avatar_vr_convergence_2;
+  const gates = Object.entries((_c = (_b3 = gating.value) == null ? void 0 : _b3.avatar_horizon_gating_values) != null ? _c : {}).filter(
     ([, v]) => typeof v === "boolean"
   );
   const entries = (_f = (_e = (_d = config.value) == null ? void 0 : _d.dyn_editor_info) == null ? void 0 : _e.config_entries) != null ? _f : [];
@@ -4336,7 +5383,7 @@ function listOf(v) {
   return [];
 }
 async function ownedIaps() {
-  var _a2, _b2, _c, _d;
+  var _a3, _b3, _c, _d;
   const out = /* @__PURE__ */ new Map();
   let cursor = null;
   for (let page = 0; page < ENTITLEMENT_PAGES; page++) {
@@ -4344,15 +5391,15 @@ async function ownedIaps() {
     refuse(json, "DLC you own");
     const list = entitlementConnection(json);
     if (!list) throw new Error("the store returned no library to read DLC from");
-    for (const edge of (_a2 = list.edges) != null ? _a2 : []) {
-      const app = (_b2 = edge == null ? void 0 : edge.node) == null ? void 0 : _b2.item;
+    for (const edge of (_a3 = list.edges) != null ? _a3 : []) {
+      const app = (_b3 = edge == null ? void 0 : edge.node) == null ? void 0 : _b3.item;
       if (!(app == null ? void 0 : app.id)) continue;
       const iaps = listOf(app.iap_entitlements).filter((e) => e == null ? void 0 : e.item).map((e) => {
-        var _a3, _b3, _c2, _d2;
+        var _a4, _b4, _c2, _d2;
         return {
-          id: String((_a3 = e.id) != null ? _a3 : e.item.id),
+          id: String((_a4 = e.id) != null ? _a4 : e.item.id),
           name: e.item.display_name || e.item.sku || String(e.item.id),
-          sku: (_b3 = e.item.sku) != null ? _b3 : null,
+          sku: (_b4 = e.item.sku) != null ? _b4 : null,
           /* DURABLE, CONSUMABLE, SUBSCRIPTION … */
           type: (_c2 = e.item.iap_type) != null ? _c2 : null,
           /* Seconds since the epoch; an expiry of 0 means it never lapses. */
@@ -4371,7 +5418,7 @@ async function ownedIaps() {
 }
 var CLAIM_DOC_ID = "24220194524234992";
 async function claimOffer(offerId, hmdType = loadSettings().hmd) {
-  var _a2, _b2;
+  var _a3, _b3;
   const json = await storeQuery(CLAIM_DOC_ID, {
     input: {
       offer_id: String(offerId),
@@ -4381,12 +5428,12 @@ async function claimOffer(offerId, hmdType = loadSettings().hmd) {
     }
   });
   refuse(json, "Claiming");
-  return (_b2 = Object.values((_a2 = json.data) != null ? _a2 : {})[0]) != null ? _b2 : {};
+  return (_b3 = Object.values((_a3 = json.data) != null ? _a3 : {})[0]) != null ? _b3 : {};
 }
 var DEVICE_PTC_DOC_ID = "4595761627188741";
 var PTC_ACTOR_ID = 49;
 async function setDevicePTC(serial, enabled) {
-  var _a2, _b2;
+  var _a3, _b3;
   const json = await storeQuery(DEVICE_PTC_DOC_ID, {
     setStatusData: {
       device_serial: String(serial),
@@ -4396,54 +5443,74 @@ async function setDevicePTC(serial, enabled) {
     }
   });
   refuse(json, "Changing a headset's test channel");
-  return (_b2 = Object.values((_a2 = json.data) != null ? _a2 : {})[0]) != null ? _b2 : {};
+  return (_b3 = Object.values((_a3 = json.data) != null ? _a3 : {})[0]) != null ? _b3 : {};
 }
 var DEVICE_PTC_STATUS_DOC_ID = "7735473863144745";
 async function devicePTCStatus(serial) {
-  var _a2;
+  var _a3;
   const json = await storeQuery(DEVICE_PTC_STATUS_DOC_ID, { device_serial: String(serial) });
   refuse(json, "Test channel status");
-  const s = (_a2 = json.data) == null ? void 0 : _a2.public_test_channel_status;
+  const s = (_a3 = json.data) == null ? void 0 : _a3.public_test_channel_status;
   if (!s) throw new Error("the store gave no test channel status");
   return { allowed: Boolean(s.is_allowed), enabled: Boolean(s.is_enabled) };
 }
 var CHANNEL_DOC_ID = "3973666182694273";
 async function channelObbs(releaseChannelID) {
-  var _a2, _b2, _c, _d, _e, _f;
+  var _a3, _b3, _c, _d, _e, _f;
   const json = await storeQuery(CHANNEL_DOC_ID, { releaseChannelID: String(releaseChannelID) });
   refuse(json, "The OBB lookup");
-  const node = (_a2 = json.data) == null ? void 0 : _a2.node;
+  const node = (_a3 = json.data) == null ? void 0 : _a3.node;
   if (!node) throw new Error("the store returned no such release channel");
   const pairs = /* @__PURE__ */ new Map();
   const take = (binary) => {
-    var _a3;
-    if ((binary == null ? void 0 : binary.id) && ((_a3 = binary.obb_binary) == null ? void 0 : _a3.id)) {
+    var _a4;
+    if ((binary == null ? void 0 : binary.id) && ((_a4 = binary.obb_binary) == null ? void 0 : _a4.id)) {
       pairs.set(String(binary.id), String(binary.obb_binary.id));
     }
   };
-  for (const edge of (_d = (_c = (_b2 = node.application) == null ? void 0 : _b2.primary_binaries) == null ? void 0 : _c.edges) != null ? _d : []) take(edge == null ? void 0 : edge.node);
+  for (const edge of (_d = (_c = (_b3 = node.application) == null ? void 0 : _b3.primary_binaries) == null ? void 0 : _c.edges) != null ? _d : []) take(edge == null ? void 0 : edge.node);
   for (const edge of (_f = (_e = node.binaries) == null ? void 0 : _e.edges) != null ? _f : []) take(edge == null ? void 0 : edge.node);
   take(node.latest_supported_binary);
   return pairs;
 }
 var ORG_APPS_DOC_ID = "27915674441422265";
-async function orgApps(orgID) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+var ORG_PAGE_KEY = "metadb.orgPageSize";
+async function orgApps(orgID, { onPage = null } = {}) {
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
   const out = /* @__PURE__ */ new Map();
   let after = null;
-  for (let page = 0; page < 40; page += 1) {
-    const json = await storeQuery(ORG_APPS_DOC_ID, {
+  const SIZES = [500, 100, 20];
+  let si = Math.max(0, SIZES.indexOf(Number(localStorage.getItem(ORG_PAGE_KEY))));
+  let size = SIZES[si];
+  for (let page = 0; page < 200; page += 1) {
+    const ask = () => storeQuery(ORG_APPS_DOC_ID, {
       after,
       display_name: null,
       exclude_hyperscapes: true,
       exclude_platforms: ["HORIZON_WORLD", "HORIZON_UNITY_WORLD"],
-      first: 20,
+      first: size,
       orderby: "DISPLAY_NAME",
       platform: null,
       id: String(orgID)
     });
-    refuse(json, "An organization's apps");
-    const conn = (_f = (_e = (_b2 = (_a2 = json.data) == null ? void 0 : _a2.node) == null ? void 0 : _b2.applications) != null ? _e : (_d = (_c = json.data) == null ? void 0 : _c.organization) == null ? void 0 : _d.applications) != null ? _f : {};
+    let json = await ask();
+    for (; ; ) {
+      try {
+        refuse(json, "An organization's apps");
+        break;
+      } catch (err2) {
+        if (page !== 0 || si >= SIZES.length - 1) throw err2;
+        size = SIZES[++si];
+        json = await ask();
+      }
+    }
+    if (page === 0) {
+      try {
+        localStorage.setItem(ORG_PAGE_KEY, String(size));
+      } catch {
+      }
+    }
+    const conn = (_f = (_e = (_b3 = (_a3 = json.data) == null ? void 0 : _a3.node) == null ? void 0 : _b3.applications) != null ? _e : (_d = (_c = json.data) == null ? void 0 : _c.organization) == null ? void 0 : _d.applications) != null ? _f : {};
     for (const edge of (_g = conn.edges) != null ? _g : []) {
       const n = edge == null ? void 0 : edge.node;
       if (!(n == null ? void 0 : n.id) || out.has(String(n.id))) continue;
@@ -4457,32 +5524,35 @@ async function orgApps(orgID) {
         offerId: null,
         free: false,
         releasedAt: null,
-        image: (_j = (_i = n.cover_landscape_image) == null ? void 0 : _i.uri) != null ? _j : null,
+        /* Square cover or icon first; the landscape only when it is all there is. */
+        image: (_p = (_o = (_m = (_k = (_i = n.cover_square_image) == null ? void 0 : _i.uri) != null ? _k : (_j = n.icon_image) == null ? void 0 : _j.uri) != null ? _m : (_l = n.vr_icon_image) == null ? void 0 : _l.uri) != null ? _o : (_n = n.cover_landscape_image) == null ? void 0 : _n.uri) != null ? _p : null,
         media: nodeMedia(n)
       });
     }
-    const pi = (_k = conn.page_info) != null ? _k : {};
-    if (!pi.has_next_page || !pi.end_cursor) break;
+    const pi = (_q = conn.page_info) != null ? _q : {};
+    const more = Boolean(pi.has_next_page && pi.end_cursor);
+    if (onPage) onPage([...out.values()], more);
+    if (!more) break;
     after = pi.end_cursor;
   }
   return [...out.values()];
 }
 var DEVICES_DOC_ID = "26205914622391442";
 async function accountDevices() {
-  var _a2, _b2, _c, _d, _e;
+  var _a3, _b3, _c, _d, _e;
   const json = await storeQuery(DEVICES_DOC_ID, {});
   refuse(json, "Headsets");
-  const root = (_b2 = (_a2 = json.data) == null ? void 0 : _a2.xoc_oc_user_from_frl) != null ? _b2 : {};
+  const root = (_b3 = (_a3 = json.data) == null ? void 0 : _a3.xoc_oc_user_from_frl) != null ? _b3 : {};
   const owned = (_d = (_c = root.owned_devices) == null ? void 0 : _c.nodes) != null ? _d : [];
   const shared = (_e = root.all_usable_devices) != null ? _e : [];
   const out = /* @__PURE__ */ new Map();
   const add = (n, ownership) => {
-    var _a3, _b3, _c2, _d2, _e2;
+    var _a4, _b4, _c2, _d2, _e2;
     if (!(n == null ? void 0 : n.serial) || out.has(n.serial)) return;
     out.set(n.serial, {
-      id: (_a3 = n.id) != null ? _a3 : null,
+      id: (_a4 = n.id) != null ? _a4 : null,
       serial: n.serial,
-      model: (_b3 = n.hwm_mapped_device_type) != null ? _b3 : null,
+      model: (_b4 = n.hwm_mapped_device_type) != null ? _b4 : null,
       // e.g. "Meta Quest 3"
       deviceType: (_c2 = n.hwm_device_type) != null ? _c2 : null,
       // e.g. "OCULUS_EUREKA"
@@ -4522,9 +5592,9 @@ function routePc(url) {
   return `${r}${r.includes("?") ? "&" : "?"}pc=1`;
 }
 async function cdnRefusal(what, url, res) {
-  var _a2;
+  var _a3;
   const text = (await res.text().catch(() => "")).replace(/\s+/g, " ").trim();
-  const msg = ((_a2 = text.match(/"message"\s*:\s*"([^"]+)"/)) == null ? void 0 : _a2[1]) || text.slice(0, 160);
+  const msg = ((_a3 = text.match(/"message"\s*:\s*"([^"]+)"/)) == null ? void 0 : _a3[1]) || text.slice(0, 160);
   let host = "";
   try {
     host = new URL(url).hostname;
@@ -4664,13 +5734,13 @@ async function otaRequest({ host = "graph.oculus.com", path = "/firmware_ota_upd
   return json;
 }
 function otaParams(opts) {
-  var _a2, _b2;
+  var _a3, _b3;
   return {
     fields: otaFields(opts),
     device_type: opts.deviceType || "",
     device_serial: opts.serial || "",
-    version: String((_a2 = opts.version) != null ? _a2 : -1),
-    device_managed_mode: String((_b2 = opts.managedMode) != null ? _b2 : 0),
+    version: String((_a3 = opts.version) != null ? _a3 : -1),
+    device_managed_mode: String((_b3 = opts.managedMode) != null ? _b3 : 0),
     full_update_only: opts.fullUpdateOnly ? "true" : "false"
   };
 }
@@ -4693,16 +5763,16 @@ function parseAppId(input) {
 // js/app.js
 var DEVICE = { ANDROID_6DOF: "Quest", ANDROID_3DOF: "Go", ANDROID: "Go", PC: "Rift" };
 function deviceName(platform) {
-  var _a2;
+  var _a3;
   if (!platform) return null;
-  return (_a2 = DEVICE[platform]) != null ? _a2 : String(platform).toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  return (_a3 = DEVICE[platform]) != null ? _a3 : String(platform).toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 var IN_APP = typeof window.MetaDBApp === "object" && window.MetaDBApp !== null;
 var APP_CAPS = (() => {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   if (!IN_APP) return { features: [] };
   try {
-    return JSON.parse((_c = (_b2 = (_a2 = window.MetaDBApp).capabilities) == null ? void 0 : _b2.call(_a2)) != null ? _c : '{"features":[]}');
+    return JSON.parse((_c = (_b3 = (_a3 = window.MetaDBApp).capabilities) == null ? void 0 : _b3.call(_a3)) != null ? _c : '{"features":[]}');
   } catch {
     return { features: [] };
   }
@@ -4710,8 +5780,8 @@ var APP_CAPS = (() => {
 var appHas = (feature) => Array.isArray(APP_CAPS.features) && APP_CAPS.features.includes(feature);
 if (IN_APP) document.documentElement.classList.add("in-app");
 var keyOf = (app) => {
-  var _a2;
-  return (_a2 = app.id) != null ? _a2 : app.packageName;
+  var _a3;
+  return (_a3 = app.id) != null ? _a3 : app.packageName;
 };
 var COLUMNS = [
   ["c-dev", "Device"],
@@ -4759,8 +5829,8 @@ var BUILD_SORT_LABELS = [
   ["buildUp", "Build low to high"]
 ];
 var dateOf = (app) => {
-  var _a2, _b2, _c, _d, _e, _f;
-  return (_f = (_e = (_d = (_b2 = (_a2 = results.get(keyOf(app))) == null ? void 0 : _a2.latest) == null ? void 0 : _b2.releasedAt) != null ? _d : (_c = primaryOf(app)) == null ? void 0 : _c.releasedAt) != null ? _e : app.releasedAt) != null ? _f : "";
+  var _a3, _b3, _c, _d, _e, _f;
+  return (_f = (_e = (_d = (_b3 = (_a3 = results.get(keyOf(app))) == null ? void 0 : _a3.latest) == null ? void 0 : _b3.releasedAt) != null ? _d : (_c = primaryOf(app)) == null ? void 0 : _c.releasedAt) != null ? _e : app.releasedAt) != null ? _f : "";
 };
 function priceOf(app) {
   if (!app.price) return null;
@@ -4795,12 +5865,12 @@ var SORTS = {
   /* Entitlements only: what the library reports and the store does not. Each
      sorts on the words the column shows, and ties fall back to the name. */
   used: nullsLast((app) => {
-    var _a2;
-    return (_a2 = app.lastUsed) != null ? _a2 : null;
+    var _a3;
+    return (_a3 = app.lastUsed) != null ? _a3 : null;
   }, 1, (x, y) => y - x),
   unused: nullsLast((app) => {
-    var _a2;
-    return (_a2 = app.lastUsed) != null ? _a2 : null;
+    var _a3;
+    return (_a3 = app.lastUsed) != null ? _a3 : null;
   }, -1, (x, y) => y - x),
   ...alphabetical("state", (app) => app.state ? words2(app.state) : null),
   ...alphabetical("source", (app) => app.owned ? grantLabel(app.grant) : null),
@@ -4810,8 +5880,8 @@ var SORTS = {
   )
 };
 var sorted = (list, mode) => {
-  var _a2;
-  return [...list].sort((_a2 = SORTS[mode]) != null ? _a2 : SORTS.az);
+  var _a3;
+  return [...list].sort((_a3 = SORTS[mode]) != null ? _a3 : SORTS.az);
 };
 var el = {
   rows: document.getElementById("rows"),
@@ -4850,6 +5920,10 @@ var el = {
   setupSections: document.getElementById("setupSections"),
   setupPanels: document.getElementById("setupPanels"),
   setupData: document.getElementById("setupData"),
+  setupExtras: document.getElementById("setupExtras"),
+  avatarsGo: document.getElementById("avatarsGo"),
+  avatarsCount: document.getElementById("avatarsCount"),
+  avatarsGrid: document.getElementById("avatarsGrid"),
   setupSave: document.getElementById("setupSave"),
   setupAll: document.getElementById("setupAll"),
   openSetup: document.getElementById("openSetup"),
@@ -4859,6 +5933,42 @@ var el = {
   viewUpdater: document.getElementById("view-updater"),
   viewNotfound: document.getElementById("view-notfound"),
   notfoundPath: document.getElementById("notfoundPath"),
+  viewHome: document.getElementById("view-home"),
+  homeBody: document.getElementById("homeBody"),
+  viewPeople: document.getElementById("view-people"),
+  peopleGo: document.getElementById("peopleGo"),
+  peopleQ: document.getElementById("peopleQ"),
+  peopleShow: document.getElementById("peopleShow"),
+  peopleKind: document.getElementById("peopleKind"),
+  peopleHead: document.getElementById("peopleHead"),
+  viewExplore: document.getElementById("view-explore"),
+  exploreQ: document.getElementById("exploreQ"),
+  exploreGo: document.getElementById("exploreGo"),
+  exploreShow: document.getElementById("exploreShow"),
+  exploreCount: document.getElementById("exploreCount"),
+  exploreRows: document.getElementById("exploreRows"),
+  exploreEmpty: document.getElementById("exploreEmpty"),
+  stickerGo: document.getElementById("stickerGo"),
+  viewPhotos: document.getElementById("view-photos"),
+  photoGo: document.getElementById("photoGo"),
+  photoShow: document.getElementById("photoShow"),
+  photoFrom: document.getElementById("photoFrom"),
+  photoTo: document.getElementById("photoTo"),
+  photoCount: document.getElementById("photoCount"),
+  photoGrid: document.getElementById("photoGrid"),
+  photoEmpty: document.getElementById("photoEmpty"),
+  photoMoreBar: document.getElementById("photoMoreBar"),
+  photoMore: document.getElementById("photoMore"),
+  creditGo: document.getElementById("creditGo"),
+  creditCount: document.getElementById("creditCount"),
+  creditRows: document.getElementById("creditRows"),
+  creditTable: document.getElementById("creditTable"),
+  creditEmpty: document.getElementById("creditEmpty"),
+  stickerCount: document.getElementById("stickerCount"),
+  stickerGrid: document.getElementById("stickerGrid"),
+  peopleCount: document.getElementById("peopleCount"),
+  peopleRows: document.getElementById("peopleRows"),
+  peopleEmpty: document.getElementById("peopleEmpty"),
   updaterLoad: document.getElementById("updaterLoad"),
   updaterSerials: document.getElementById("updaterSerials"),
   updaterMode: document.getElementById("updaterMode"),
@@ -4903,6 +6013,8 @@ var el = {
   checkPlus: document.getElementById("checkPlus"),
   plusQ: document.getElementById("plusQ"),
   plusPick: document.getElementById("plusPick"),
+  plusOthers: document.getElementById("plusOthers"),
+  plusOtherRows: document.getElementById("plusOtherRows"),
   plusSort: document.getElementById("plusSort"),
   plusRows: document.getElementById("plusRows"),
   plusCount: document.getElementById("plusCount"),
@@ -5023,6 +6135,7 @@ var el = {
   mineRows: document.getElementById("mineRows"),
   mineCount: document.getElementById("mineCount"),
   viewPurchases: document.getElementById("view-purchases"),
+  viewCredit: document.getElementById("view-credit"),
   viewAvatar: document.getElementById("view-avatar"),
   avatarLoad: document.getElementById("avatarLoad"),
   avatarQ: document.getElementById("avatarQ"),
@@ -5069,6 +6182,13 @@ var el = {
 };
 var WATCH_KEY = "metadb.watchlist";
 var WATCH_LAST_KEY = "metadb.watchLast";
+var RECENT_KEY = "metadb.recentApps";
+var RECENT_MAX = 12;
+var REPOS_KEY = "metadb.githubRepos";
+var iconTried = /* @__PURE__ */ new Set();
+var iconCache = /* @__PURE__ */ new Map();
+var homeAccount = { token: null, loading: false };
+var homeShown = /* @__PURE__ */ new Set();
 var WATCH_THROTTLE = 15 * 60 * 1e3;
 var results = /* @__PURE__ */ new Map();
 var listings = /* @__PURE__ */ new Map();
@@ -5083,6 +6203,38 @@ var relNotesCache = /* @__PURE__ */ new Map();
 var obbChecked = /* @__PURE__ */ new Set();
 var obbNote = "";
 var open = /* @__PURE__ */ new Set();
+var peopleState = { lists: {}, counts: null, loading: false };
+var peopleOpen = /* @__PURE__ */ new Set();
+var personInfo = /* @__PURE__ */ new Map();
+var exploreState = { query: "", result: null, loading: false, note: "" };
+var mediaOpen = /* @__PURE__ */ new Set();
+var mediaInfo = /* @__PURE__ */ new Map();
+var revOpen = /* @__PURE__ */ new Set();
+var revInfo = /* @__PURE__ */ new Map();
+var EXPLORE_KINDS = [
+  ["apps", "App"],
+  ["movies", "Movie"],
+  ["series", "TV series"],
+  ["sports", "Sports event"],
+  ["xbox", "Xbox cloud game"],
+  ["people", "Person"],
+  ["events", "Event"],
+  ["websites", "Website"]
+];
+var photoState = { items: [], cursor: null, loading: false, asked: false, note: "" };
+var traitInfo = /* @__PURE__ */ new Map();
+var PEOPLE_KINDS = {
+  follows: { load: () => peopleList(), what: "who you follow and who follows you", none: "You don't follow anyone yet, and nobody follows you." },
+  requests: { load: () => peopleRequests(), what: "who has asked to follow you", none: "No one has asked to follow you." },
+  met: { load: () => peopleRecentlyMet(), what: "the people you recently met in a world or app", none: "You haven't met anyone recently." },
+  suggested: { load: () => peopleSuggested(), what: "people you may know", none: "The store has no suggestions for you right now." },
+  nearby: {
+    load: () => peopleNearby(),
+    what: "who is in your lobby now",
+    none: "No one else is in your lobby. This list fills while you are in a lobby on the headset."
+  },
+  chats: { load: () => peopleChats(), what: "your chats", none: "You have no chats." }
+};
 var mineList = [];
 var mineNote = "";
 var mineAsked = false;
@@ -5119,7 +6271,7 @@ var defaultList = [];
 var defaultLoading = false;
 var defaultAsked = false;
 var defaultNote = "";
-var plusState = { rows: [], asked: false, loading: false, note: "" };
+var plusState = { rows: [], others: [], sections: [], asked: false, loading: false, note: "" };
 var storeState = {
   front: null,
   charts: [],
@@ -5151,9 +6303,9 @@ var appUpdate = null;
 var appUpdateNoticed = false;
 var STORE_ART_KEY = "metadb.storeArt";
 var storeArt = (() => {
-  var _a2;
+  var _a3;
   try {
-    return new Map(Object.entries((_a2 = JSON.parse(localStorage.getItem(STORE_ART_KEY))) != null ? _a2 : {}));
+    return new Map(Object.entries((_a3 = JSON.parse(localStorage.getItem(STORE_ART_KEY))) != null ? _a3 : {}));
   } catch {
     return /* @__PURE__ */ new Map();
   }
@@ -5162,11 +6314,16 @@ var storeArtAsking = false;
 var restoringRoute = false;
 var PANEL_TABS = ["store", "builds", "reviews", "posts", "addons", "achievements", "leaderboards", "cloud", "mine"];
 var VIEWS = [
+  "home",
   "apps",
   "search",
   "mine",
   "purchases",
+  "credit",
   "wishlist",
+  "people",
+  "photos",
+  "explore",
   "watchlist",
   "avatar",
   "devices",
@@ -5183,10 +6340,15 @@ var VIEWS = [
   "downgrade"
 ];
 var WIP_VIEWS = ["companion"];
+var SCREEN_GROUPS = [
+  { name: "Store", views: [["store", "Store front"], ["plus", "Horizon+"]] },
+  { name: "Headsets", views: [["devices", "Your headsets"], ["updater", "Updater"]] },
+  { name: "Library", views: [["mine", "Entitlements"], ["purchases", "Purchases"], ["credit", "Store credit"], ["wishlist", "Wishlist"]] }
+];
 var routeSearch = "";
 var routeView = () => {
-  var _a2;
-  const v = (_a2 = routeParts()[0]) != null ? _a2 : "";
+  var _a3;
+  const v = (_a3 = routeParts()[0]) != null ? _a3 : "";
   return v === "search" ? "apps" : v;
 };
 (() => {
@@ -5207,6 +6369,8 @@ var storeArtTried = /* @__PURE__ */ new Set();
 var dgState = { tab: "apps", loaded: false, loading: false, note: "", selected: null, builds: /* @__PURE__ */ new Map(), backups: [], backupSel: null, more: [], releases: /* @__PURE__ */ new Map() };
 var adbBusy = false;
 var ownedKeys = /* @__PURE__ */ new Set();
+var ownedAcross = /* @__PURE__ */ new Map();
+var ownedLoading = /* @__PURE__ */ new Set();
 var mineKind = "quest";
 var myChannels = /* @__PURE__ */ new Map();
 var playState = { rows: [], asked: false, loading: false, note: "", promise: null };
@@ -5252,6 +6416,14 @@ initSearchBar();
 initViews();
 initSettings();
 initOrgs();
+var _a2, _b2;
+(_b2 = (_a2 = el.viewApps) == null ? void 0 : _a2.querySelector(".controls")) == null ? void 0 : _b2.append(el.limitbar);
+initPeople();
+initExplore();
+initBackupReader();
+initPhotos();
+initCredit();
+initRevisions();
 initDevices();
 initUpdater();
 initPurchases();
@@ -5273,22 +6445,22 @@ fillHmdPicker();
 initDefaults();
 initUpdates();
 function loadedBuild() {
-  var _a2, _b2;
+  var _a3, _b3;
   const link = document.querySelector('link[rel="stylesheet"][href*="style.css"]');
-  return (_b2 = (_a2 = link == null ? void 0 : link.getAttribute("href").match(/[?&]v=(\d+)/)) == null ? void 0 : _a2[1]) != null ? _b2 : null;
+  return (_b3 = (_a3 = link == null ? void 0 : link.getAttribute("href").match(/[?&]v=(\d+)/)) == null ? void 0 : _a3[1]) != null ? _b3 : null;
 }
 async function publishedBuild() {
-  var _a2, _b2;
+  var _a3, _b3;
   const res = await fetch(document.baseURI, { cache: "no-store" });
   if (!res.ok) return null;
-  return (_b2 = (_a2 = (await res.text()).match(/style\.css\?v=(\d+)/)) == null ? void 0 : _a2[1]) != null ? _b2 : null;
+  return (_b3 = (_a3 = (await res.text()).match(/style\.css\?v=(\d+)/)) == null ? void 0 : _a3[1]) != null ? _b3 : null;
 }
 function safeToReload() {
-  var _a2;
+  var _a3;
   if (appInstalls.size) return false;
   if (document.hidden) return true;
   if (stagedApp) return false;
-  const tag = (_a2 = document.activeElement) == null ? void 0 : _a2.tagName;
+  const tag = (_a3 = document.activeElement) == null ? void 0 : _a3.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return false;
   return true;
 }
@@ -5378,12 +6550,12 @@ function initFontSize() {
   });
 }
 function initTheme() {
-  var _a2;
+  var _a3;
   const pickers = [el.theme, el.dgTheme].filter(Boolean);
   for (const p of pickers) fillOptions(p, THEMES);
   let saved = "";
   try {
-    saved = (_a2 = localStorage.getItem("theme")) != null ? _a2 : "";
+    saved = (_a3 = localStorage.getItem("theme")) != null ? _a3 : "";
   } catch {
   }
   el.theme.value = THEMES.some(([value]) => value === saved) ? saved : "";
@@ -5497,8 +6669,8 @@ function watchShots(node) {
   node.addEventListener(
     "error",
     (e) => {
-      var _a2, _b2;
-      const img = (_b2 = (_a2 = e.target).closest) == null ? void 0 : _b2.call(_a2, ".shot img");
+      var _a3, _b3;
+      const img = (_b3 = (_a3 = e.target).closest) == null ? void 0 : _b3.call(_a3, ".shot img");
       if (!img) return;
       const gone = document.createElement("div");
       gone.className = "shot-gone";
@@ -5535,7 +6707,7 @@ function closeGallery({ animate = true } = {}) {
   setTimeout(done, speed());
 }
 async function showImages(app, button, out) {
-  var _a2;
+  var _a3;
   const show = (page, tiles2) => {
     const shots = mergeMedia(page, app.media, tiles2);
     if (shots.length) openGallery(app, shots);
@@ -5554,7 +6726,7 @@ async function showImages(app, button, out) {
       show(page.media, tiles);
     } catch (err2) {
       out.innerHTML = `<p class="warn">No store page: ${esc(err2.message)}</p>`;
-      if (((_a2 = app.media) == null ? void 0 : _a2.length) || tiles.length) show([], tiles);
+      if (((_a3 = app.media) == null ? void 0 : _a3.length) || tiles.length) show([], tiles);
     }
   }
   button.disabled = false;
@@ -5615,12 +6787,12 @@ function initViews() {
     restoreRoute();
   });
   document.addEventListener("click", (e) => {
-    var _a2;
+    var _a3;
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     const a = e.target.closest("a[href]");
     if (!a || a.target || a.hasAttribute("download")) return;
     const href = a.getAttribute("href");
-    const screen = (_a2 = href.match(/^[#/]([a-z]+)$/)) == null ? void 0 : _a2[1];
+    const screen = (_a3 = href.match(/^[#/]([a-z]+)$/)) == null ? void 0 : _a3[1];
     if (screen && VIEWS.includes(screen)) {
       e.preventDefault();
       go(`/${screen}`);
@@ -5674,10 +6846,10 @@ function routeState() {
   return { view };
 }
 function pathFor(s) {
-  var _a2;
+  var _a3;
   const e = encodeURIComponent;
   if (s.view === "apps") {
-    if (/^\d{5,}$/.test((_a2 = s.app) != null ? _a2 : "")) {
+    if (/^\d{5,}$/.test((_a3 = s.app) != null ? _a3 : "")) {
       return `/apps/${e(s.app)}${PANEL_TABS.includes(s.tab) && s.tab !== "store" ? `/${e(s.tab)}` : ""}`;
     }
     return s.q ? `/search/${e(s.q)}` : "/apps";
@@ -5687,8 +6859,8 @@ function pathFor(s) {
   return `/${s.view}`;
 }
 function setRoute(changes) {
-  var _a2;
-  if ("q" in changes) routeSearch = (_a2 = changes.q) != null ? _a2 : "";
+  var _a3;
+  if ("q" in changes) routeSearch = (_a3 = changes.q) != null ? _a3 : "";
   const s = { ...routeState(), ...changes };
   if (s.view === "apps" && !s.app && !s.q) s.q = routeSearch;
   const next = pathFor(s);
@@ -5696,10 +6868,10 @@ function setRoute(changes) {
   if (next !== location.pathname) history.replaceState(history.state, "", next + location.search);
 }
 async function restoreRoute() {
-  var _a2, _b2, _c, _d;
+  var _a3, _b3, _c, _d;
   const s = routeState();
   if (s.view === "apps") {
-    const q = ((_a2 = s.q) != null ? _a2 : "").trim() || s.app;
+    const q = ((_a3 = s.q) != null ? _a3 : "").trim() || s.app;
     if (!q) return;
     if (s.q) routeSearch = s.q;
     if (el.q.value.trim() !== q || !listing.length) {
@@ -5718,7 +6890,7 @@ async function restoreRoute() {
     renderAll();
     const row = el.rows.querySelector(`tr[data-id="${CSS.escape(String(keyOf(hit)))}"]`);
     if (row) {
-      const bar = (_c = (_b2 = document.querySelector(".topbar")) == null ? void 0 : _b2.getBoundingClientRect().height) != null ? _c : 0;
+      const bar = (_c = (_b3 = document.querySelector(".topbar")) == null ? void 0 : _b3.getBoundingClientRect().height) != null ? _c : 0;
       window.scrollTo({ top: row.getBoundingClientRect().top + scrollY - bar - 12 });
     }
   } else if (s.view === "worlds" && s.world) {
@@ -5730,28 +6902,67 @@ async function restoreRoute() {
   }
 }
 function firstEnabledSection(off) {
-  var _a2;
-  const order = ["apps", "store", "default", "plus", "worlds", "orgs", "watchlist", "devices", "updater", "mine", "purchases", "wishlist", "avatar", "adb"];
-  return (_a2 = order.find((v) => !off.includes(v))) != null ? _a2 : "settings";
+  var _a3;
+  const order = ["apps", "store", "plus", "default", "worlds", "orgs", "explore", "watchlist", "devices", "updater", "mine", "purchases", "credit", "wishlist", "people", "photos", "avatar", "adb"];
+  return (_a3 = order.find((v) => !off.includes(v))) != null ? _a3 : "settings";
 }
 function navLabel(a) {
   const copy = a.cloneNode(true);
   for (const badge of copy.querySelectorAll(".navbadge")) badge.remove();
   return copy.textContent.replace(/\s+/g, " ").trim();
 }
+function navViews(a) {
+  return (a.dataset.views || a.dataset.view).split(" ");
+}
+function screenList() {
+  const out = [];
+  for (const a of el.navLinks) {
+    const v = a.dataset.view;
+    if (v === "settings" || v === "getapp") continue;
+    const group = a.dataset.views && SCREEN_GROUPS.find((g) => g.views.some(([x]) => x === v));
+    if (group) out.push(...group.views.map(([x, label]) => [x, `${group.name} \u2014 ${label}`]));
+    else out.push([v, navLabel(a)]);
+  }
+  return out;
+}
+function syncScreenTabs(off) {
+  var _a3;
+  for (const g of SCREEN_GROUPS) {
+    const on = g.views.filter(([v]) => !off.has(v));
+    for (const [v] of g.views) {
+      const section = document.getElementById(`view-${v}`);
+      if (!section) continue;
+      let strip = section.querySelector(":scope > .screen-tabs");
+      if (!strip) {
+        strip = document.createElement("nav");
+        strip.className = "companion-tabs panel-tabs screen-tabs";
+        strip.setAttribute("aria-label", g.name);
+        (_a3 = section.querySelector(":scope > h2")) == null ? void 0 : _a3.after(strip);
+      }
+      strip.innerHTML = on.map(
+        ([x, label]) => `<a class="companion-tab${x === v ? " on" : ""}" href="/${x}"${x === v ? ` aria-current="page"` : ""}>${esc(label)}</a>`
+      ).join("");
+      strip.hidden = on.length < 2;
+    }
+  }
+}
 function applyFeatureVisibility() {
   const off = new Set(loadSettings().sectionsOff);
   for (const a of el.navLinks) {
     const v = a.dataset.view;
     if (v === "settings" || v === "getapp") continue;
-    a.hidden = off.has(v);
+    const first = navViews(a).find((x) => !off.has(x));
+    a.hidden = !first;
+    if (a.dataset.views && first) a.setAttribute("href", `/${first}`);
   }
+  syncScreenTabs(off);
   for (const g of el.navGroups) {
     const links = [...g.querySelectorAll("a[data-view]")];
     g.hidden = links.length > 0 && links.every((a) => a.hidden);
   }
 }
 function applyView() {
+  var _a3;
   closeStage({ animate: false });
   const hash = routeView();
   if (IN_APP) {
@@ -5764,7 +6975,7 @@ function applyView() {
       return;
     }
   }
-  const views = ["mine", "purchases", "wishlist", "watchlist", "avatar", "devices", "updater", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
+  const views = ["home", "mine", "purchases", "credit", "wishlist", "people", "photos", "explore", "watchlist", "avatar", "devices", "updater", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
   let view = views.includes(hash) && !(IN_APP && (hash === "adb" || hash === "companion")) ? hash : "apps";
   if (!routeKnown()) view = "notfound";
   const sectionsOff = loadSettings().sectionsOff;
@@ -5774,13 +6985,22 @@ function applyView() {
   el.viewApps.hidden = view !== "apps";
   el.viewMine.hidden = view !== "mine";
   el.viewPurchases.hidden = view !== "purchases";
+  el.viewCredit.hidden = view !== "credit";
   el.viewWishlist.hidden = view !== "wishlist";
+  el.viewPeople.hidden = view !== "people";
+  if (view === "people") renderPeople();
+  el.viewExplore.hidden = view !== "explore";
+  el.viewPhotos.hidden = view !== "photos";
+  if (view === "photos") renderPhotos();
+  if (view === "explore") renderExplore();
   el.viewWatchlist.hidden = view !== "watchlist";
   el.viewAvatar.hidden = view !== "avatar";
   el.viewDevices.hidden = view !== "devices";
   el.viewUpdater.hidden = view !== "updater";
   el.viewNotfound.hidden = view !== "notfound";
   if (view === "notfound") el.notfoundPath.textContent = `/${routeParts().join("/")}`;
+  el.viewHome.hidden = view !== "home";
+  if (view === "home") renderHome();
   if (view === "updater") setTimeout(renderUpdater, 0);
   el.viewWorlds.hidden = view !== "worlds";
   el.viewOrgs.hidden = view !== "orgs";
@@ -5795,21 +7015,28 @@ function applyView() {
   if (view === "watchlist") renderWatch();
   if (view === "companion") {
     import("./companion.js?v=268").then((m) => m.initCompanion(el.viewCompanion)).catch((e) => {
-      var _a2;
+      var _a4;
       console.error("companion init failed", e);
-      if (!navigator.bluetooth) (_a2 = el.viewCompanion.querySelector("#companionUnsupported")) == null ? void 0 : _a2.removeAttribute("hidden");
+      if (!navigator.bluetooth) (_a4 = el.viewCompanion.querySelector("#companionUnsupported")) == null ? void 0 : _a4.removeAttribute("hidden");
     });
   }
   el.limitbar.hidden = view !== "apps";
   if ([...staleTables].some((t) => !onHiddenScreen(t))) renderAll();
   applyFeatureVisibility();
-  for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);
+  for (const a of el.navLinks) a.classList.toggle("on", navViews(a).includes(view));
   for (const g of el.navGroups) {
     g.querySelector(".navtop").classList.toggle("on", !!g.querySelector("a.on"));
   }
   window.scrollTo(0, 0);
+  const tabStrip = (_a3 = document.getElementById(`view-${view}`)) == null ? void 0 : _a3.querySelector(":scope > .screen-tabs");
+  const openTab = tabStrip == null ? void 0 : tabStrip.querySelector(".on");
+  if (openTab && tabStrip.scrollWidth > tabStrip.clientWidth) {
+    tabStrip.scrollLeft = 0;
+    const over = openTab.getBoundingClientRect().right - tabStrip.getBoundingClientRect().right + 48;
+    if (over > 0) tabStrip.scrollLeft = over;
+  }
   play(
-    [el.viewApps, el.viewMine, el.viewPurchases, el.viewWishlist, el.viewWatchlist, el.viewAvatar, el.viewDevices, el.viewUpdater, el.viewNotfound, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
+    [el.viewHome, el.viewApps, el.viewMine, el.viewPurchases, el.viewCredit, el.viewWishlist, el.viewPeople, el.viewPhotos, el.viewExplore, el.viewWatchlist, el.viewAvatar, el.viewDevices, el.viewUpdater, el.viewNotfound, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
@@ -5818,6 +7045,15 @@ function applyView() {
   else endTour();
 }
 var orgList = [];
+var orgCache = /* @__PURE__ */ new Map();
+var ORG_CACHE_MS = 10 * 60 * 1e3;
+var orgDrawn = -1;
+var orgSkipRebuildOnce = false;
+var orgRenderTimer = 0;
+var orgQueue = [];
+var orgGen = 0;
+var orgPumping = false;
+var orgAfterDrain = null;
 var orgLoading = false;
 var orgAsked = false;
 var orgNote = "";
@@ -5843,24 +7079,574 @@ async function runOrgApps() {
     return;
   }
   if (orgLoading) return;
+  const hit = orgCache.get(id);
+  if (hit && Date.now() - hit.at < ORG_CACHE_MS) {
+    orgAsked = true;
+    orgNote = "";
+    orgList = hit.list;
+    setRoute({ org: id });
+    renderAll();
+    return;
+  }
   orgAsked = true;
   orgLoading = true;
   orgNote = "";
+  orgList = [];
   el.orgGo.disabled = true;
   el.orgGo.textContent = "Loading\u2026";
   renderAll();
+  const appendable = () => orgDrawn >= 0 && !el.orgQ.value.trim() && !el.orgPlatform.value && el.orgSort.value === "az" && !onHiddenScreen(el.orgRows);
   try {
-    orgList = await orgApps(id);
+    orgList = await orgApps(id, {
+      onPage: (list, more) => {
+        orgList = list;
+        if (more) el.orgGo.textContent = `Loading\u2026 ${list.length}`;
+        if (appendable() && orgDrawn <= list.length) {
+          orgQueue.push(...list.slice(orgDrawn));
+          orgDrawn = list.length;
+          el.orgEmpty.hidden = list.length > 0;
+          if (more) el.orgCount.textContent = `${list.length} apps so far \u2014 asking for more\u2026`;
+          pumpOrgRows();
+        } else if (!orgRenderTimer) {
+          orgRenderTimer = setTimeout(() => {
+            orgRenderTimer = 0;
+            renderOrgSection();
+          }, 250);
+        }
+      }
+    });
+    orgCache.set(id, { list: orgList, at: Date.now() });
     setRoute({ org: id });
   } catch (err2) {
     orgList = [];
     orgNote = err2.message || "Could not load the organization's apps.";
   } finally {
+    clearTimeout(orgRenderTimer);
+    orgRenderTimer = 0;
     orgLoading = false;
     el.orgGo.disabled = false;
     el.orgGo.textContent = "List apps";
-    renderAll();
+    const finish = () => {
+      const want = orgVisible().map(keyOf).join("\n");
+      const have = [...el.orgRows.querySelectorAll(":scope > tr")].map((tr) => tr.dataset.id).join("\n");
+      orgSkipRebuildOnce = orgDrawn >= 0 && want === have;
+      renderAll();
+    };
+    if (orgPumping || orgQueue.length) orgAfterDrain = finish;
+    else finish();
   }
+}
+function initPeople() {
+  var _a3, _b3, _c, _d, _e, _f;
+  (_a3 = el.peopleGo) == null ? void 0 : _a3.addEventListener("click", loadPeople);
+  (_b3 = el.peopleQ) == null ? void 0 : _b3.addEventListener("input", renderPeople);
+  (_c = el.peopleShow) == null ? void 0 : _c.addEventListener("change", renderPeople);
+  (_d = el.peopleKind) == null ? void 0 : _d.addEventListener("change", renderPeople);
+  (_e = el.peopleRows) == null ? void 0 : _e.addEventListener("click", (e) => {
+    const get = e.target.closest("button[data-person-load]");
+    if (get) return loadPerson(get.dataset.personLoad);
+    if (e.target.closest("tr.detail")) return;
+    const row = e.target.closest("tr[data-person]");
+    if (row) togglePerson(row.dataset.person);
+  });
+  (_f = el.peopleRows) == null ? void 0 : _f.addEventListener("keydown", (e) => {
+    var _a4, _b4;
+    const row = (_b4 = (_a4 = e.target).closest) == null ? void 0 : _b4.call(_a4, "tr[data-person]");
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      togglePerson(row.dataset.person);
+    }
+  });
+}
+function togglePerson(id) {
+  var _a3;
+  if (peopleOpen.has(id)) peopleOpen.delete(id);
+  else peopleOpen.add(id);
+  renderPeople();
+  (_a3 = el.peopleRows.querySelector(`tr[data-person="${CSS.escape(id)}"]`)) == null ? void 0 : _a3.focus();
+}
+async function loadPerson(id) {
+  var _a3;
+  if ((_a3 = personInfo.get(id)) == null ? void 0 : _a3.loading) return;
+  personInfo.set(id, { loading: true });
+  renderPeople();
+  try {
+    personInfo.set(id, { data: await personDetails(id) });
+  } catch (err2) {
+    personInfo.set(id, { note: err2.message || "Could not load this profile." });
+  }
+  renderPeople();
+}
+function personDetail(p) {
+  var _a3;
+  const info = personInfo.get(p.id);
+  let body;
+  if (!info) body = `<button type="button" data-person-load="${esc(p.id)}">Get profile</button>`;
+  else if (info.loading) body = `<button type="button" disabled>Loading\u2026</button>`;
+  else if (info.note) body = `<p class="warn">${esc(info.note)}</p>`;
+  else {
+    const d = info.data;
+    const yn = (v) => v == null ? null : v ? "Yes" : "No";
+    body = `${factGroups([
+      [
+        "Profile",
+        [
+          ["Account ID", p.id],
+          ["Username", d.alias ? `@${d.alias}` : null],
+          ["Followers", d.followers == null ? null : bigNumber(d.followers)],
+          ["Following", d.following == null ? null : bigNumber(d.following)],
+          ["Instagram", ((_a3 = d.instagram) == null ? void 0 : _a3.length) ? d.instagram.map((x) => `@${x}`).join(", ") : null],
+          ["Profile", d.privateProfile == null ? null : d.privateProfile ? "Private" : "Public"],
+          ["Facebook name", d.facebookName],
+          ["Doing now", d.presence],
+          ["Can call in VR", d.canCall ? words2(d.canCall) : null],
+          ["Joinable now", yn(d.joinable)],
+          ["Unread messages", yn(d.unread)]
+        ]
+      ]
+    ])}${d.bio ? `<h3>Bio</h3><p>${esc(d.bio).replace(/\n/g, "<br>")}</p>` : ""}`;
+  }
+  return `<tr class="detail"><td colspan="4"><div class="panel">${body}</div></td></tr>`;
+}
+async function loadPeople() {
+  var _a3, _b3, _c, _d;
+  if (peopleState.loading) return;
+  const kind = ((_a3 = el.peopleKind) == null ? void 0 : _a3.value) || "follows";
+  peopleState.loading = true;
+  el.peopleGo.disabled = el.peopleKind.disabled = true;
+  el.peopleGo.textContent = "Loading\u2026";
+  renderPeople();
+  const [list, counts] = await Promise.allSettled([
+    PEOPLE_KINDS[kind].load(),
+    peopleState.counts ? Promise.resolve(peopleState.counts) : peopleCounts()
+  ]);
+  peopleState.lists[kind] = list.status === "fulfilled" ? { rows: (_c = (_b3 = list.value.people) != null ? _b3 : list.value.chats) != null ? _c : [], more: Boolean(list.value.more), note: "" } : { rows: [], more: false, note: ((_d = list.reason) == null ? void 0 : _d.message) || `Could not load ${PEOPLE_KINDS[kind].what}.` };
+  if (counts.status === "fulfilled") peopleState.counts = counts.value;
+  peopleState.loading = false;
+  el.peopleGo.disabled = el.peopleKind.disabled = false;
+  el.peopleGo.textContent = "Get people";
+  renderPeople();
+}
+function renderPeople() {
+  var _a3, _b3;
+  if (!el.peopleRows) return;
+  const kind = ((_a3 = el.peopleKind) == null ? void 0 : _a3.value) || "follows";
+  const isChats = kind === "chats";
+  const relation = (f) => f === "FOLLOWS_EACH_OTHER" ? "mutual" : f === "PROFILE_REQUESTED_FOLLOW" ? "requested" : f === "PROFILE_FOLLOWS_VIEWER" || /FOLLOWED_BY|FOLLOWER$/.test(f || "") ? "followers" : f === "VIEWER_FOLLOWS_PROFILE" || /FOLLOWING|FOLLOWS$/.test(f || "") ? "following" : f === "NO_FOLLOW" ? "none" : "";
+  const relationText = (f) => ({
+    mutual: "Each other",
+    followers: "Follows you",
+    following: kind === "follows" ? "Doesn't follow you back" : "You follow them",
+    requested: "Wants to follow you",
+    none: "Neither follows"
+  })[relation(f)] || (f ? String(f).toLowerCase().replace(/_/g, " ").replace(/^./, (c2) => c2.toUpperCase()) : "\u2014");
+  el.peopleHead.innerHTML = (isChats ? ["Chat", "Status", "Last message", "Kind"] : ["Person", "Status", "Follow", "Can message"]).map((h) => `<th scope="col">${h}</th>`).join("");
+  for (const o of el.peopleShow.options) o.hidden = isChats && (o.value === "mutual" || o.value === "following");
+  if (isChats && ["mutual", "following"].includes(el.peopleShow.value)) el.peopleShow.value = "all";
+  const state = peopleState.lists[kind];
+  const all = (_b3 = state == null ? void 0 : state.rows) != null ? _b3 : [];
+  const q = el.peopleQ.value.trim().toLowerCase();
+  const show = el.peopleShow.value;
+  const named = (p) => p.name.toLowerCase().includes(q) || (p.alias || "").toLowerCase().includes(q);
+  const live = (p) => isChats ? p.active || p.members.some((m) => m.online) : p.online;
+  const shown = all.filter((p) => {
+    var _a4;
+    return !q || named(p) || ((_a4 = p.members) != null ? _a4 : []).some(named);
+  }).filter((p) => {
+    if (show === "online") return live(p);
+    if (isChats) return true;
+    const r = relation(p.follow);
+    if (show === "mutual") return r === "mutual";
+    if (show === "following") return r === "following";
+    return true;
+  });
+  if (kind !== "met" && kind !== "suggested" && !isChats)
+    shown.sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+  const showArt = loadSettings().images;
+  const pic = (photo) => showArt && photo ? `<img class="art" src="${esc(photo)}" alt="" loading="lazy">` : showArt ? `<span class="art art-fill" aria-hidden="true"></span>` : "";
+  el.peopleRows.innerHTML = shown.map((p) => {
+    if (isChats) {
+      const on = p.members.filter((m) => m.online).length;
+      const now = p.active ? "Someone's in it now" : on ? `${on} online` : "";
+      return `<tr>
+          <td class="name">${pic(p.photo)}<strong>${esc(p.name)}</strong>${p.oneToOne ? "" : ` <span class="ppl-alias">${p.members.length ? `${p.members.length + 1} people` : "just you"}</span>`}</td>
+          <td>${p.unread ? `<span class="ppl-on">Unread</span>` : `<span class="ppl-off">Read</span>`}${now ? `<div class="ppl-pres">${esc(now)}</div>` : ""}</td>
+          <td>${p.snippet ? esc(p.snippet) : "\u2014"}</td>
+          <td>${p.oneToOne ? "One to one" : "Group"}</td>
+        </tr>`;
+    }
+    const met = [p.met, p.metAt ? `Last met ${agoText(p.metAt)}` : null].filter(Boolean).join(" \xB7 ");
+    const lines = [p.presence && !/^online( now)?$/i.test(p.presence) ? p.presence : null, met || null, p.context].filter(Boolean).map((t) => `<div class="ppl-pres">${esc(t)}</div>`).join("");
+    const open2 = peopleOpen.has(p.id);
+    return `<tr class="app" tabindex="0" data-person="${esc(p.id)}" aria-expanded="${open2}">
+        <td class="name">${pic(p.photo)}<strong>${esc(p.name)}</strong>${p.alias && p.alias !== p.name ? ` <span class="ppl-alias">@${esc(p.alias)}</span>` : ""}</td>
+        <td>${p.online ? `<span class="ppl-on">Online</span>` : `<span class="ppl-off">Offline</span>`}${lines}</td>
+        <td>${esc(relationText(p.follow))}</td>
+        <td>${p.canMessage ? "Yes" : "No"}</td>
+      </tr>${open2 ? personDetail(p) : ""}`;
+  }).join("");
+  const c = peopleState.counts;
+  const plural2 = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const totals = c && kind === "follows" ? [
+    c.followers != null ? plural2(c.followers, "follower") : null,
+    c.following != null ? `${c.following} following` : null,
+    c.requests ? plural2(c.requests, "follow request") : null,
+    c.recentlyMet ? `${c.recentlyMet} recently met` : null
+  ].filter(Boolean).join(" \xB7 ") : isChats ? plural2(all.length, "chat") : `${all.length} ${all.length === 1 ? "person" : "people"}`;
+  const tally = isChats ? `${all.filter((p) => p.unread).length} unread` : `${all.filter(live).length} online`;
+  el.peopleCount.textContent = peopleState.loading ? "Asking the store\u2026" : !state || state.note || !all.length && kind !== "follows" ? "" : `${totals}${state.more && kind !== "follows" ? ", more on the headset" : ""} \u2014 ${tally}${shown.length !== all.length ? `, showing ${shown.length} of ${all.length}` : ""}.`;
+  el.peopleEmpty.hidden = shown.length > 0 || peopleState.loading;
+  el.peopleEmpty.textContent = (state == null ? void 0 : state.note) ? state.note : !state ? `Press Get people to list ${PEOPLE_KINDS[kind].what}.` : all.length ? "Nobody matches." : PEOPLE_KINDS[kind].none;
+  el.peopleEmpty.classList.toggle("warn", Boolean(state == null ? void 0 : state.note));
+}
+function initExplore() {
+  var _a3, _b3, _c, _d, _e;
+  (_a3 = el.exploreGo) == null ? void 0 : _a3.addEventListener("click", runExplore);
+  (_b3 = el.exploreQ) == null ? void 0 : _b3.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runExplore();
+    }
+  });
+  (_c = el.exploreShow) == null ? void 0 : _c.addEventListener("change", renderExplore);
+  const open2 = (row) => {
+    if (row.dataset.app) openAppById(row.dataset.app);
+    else if (row.dataset.link) window.open(row.dataset.link, "_blank", "noopener");
+  };
+  (_d = el.exploreRows) == null ? void 0 : _d.addEventListener("click", (e) => {
+    if (e.target.closest("tr.detail")) return;
+    const media2 = e.target.closest("tr[data-media]");
+    if (media2) return toggleMedia(media2.dataset.media);
+    const row = e.target.closest("tr[data-app], tr[data-link]");
+    if (row) open2(row);
+  });
+  (_e = el.exploreRows) == null ? void 0 : _e.addEventListener("keydown", (e) => {
+    var _a4, _b4;
+    const row = (_b4 = (_a4 = e.target).closest) == null ? void 0 : _b4.call(_a4, "tr[data-app], tr[data-link], tr[data-media]");
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      if (row.dataset.media) toggleMedia(row.dataset.media);
+      else open2(row);
+    }
+  });
+}
+async function runExplore() {
+  const text = el.exploreQ.value.trim();
+  if (exploreState.loading) return;
+  Object.assign(exploreState, { query: text, loading: true, note: "" });
+  el.exploreGo.disabled = true;
+  el.exploreGo.textContent = "Searching\u2026";
+  renderExplore();
+  try {
+    exploreState.result = await globalSearch(text);
+  } catch (err2) {
+    exploreState.result = null;
+    exploreState.note = err2.message || "The search failed.";
+  }
+  exploreState.loading = false;
+  el.exploreGo.disabled = false;
+  el.exploreGo.textContent = "Search";
+  renderExplore();
+}
+function renderExplore() {
+  if (!el.exploreRows) return;
+  const r = exploreState.result;
+  const show = el.exploreShow.value;
+  const art = loadSettings().images;
+  const when = (sec) => new Date(sec * 1e3).toLocaleString(void 0, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const details = (kind, x) => {
+    switch (kind) {
+      case "apps":
+        return [x.packageName, x.lastOpened ? `opened ${agoText(x.lastOpened)}` : null].filter(Boolean).join(" \xB7 ");
+      case "movies":
+        return [x.year, x.genre, x.runtime ? `${Math.round(x.runtime / 60)} min` : null].filter(Boolean).join(" \xB7 ");
+      case "series":
+        return [x.year, x.genre, x.seasons ? `${x.seasons} season${x.seasons === 1 ? "" : "s"}` : null].filter(Boolean).join(" \xB7 ");
+      case "sports":
+        return [x.live ? "Live now" : x.start ? when(x.start) : null, x.app ? `on ${x.app}` : null].filter(Boolean).join(" \xB7 ");
+      case "xbox":
+        return x.link ? "Play in the browser \u2192" : null;
+      case "people":
+        return [x.alias ? `@${x.alias}` : null, x.presence].filter(Boolean).join(" \xB7 ");
+      case "events":
+        return x.start ? when(x.start) : null;
+      case "websites":
+        return x.link ? x.link.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
+    }
+    return null;
+  };
+  const rows = r ? EXPLORE_KINDS.filter(([k]) => show === "all" || show === k).flatMap(([k, label]) => r[k].map((x) => ({ k, label, x }))) : [];
+  el.exploreRows.innerHTML = rows.map(({ k, label, x }) => {
+    const isMedia = k === "movies" || k === "series";
+    const act = k === "apps" ? ` data-app="${esc(x.id)}"` : isMedia ? ` data-media="${esc(x.id)}" aria-expanded="${mediaOpen.has(x.id)}"` : (k === "xbox" || k === "websites") && x.link ? ` data-link="${esc(x.link)}"` : "";
+    const pic = art ? x.image ? `<img class="art" src="${esc(x.image)}" alt="" loading="lazy">` : `<span class="art art-fill" aria-hidden="true"></span>` : "";
+    return `<tr${act ? ` class="app" tabindex="0"${act}` : ""}>
+        <td class="name">${pic}<span class="ex-title">${esc(x.title)}<span class="ex-kind">${esc(label)}</span></span></td>
+        <td class="ex-detail">${esc(details(k, x) || "\u2014")}</td>
+      </tr>${isMedia && mediaOpen.has(x.id) ? mediaDetailRow(x.id) : ""}`;
+  }).join("");
+  const total = r ? EXPLORE_KINDS.reduce((n, [k]) => n + r[k].length, 0) : 0;
+  const parts = r ? EXPLORE_KINDS.filter(([k]) => r[k].length).map(([k]) => {
+    const n = r[k].length;
+    const [one, many] = {
+      apps: ["app", "apps"],
+      movies: ["movie", "movies"],
+      series: ["TV series", "TV series"],
+      sports: ["sports event", "sports events"],
+      xbox: ["Xbox cloud game", "Xbox cloud games"],
+      people: ["person", "people"],
+      events: ["event", "events"],
+      websites: ["website", "websites"]
+    }[k];
+    return `${n} ${n === 1 ? one : many}`;
+  }) : [];
+  el.exploreCount.textContent = exploreState.loading ? "Asking the store\u2026" : r && total ? `${exploreState.query ? `"${exploreState.query}"` : "Suggested before you type"}: ${parts.join(" \xB7 ")}.` : "";
+  el.exploreEmpty.hidden = rows.length > 0 || exploreState.loading;
+  el.exploreEmpty.textContent = exploreState.note ? exploreState.note : !r ? "Type something and press Search \u2014 or press Search with the box empty for the headset's suggestions." : total ? "Nothing of that kind matched." : `Nothing matched "${exploreState.query}".`;
+  el.exploreEmpty.classList.toggle("warn", Boolean(exploreState.note));
+}
+function initPhotos() {
+  var _a3, _b3, _c, _d, _e;
+  (_a3 = el.photoGo) == null ? void 0 : _a3.addEventListener("click", () => loadPhotos(true));
+  (_b3 = el.photoMore) == null ? void 0 : _b3.addEventListener("click", () => loadPhotos(false));
+  (_c = el.photoShow) == null ? void 0 : _c.addEventListener("change", renderPhotos);
+  (_d = el.photoFrom) == null ? void 0 : _d.addEventListener("change", renderPhotos);
+  (_e = el.photoTo) == null ? void 0 : _e.addEventListener("change", renderPhotos);
+}
+async function loadPhotos(fresh) {
+  if (photoState.loading) return;
+  if (fresh) Object.assign(photoState, { items: [], cursor: null });
+  Object.assign(photoState, { loading: true, asked: true, note: "" });
+  const button = fresh ? el.photoGo : el.photoMore;
+  const label = button.textContent;
+  button.disabled = true;
+  try {
+    for (let guard = 0; guard < 200; guard++) {
+      button.textContent = photoState.items.length ? `Loading\u2026 ${photoState.items.length}` : "Loading\u2026";
+      renderPhotos();
+      const page = await headsetPhotos(photoState.cursor);
+      const have = new Set(photoState.items.map((x) => x.id));
+      photoState.items.push(...page.items.filter((x) => !have.has(x.id)));
+      photoState.cursor = page.cursor;
+      if (!page.cursor) break;
+    }
+  } catch (err2) {
+    photoState.note = err2.message || "Could not load your photos.";
+  }
+  photoState.loading = false;
+  button.disabled = false;
+  button.textContent = label;
+  renderPhotos();
+}
+function renderPhotos() {
+  if (!el.photoGrid) return;
+  const show = el.photoShow.value;
+  const all = photoState.items;
+  const secs = (v, end) => v ? Math.floor((/* @__PURE__ */ new Date(`${v}T${end ? "23:59:59" : "00:00:00"}`)).getTime() / 1e3) : null;
+  const from = secs(el.photoFrom.value, false);
+  const to = secs(el.photoTo.value, true);
+  const shown = all.filter(
+    (x) => (show === "photos" ? !x.video : show === "videos" ? x.video : show === "favorites" ? x.favorite : true) && (from == null || x.taken && x.taken >= from) && (to == null || x.taken && x.taken <= to)
+  );
+  const day2 = (sec) => new Date(sec * 1e3).toLocaleDateString(void 0, { year: "numeric", month: "short", day: "numeric" });
+  const len = (ms) => {
+    const s = Math.round(ms / 1e3);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+  el.photoGrid.innerHTML = shown.map((x) => {
+    const where = x.world || x.app || "Headset";
+    const label = `${x.video ? "Video" : "Photo"} from ${where}${x.taken ? `, ${day2(x.taken)}` : ""}`;
+    return `<a class="photo" href="${esc(x.url)}" target="_blank" rel="noopener" aria-label="${esc(label)}">
+        <img src="${esc(x.thumb)}" alt="" loading="lazy">
+        ${x.video ? `<span class="photo-badge">${x.duration ? esc(len(x.duration)) : "Video"}</span>` : ""}
+        <span class="photo-cap"><span class="photo-where">${esc(where)}</span>${x.taken ? `<span class="photo-when">${esc(day2(x.taken))}${x.favorite ? " \xB7 Favourite" : ""}</span>` : ""}</span>
+      </a>`;
+  }).join("");
+  const videos = all.filter((x) => x.video).length;
+  el.photoCount.textContent = photoState.loading && !all.length ? "Asking the store\u2026" : all.length ? `${all.length - videos} photo${all.length - videos === 1 ? "" : "s"} and ${videos} video${videos === 1 ? "" : "s"}${photoState.loading ? " so far" : photoState.cursor ? " \u2014 stopped part-way; Load more carries on" : ""}${shown.length !== all.length ? `, showing ${shown.length}` : ""}.` : "";
+  el.photoEmpty.hidden = shown.length > 0 || photoState.loading && !all.length;
+  el.photoEmpty.textContent = photoState.note ? photoState.note : !photoState.asked ? "Press Get photos to list what your headsets have uploaded." : all.length ? photoState.cursor ? "Nothing of that kind so far \u2014 Load more carries on from where it stopped." : "Nothing matches that kind and those dates." : "Your headsets haven't uploaded any photos or videos.";
+  el.photoEmpty.classList.toggle("warn", Boolean(photoState.note));
+  el.photoMoreBar.hidden = !photoState.cursor || photoState.loading;
+}
+function initCredit() {
+  var _a3;
+  (_a3 = el.creditGo) == null ? void 0 : _a3.addEventListener("click", loadCredit);
+}
+async function loadCredit() {
+  var _a3, _b3;
+  el.creditGo.disabled = true;
+  el.creditGo.textContent = "Loading\u2026";
+  el.creditCount.textContent = "Asking the store\u2026";
+  try {
+    const [h, refs] = await Promise.all([storeCreditHistory(), storeReferrals().catch(() => null)]);
+    const day2 = (sec) => new Date(sec * 1e3).toLocaleDateString(void 0, { year: "numeric", month: "short", day: "numeric" });
+    el.creditRows.innerHTML = h.entries.map(
+      (e) => `<tr>
+          <td>${esc(e.title || words2(e.type || "") || "\u2014")}${e.detail ? `<div class="ppl-pres">${esc(e.detail)}</div>` : ""}</td>
+          <td>${e.time ? esc(day2(e.time)) : "\u2014"}</td>
+          <td class="num">${esc(e.amount || "\u2014")}</td>
+        </tr>`
+    ).join("");
+    el.creditCount.textContent = `Balance ${(_a3 = h.balance) != null ? _a3 : "unknown"} \u2014 ${h.entries.length} entr${h.entries.length === 1 ? "y" : "ies"}${h.more ? ", the most recent ones" : ""}.${refs ? ` App referrals: ${refs.accepted} accepted, ${(_b3 = refs.earned) != null ? _b3 : "$0"} earned this year${refs.limit ? ` of ${refs.limit}` : ""}.` : ""}`;
+    el.creditTable.hidden = !h.entries.length;
+    el.creditEmpty.hidden = Boolean(h.entries.length);
+    el.creditEmpty.classList.remove("warn");
+    el.creditEmpty.textContent = "Nothing has added to or been paid from your store credit.";
+  } catch (err2) {
+    el.creditRows.innerHTML = "";
+    el.creditTable.hidden = true;
+    el.creditCount.textContent = "";
+    el.creditEmpty.hidden = false;
+    el.creditEmpty.classList.add("warn");
+    el.creditEmpty.textContent = err2.message || "Could not load your credit history.";
+  }
+  el.creditGo.disabled = false;
+  el.creditGo.textContent = "Get credit history";
+}
+function toggleMedia(id) {
+  var _a3;
+  if (mediaOpen.has(id)) mediaOpen.delete(id);
+  else {
+    mediaOpen.add(id);
+    if (!mediaInfo.has(id)) loadMedia(id);
+  }
+  renderExplore();
+  (_a3 = el.exploreRows.querySelector(`tr[data-media="${CSS.escape(id)}"]`)) == null ? void 0 : _a3.focus();
+}
+async function loadMedia(id) {
+  mediaInfo.set(id, { loading: true });
+  try {
+    mediaInfo.set(id, { data: await mediaDetails(id) });
+  } catch (err2) {
+    mediaInfo.set(id, { note: err2.message || "Could not load this title." });
+  }
+  renderExplore();
+}
+function mediaDetailRow(id) {
+  const info = mediaInfo.get(id);
+  let body;
+  if (!info || info.loading) body = `<p class="muted">Loading\u2026</p>`;
+  else if (info.note) body = `<p class="warn">${esc(info.note)}</p>`;
+  else {
+    const m = info.data;
+    const len = m.runtime ? `${Math.floor(m.runtime / 3600) ? `${Math.floor(m.runtime / 3600)} h ` : ""}${Math.round(m.runtime % 3600 / 60)} min` : null;
+    const watch = m.watch.length ? `<h3>Where to watch</h3><ul class="watch-list">${m.watch.map(
+      (w) => w.url ? `<li><a class="linkbtn" href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.provider)}</a></li>` : `<li>${esc(w.provider)}</li>`
+    ).join("")}</ul>` : `<p class="hint">The store lists nowhere to watch it right now.</p>`;
+    body = `<div class="media-detail">${loadSettings().images && m.art ? `<img class="media-art" src="${esc(m.art)}" alt="" loading="lazy">` : ""}<div class="media-text">${factGroups([
+      [
+        m.kind === "series" ? "TV series" : "Movie",
+        [
+          ["Genres", m.genres.join(", ")],
+          ["Year", m.year ? String(m.year) : null],
+          [m.kind === "series" ? "Seasons" : "Length", m.kind === "series" ? m.seasons ? String(m.seasons) : null : len],
+          ["Age rating", m.rating]
+        ]
+      ]
+    ])}${m.description ? `<p>${esc(m.description)}</p>` : ""}${watch}</div></div>`;
+  }
+  return `<tr class="detail"><td colspan="2"><div class="panel">${body}</div></td></tr>`;
+}
+function initRevisions() {
+  const toggle = (row) => {
+    var _a3;
+    const id = row.dataset.rev;
+    if (revOpen.has(id)) {
+      revOpen.delete(id);
+      ((_a3 = row.nextElementSibling) == null ? void 0 : _a3.matches(".rev-detail")) && row.nextElementSibling.remove();
+    } else {
+      revOpen.add(id);
+      if (!revInfo.has(id) || revInfo.get(id).note) loadRevision(id);
+      row.insertAdjacentHTML("afterend", revDetailRow(id));
+    }
+    row.setAttribute("aria-expanded", String(revOpen.has(id)));
+  };
+  document.addEventListener("click", (e) => {
+    var _a3, _b3;
+    const row = (_b3 = (_a3 = e.target).closest) == null ? void 0 : _b3.call(_a3, ".revisions tr.rev-row");
+    if (row) toggle(row);
+  });
+  document.addEventListener("keydown", (e) => {
+    var _a3, _b3;
+    const row = (_b3 = (_a3 = e.target).closest) == null ? void 0 : _b3.call(_a3, ".revisions tr.rev-row");
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      toggle(row);
+    }
+  });
+}
+async function loadRevision(id) {
+  revInfo.set(id, { loading: true });
+  try {
+    const data = await submissionDetail(id);
+    const prev = data.previousId ? await submissionDetail(data.previousId).catch(() => null) : null;
+    revInfo.set(id, { data, prev });
+  } catch (err2) {
+    revInfo.set(id, { note: err2.message || "Could not load this revision." });
+  }
+  for (const cell of document.querySelectorAll(`tr.rev-detail[data-rev-detail="${CSS.escape(id)}"]`)) {
+    cell.outerHTML = revDetailRow(id);
+  }
+}
+function revisionFields(d) {
+  var _a3, _b3, _c, _d;
+  const yn = (v) => v == null ? null : v ? "Yes" : "No";
+  const L = d.listing;
+  return [
+    ["Submission", "Status", d.status],
+    ["Submission", "Review", d.reviewStatus],
+    ["Submission", "Release type", d.releaseType],
+    ["Submission", "Release status", d.releaseStatus],
+    ["Submission", "Published", d.publishDate],
+    ["Submission", "Approved automatically", yn(d.autoApproved)],
+    ["Submission", "First release", yn(d.isInitial)],
+    ["Submission", "Previous revision", d.previousId],
+    ["Build", "Version", (_a3 = d.binary) == null ? void 0 : _a3.version],
+    ["Build", "Mode", (_b3 = d.binary) == null ? void 0 : _b3.appMode],
+    ["Build", "Release status", (_c = d.binary) == null ? void 0 : _c.releaseStatus],
+    ["Build", "Binary ID", (_d = d.binary) == null ? void 0 : _d.id],
+    ["Store listing", "Publisher", L.publisher],
+    ["Store listing", "Website", L.website],
+    ["Store listing", "Category", L.category],
+    ["Store listing", "Genres", L.genres.join(", ")],
+    ["Store listing", "Comfort", L.comfort],
+    ["Store listing", "Play area", L.playArea],
+    ["Store listing", "Internet", L.internet],
+    ["Store listing", "Subscription", L.subscription],
+    ["Store listing", "Early access", L.earlyAccess],
+    ["Store listing", "Languages", L.languages.join(", ")],
+    ["Store listing", "Age rating certificate", L.iarc]
+  ];
+}
+function revDetailRow(id) {
+  const info = revInfo.get(id);
+  let body;
+  if (!info || info.loading) body = `<p class="muted">Loading\u2026</p>`;
+  else if (info.note) body = `<p class="warn">${esc(info.note)}</p>`;
+  else {
+    const now = revisionFields(info.data);
+    const groups = [];
+    for (const [g, label, value] of now) {
+      let grp = groups.find(([t]) => t === g);
+      if (!grp) groups.push(grp = [g, []]);
+      grp[1].push([label, value]);
+    }
+    let changes = "";
+    if (info.prev) {
+      const before = new Map(revisionFields(info.prev).map(([g, l, v]) => [`${g}|${l}`, v]));
+      const diff = now.filter(
+        ([g, l, v]) => g !== "Submission" && l !== "Binary ID" && (v || null) !== (before.get(`${g}|${l}`) || null)
+      );
+      changes = diff.length ? `<h4>Changed since the revision before</h4><ul class="rev-changes">${diff.map(
+        ([g, l, v]) => `<li><span class="rev-field">${esc(g === "Build" ? `Build ${l.toLowerCase()}` : l)}</span> ${esc(before.get(`${g}|${l}`) || "\u2014")} \u2192 ${esc(v || "\u2014")}</li>`
+      ).join("")}</ul>` : `<p class="hint">Nothing in its build or listing changed since the revision before.</p>`;
+    } else if (info.data.previousId) {
+      changes = `<p class="hint">The revision before it could not be read, so what changed is not shown.</p>`;
+    }
+    body = `${factGroups(groups)}${changes}`;
+  }
+  return `<tr class="detail rev-detail" data-rev-detail="${esc(id)}"><td colspan="4"><div class="rev-body">${body}</div></td></tr>`;
 }
 function initOrgs() {
   el.orgGo.addEventListener("click", runOrgApps);
@@ -5937,7 +7723,10 @@ function plusVisible() {
   const q = el.plusQ.value.trim().toLowerCase();
   const pick = el.plusPick.value;
   return sorted(
-    plusState.rows.filter((a) => (!pick || a.plus === pick) && matches(a, q)),
+    plusState.rows.filter((a) => {
+      var _a3;
+      return (!pick || ((_a3 = a.plusSections) == null ? void 0 : _a3.includes(pick))) && matches(a, q);
+    }),
     el.plusSort.value
   );
 }
@@ -5958,9 +7747,36 @@ async function runHorizonPlus() {
   el.plusGo.textContent = "Loading\u2026";
   renderAll();
   try {
-    plusState.rows = await horizonPlus();
+    const [sections, own] = await Promise.all([
+      horizonPlusSections().catch(() => []),
+      horizonPlus().catch(() => [])
+    ]);
+    const claimedIds = new Set(own.filter((a) => a.claimed).map((a) => a.id));
+    const byId = /* @__PURE__ */ new Map();
+    const others = [];
+    const parts = await mapLimit(sections, 3, (s) => horizonPlusSection(s.id).catch(() => ({ apps: [], others: [] })));
+    sections.forEach((s, i) => {
+      var _a3;
+      for (const app of parts[i].apps) {
+        const row = (_a3 = byId.get(app.id)) != null ? _a3 : { ...app, plusSections: [], plusNames: [] };
+        row.plusSections.push(s.id);
+        row.plusNames.push(s.name);
+        row.claimed = row.claimed || app.claimed || claimedIds.has(app.id);
+        byId.set(app.id, row);
+      }
+      for (const o of parts[i].others) others.push({ ...o, section: s.name, sectionId: s.id });
+    });
+    if (!sections.length) {
+      for (const a of own) byId.set(a.id, { ...a, plusSections: [a.plus], plusNames: [a.plus === "monthly" ? "This month's games" : "Games catalog"] });
+    }
+    plusState.sections = sections.length ? sections : [{ id: "monthly", name: "This month's games" }, { id: "catalog", name: "Games catalog" }];
+    plusState.rows = [...byId.values()];
+    plusState.others = others;
+    el.plusPick.replaceChildren(new Option("Every section", ""), ...plusState.sections.map((s) => new Option(s.name, s.id)));
+    if (!plusState.rows.length && !others.length) throw new Error("the store returned no Horizon+ catalog for this account");
   } catch (err2) {
     plusState.rows = [];
+    plusState.others = [];
     plusState.note = err2.message || "Could not load the Horizon+ games.";
   } finally {
     plusState.loading = false;
@@ -5969,6 +7785,21 @@ async function runHorizonPlus() {
     renderAll();
     syncRelayNote();
   }
+}
+function renderPlusOthers() {
+  if (!el.plusOtherRows) return;
+  const q = el.plusQ.value.trim().toLowerCase();
+  const pick = el.plusPick.value;
+  const shown = plusState.others.filter((o) => (!pick || o.sectionId === pick) && (!q || o.title.toLowerCase().includes(q)));
+  const art = loadSettings().images;
+  el.plusOtherRows.innerHTML = shown.map(
+    (o) => `<tr>
+        <td class="name">${art ? o.image ? `<img class="art" src="${esc(o.image)}" alt="" loading="lazy">` : `<span class="art art-fill" aria-hidden="true"></span>` : ""}<span class="ex-title">${esc(o.title)}<span class="ex-kind">${esc(o.kind)}</span></span></td>
+        <td>${esc(o.section)}</td>
+        <td class="ex-detail">${esc([o.genres.slice(0, 3).join(", "), o.note].filter(Boolean).join(" \xB7 ") || "\u2014")}</td>
+      </tr>`
+  ).join("");
+  el.plusOthers.hidden = !shown.length;
 }
 function storeVisible() {
   const q = el.storeQ.value.trim().toLowerCase();
@@ -5991,7 +7822,7 @@ function initStore() {
   );
 }
 async function runStoreFront(viewId) {
-  var _a2, _b2;
+  var _a3, _b3;
   if (storeState.loading) return;
   const hmd = viewId ? storeState.hmd : el.storeHmd.value;
   Object.assign(storeState, {
@@ -6023,8 +7854,10 @@ async function runStoreFront(viewId) {
       g.append(...options(list));
       return g;
     };
+    const { frlToken } = loadSettings();
+    const forYou = (frlToken || "").trim() ? [FOR_YOU_SECTION] : [];
     el.storeSection.replaceChildren(
-      ...charts.length ? [group("Sections", front.sections), group("Top charts", charts)] : options(front.sections)
+      ...charts.length || forYou.length ? [group("Sections", front.sections), ...forYou.length ? [group("For you", forYou)] : [], ...charts.length ? [group("Top charts", charts)] : []] : options(front.sections)
     );
     if (!front.sections.length) storeState.note = "The store lists no sections for this headset.";
   } catch (err2) {
@@ -6036,16 +7869,16 @@ async function runStoreFront(viewId) {
     el.storeGo.disabled = false;
     el.storeGo.textContent = "Get store";
     el.storeView.disabled = false;
-    el.storeSection.disabled = !((_a2 = storeState.front) == null ? void 0 : _a2.sections.length);
+    el.storeSection.disabled = !((_a3 = storeState.front) == null ? void 0 : _a3.sections.length);
     renderAll();
     syncRelayNote();
   }
-  const first = (_b2 = storeState.front) == null ? void 0 : _b2.sections[0];
+  const first = (_b3 = storeState.front) == null ? void 0 : _b3.sections[0];
   if (first) loadStoreSection(first.id);
 }
 function loadStoreSection(id) {
-  var _a2, _b2;
-  const section = [...(_b2 = (_a2 = storeState.front) == null ? void 0 : _a2.sections) != null ? _b2 : [], ...storeState.charts].find((s) => s.id === id);
+  var _a3, _b3;
+  const section = [...(_b3 = (_a3 = storeState.front) == null ? void 0 : _a3.sections) != null ? _b3 : [], ...storeState.charts, FOR_YOU_SECTION].find((s) => s.id === id);
   if (!section) return;
   Object.assign(storeState, { section, rows: [], cursor: null, note: "" });
   el.storeSection.value = id;
@@ -6198,7 +8031,7 @@ async function pairHeadset() {
   }
 }
 async function connectHeadset(how) {
-  var _a2;
+  var _a3;
   if (adbBusy || adb) return;
   adbBusy = true;
   el.adbUsb.disabled = true;
@@ -6216,7 +8049,7 @@ async function connectHeadset(how) {
     await loadHeadsetApps();
   } catch (err2) {
     adb = null;
-    const message = /no headset chosen|No device selected/i.test((_a2 = err2.message) != null ? _a2 : "") ? "No headset chosen." : err2.message || "Could not connect.";
+    const message = /no headset chosen|No device selected/i.test((_a3 = err2.message) != null ? _a3 : "") ? "No headset chosen." : err2.message || "Could not connect.";
     adbSay(message, !/No headset chosen/.test(message));
   } finally {
     adbBusy = false;
@@ -6239,7 +8072,7 @@ async function disconnectHeadset() {
   renderHeadset();
 }
 async function loadHeadsetApps() {
-  var _a2;
+  var _a3;
   if (!adb && !IN_APP) return;
   headsetAsked = true;
   el.adbCount.textContent = "Asking the headset what it has installed\u2026";
@@ -6256,7 +8089,7 @@ async function loadHeadsetApps() {
       el.adbCount.textContent = `Naming ${missing.length} packages\u2026`;
       try {
         const known = await lookupPackages(missing);
-        for (const pkg of missing) packageAnswers.set(pkg, (_a2 = known.get(pkg)) != null ? _a2 : null);
+        for (const pkg of missing) packageAnswers.set(pkg, (_a3 = known.get(pkg)) != null ? _a3 : null);
       } catch {
       }
     }
@@ -6277,16 +8110,16 @@ async function loadHeadsetApps() {
 }
 function ownedByPackage() {
   return new Map(
-    mineList.filter((a) => a.packageName).map((a) => [a.packageName, a])
+    [...ownedAcross.values()].filter((a) => a.packageName).map((a) => [a.packageName, a])
   );
 }
 function resolveHeadsetApps() {
   const owned = ownedByPackage();
   adbApps = adbInstalled.map((a) => {
-    var _a2, _b2, _c, _d, _e, _f, _g, _h, _i;
+    var _a3, _b3, _c, _d, _e, _f, _g, _h, _i;
     const mine = owned.get(a.packageName);
     const match = a.resolved;
-    const id = (_b2 = (_a2 = mine == null ? void 0 : mine.id) != null ? _a2 : match == null ? void 0 : match.id) != null ? _b2 : null;
+    const id = (_b3 = (_a3 = mine == null ? void 0 : mine.id) != null ? _a3 : match == null ? void 0 : match.id) != null ? _b3 : null;
     if (!id) return null;
     return {
       id,
@@ -6310,9 +8143,9 @@ function resolveHeadsetApps() {
   adbSide = IN_APP ? adbInstalled.filter((a) => !listed.has(a.packageName)).map((a) => ({ ...a, name: a.label || a.packageName })).sort((a, b) => a.name.localeCompare(b.name)) : [];
 }
 function adbRow(app) {
-  var _a2, _b2, _c, _d, _e, _f, _g;
+  var _a3, _b3, _c, _d, _e, _f, _g;
   const key = openKey("adb", app);
-  const latest = (_c = (_b2 = (_a2 = results.get(keyOf(app))) == null ? void 0 : _a2.latest) != null ? _b2 : app.latest) != null ? _c : null;
+  const latest = (_c = (_b3 = (_a3 = results.get(keyOf(app))) == null ? void 0 : _a3.latest) != null ? _b3 : app.latest) != null ? _c : null;
   const showArt = loadSettings().images;
   const tr = document.createElement("tr");
   tr.className = "app";
@@ -6320,7 +8153,8 @@ function adbRow(app) {
   tr.tabIndex = 0;
   tr.setAttribute("aria-expanded", String(open.has(key)));
   tr.innerHTML = `
-    <td class="name">${showArt && app.image ? `<img class="art" src="${esc(app.image)}" alt="" loading="lazy">` : ""}${esc(app.name)}</td>
+    <td class="name">${/* The store's icon, else the one the headset itself has installed. */
+  showArt && (appArt(app) || dgHeadsetIcon(app.packageName)) ? `<img class="art" src="${esc(appArt(app) || dgHeadsetIcon(app.packageName))}" alt="" loading="lazy">` : rowArt(app, showArt)}${esc(app.name)}</td>
     <td class="num">${esc((_d = app.installedVersion) != null ? _d : "\u2014")}</td>
     <td class="num c-build">${(_e = app.installedVersionCode) != null ? _e : "\u2014"}</td>
     <td class="num">${esc((_f = latest == null ? void 0 : latest.version) != null ? _f : "\u2014")}</td>
@@ -6341,8 +8175,8 @@ function adbRow(app) {
   return tr;
 }
 function adbBehind(app) {
-  var _a2, _b2, _c;
-  const latest = (_c = (_b2 = (_a2 = results.get(keyOf(app))) == null ? void 0 : _a2.latest) != null ? _b2 : app.latest) != null ? _c : null;
+  var _a3, _b3, _c;
+  const latest = (_c = (_b3 = (_a3 = results.get(keyOf(app))) == null ? void 0 : _a3.latest) != null ? _b3 : app.latest) != null ? _c : null;
   return Boolean(
     app.installedVersionCode && (latest == null ? void 0 : latest.versionCode) && app.installedVersionCode < latest.versionCode
   );
@@ -6363,8 +8197,8 @@ function adbVisible() {
     case "installed":
       return [...list].sort(
         (a, b) => {
-          var _a2, _b2;
-          return ((_a2 = b.installedVersionCode) != null ? _a2 : 0) - ((_b2 = a.installedVersionCode) != null ? _b2 : 0);
+          var _a3, _b3;
+          return ((_a3 = b.installedVersionCode) != null ? _a3 : 0) - ((_b3 = a.installedVersionCode) != null ? _b3 : 0);
         }
       );
     default:
@@ -6388,17 +8222,17 @@ function renderHeadset() {
   buildAdbRows();
 }
 function restoreBuildScroll(app, top) {
-  var _a2;
+  var _a3;
   if (!top) return;
   const row = el.adbRows.querySelector(`tr.app[data-id="${keyOf(app)}"]`);
   const panels = [row == null ? void 0 : row.nextElementSibling, stageEl()].filter(Boolean);
   for (const panel of panels) {
-    const scroller = (_a2 = panel.querySelector) == null ? void 0 : _a2.call(panel, ".versions-out .vscroll");
+    const scroller = (_a3 = panel.querySelector) == null ? void 0 : _a3.call(panel, ".versions-out .vscroll");
     if (scroller) scroller.scrollTop = top;
   }
 }
 async function installBuild(app, { installBuild: binaryId, version, code }, button) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   if (IN_APP) {
     appInstall(app, binaryId, version, button);
     return;
@@ -6420,7 +8254,7 @@ ${app.packageName} will be uninstalled first, which deletes its saved data on th
     );
     if (!sure) return;
   }
-  const scrolledTo = (_c = (_b2 = (_a2 = button.closest(".versions-out")) == null ? void 0 : _a2.querySelector(".vscroll")) == null ? void 0 : _b2.scrollTop) != null ? _c : 0;
+  const scrolledTo = (_c = (_b3 = (_a3 = button.closest(".versions-out")) == null ? void 0 : _a3.querySelector(".vscroll")) == null ? void 0 : _b3.scrollTop) != null ? _c : 0;
   const label = button.textContent;
   button.disabled = true;
   const say2 = (text) => {
@@ -6488,12 +8322,12 @@ function uiConfirm({ title, text, list = [], yes = "OK", no = "Cancel", danger =
   (danger ? noBtn : yesBtn).focus();
   return new Promise((resolve) => {
     const finish = (answer) => {
-      var _a2;
+      var _a3;
       dialogPending = null;
       box.hidden = true;
       yesBtn.onclick = noBtn.onclick = null;
       box.onkeydown = box.onclick = null;
-      (_a2 = before == null ? void 0 : before.focus) == null ? void 0 : _a2.call(before);
+      (_a3 = before == null ? void 0 : before.focus) == null ? void 0 : _a3.call(before);
       resolve(answer);
     };
     dialogPending = (answer) => {
@@ -6527,9 +8361,9 @@ try {
 var HISTORY_KEY = "metadb.history";
 var HISTORY_MAX = 300;
 function readHistory() {
-  var _a2;
+  var _a3;
   try {
-    const list = JSON.parse((_a2 = localStorage.getItem(HISTORY_KEY)) != null ? _a2 : "[]");
+    const list = JSON.parse((_a3 = localStorage.getItem(HISTORY_KEY)) != null ? _a3 : "[]");
     return Array.isArray(list) ? list : [];
   } catch {
     return [];
@@ -6542,6 +8376,27 @@ function addHistory(entry) {
   } catch {
   }
 }
+function readRecent() {
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENT_KEY));
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+function pushRecent(app) {
+  var _a3, _b3, _c, _d, _e;
+  if (!(app == null ? void 0 : app.id) || !app.name) return;
+  try {
+    const id = String(app.id);
+    const cur = readRecent();
+    if (((_a3 = cur[0]) == null ? void 0 : _a3.id) === id) return;
+    const rest = cur.filter((r) => r.id !== id);
+    const entry = { id, name: app.name, image: (_c = (_b3 = squareArt(app)) != null ? _b3 : app.image) != null ? _c : null, slug: (_d = app.slug) != null ? _d : null, platform: (_e = app.platform) != null ? _e : null, at: Date.now() };
+    localStorage.setItem(RECENT_KEY, JSON.stringify([entry, ...rest].slice(0, RECENT_MAX)));
+  } catch {
+  }
+}
 function jobPressed(key) {
   const job = appInstalls.get(key);
   if (!job) return false;
@@ -6549,12 +8404,12 @@ function jobPressed(key) {
   return true;
 }
 function appJob(key, { app = null, button = null, label = null, from = null } = {}) {
-  var _a2;
+  var _a3;
   appInstalls.set(key, {
     app,
     from,
     buttons: button ? [button] : [],
-    label: (_a2 = label != null ? label : button == null ? void 0 : button.textContent) != null ? _a2 : ""
+    label: (_a3 = label != null ? label : button == null ? void 0 : button.textContent) != null ? _a3 : ""
   });
   if (button) {
     button.dataset.job = key;
@@ -6563,7 +8418,7 @@ function appJob(key, { app = null, button = null, label = null, from = null } = 
   }
 }
 async function appInstall(app, binaryId, version, button, { save = false } = {}) {
-  var _a2, _b2;
+  var _a3, _b3;
   if (!canDownload()) {
     uiNotice("Sign in first: Settings \u2192 Sign in with Meta.", "bad");
     return;
@@ -6575,7 +8430,7 @@ async function appInstall(app, binaryId, version, button, { save = false } = {})
     button,
     from: app.installedVersionCode != null ? { version: app.installedVersion, code: app.installedVersionCode } : null
   });
-  let obb = (_a2 = obbs.get(String(binaryId))) != null ? _a2 : null;
+  let obb = (_a3 = obbs.get(String(binaryId))) != null ? _a3 : null;
   const code = button == null ? void 0 : button.dataset.code;
   if (!obb && code) {
     try {
@@ -6592,7 +8447,7 @@ async function appInstall(app, binaryId, version, button, { save = false } = {})
     apk: downloadURL(binaryId),
     obb: obb ? downloadURL(obb) : null,
     binaryId: String(binaryId),
-    appId: String((_b2 = app.id) != null ? _b2 : ""),
+    appId: String((_b3 = app.id) != null ? _b3 : ""),
     name: app.name,
     version
   });
@@ -6610,7 +8465,7 @@ var JOB_WORDS = {
   "backed-up": "Backed up"
 };
 window.metadbInstall = async (e) => {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
   if (e.state === "ask") {
     const yes = await uiConfirm({ title: e.title, text: e.text, yes: e.yes, danger: true });
     window.MetaDBApp.answer(e.askId, yes);
@@ -6618,11 +8473,11 @@ window.metadbInstall = async (e) => {
   }
   const key = String(e.id);
   const job = appInstalls.get(key);
-  const buttons = /* @__PURE__ */ new Set([...(_a2 = job == null ? void 0 : job.buttons) != null ? _a2 : [], ...document.querySelectorAll(`[data-job="${CSS.escape(key)}"]`)]);
+  const buttons = /* @__PURE__ */ new Set([...(_a3 = job == null ? void 0 : job.buttons) != null ? _a3 : [], ...document.querySelectorAll(`[data-job="${CSS.escape(key)}"]`)]);
   if (e.state === "queued") {
     const first = job && !job.queued;
     if (job) job.queued = true;
-    const place = e.position > 1 ? `Queued (${e.position}${(_b2 = ["", "st", "nd", "rd"][e.position]) != null ? _b2 : "th"})` : "Queued (next)";
+    const place = e.position > 1 ? `Queued (${e.position}${(_b3 = ["", "st", "nd", "rd"][e.position]) != null ? _b3 : "th"})` : "Queued (next)";
     for (const b of buttons) {
       b.disabled = false;
       b.textContent = place;
@@ -6723,10 +8578,10 @@ function initDowngrade() {
     dgRender();
   });
   el.dgAddRepo.addEventListener("click", () => {
-    var _a2;
+    var _a3;
     dgState.selected = "gh:new";
     dgRender();
-    (_a2 = el.dgDetail.querySelector("[data-gh-form] input")) == null ? void 0 : _a2.focus();
+    (_a3 = el.dgDetail.querySelector("[data-gh-form] input")) == null ? void 0 : _a3.focus();
   });
   el.dgDetail.addEventListener("submit", (e) => {
     const form = e.target.closest("[data-gh-form]");
@@ -6801,13 +8656,13 @@ function initDowngrade() {
   });
 }
 async function dgUninstall(app, button) {
-  var _a2;
+  var _a3;
   const key = `uninstall:${app.packageName}`;
   if (jobPressed(key)) return;
   const kept = dgState.backups.filter((b) => b.packageName === app.packageName).length;
   const sure = await uiConfirm({
     title: `Uninstall ${app.name}?`,
-    text: `${app.name} ${(_a2 = app.installedVersion) != null ? _a2 : ""} is removed from this headset, and its saved data with it. This cannot be undone. ` + (kept ? `Your ${plural(kept, "backup")} of it stay${kept === 1 ? "s" : ""} in Backups.` : "There is no backup of it \u2014 Back up first if you may want this version again."),
+    text: `${app.name} ${(_a3 = app.installedVersion) != null ? _a3 : ""} is removed from this headset, and its saved data with it. This cannot be undone. ` + (kept ? `Your ${plural(kept, "backup")} of it stay${kept === 1 ? "s" : ""} in Backups.` : "There is no backup of it \u2014 Back up first if you may want this version again."),
     yes: "Uninstall",
     danger: true
   });
@@ -6820,10 +8675,10 @@ async function dgUninstall(app, button) {
   window.MetaDBApp.uninstall(key, app.packageName, app.name);
 }
 async function dgBackupClick(e) {
-  var _a2;
+  var _a3;
   const restore = e.target.closest("[data-restore]");
   const del = e.target.closest("[data-delete-backup]");
-  const id = (_a2 = restore == null ? void 0 : restore.dataset.restore) != null ? _a2 : del == null ? void 0 : del.dataset.deleteBackup;
+  const id = (_a3 = restore == null ? void 0 : restore.dataset.restore) != null ? _a3 : del == null ? void 0 : del.dataset.deleteBackup;
   const b = id ? dgState.backups.find((x) => x.id === id) : null;
   if (!b) return;
   if (restore) {
@@ -6878,6 +8733,7 @@ async function signOut() {
   if (el.frlToken) el.frlToken.value = "";
   if (el.updToken) el.updToken.value = "";
   mineList = [];
+  ownedAcross = /* @__PURE__ */ new Map();
   adbApps = [];
   dgState.loaded = false;
   dgState.selected = null;
@@ -6898,13 +8754,13 @@ function installedCode(pkg) {
   return Number(window.MetaDBApp.installedVersion(pkg));
 }
 function installedName(pkg) {
-  var _a2;
+  var _a3;
   const a = adbInstalled.find((x) => x.packageName === pkg);
-  return (_a2 = a == null ? void 0 : a.version) != null ? _a2 : null;
+  return (_a3 = a == null ? void 0 : a.version) != null ? _a3 : null;
 }
 function dgApp(pkg) {
-  var _a2, _b2;
-  return (_b2 = (_a2 = adbApps.find((a) => a.packageName === pkg)) != null ? _a2 : dgState.more.find((a) => a.packageName === pkg)) != null ? _b2 : dgSideApp(pkg);
+  var _a3, _b3;
+  return (_b3 = (_a3 = adbApps.find((a) => a.packageName === pkg)) != null ? _a3 : dgState.more.find((a) => a.packageName === pkg)) != null ? _b3 : dgSideApp(pkg);
 }
 function dgSideApp(pkg) {
   if (pkg === "gh:new") return { side: true, adding: true, name: "Versions from GitHub", packageName: null };
@@ -6924,11 +8780,10 @@ function dgSideApp(pkg) {
     installedVersionCode: null
   } : null;
 }
-var REPOS_KEY = "metadb.githubRepos";
 function readRepos() {
-  var _a2;
+  var _a3;
   try {
-    return (_a2 = JSON.parse(localStorage.getItem(REPOS_KEY))) != null ? _a2 : {};
+    return (_a3 = JSON.parse(localStorage.getItem(REPOS_KEY))) != null ? _a3 : {};
   } catch {
     return {};
   }
@@ -6940,8 +8795,8 @@ function saveRepos(repos) {
   }
 }
 var repoOf = (app) => {
-  var _a2, _b2;
-  return app.repoOnly ? app.repo : app.packageName ? (_b2 = (_a2 = readRepos()[app.packageName]) == null ? void 0 : _a2.repo) != null ? _b2 : null : null;
+  var _a3, _b3;
+  return app.repoOnly ? app.repo : app.packageName ? (_b3 = (_a3 = readRepos()[app.packageName]) == null ? void 0 : _a3.repo) != null ? _b3 : null : null;
 };
 var TOAST_LIMIT = 4;
 function toast({ title, body, actionLabel, onAction } = {}) {
@@ -7021,12 +8876,12 @@ function saveWatch(list) {
   }
 }
 function appFromWatch(w) {
-  var _a2, _b2, _c, _d;
+  var _a3, _b3, _c, _d;
   return {
     id: w.id,
     name: w.name,
-    image: (_a2 = w.image) != null ? _a2 : null,
-    platform: (_b2 = w.platform) != null ? _b2 : null,
+    image: (_a3 = w.image) != null ? _a3 : null,
+    platform: (_b3 = w.platform) != null ? _b3 : null,
     slug: (_c = w.slug) != null ? _c : null,
     packageName: (_d = w.packageName) != null ? _d : null
   };
@@ -7045,16 +8900,52 @@ function squareLabels() {
   return ["Cover", "Icon", "Icon (VR)"];
 }
 function squareArt(app) {
-  var _a2, _b2;
+  var _a3, _b3;
   for (const label of squareLabels()) {
-    const m = ((_a2 = app == null ? void 0 : app.media) != null ? _a2 : []).find((x) => (x == null ? void 0 : x.label) === label && x.uri);
+    const m = ((_a3 = app == null ? void 0 : app.media) != null ? _a3 : []).find((x) => (x == null ? void 0 : x.label) === label && x.uri);
     if (m) return m.uri;
   }
-  return (_b2 = app == null ? void 0 : app.image) != null ? _b2 : null;
+  return (_b3 = app == null ? void 0 : app.image) != null ? _b3 : null;
+}
+function appArt(app) {
+  return (app == null ? void 0 : app.id) != null && iconCache.get(String(app.id)) || squareArt(app) || null;
+}
+function hmdFor(app) {
+  return (app == null ? void 0 : app.platform) === "PC" ? "RIFT" : (app == null ? void 0 : app.platform) === "ANDROID_3DOF" || (app == null ? void 0 : app.platform) === "ANDROID" ? "PACIFIC" : "EUREKA";
+}
+function rowArt(app, showArt) {
+  if (!showArt) return "";
+  const art = appArt(app);
+  if (art) return `<img class="art" src="${esc(art)}" alt="" loading="lazy">`;
+  return (app == null ? void 0 : app.id) ? `<span class="art art-fill" data-iconid="${esc(String(app.id))}" data-hmd="${hmdFor(app)}" aria-hidden="true"></span>` : "";
+}
+async function fillRowIcons(root) {
+  if (!root || !loadSettings().images) return;
+  const ids = /* @__PURE__ */ new Map();
+  for (const ph of root.querySelectorAll(".art-fill[data-iconid]")) {
+    const id = ph.dataset.iconid;
+    if (!iconTried.has(id) && !ids.has(id)) ids.set(id, ph.dataset.hmd || "EUREKA");
+  }
+  if (!ids.size) return;
+  for (const id of ids.keys()) iconTried.add(id);
+  await mapLimit([...ids], 4, async ([id, hmd]) => {
+    const url = await appIcon(id, hmd);
+    if (!url) return;
+    iconCache.set(id, url);
+    saveAppImage(id, url);
+    for (const ph of document.querySelectorAll(`.art-fill[data-iconid="${CSS.escape(id)}"]`)) {
+      const img = document.createElement("img");
+      img.className = "art";
+      img.alt = "";
+      img.loading = "lazy";
+      img.src = url;
+      ph.replaceWith(img);
+    }
+  });
 }
 function hasSquareArt(app) {
-  var _a2;
-  return ((_a2 = app == null ? void 0 : app.media) != null ? _a2 : []).some((x) => squareLabels().includes(x == null ? void 0 : x.label) && x.uri);
+  var _a3;
+  return ((_a3 = app == null ? void 0 : app.media) != null ? _a3 : []).some((x) => squareLabels().includes(x == null ? void 0 : x.label) && x.uri);
 }
 function refreshWatchArt(apps) {
   const list = readWatch();
@@ -7076,14 +8967,14 @@ function refreshWatchArt(apps) {
   }
 }
 function addWatch(app) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j;
   if (!(app == null ? void 0 : app.id)) return;
   const list = readWatch();
   if (list.some((w) => w.id === String(app.id))) return;
-  const head = (_a2 = results.get(keyOf(app))) == null ? void 0 : _a2.latest;
+  const head = (_a3 = results.get(keyOf(app))) == null ? void 0 : _a3.latest;
   list.push({
     id: String(app.id),
-    name: (_b2 = app.name) != null ? _b2 : String(app.id),
+    name: (_b3 = app.name) != null ? _b3 : String(app.id),
     slug: (_c = app.slug) != null ? _c : null,
     platform: (_d = app.platform) != null ? _d : null,
     image: squareArt(app),
@@ -7128,8 +9019,19 @@ function updateWatchBadge() {
   el.watchBadge.textContent = n ? String(n) : "";
   el.watchBadge.hidden = n === 0;
 }
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, worker));
+  return out;
+}
 async function sweepWatch({ force = false } = {}) {
-  var _a2, _b2, _c, _d;
   const list = readWatch();
   if (!list.length || sweepWatch.busy) return;
   if (loadSettings().sectionsOff.includes("watchlist")) return;
@@ -7140,15 +9042,16 @@ async function sweepWatch({ force = false } = {}) {
   sweepWatch.busy = true;
   if (!el.viewWatchlist.hidden) renderWatch();
   try {
-    for (const entry of list) {
+    await mapLimit(list, 6, async (entry) => {
+      var _a3, _b3, _c, _d;
       try {
         const head = await checkApp({ id: entry.id, name: entry.name });
         const cur = readWatch();
         const w = cur.find((x) => x.id === entry.id);
-        if (!w) continue;
+        if (!w) return;
         const prevLatest = w.latest;
-        w.latest = (_a2 = head == null ? void 0 : head.versionCode) != null ? _a2 : null;
-        w.latestVer = (_b2 = head == null ? void 0 : head.version) != null ? _b2 : null;
+        w.latest = (_a3 = head == null ? void 0 : head.versionCode) != null ? _a3 : null;
+        w.latestVer = (_b3 = head == null ? void 0 : head.version) != null ? _b3 : null;
         w.latestAt = (_c = head == null ? void 0 : head.releasedAt) != null ? _c : null;
         w.checkedAt = Date.now();
         w.error = null;
@@ -7176,7 +9079,7 @@ async function sweepWatch({ force = false } = {}) {
       }
       updateWatchBadge();
       if (!el.viewWatchlist.hidden) renderWatch();
-    }
+    });
     localStorage.setItem(WATCH_LAST_KEY, String(Date.now()));
   } finally {
     sweepWatch.busy = false;
@@ -7185,18 +9088,306 @@ async function sweepWatch({ force = false } = {}) {
   }
 }
 sweepWatch.busy = false;
+async function loadHomeAccount(token) {
+  homeAccount = { token, loading: true };
+  const ok = (r) => r.status === "fulfilled" ? r.value : null;
+  const profileP = accountProfile();
+  const storeP = extraOn("homeStore") ? storeAccount() : Promise.resolve(null);
+  const worldsP = extraOn("homeWorlds") ? profileP.then((p) => (p == null ? void 0 : p.id) ? publishedWorlds(p.id) : null) : Promise.resolve(null);
+  const presenceP = extraOn("homePresence") ? recentPresence() : Promise.resolve(null);
+  const [profile, presence, worlds, store] = await Promise.allSettled([profileP, presenceP, worldsP, storeP]);
+  if (homeAccount.token !== token) return;
+  homeAccount = {
+    token,
+    profile: ok(profile),
+    presence: ok(presence),
+    worlds: ok(worlds),
+    store: ok(store),
+    loading: false
+  };
+  refreshHome();
+}
+function refreshHome() {
+  if (el.viewHome && !el.viewHome.hidden) renderHome();
+}
+function agoText(sec) {
+  const s = Math.max(0, Date.now() / 1e3 - Number(sec));
+  if (s < 90) return "just now";
+  const m = s / 60;
+  if (m < 60) return `${Math.round(m)} min ago`;
+  const h = m / 60;
+  if (h < 24) return `${Math.round(h)} h ago`;
+  const d = h / 24;
+  if (d < 30) return `${Math.round(d)} day${Math.round(d) === 1 ? "" : "s"} ago`;
+  return new Date(Number(sec) * 1e3).toLocaleDateString(void 0, { year: "numeric", month: "short", day: "numeric" });
+}
+function homeAppIcon(name, image) {
+  const letter = esc((name || "?").trim().charAt(0).toUpperCase());
+  return image ? `<img class="home-ic" src="${esc(image)}" alt="" loading="lazy" data-letter="${letter}">` : `<span class="home-ic home-ic--ph" aria-hidden="true">${letter}</span>`;
+}
+function renderHome() {
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  if (!el.homeBody) return;
+  const s = loadSettings();
+  const t = (s.token || "").trim();
+  const signed = Boolean(t) && !t.includes("|");
+  const acToken = (s.acToken || "").trim();
+  const watch = readWatch();
+  const updatedCount = watch.filter(watchUpdated).length;
+  const wl = [...watch].sort((a, b) => (watchUpdated(b) ? 1 : 0) - (watchUpdated(a) ? 1 : 0));
+  const appLine = (id, name, image, right) => `<a class="home-appline" href="/apps/${esc(String(id))}" data-appid="${esc(String(id))}">${homeAppIcon(name, iconCache.get(String(id)) || image)}<span class="home-appnm">${esc(name)}</span>${right || ""}</a>`;
+  const wlRows = wl.slice(0, 6).map((w) => {
+    const right = watchUpdated(w) ? `<span class="home-tag is-new">New${w.latestVer ? ` \xB7 v${esc(w.latestVer)}` : ""}</span>` : w.error ? `<span class="home-tag is-bad">check failed</span>` : w.latest == null ? `<span class="home-tag">not checked</span>` : `<span class="home-tag">up to date</span>`;
+    return appLine(w.id, w.name, w.image, right);
+  }).join("");
+  const watchedIds = new Set(watch.map((w) => String(w.id)));
+  const recent = readRecent().filter((r) => !watchedIds.has(String(r.id)));
+  const recentRows = recent.slice(0, 6).map((r) => appLine(r.id, r.name, r.image, "")).join("");
+  const acctKey = [t, (s.frlToken || "").trim(), s.images, s.extrasOff.join(",")].join("\n");
+  if (signed && homeAccount.token !== acctKey && !homeAccount.loading) loadHomeAccount(acctKey);
+  const acct = signed && homeAccount.token === acctKey ? homeAccount : null;
+  const prof = acct == null ? void 0 : acct.profile;
+  const relayHow = extensionRelayOn() ? "Browser extension" : (s.relay || "").trim() ? "Your own relay" : "Built-in relay";
+  const repoCount = Object.keys(readRepos()).length;
+  const link = (path, view, text) => `<a href="${path}" data-view="${view}">${esc(text)}</a>`;
+  const owned = [...ownedAcross.values()];
+  const pcOwned = owned.filter((a) => a.platform === "PC").length;
+  const library2 = owned.length ? `${owned.length - pcOwned} Quest${pcOwned ? ` \xB7 ${pcOwned} PC` : ""}${ownedLoading.has("pc") ? '<span class="home-stat-note">PC library still loading\u2026</span>' : ""}` : ownedLoading.size || s.autoOwned && !mineAsked ? "Loading\u2026" : mineNote ? link("/mine", "mine", "Couldn't load \u2014 try again") : mineAsked ? "Nothing owned" : link("/mine", "mine", "Load your library");
+  const worldCount = (_c = (_b3 = (_a3 = acct == null ? void 0 : acct.worlds) == null ? void 0 : _a3.worlds) == null ? void 0 : _b3.length) != null ? _c : 0;
+  const worldsText = worldCount ? `${worldCount}${acct.worlds.cursor ? "+" : ""} published` : null;
+  const pres = acct == null ? void 0 : acct.presence;
+  const lastActive = (acct == null ? void 0 : acct.loading) ? "\u2026" : !pres ? "\u2014" : pres.current ? "In VR now" : pres.lastActive ? agoText(pres.lastActive) : "\u2014";
+  const saved = [
+    ["Access", signed],
+    ["Account", Boolean(acToken)],
+    ["Meta", Boolean((s.frlToken || "").trim())],
+    ["Updater", Boolean((s.upToken || "").trim())]
+  ].filter(([, on]) => on).map(([k]) => k);
+  const tokens = `${saved.join(" \xB7 ") || "None"}${signed && !acToken ? '<span class="home-stat-note">No downloads without the account token</span>' : ""}`;
+  const det = (_d = prof == null ? void 0 : prof.details) != null ? _d : {};
+  const fmtDate = (v) => {
+    const n = Number(v);
+    const d = Number.isFinite(n) && n > 0 ? new Date(n * 1e3) : new Date(String(v));
+    return Number.isNaN(d.getTime()) ? String(v) : d.toLocaleDateString(void 0, { year: "numeric", month: "short", day: "numeric" });
+  };
+  const shout = (v) => String(v).toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  const yesNo2 = (v) => v ? "Yes" : "No";
+  const privacyRow = (st) => {
+    var _a4;
+    if (st.key === "BIDIRECTIONAL_FOLLOWER_JOINABILITY")
+      return ["Who can join you uninvited", st.value === "ON" ? "Followers you follow back" : st.value === "OFF" ? "Any follower" : "\u2014"];
+    const label = (_a4 = { OC_VR_PRIVATE_PROFILE: "Private profile", ACTIVE_STATUS: "Active status" }[st.key]) != null ? _a4 : st.name;
+    return [label, esc(st.valueName || (st.value ? shout(st.value) : "\u2014"))];
+  };
+  const factLabel = (k) => {
+    const s2 = k.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ").trim().toLowerCase().replace(/^(is|has|viewer) /, "");
+    return s2.charAt(0).toUpperCase() + s2.slice(1);
+  };
+  const factValue = (k, v) => typeof v === "boolean" ? v ? "Yes" : "No" : typeof v === "number" && v > 1e9 && v < 4e9 && /time|date|since|created|joined|_at$|At$/.test(k) ? fmtDate(v) : /^[A-Z][A-Z0-9_]+$/.test(String(v)) ? shout(v) : String(v);
+  const details = signed ? [
+    det.age != null ? ["Age on account", `${det.age}`] : null,
+    det.salsa != null ? ["Salsa", yesNo2(det.salsa)] : null,
+    det.developer != null ? ["Developer account", yesNo2(det.developer)] : null,
+    det.facebookLinked != null ? ["Facebook linked", yesNo2(det.facebookLinked)] : null,
+    det.violations != null ? ["Profile standing", det.violations ? `${det.violations} violation${det.violations === 1 ? "" : "s"}` : "No violations"] : null,
+    ...((_e = det.privacy) != null ? _e : []).map(privacyRow),
+    det.activeStatus ? ["Active status", esc(shout(det.activeStatus))] : null,
+    det.horizonPlus != null ? ["Horizon+", det.horizonPlus ? "Subscribed" : "Not subscribed"] : null,
+    ((_f = acct == null ? void 0 : acct.store) == null ? void 0 : _f.credit) ? ["Store credit", esc(acct.store.credit)] : null,
+    ((_g = acct == null ? void 0 : acct.store) == null ? void 0 : _g.subscriptions) ? [
+      "Subscriptions",
+      acct.store.subscriptions.length ? acct.store.subscriptions.map(
+        (x) => `${esc([x.app, x.name].filter(Boolean).join(" \u2014 "))}${x.active ? "" : " (ended)"}${x.next ? `<span class="home-stat-note">${esc(x.next)}</span>` : ""}`
+      ).join("") : "None"
+    ] : null,
+    ((_h = acct == null ? void 0 : acct.store) == null ? void 0 : _h.pinSet) != null ? ["Store PIN", acct.store.pinSet ? "Set" : "Not set"] : null,
+    ((_i = acct == null ? void 0 : acct.store) == null ? void 0 : _i.contentFilter) ? ["Store content filter", esc(shout(acct.store.contentFilter))] : null,
+    det.voiceChannel ? [
+      "Who can talk to you",
+      esc(shout(String(det.voiceChannel).replace(/^VOICE_CHANNEL_/, ""))) + (det.voiceParental ? '<span class="home-stat-note">Set by a parent</span>' : "")
+    ] : null,
+    det.communities && (det.communities.adult != null || det.communities.minor != null) ? [
+      "Can create communities",
+      esc(
+        [det.communities.adult ? "Adults only" : null, det.communities.minor ? "Open to teens" : null].filter(Boolean).join(" \xB7 ") || "No"
+      )
+    ] : null,
+    /* Only for a supervised (Salsa) account: on any other it is a default that means nothing. */
+    det.salsa && det.supervisionNotifications != null ? ["Supervision notifications", yesNo2(det.supervisionNotifications)] : null
+  ].filter(Boolean) : [];
+  const humanize = (v) => String(v).replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
+  const presenceRows = pres ? [
+    pres.app ? [pres.current ? "Playing" : "Last in", esc(pres.app)] : null,
+    pres.destinationName || pres.destination ? ["Destination", esc(pres.destinationName || humanize(pres.destination))] : null,
+    pres.lobby || pres.match ? ["Session", [pres.lobby ? "In a lobby" : null, pres.match ? "In a match" : null].filter(Boolean).join(" \xB7 ")] : null,
+    pres.party ? ["Party", `${pres.party} ${pres.party === 1 ? "person" : "people"}`] : null,
+    ...Object.entries((_j = pres.facts) != null ? _j : {}).map(([k, v]) => [factLabel(k), esc(factValue(k, v))])
+  ].filter(Boolean) : [];
+  const activity = signed ? [
+    extraOn("homePresence") ? ["Last active", lastActive] : null,
+    ...presenceRows,
+    ["Library", library2],
+    worldsText ? ["Worlds you made", worldsText] : null
+  ].filter(Boolean) : [];
+  const browser = [
+    signed ? ["Saved tokens", tokens] : null,
+    ["Requests via", esc(relayHow)],
+    repoCount ? ["GitHub sources", `${repoCount} linked`] : null
+  ].filter(Boolean);
+  const group = (title, rows) => rows.length ? `<div class="home-group"><h4>${esc(title)}</h4><dl class="home-stats">${rows.map(([k, v]) => `<div class="home-stat"><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("")}</dl></div>` : "";
+  const detailsBlock = details.length ? group("Account details", details) : signed && !(acct == null ? void 0 : acct.loading) && (prof == null ? void 0 : prof.detailsError) ? `<div class="home-group"><h4>Account details</h4><p class="home-empty">The store wouldn't give your account details: ${esc(prof.detailsError)}${(s.frlToken || "").trim() ? "" : " \u2014 saving your Meta token (Settings \u2192 Sign in with Meta) may help."}</p></div>` : "";
+  const groups = detailsBlock + group("Activity", activity) + group("This browser", browser);
+  const meName = (prof == null ? void 0 : prof.name) || (prof == null ? void 0 : prof.alias) || ((acct == null ? void 0 : acct.loading) ? "Loading your account\u2026" : "Signed in");
+  const meInitial = esc(((prof == null ? void 0 : prof.name) || (prof == null ? void 0 : prof.alias) || "?").trim().charAt(0).toUpperCase());
+  const reveal = (key, value, label, cls = "") => value ? homeShown.has(key) ? `<span class="${cls}">${esc(value)}</span>` : `<button type="button" class="home-reveal" data-home-reveal="${key}">${esc(label)}</button>` : null;
+  const meSub = [
+    (prof == null ? void 0 : prof.alias) && prof.alias !== prof.name ? `<span>@${esc(prof.alias)}</span>` : null,
+    reveal("email", prof == null ? void 0 : prof.email, "Show email"),
+    reveal("id", prof == null ? void 0 : prof.id, "Show account ID", "mono")
+  ].filter(Boolean).join("");
+  const mePic = (prof == null ? void 0 : prof.photo) ? `<img class="home-me-pic" src="${esc(prof.photo)}" alt="" data-letter="${meInitial}">` : `<span class="home-me-pic home-me-pic--ph" aria-hidden="true">${meInitial}</span>`;
+  const bgUri = ((_k = prof == null ? void 0 : prof.background) == null ? void 0 : _k.uri) && s.images ? prof.background.uri : null;
+  const me = signed ? `<div class="home-me${bgUri ? " home-me--bg" : ""}">
+        ${bgUri ? `<div class="home-me-media"><img class="home-me-bg" src="${esc(bgUri)}" alt="Your profile background" loading="lazy">${mePic}</div>` : mePic}
+        <div class="home-me-text">
+          <div class="home-me-name">${esc(meName)}</div>
+          ${meSub ? `<div class="home-me-alias">${meSub}</div>` : ""}
+        </div>
+      </div>` : `<div class="home-me">
+        <span class="home-me-pic home-me-pic--ph" aria-hidden="true">?</span>
+        <div class="home-me-text">
+          <div class="home-me-name">Not signed in</div>
+          <div class="home-me-alias">Sign in to see your account details and library.</div>
+        </div>
+      </div>`;
+  el.homeBody.innerHTML = `
+    <div class="home-dash">
+      <section class="home-panel">
+        <div class="home-ph"><h3>Watchlist</h3>${watch.length ? `<a class="home-more" href="/watchlist" data-view="watchlist">${watch.length} watched${updatedCount ? ` \xB7 ${updatedCount} new` : ""}</a>` : ""}</div>
+        ${watch.length ? `<div class="home-list">${wlRows}</div>${wl.length > 6 ? `<a class="home-more home-more--foot" href="/watchlist" data-view="watchlist">and ${wl.length - 6} more</a>` : ""}` : `<p class="home-empty">No apps watched yet. Open an app and press Watch to track its builds here.</p>`}
+      </section>
+
+      <section class="home-panel">
+        <div class="home-ph"><h3>Recently viewed</h3></div>
+        ${recent.length ? `<div class="home-list">${recentRows}</div>` : `<p class="home-empty">${watch.length ? "Apps you open that aren't on your watchlist show up here." : "Apps you open show up here, so you can jump back to them."}</p>`}
+      </section>
+    </div>
+
+    <section class="home-acct" aria-label="Your account">
+      <div class="home-ph">
+        <h3>Your account</h3>
+        ${signed ? `<a class="home-more" href="/settings" data-view="settings">Settings</a>` : `<a class="home-btn home-btn--sm" href="/settings" data-view="settings">Sign in</a>`}
+      </div>
+      ${me}
+      ${groups}
+    </section>`;
+  (_l = el.homeBody.querySelector(".home-me-bg")) == null ? void 0 : _l.addEventListener("error", (e) => {
+    var _a4;
+    (_a4 = e.target.closest(".home-me")) == null ? void 0 : _a4.classList.remove("home-me--bg");
+    e.target.remove();
+  });
+  for (const b of el.homeBody.querySelectorAll("[data-home-reveal]")) {
+    b.addEventListener("click", () => {
+      homeShown.add(b.dataset.homeReveal);
+      renderHome();
+    });
+  }
+  const pic = el.homeBody.querySelector("img.home-me-pic");
+  if (pic) {
+    pic.addEventListener("error", () => {
+      const ph = document.createElement("span");
+      ph.className = "home-me-pic home-me-pic--ph";
+      ph.setAttribute("aria-hidden", "true");
+      ph.textContent = pic.dataset.letter || "?";
+      pic.replaceWith(ph);
+    }, { once: true });
+  }
+  for (const img of el.homeBody.querySelectorAll("img.home-ic")) {
+    const fallBack = () => {
+      const ph = document.createElement("span");
+      ph.className = "home-ic home-ic--ph";
+      ph.setAttribute("aria-hidden", "true");
+      ph.textContent = img.dataset.letter || "?";
+      img.replaceWith(ph);
+    };
+    if (img.complete && !img.naturalWidth) fallBack();
+    else img.addEventListener("error", fallBack, { once: true });
+  }
+  fillMissingIcons([...el.homeBody.querySelectorAll(".home-appline")].map((a) => {
+    var _a4;
+    return {
+      id: a.dataset.appid,
+      name: ((_a4 = a.querySelector(".home-appnm")) == null ? void 0 : _a4.textContent) || "",
+      ph: a.querySelector(".home-ic--ph")
+    };
+  }));
+}
+function saveAppImage(id, image) {
+  try {
+    const sid = String(id);
+    const w = readWatch();
+    let changed = false;
+    for (const e of w) if (e.id === sid && !e.image) {
+      e.image = image;
+      changed = true;
+    }
+    if (changed) saveWatch(w);
+    const r = readRecent();
+    let changed2 = false;
+    for (const e of r) if (e.id === sid && !e.image) {
+      e.image = image;
+      changed2 = true;
+    }
+    if (changed2) localStorage.setItem(RECENT_KEY, JSON.stringify(r));
+  } catch {
+  }
+}
+async function fetchAppIcon(id, name) {
+  var _a3, _b3;
+  const byId = await appIcon(id);
+  if (byId) return byId;
+  try {
+    const hits = await searchStore(String(name), { limit: 20 });
+    return (_b3 = (_a3 = hits.find((r) => String(r.id) === String(id))) == null ? void 0 : _a3.image) != null ? _b3 : null;
+  } catch {
+    return null;
+  }
+}
+async function fillMissingIcons(items) {
+  const need = (items || []).filter((x) => x && x.id && x.name && x.ph && x.ph.isConnected && !iconTried.has(x.id));
+  if (!need.length) return;
+  for (const x of need) iconTried.add(x.id);
+  await mapLimit(need, 4, async (x) => {
+    const image = await fetchAppIcon(x.id, x.name);
+    if (!image) return;
+    iconCache.set(String(x.id), image);
+    saveAppImage(x.id, image);
+    if (!x.ph.isConnected) return;
+    const base = [...x.ph.classList].filter((c) => !c.endsWith("--ph")).join(" ") || "home-ic";
+    const img = document.createElement("img");
+    img.className = base;
+    img.loading = "lazy";
+    img.alt = "";
+    img.dataset.letter = x.ph.textContent || "?";
+    img.src = image;
+    img.addEventListener("error", () => {
+      if (img.isConnected) img.replaceWith(x.ph);
+    }, { once: true });
+    x.ph.replaceWith(img);
+  });
+}
 function renderWatch() {
-  var _a2, _b2;
+  var _a3, _b3;
   if (!el.watchRows) return;
   const list = readWatch();
   const busy = sweepWatch.busy;
   const livePanels = /* @__PURE__ */ new Map();
   for (const d of el.watchRows.querySelectorAll(":scope > tr.detail")) {
-    const id = (_a2 = d.previousElementSibling) == null ? void 0 : _a2.dataset.id;
+    const id = (_a3 = d.previousElementSibling) == null ? void 0 : _a3.dataset.id;
     if (id) livePanels.set(id, d);
   }
   const letter = (w) => esc((w.name || "?").trim().charAt(0).toUpperCase());
-  const icon = (w) => w.image ? `<img class="wl-ic" src="${esc(w.image)}" alt="" loading="lazy" data-letter="${letter(w)}">` : `<span class="wl-ic wl-ic--ph" aria-hidden="true">${letter(w)}</span>`;
+  const icon = (w) => iconCache.get(w.id) || w.image ? `<img class="wl-ic" src="${esc(iconCache.get(w.id) || w.image)}" alt="" loading="lazy" data-letter="${letter(w)}">` : `<span class="wl-ic wl-ic--ph" aria-hidden="true">${letter(w)}</span>`;
   const buildCell = (ver, date, cls = "") => ver == null && date == null ? `<span class="wl-dash">\u2014</span>` : `<span class="wl-b ${cls}"><span class="wl-bv mono">${ver ? `v${esc(ver)}` : "\u2014"}</span><span class="wl-bd">${date ? esc(date) : ""}</span></span>`;
   const ordered = [...list].sort(
     (a, b) => (watchUpdated(b) ? 1 : 0) - (watchUpdated(a) ? 1 : 0)
@@ -7225,10 +9416,18 @@ function renderWatch() {
     if (img.complete && !img.naturalWidth) fallBack();
     else img.addEventListener("error", fallBack, { once: true });
   }
+  fillMissingIcons([...el.watchRows.querySelectorAll("tr.watch-row")].map((tr) => {
+    var _a4;
+    return {
+      id: tr.dataset.id,
+      name: ((_a4 = tr.querySelector(".wl-nm")) == null ? void 0 : _a4.textContent) || "",
+      ph: tr.querySelector(".wl-ic--ph")
+    };
+  }));
   for (const tr of el.watchRows.querySelectorAll("tr.watch-row")) {
     const w = list.find((x) => x.id === tr.dataset.id);
     if (w && open.has("watchlist:" + w.id)) {
-      tr.after((_b2 = livePanels.get(w.id)) != null ? _b2 : detailRow(appFromWatch(w), 4, "watchlist"));
+      tr.after((_b3 = livePanels.get(w.id)) != null ? _b3 : detailRow(appFromWatch(w), 4, "watchlist"));
       tr.setAttribute("aria-expanded", "true");
     }
   }
@@ -7256,9 +9455,9 @@ function toggleWatchDetail(row) {
   }
 }
 function initWatch() {
-  var _a2, _b2, _c, _d;
-  (_a2 = el.watchCheck) == null ? void 0 : _a2.addEventListener("click", () => sweepWatch({ force: true }));
-  (_b2 = el.watchMarkAll) == null ? void 0 : _b2.addEventListener("click", () => {
+  var _a3, _b3, _c, _d;
+  (_a3 = el.watchCheck) == null ? void 0 : _a3.addEventListener("click", () => sweepWatch({ force: true }));
+  (_b3 = el.watchMarkAll) == null ? void 0 : _b3.addEventListener("click", () => {
     for (const w of readWatch()) markWatchSeen(w.id);
     updateWatchBadge();
     renderWatch();
@@ -7282,8 +9481,8 @@ function initWatch() {
     if (row) toggleWatchDetail(row);
   });
   (_d = el.watchRows) == null ? void 0 : _d.addEventListener("keydown", (e) => {
-    var _a3, _b3;
-    const row = (_b3 = (_a3 = e.target).closest) == null ? void 0 : _b3.call(_a3, "tr.watch-row");
+    var _a4, _b4;
+    const row = (_b4 = (_a4 = e.target).closest) == null ? void 0 : _b4.call(_a4, "tr.watch-row");
     if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
       toggleWatchDetail(row);
@@ -7305,13 +9504,31 @@ var SETUP_PANELS = [
   ["leaderboards", "Leaderboards"],
   ["cloud", "Cloud"]
 ];
+var SETUP_EXTRAS = [
+  ["homeSettings", "Dashboard: voice and community settings"],
+  ["homeHplus", "Dashboard: Horizon+ status"],
+  ["homeStore", "Dashboard: store credit, subscriptions and store PIN"],
+  ["homePresence", "Dashboard: last active and what you are doing"],
+  ["homeWorlds", "Dashboard: worlds you made"],
+  ["homeBackground", "Dashboard: your profile's background picture"],
+  ["fullFollows", "People: complete follower lists (two more requests)"],
+  ["metTimes", "People: when you last met someone"],
+  ["personCounts", "People: follower counts on a profile"],
+  ["personPhotos", "People: photos for everyone the list has none for (one more request)"],
+  ["traits", "Apps: store traits (gameplay, art style\u2026)"],
+  ["destinations", "Apps: destinations inside the app"],
+  ["related", "Apps: more like this"],
+  ["bundles", "Apps: bundles it is included in"],
+  ["worldExtras", "Worlds: genres, rating and similar worlds"],
+  ["submissions", "Apps: open a revision for its build, listing and what changed"]
+];
 var SETUP_DATA = [
   ["images", "App art in search results"],
   ["store", "\u201COpen in store\u201D links"],
   ["details", "\u201CLatest Binary Info\u201D button"],
   ["devDownloads", "Developer (non-channel) builds"],
   ["obb", "Fetch OBB files for builds that need them"],
-  ["autoOwned", "Fetch your library on load to mark owned apps"],
+  ["autoOwned", "Fetch your Quest and PC libraries on load to mark owned apps"],
   ["autoDlc", "Fetch your DLC automatically"],
   ["autoPlaytime", "Fetch your playtime automatically"],
   ["autoBackups", "Fetch your cloud backups automatically"]
@@ -7321,16 +9538,19 @@ function buildSetup() {
   const opts = loadSettings();
   const secOff = new Set(opts.sectionsOff);
   const panOff = new Set(opts.panelsOff);
-  el.setupSections.innerHTML = [...el.navLinks].filter((a) => a.dataset.view !== "settings" && a.dataset.view !== "getapp").map((a) => setupCheckbox("section", a.dataset.view, navLabel(a), !secOff.has(a.dataset.view))).join("");
+  el.setupSections.innerHTML = screenList().map(([v, label]) => setupCheckbox("section", v, label, !secOff.has(v))).join("");
   el.setupPanels.innerHTML = SETUP_PANELS.map(([name, label]) => setupCheckbox("panel", name, label, !panOff.has(name))).join("");
   el.setupData.innerHTML = SETUP_DATA.map(([name, label]) => setupCheckbox("data", name, label, Boolean(opts[name]))).join("");
+  const extOff = new Set(opts.extrasOff);
+  if (el.setupExtras)
+    el.setupExtras.innerHTML = SETUP_EXTRAS.map(([name, label]) => setupCheckbox("extra", name, label, !extOff.has(name))).join("");
 }
 function openSetup() {
-  var _a2;
+  var _a3;
   buildSetup();
   el.setupOverlay.hidden = false;
   document.documentElement.classList.add("setup-open");
-  (_a2 = el.setupSave) == null ? void 0 : _a2.focus();
+  (_a3 = el.setupSave) == null ? void 0 : _a3.focus();
 }
 function closeSetup() {
   el.setupOverlay.hidden = true;
@@ -7339,6 +9559,7 @@ function closeSetup() {
 function saveSetup() {
   const sectionsOff = [];
   const panelsOff = [];
+  const extrasOff = [];
   const dataPatch = {};
   for (const input of el.setupOverlay.querySelectorAll("input[data-feat]")) {
     const { kind, feat } = input.dataset;
@@ -7346,11 +9567,13 @@ function saveSetup() {
       if (!input.checked) sectionsOff.push(feat);
     } else if (kind === "panel") {
       if (!input.checked) panelsOff.push(feat);
+    } else if (kind === "extra") {
+      if (!input.checked) extrasOff.push(feat);
     } else if (kind === "data") {
       dataPatch[feat] = input.checked;
     }
   }
-  saveSettings({ ...dataPatch, sectionsOff, panelsOff, setupDone: true });
+  saveSettings({ ...dataPatch, sectionsOff, panelsOff, extrasOff, setupDone: true });
   for (const [name] of SETUP_DATA) {
     const node = document.getElementById(name);
     if (node) node.checked = dataPatch[name];
@@ -7363,9 +9586,9 @@ function saveSetup() {
   applyView();
 }
 function initSetup() {
-  var _a2, _b2, _c;
-  (_a2 = el.openSetup) == null ? void 0 : _a2.addEventListener("click", openSetup);
-  (_b2 = el.setupSave) == null ? void 0 : _b2.addEventListener("click", saveSetup);
+  var _a3, _b3, _c;
+  (_a3 = el.openSetup) == null ? void 0 : _a3.addEventListener("click", openSetup);
+  (_b3 = el.setupSave) == null ? void 0 : _b3.addEventListener("click", saveSetup);
   (_c = el.setupAll) == null ? void 0 : _c.addEventListener("click", () => {
     for (const input of el.setupOverlay.querySelectorAll("input[data-feat]")) input.checked = true;
   });
@@ -7399,20 +9622,20 @@ function ghLearned(app, pkg) {
   if (dgState.selected === app.key) dgState.selected = pkg;
 }
 function verCmp(a, b) {
-  var _a2, _b2, _c, _d;
+  var _a3, _b3, _c, _d;
   const nums = (v) => String(v != null ? v : "").split(/[^0-9]+/).filter(Boolean).map(Number);
   const x = nums(a), y = nums(b);
   if (!x.length || !y.length) return null;
   for (let i = 0; i < Math.max(x.length, y.length); i++) {
-    if (((_a2 = x[i]) != null ? _a2 : 0) !== ((_b2 = y[i]) != null ? _b2 : 0)) return ((_c = x[i]) != null ? _c : 0) - ((_d = y[i]) != null ? _d : 0);
+    if (((_a3 = x[i]) != null ? _a3 : 0) !== ((_b3 = y[i]) != null ? _b3 : 0)) return ((_c = x[i]) != null ? _c : 0) - ((_d = y[i]) != null ? _d : 0);
   }
   return 0;
 }
 var sameVersion = (tag, installed) => installed != null && String(tag).replace(/^v/i, "").toLowerCase() === String(installed).replace(/^v/i, "").toLowerCase();
 function ghInstall(app, assetId, button, { save = false } = {}) {
-  var _a2, _b2;
+  var _a3, _b3;
   const repo = repoOf(app);
-  const found = ((_b2 = (_a2 = dgState.releases.get(repo)) == null ? void 0 : _a2.items) != null ? _b2 : []).flatMap((r) => r.assets.map((a) => ({ r, a }))).find(({ a }) => a.id === assetId);
+  const found = ((_b3 = (_a3 = dgState.releases.get(repo)) == null ? void 0 : _a3.items) != null ? _b3 : []).flatMap((r) => r.assets.map((a) => ({ r, a }))).find(({ a }) => a.id === assetId);
   if (!found) return;
   const key = `${save ? "save" : "install"}:gh:${assetId}`;
   if (jobPressed(key)) return;
@@ -7484,14 +9707,14 @@ function dgGithubSection(app) {
 function dgNotInstalled() {
   const here = new Set(adbInstalled.map((a) => a.packageName));
   return mineList.filter((a) => a.id && a.packageName && !here.has(a.packageName) && a.owned !== false).map((a) => {
-    var _a2;
+    var _a3;
     return {
       id: a.id,
       packageName: a.packageName,
       name: a.name,
       image: a.image,
       platform: a.platform,
-      latest: (_a2 = a.latest) != null ? _a2 : null,
+      latest: (_a3 = a.latest) != null ? _a3 : null,
       channels: [],
       notInstalled: true,
       installedVersion: null,
@@ -7594,12 +9817,12 @@ function dgHeadsetIcon(pkg, backupId = null) {
   return dgIcons.get(key);
 }
 async function fillStoreArt(pkgs, known = null) {
-  var _a2, _b2, _c, _d;
+  var _a3, _b3, _c, _d;
   const owned = ownedByPackage();
   const want = [...new Set(pkgs)].filter(
     (p) => {
-      var _a3;
-      return p && !((_a3 = owned.get(p)) == null ? void 0 : _a3.image) && (!storeArt.has(p) || storeArt.get(p) && !storeArt.get(p).image && !storeArtTried.has(p));
+      var _a4;
+      return p && !((_a4 = owned.get(p)) == null ? void 0 : _a4.image) && (!storeArt.has(p) || storeArt.get(p) && !storeArt.get(p).image && !storeArtTried.has(p));
     }
   );
   if (!want.length || storeArtAsking || !dgSignedIn()) return false;
@@ -7614,8 +9837,8 @@ async function fillStoreArt(pkgs, known = null) {
       }
     }
     const hits = want.filter((p) => {
-      var _a3;
-      return (_a3 = known.get(p)) == null ? void 0 : _a3.id;
+      var _a4;
+      return (_a4 = known.get(p)) == null ? void 0 : _a4.id;
     });
     const unnamed = hits.filter((p) => !known.get(p).name).map((p) => known.get(p).id);
     const names = unnamed.length ? await storeNames(unnamed).catch(() => /* @__PURE__ */ new Map()) : /* @__PURE__ */ new Map();
@@ -7630,7 +9853,7 @@ async function fillStoreArt(pkgs, known = null) {
       let image = null;
       if (name) {
         try {
-          image = (_b2 = (_a2 = (await searchStore(name, { limit: 10 })).find((r) => r.id === String(hit.id))) == null ? void 0 : _a2.image) != null ? _b2 : null;
+          image = (_b3 = (_a3 = (await searchStore(name, { limit: 10 })).find((r) => r.id === String(hit.id))) == null ? void 0 : _a3.image) != null ? _b3 : null;
         } catch {
         }
       }
@@ -7638,8 +9861,8 @@ async function fillStoreArt(pkgs, known = null) {
         try {
           const media2 = (await appPage(hit.id)).media;
           const pick = (labels) => {
-            var _a3;
-            return (_a3 = media2.find((m) => labels.includes(m.label))) == null ? void 0 : _a3.uri;
+            var _a4;
+            return (_a4 = media2.find((m) => labels.includes(m.label))) == null ? void 0 : _a4.uri;
           };
           image = (_d = (_c = pick(["Cover", "Icon", "Icon (VR)"])) != null ? _c : pick(["Hero", "Landscape"])) != null ? _d : null;
         } catch {
@@ -7657,10 +9880,10 @@ async function fillStoreArt(pkgs, known = null) {
   }
 }
 function dgArtFor(pkg, backupId = null) {
-  var _a2, _b2;
-  const known = (_a2 = dgApp(pkg)) != null ? _a2 : mineList.find((a) => a.packageName === pkg);
+  var _a3, _b3;
+  const known = (_a3 = dgApp(pkg)) != null ? _a3 : mineList.find((a) => a.packageName === pkg);
   if (known == null ? void 0 : known.image) return known;
-  if ((_b2 = storeArt.get(pkg)) == null ? void 0 : _b2.image) return storeArt.get(pkg);
+  if ((_b3 = storeArt.get(pkg)) == null ? void 0 : _b3.image) return storeArt.get(pkg);
   const image = backupId && dgHeadsetIcon(pkg, backupId) || (installedCode(pkg) >= 0 ? dgHeadsetIcon(pkg) : null);
   return image ? { image } : null;
 }
@@ -7683,8 +9906,8 @@ function dgRender() {
   syncAppSignIn();
   const q = el.dgQ.value.trim().toLowerCase();
   const hit = (a) => {
-    var _a2, _b2;
-    return !q || ((_a2 = a.name) != null ? _a2 : "").toLowerCase().includes(q) || ((_b2 = a.packageName) != null ? _b2 : "").toLowerCase().includes(q);
+    var _a3, _b3;
+    return !q || ((_a3 = a.name) != null ? _a3 : "").toLowerCase().includes(q) || ((_b3 = a.packageName) != null ? _b3 : "").toLowerCase().includes(q);
   };
   if (tab === "backups") return dgRenderBackups(hit);
   if (tab === "history") return dgRenderHistory(hit);
@@ -7701,31 +9924,31 @@ function dgRender() {
   el.dgCount.classList.toggle("warn", Boolean(dgState.note) && !dgState.loading);
   el.dgApps.innerHTML = apps.map(
     (a) => {
-      var _a2, _b2;
+      var _a3, _b3;
       return `<li><button type="button" class="dg-app" data-dg-app="${esc(a.packageName)}"
           aria-current="${a.packageName === dgState.selected}">${dgArt(a)}
           <span class="dg-text"><span class="dg-name">${esc(a.name)}</span>
-          <span class="dg-ver">${esc((_a2 = a.installedVersion) != null ? _a2 : "\u2014")} \xB7 ${(_b2 = a.installedVersionCode) != null ? _b2 : "\u2014"}</span></span>${adbBehind(a) ? `<span class="dg-new">Update</span>` : ""}</button></li>`;
+          <span class="dg-ver">${esc((_a3 = a.installedVersion) != null ? _a3 : "\u2014")} \xB7 ${(_b3 = a.installedVersionCode) != null ? _b3 : "\u2014"}</span></span>${adbBehind(a) ? `<span class="dg-new">Update</span>` : ""}</button></li>`;
     }
   ).join("");
   el.dgMoreH.hidden = !more.length;
   el.dgMore.innerHTML = more.map(
     (a) => {
-      var _a2, _b2, _c, _d;
+      var _a3, _b3, _c, _d;
       return `<li><button type="button" class="dg-app" data-dg-app="${esc(a.packageName)}"
           aria-current="${a.packageName === dgState.selected}">${dgArt(a)}
           <span class="dg-text"><span class="dg-name">${esc(a.name)}</span>
-          <span class="dg-ver">${esc((_b2 = (_a2 = a.latest) == null ? void 0 : _a2.version) != null ? _b2 : "\u2014")} \xB7 ${(_d = (_c = a.latest) == null ? void 0 : _c.versionCode) != null ? _d : "\u2014"}</span></span></button></li>`;
+          <span class="dg-ver">${esc((_b3 = (_a3 = a.latest) == null ? void 0 : _a3.version) != null ? _b3 : "\u2014")} \xB7 ${(_d = (_c = a.latest) == null ? void 0 : _c.versionCode) != null ? _d : "\u2014"}</span></span></button></li>`;
     }
   ).join("");
   const repoOnly = Object.entries(readRepos()).filter(([key]) => !adbSide.some((x) => x.packageName === key)).map(([key, r]) => ({ key, name: r.name || r.repo, repo: r.repo, packageName: key.startsWith("gh:") ? "" : key })).filter(hit).sort((a, b) => a.name.localeCompare(b.name));
   el.dgSide.innerHTML = side.map((a) => {
-    var _a2, _b2;
+    var _a3, _b3;
     const kept = dgState.backups.filter((k) => k.packageName === a.packageName).length;
     return `<li><button type="button" class="dg-app" data-dg-app="${esc(a.packageName)}"
           aria-current="${a.packageName === dgState.selected}">${dgArt({ image: dgHeadsetIcon(a.packageName) })}
           <span class="dg-text"><span class="dg-name">${esc(a.name)}</span>
-          <span class="dg-ver">${esc((_a2 = a.version) != null ? _a2 : "\u2014")} \xB7 ${(_b2 = a.versionCode) != null ? _b2 : "\u2014"}</span></span>${kept ? `<span class="dg-new dg-off">${plural(kept, "backup")}</span>` : ""}</button></li>`;
+          <span class="dg-ver">${esc((_a3 = a.version) != null ? _a3 : "\u2014")} \xB7 ${(_b3 = a.versionCode) != null ? _b3 : "\u2014"}</span></span>${kept ? `<span class="dg-new dg-off">${plural(kept, "backup")}</span>` : ""}</button></li>`;
   }).concat(
     repoOnly.map(
       (a) => `<li><button type="button" class="dg-app" data-dg-app="${esc(a.key)}"
@@ -7737,13 +9960,13 @@ function dgRender() {
   dgRenderDetail();
 }
 function dgKept(pkg, code, binaryId) {
-  var _a2;
-  return (_a2 = dgState.backups.find(
+  var _a3;
+  return (_a3 = dgState.backups.find(
     (k) => binaryId && k.binaryId === String(binaryId) || k.packageName === pkg && k.versionCode === code
-  )) != null ? _a2 : null;
+  )) != null ? _a3 : null;
 }
 function dgRenderDetail() {
-  var _a2;
+  var _a3;
   const app = dgApp(dgState.selected);
   if (!app) {
     el.dgDetail.innerHTML = adbApps.length ? `<p class="dg-empty">Pick an app to see every build it has had.</p>` : "";
@@ -7758,7 +9981,7 @@ function dgRenderDetail() {
     body = `<p class="dg-empty warn">${esc(st.error)}</p>`;
   } else {
     const rows = st.builds.filter((b) => b.channels.length && b.id).map((b) => {
-      var _a3, _b2, _c;
+      var _a4, _b3, _c;
       const current = b.versionCode === app.installedVersionCode;
       const older = app.installedVersionCode && b.versionCode < app.installedVersionCode;
       const kept = dgKept(app.packageName, b.versionCode, b.id);
@@ -7767,11 +9990,11 @@ function dgRenderDetail() {
                 title="Keep a copy of the version on this headset, expansion file and all">Back up</button>` : `<button type="button" class="dl dl-obb" data-save-build="${esc(b.id)}" data-version="${esc(b.version)}"${job(`save:${b.id}`)}
                 title="Download ${esc(b.version)} and keep it here, without installing it">Save</button>`;
       const action = current ? `<span class="on-headset">On headset</span>` : `<button type="button" class="dl" data-install-build="${esc(b.id)}"${job(`install:${b.id}`)}
-              data-version="${esc(b.version)}" data-code="${(_a3 = b.versionCode) != null ? _a3 : ""}"
+              data-version="${esc(b.version)}" data-code="${(_a4 = b.versionCode) != null ? _a4 : ""}"
               title="${esc(older ? `Go back to ${b.version} \u2014 uninstalls first, deleting this app's saved data` : `Install ${b.version}`)}">${older ? "Downgrade" : app.installedVersionCode == null ? "Install" : "Update"}</button>`;
       return `<tr${current ? ` class="dg-current"` : ""}>
             <td class="num">${esc(b.version)}${obbs.has(String(b.id)) ? `<span class="dg-obb">+ OBB</span>` : ""}</td>
-            <td class="num">${(_b2 = b.versionCode) != null ? _b2 : "\u2014"}</td>
+            <td class="num">${(_b3 = b.versionCode) != null ? _b3 : "\u2014"}</td>
             <td class="num">${(_c = b.releasedAt) != null ? _c : "\u2014"}</td>
             <td>${esc(b.channels.join(", "))}</td>
             <td class="dg-act">${keep}${action}</td>
@@ -7785,7 +10008,7 @@ function dgRenderDetail() {
   }
   el.dgDetail.innerHTML = `<div class="dg-head">${dgArt(app)}
       <div><h2>${esc(app.name)}</h2><div class="dg-pkg">${esc(app.packageName)}</div>
-      <p class="dg-now">${app.installedVersionCode == null ? "Not installed on this headset" : `On this headset: ${esc((_a2 = app.installedVersion) != null ? _a2 : "\u2014")} (build ${app.installedVersionCode})`}</p></div>${app.installedVersionCode == null ? "" : dgHeadActions(app)}
+      <p class="dg-now">${app.installedVersionCode == null ? "Not installed on this headset" : `On this headset: ${esc((_a3 = app.installedVersion) != null ? _a3 : "\u2014")} (build ${app.installedVersionCode})`}</p></div>${app.installedVersionCode == null ? "" : dgHeadActions(app)}
     </div>${body}`;
 }
 function dgHeadActions(app) {
@@ -7800,7 +10023,7 @@ function dgUninstallButton(app) {
   return `<button type="button" class="dg-uninstall" data-uninstall${job} title="Remove ${esc(app.name)} from this headset, and its saved data">Uninstall</button>`;
 }
 function dgRenderSideDetail(app) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   if (app.adding) {
     el.dgDetail.innerHTML = `<div class="dg-head">${dgArt(null)}
         <div><h2>Versions from GitHub</h2>
@@ -7812,7 +10035,7 @@ function dgRenderSideDetail(app) {
   }
   if (app.repoOnly) {
     el.dgDetail.innerHTML = `<div class="dg-head">${dgArt(null)}
-        <div><h2>${esc(app.name)}</h2><div class="dg-pkg">${esc((_a2 = app.packageName) != null ? _a2 : app.repo)}</div>
+        <div><h2>${esc(app.name)}</h2><div class="dg-pkg">${esc((_a3 = app.packageName) != null ? _a3 : app.repo)}</div>
         <p class="dg-now">Not installed on this headset</p></div>
       </div>
       ${dgGithubSection(app)}`;
@@ -7821,7 +10044,7 @@ function dgRenderSideDetail(app) {
   const kept = dgState.backups.filter((b) => b.packageName === app.packageName).sort((x, y) => y.versionCode - x.versionCode);
   el.dgDetail.innerHTML = `<div class="dg-head">${dgArt({ image: dgHeadsetIcon(app.packageName) })}
       <div><h2>${esc(app.name)}</h2><div class="dg-pkg">${esc(app.packageName)}</div>
-      <p class="dg-now">On this headset: ${esc((_b2 = app.installedVersion) != null ? _b2 : "\u2014")} (build ${(_c = app.installedVersionCode) != null ? _c : "\u2014"})</p></div>${dgHeadActions(app)}
+      <p class="dg-now">On this headset: ${esc((_b3 = app.installedVersion) != null ? _b3 : "\u2014")} (build ${(_c = app.installedVersionCode) != null ? _c : "\u2014"})</p></div>${dgHeadActions(app)}
     </div>
     <p class="dg-warn">Not in the store. If it publishes its APKs on GitHub, its versions can be listed below; either way a copy of it can be kept, and put back later. Going back to an older version uninstalls the app first, which deletes its saved data on this headset.</p>
     ${dgGithubSection(app)}
@@ -7829,7 +10052,7 @@ function dgRenderSideDetail(app) {
     ${kept.length ? dgBackupTable(kept, app.installedVersionCode) : `<p class="dg-empty">No copies of it yet. Back up keeps one.</p>`}`;
 }
 function dgBackupGroups() {
-  var _a2, _b2;
+  var _a3, _b3;
   const groups = /* @__PURE__ */ new Map();
   for (const b of dgState.backups) {
     if (!groups.has(b.packageName)) {
@@ -7844,13 +10067,13 @@ function dgBackupGroups() {
   for (const g of groups.values()) {
     g.items.sort((x, y) => y.versionCode - x.versionCode);
     if (g.items.every((b) => b.source === "file")) {
-      g.name = ((_a2 = owned.get(g.packageName)) == null ? void 0 : _a2.name) || ((_b2 = storeArt.get(g.packageName)) == null ? void 0 : _b2.name) || g.name;
+      g.name = ((_a3 = owned.get(g.packageName)) == null ? void 0 : _a3.name) || ((_b3 = storeArt.get(g.packageName)) == null ? void 0 : _b3.name) || g.name;
     }
   }
   return [...groups.values()].sort((x, y) => x.name.localeCompare(y.name));
 }
 function dgRenderBackups(hit) {
-  var _a2;
+  var _a3;
   const groups = dgBackupGroups();
   const own = groups.filter((g) => g.items.every((b) => b.source === "file")).map((g) => g.packageName);
   fillStoreArt(own).then((changed) => changed && dgState.tab === "backups" && dgRender());
@@ -7868,10 +10091,10 @@ function dgRenderBackups(hit) {
   }).join("");
   el.dgBackupsEmpty.hidden = shown.length > 0;
   el.dgBackupsEmpty.textContent = groups.length ? "Nothing matches." : "No backups yet. Builds you install or save from Apps are kept here, Back up keeps the version you are on, and + Add APK brings in your own.";
-  dgRenderBackupDetail((_a2 = groups.find((g) => g.packageName === dgState.backupSel)) != null ? _a2 : null);
+  dgRenderBackupDetail((_a3 = groups.find((g) => g.packageName === dgState.backupSel)) != null ? _a3 : null);
 }
 function dgRenderBackupDetail(g) {
-  var _a2;
+  var _a3;
   if (!g) {
     el.dgBackupDetail.innerHTML = dgState.backups.length ? `<p class="dg-empty">Pick an app to see the versions kept of it.</p>` : "";
     return;
@@ -7879,7 +10102,7 @@ function dgRenderBackupDetail(g) {
   const have = installedCode(g.packageName);
   el.dgBackupDetail.innerHTML = `<div class="dg-head">${dgArt(dgArtFor(g.packageName, g.items[0].id))}
       <div><h2>${esc(g.name)}</h2><div class="dg-pkg">${esc(g.packageName)}</div>
-      <p class="dg-now">${have >= 0 ? `On this headset: ${esc((_a2 = installedName(g.packageName)) != null ? _a2 : "\u2014")} (build ${have})` : "Not installed on this headset"}</p></div>
+      <p class="dg-now">${have >= 0 ? `On this headset: ${esc((_a3 = installedName(g.packageName)) != null ? _a3 : "\u2014")} (build ${have})` : "Not installed on this headset"}</p></div>
     </div>
     <p class="dg-warn">Installing from a backup needs no download, and works signed out. Going back to an older build uninstalls the app first, which deletes its saved data on this headset.</p>
     ${dgBackupTable(g.items, have)}`;
@@ -7887,7 +10110,7 @@ function dgRenderBackupDetail(g) {
 function dgBackupTable(items, have) {
   have = have != null ? have : -1;
   const rows = items.map((b) => {
-    var _a2, _b2;
+    var _a3, _b3;
     const current = have === b.versionCode;
     const key = `restore:${b.id}`;
     const queued = appInstalls.get(key);
@@ -7896,10 +10119,10 @@ function dgBackupTable(items, have) {
             title="${esc(have > b.versionCode ? `Go back to ${b.version} \u2014 uninstalls first, deleting this app's saved data` : `Install ${b.version} from this backup \u2014 no download`)}">${have < 0 ? "Install" : have > b.versionCode ? "Downgrade" : "Update"}</button>`;
     const from = b.source === "headset" ? "This headset" : b.source === "file" ? "Your APK" : "Download";
     return `<tr${current ? ` class="dg-current"` : ""}>
-          <td class="num">${esc(b.version)}${((_a2 = b.obbs) == null ? void 0 : _a2.length) ? `<span class="dg-obb">+ OBB</span>` : ""}</td>
+          <td class="num">${esc(b.version)}${((_a3 = b.obbs) == null ? void 0 : _a3.length) ? `<span class="dg-obb">+ OBB</span>` : ""}</td>
           <td class="num">${b.versionCode}</td>
           <td class="num">${new Date(b.savedAt).toISOString().slice(0, 10)}</td>
-          <td title="${esc((_b2 = b.fileName) != null ? _b2 : "")}">${from}</td>
+          <td title="${esc((_b3 = b.fileName) != null ? _b3 : "")}">${from}</td>
           <td class="num">${dgSize(b.size)}</td>
           <td class="dg-act"><button type="button" class="ptc-btn" data-delete-backup="${esc(b.id)}">Delete</button> ${action}</td>
         </tr>`;
@@ -7919,8 +10142,8 @@ function dgRenderHistory(hit) {
   const all = readHistory();
   const shown = all.filter(hit);
   const ver = (v) => {
-    var _a2, _b2;
-    return v ? `${esc((_a2 = v.version) != null ? _a2 : "\u2014")} <span class="dg-obb">${esc((_b2 = v.code) != null ? _b2 : "")}</span>` : "\u2014";
+    var _a3, _b3;
+    return v ? `${esc((_a3 = v.version) != null ? _a3 : "\u2014")} <span class="dg-obb">${esc((_b3 = v.code) != null ? _b3 : "")}</span>` : "\u2014";
   };
   const art = /* @__PURE__ */ new Map();
   const artFor = (pkg, backup) => {
@@ -7930,10 +10153,10 @@ function dgRenderHistory(hit) {
   };
   el.dgHistoryRows.innerHTML = shown.map(
     (h) => {
-      var _a2, _b2, _c, _d, _e;
+      var _a3, _b3, _c, _d, _e;
       return `<tr>
           <td class="num">${new Date(h.at).toISOString().slice(0, 16).replace("T", " ")}</td>
-          <td class="name"><span class="dg-cell">${artFor(h.packageName, (_a2 = h.backup) != null ? _a2 : null)}${esc((_c = (_b2 = h.name) != null ? _b2 : h.packageName) != null ? _c : "\u2014")}</span></td>
+          <td class="name"><span class="dg-cell">${artFor(h.packageName, (_a3 = h.backup) != null ? _a3 : null)}${esc((_c = (_b3 = h.name) != null ? _b3 : h.packageName) != null ? _c : "\u2014")}</span></td>
           <td${h.action === "failed" ? ` class="warn"` : ""} title="${esc((_d = h.text) != null ? _d : "")}">${esc((_e = HISTORY_WORDS[h.action]) != null ? _e : h.action)}${h.text && (h.action === "failed" || h.action === "cancelled") ? `: ${esc(h.text)}` : ""}</td>
           <td class="num">${ver(h.from)}</td>
           <td class="num">${ver(h.to)}</td>
@@ -7945,23 +10168,23 @@ function dgRenderHistory(hit) {
   el.dgHistoryEmpty.textContent = all.length ? "Nothing matches." : "Nothing yet. Installs, updates, downgrades, saves and backups made here are listed as they happen.";
 }
 function initGetApp() {
-  var _a2;
-  (_a2 = document.getElementById("getappAdb")) == null ? void 0 : _a2.addEventListener("click", installAppOverAdb);
+  var _a3;
+  (_a3 = document.getElementById("getappAdb")) == null ? void 0 : _a3.addEventListener("click", installAppOverAdb);
   if (!IN_APP) return;
   el.dgAppUpdate.addEventListener("click", () => offerAppUpdate(el.dgAppUpdate));
   document.getElementById("appCheck").addEventListener("click", () => checkAppUpdate({ quiet: false }));
   setTimeout(() => checkAppUpdate(), 1500);
 }
 function appOwnVersion() {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   try {
-    return JSON.parse((_c = (_b2 = (_a2 = window.MetaDBApp).appVersion) == null ? void 0 : _b2.call(_a2)) != null ? _c : "{}");
+    return JSON.parse((_c = (_b3 = (_a3 = window.MetaDBApp).appVersion) == null ? void 0 : _b3.call(_a3)) != null ? _c : "{}");
   } catch {
     return {};
   }
 }
 async function checkAppUpdate({ quiet = true } = {}) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   if (!IN_APP) return;
   const mine = appOwnVersion();
   const out = document.getElementById("appVersionOut");
@@ -7973,13 +10196,13 @@ async function checkAppUpdate({ quiet = true } = {}) {
   let info = null;
   try {
     const res = await fetch(APP_INFO, { cache: "no-store" });
-    if (res.ok && /json/.test((_a2 = res.headers.get("content-type")) != null ? _a2 : "")) info = await res.json();
+    if (res.ok && /json/.test((_a3 = res.headers.get("content-type")) != null ? _a3 : "")) info = await res.json();
   } catch {
   }
   appUpdate = info && mine.versionCode && Number(info.versionCode) > Number(mine.versionCode) ? info : null;
   el.dgAppUpdate.hidden = !appUpdate;
   if (appUpdate) el.dgAppUpdate.textContent = `Update MetaDB to ${appUpdate.version}`;
-  document.getElementById("appVersionText").textContent = `MetaDB ${(_b2 = mine.versionName) != null ? _b2 : "?"} (build ${(_c = mine.versionCode) != null ? _c : "?"})` + (info ? ` \xB7 newest published: ${info.version} (build ${info.versionCode})` : "");
+  document.getElementById("appVersionText").textContent = `MetaDB ${(_b3 = mine.versionName) != null ? _b3 : "?"} (build ${(_c = mine.versionCode) != null ? _c : "?"})` + (info ? ` \xB7 newest published: ${info.version} (build ${info.versionCode})` : "");
   if (!quiet) {
     button.disabled = false;
     button.textContent = "Check for updates";
@@ -8166,30 +10389,30 @@ function otaCatalogFor(device) {
   const code = String(device.deviceType || "").replace(/^OCULUS_/, "");
   if (code === "PANTHER" && /xbox/i.test(device.model || "")) return OTA_DEVICE_TYPES.find((t) => t.hmd === "XSE_PANTHER");
   return OTA_DEVICE_TYPES.find((t) => {
-    var _a2;
-    return t.hmd === code || ((_a2 = t.hwm) == null ? void 0 : _a2.includes(code));
+    var _a3;
+    return t.hmd === code || ((_a3 = t.hwm) == null ? void 0 : _a3.includes(code));
   });
 }
 function updBuildFields(sec, v) {
-  var _a2, _b2;
+  var _a3, _b3;
   const { root, boxes } = UPD_ADV[sec];
   const mods = boxes.filter((b) => {
-    var _a3;
-    return b.part && String((_a3 = v[b.key]) != null ? _a3 : "").trim() !== "";
+    var _a4;
+    return b.part && String((_a4 = v[b.key]) != null ? _a4 : "").trim() !== "";
   }).map((b) => `.${b.key}(${String(v[b.key]).trim()})`).join("");
-  const sel = String((_a2 = v.selection) != null ? _a2 : "").trim();
+  const sel = String((_a3 = v.selection) != null ? _a3 : "").trim();
   const main = mods || sel ? `${root}${mods}${sel}` : "";
-  return [String((_b2 = v.also) != null ? _b2 : "").trim(), main].filter(Boolean).join(",");
+  return [String((_b3 = v.also) != null ? _b3 : "").trim(), main].filter(Boolean).join(",");
 }
 var updSerials = (text) => String(text || "").split(/[\s,]+/).filter(Boolean);
 function updAdvRequests(sec, opts) {
-  var _a2, _b2;
+  var _a3, _b3;
   const v = opts.adv[sec];
-  const fields = opts.edited[sec] ? String((_a2 = v.fields) != null ? _a2 : "").trim() : updBuildFields(sec, v);
+  const fields = opts.edited[sec] ? String((_a3 = v.fields) != null ? _a3 : "").trim() : updBuildFields(sec, v);
   const base = {};
   for (const b of UPD_ADV[sec].boxes) {
     if (!b.param || b.key === "device_serial") continue;
-    const val = b.fields ? fields : String((_b2 = v[b.key]) != null ? _b2 : "").trim();
+    const val = b.fields ? fields : String((_b3 = v[b.key]) != null ? _b3 : "").trim();
     if (val !== "") base[b.key] = val;
   }
   for (const line of String(v.extra || "").split("\n")) {
@@ -8231,21 +10454,28 @@ function updEasyOs(opts, device) {
   };
 }
 async function updRun(sec, requests) {
-  var _a2, _b2;
-  const runs = [];
-  updResults.set(sec, { busy: "Checking\u2026", runs: (_b2 = (_a2 = updResults.get(sec)) == null ? void 0 : _a2.runs) != null ? _b2 : [] });
+  var _a3, _b3;
+  updResults.set(sec, {
+    busy: requests.length > 1 ? `Checking 0 of ${requests.length}\u2026` : "Checking\u2026",
+    runs: (_b3 = (_a3 = updResults.get(sec)) == null ? void 0 : _a3.runs) != null ? _b3 : []
+  });
   renderUpdater();
-  for (const [i, req] of requests.entries()) {
-    if (requests.length > 1) {
-      updResults.get(sec).busy = `Checking ${i + 1} of ${requests.length}\u2026`;
+  let done = 0;
+  const runs = await mapLimit(requests, 4, async (req) => {
+    let run;
+    try {
+      run = { label: req.label, json: await otaRequest(req) };
+    } catch (e) {
+      run = { label: req.label, error: e.message };
+    }
+    done++;
+    const r = updResults.get(sec);
+    if (requests.length > 1 && r) {
+      r.busy = `Checking ${done} of ${requests.length}\u2026`;
       renderUpdater();
     }
-    try {
-      runs.push({ label: req.label, json: await otaRequest(req) });
-    } catch (e) {
-      runs.push({ label: req.label, error: e.message });
-    }
-  }
+    return run;
+  });
   updResults.set(sec, { busy: null, runs });
   renderUpdater();
   return runs;
@@ -8318,8 +10548,8 @@ function updSectionEl(sec, title, lead, opts) {
   return box;
 }
 function updCheckButton(sec, idle, onClick) {
-  var _a2;
-  const busy = (_a2 = updResults.get(sec)) == null ? void 0 : _a2.busy;
+  var _a3;
+  const busy = (_a3 = updResults.get(sec)) == null ? void 0 : _a3.busy;
   const btn = document.createElement("button");
   btn.type = "button";
   btn.textContent = busy || idle;
@@ -8405,12 +10635,12 @@ var FIND_SELECTION = "{download_uri,extra_install_options,base_version,release_c
 var UPD_RATE_CODES = [368, 613];
 var updSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function updBuildBase(opts) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const v = opts.adv.build;
   const params = {};
   for (const b of UPD_ADV.build.boxes) {
     if (!b.param) continue;
-    const val = b.key === "device_serial" ? (_a2 = updSerials(v[b.key])[0]) != null ? _a2 : "" : String((_b2 = v[b.key]) != null ? _b2 : "").trim();
+    const val = b.key === "device_serial" ? (_a3 = updSerials(v[b.key])[0]) != null ? _a3 : "" : String((_b3 = v[b.key]) != null ? _b3 : "").trim();
     if (val !== "") params[b.key] = val;
   }
   (_c = params.version) != null ? _c : params.version = "1";
@@ -8442,12 +10672,12 @@ function updCandidates(find) {
   return out;
 }
 function updAddFound(list, n) {
-  var _a2;
+  var _a3;
   let added = 0;
   for (const b of list) {
     const key = `${n}>${b.download_uri}`;
     if (updFind.found.some((x) => `${x.foundAt}>${x.download_uri}` === key)) continue;
-    updFind.found.push({ ...b, target_version: (_a2 = b.target_version) != null ? _a2 : n, foundAt: n });
+    updFind.found.push({ ...b, target_version: (_a3 = b.target_version) != null ? _a3 : n, foundAt: n });
     added++;
   }
   return added;
@@ -8696,16 +10926,16 @@ function updBuildsFound() {
   return box;
 }
 function updSplitBuild(n) {
-  var _a2;
-  const s = (_a2 = String(n || "").match(/\d{10,}/)) == null ? void 0 : _a2[0];
+  var _a3;
+  const s = (_a3 = String(n || "").match(/\d{10,}/)) == null ? void 0 : _a3[0];
   if (!s) return null;
   return { prefix: s.slice(0, -9), from: s.slice(-9, -5), suffix: s.slice(-5) };
 }
 function updFindPlan(opts) {
   const v = opts.adv.build;
   const missing = ["device_serial", "device_type"].filter((k) => {
-    var _a2;
-    return !String((_a2 = v[k]) != null ? _a2 : "").trim();
+    var _a3;
+    return !String((_a3 = v[k]) != null ? _a3 : "").trim();
   });
   if (missing.length) return { warn: true, text: `Type ${missing.join(" and ")} above first \u2014 Fill in from a headset puts both in.` };
   let list;
@@ -8726,10 +10956,10 @@ function updFindPlan(opts) {
   };
 }
 function updBuildControls(opts, body) {
-  var _a2;
+  var _a3;
   const f = opts.find;
   const field = (key, label, extra = {}) => {
-    var _a3;
+    var _a4;
     const id = `upd-find-${key}`;
     const wrap = document.createElement("div");
     wrap.className = `upd-field${extra.wide ? " upd-field--wide" : ""}`;
@@ -8744,7 +10974,7 @@ function updBuildControls(opts, body) {
     i.id = id;
     i.autocomplete = "off";
     i.spellcheck = false;
-    i.value = (_a3 = f[key]) != null ? _a3 : "";
+    i.value = (_a4 = f[key]) != null ? _a4 : "";
     if (extra.placeholder) i.placeholder = extra.placeholder;
     i.addEventListener("input", () => editUpd((now) => now.find[key] = extra.area ? i.value : i.value.trim()));
     if (extra.enter) i.addEventListener("keydown", (e) => e.key === "Enter" && extra.enter());
@@ -8802,7 +11032,7 @@ function updBuildControls(opts, body) {
   startBox.autocomplete = "off";
   startBox.spellcheck = false;
   startBox.placeholder = "Paste an incremental, e.g. 52641960034500520";
-  startBox.value = (_a2 = f.sweepBuild) != null ? _a2 : "";
+  startBox.value = (_a3 = f.sweepBuild) != null ? _a3 : "";
   const startHintText = "Keeps its prefix and suffix and sweeps the 4 digits between them from 0000 to 9999.";
   const startHint = elp("upd-hint", startHintText);
   startHint.id = `${startId}-hint`;
@@ -8859,7 +11089,7 @@ function updBuildControls(opts, body) {
   body.append(parts, updBuildsFound());
 }
 function updAdvanced(sec, opts, body) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const v = opts.adv[sec];
   const heads = updHeadsets();
   const tools = document.createElement("div");
@@ -8892,8 +11122,8 @@ function updAdvanced(sec, opts, body) {
   fillDefaults.textContent = "Fill in what the headset sends";
   fillDefaults.addEventListener("click", () => {
     editUpd((now) => {
-      var _a3;
-      for (const b of UPD_ADV[sec].boxes) if (b.fill != null && !String((_a3 = now.adv[sec][b.key]) != null ? _a3 : "").trim()) now.adv[sec][b.key] = b.fill;
+      var _a4;
+      for (const b of UPD_ADV[sec].boxes) if (b.fill != null && !String((_a4 = now.adv[sec][b.key]) != null ? _a4 : "").trim()) now.adv[sec][b.key] = b.fill;
       now.edited[sec] = false;
     });
     renderUpdater();
@@ -8945,8 +11175,8 @@ function updAdvanced(sec, opts, body) {
       input.id = id;
       input.spellcheck = false;
       input.autocomplete = "off";
-      input.placeholder = (_a2 = b.placeholder) != null ? _a2 : "not sent";
-      input.value = b.secret ? updTokens[sec] || "" : b.fields ? opts.edited[sec] ? (_b2 = v.fields) != null ? _b2 : "" : updBuildFields(sec, v) : (_c = v[b.key]) != null ? _c : "";
+      input.placeholder = (_a3 = b.placeholder) != null ? _a3 : "not sent";
+      input.value = b.secret ? updTokens[sec] || "" : b.fields ? opts.edited[sec] ? (_b3 = v.fields) != null ? _b3 : "" : updBuildFields(sec, v) : (_c = v[b.key]) != null ? _c : "";
       if (b.list) input.setAttribute("list", b.list);
       if (b.fields) fieldsBox = input;
       input.addEventListener("input", () => {
@@ -9008,10 +11238,10 @@ function updRunCount(run) {
   return `${n || "No"} build${n === 1 ? "" : "s"}`;
 }
 function updResultsEl(sec) {
-  var _a2, _b2;
+  var _a3, _b3;
   const wrap = document.createElement("div");
   wrap.className = "upd-results";
-  const runs = (_b2 = (_a2 = updResults.get(sec)) == null ? void 0 : _a2.runs) != null ? _b2 : [];
+  const runs = (_b3 = (_a3 = updResults.get(sec)) == null ? void 0 : _a3.runs) != null ? _b3 : [];
   if (runs.length) wrap.setAttribute("aria-live", "polite");
   for (const run of runs) {
     const block = document.createElement("div");
@@ -9095,8 +11325,8 @@ function updSize(opts) {
   return n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 function updVersion(b) {
-  var _a2;
-  const sem = String((_a2 = b.semantic_version) != null ? _a2 : "").trim();
+  var _a3;
+  const sem = String((_a3 = b.semantic_version) != null ? _a3 : "").trim();
   if (sem) return /^\d/.test(sem) ? `v${sem}` : sem;
   return String(b.build_number_display_name || b.formatted_build_number || "").trim();
 }
@@ -9270,7 +11500,7 @@ function renderPurchases() {
   const shown = q ? orders.filter((o) => o.name.toLowerCase().includes(q)) : orders;
   const showArt = loadSettings().images;
   el.purchasesRows.innerHTML = shown.map((o) => {
-    var _a2;
+    var _a3;
     const refund = o.refundStatus && !/^(none|not_refunded|no_refund)/i.test(o.refundStatus) ? ` <span class="pill">${esc(prettyStatus(o.refundStatus))}</span>` : "";
     const art = showArt && o.image ? `<img class="art" src="${esc(o.image)}" alt="" loading="lazy">` : "";
     const kind = o.iapType ? ` <span class="purchase-kind">${esc(prettyStatus(o.iapType))}</span>` : "";
@@ -9280,7 +11510,7 @@ function renderPurchases() {
     )}">${esc(o.name)}</button>` : esc(o.name);
     return `<tr>
           <td class="name">${art}${nameCell}${kind}</td>
-          <td class="num">${esc((_a2 = o.amount) != null ? _a2 : "\u2014")}</td>
+          <td class="num">${esc((_a3 = o.amount) != null ? _a3 : "\u2014")}</td>
           <td class="num">${o.date ? isoDay(o.date) : "\u2014"}</td>
           <td>${esc(prettyStatus(o.status) || "\u2014")}${refund}</td>
           <td class="purchase-pay">${pay}</td>
@@ -9293,7 +11523,45 @@ function renderPurchases() {
   el.purchasesEmpty.textContent = empty;
   el.purchasesEmpty.classList.toggle("warn", Boolean(note2));
 }
+async function loadStickers() {
+  el.stickerGo.disabled = true;
+  el.stickerGo.textContent = "Loading\u2026";
+  el.stickerCount.textContent = "Asking the store\u2026";
+  try {
+    const list = await avatarStickers();
+    el.stickerGrid.innerHTML = list.map((x) => `<img src="${esc(x.url)}" alt="Avatar sticker ${esc(x.id)}" loading="lazy">`).join("");
+    el.stickerCount.textContent = list.length ? `${list.length} sticker${list.length === 1 ? "" : "s"}.` : "The store has no stickers for this avatar.";
+  } catch (err2) {
+    el.stickerGrid.innerHTML = "";
+    el.stickerCount.textContent = err2.message || "Could not load the stickers.";
+  }
+  el.stickerGo.disabled = false;
+  el.stickerGo.textContent = "Get stickers";
+}
+async function loadAvatars() {
+  el.avatarsGo.disabled = true;
+  el.avatarsGo.textContent = "Loading\u2026";
+  el.avatarsCount.textContent = "Asking the store\u2026";
+  try {
+    const list = await accountAvatars();
+    el.avatarsGrid.innerHTML = list.map(
+      (a) => `<figure class="avatar-card">
+          ${a.body ? `<img src="${esc(a.body)}" alt="Avatar, full body" loading="lazy">` : a.face ? `<img src="${esc(a.face)}" alt="Avatar" loading="lazy">` : ""}
+          <figcaption><strong>${esc(a.kind ? words2(a.kind) : "Avatar")}</strong>${a.profiles.length ? `<span>${esc(a.profiles.join(", "))}</span>` : `<span>Not assigned</span>`}</figcaption>
+        </figure>`
+    ).join("");
+    el.avatarsCount.textContent = `${list.length} avatar${list.length === 1 ? "" : "s"}.`;
+  } catch (err2) {
+    el.avatarsGrid.innerHTML = "";
+    el.avatarsCount.textContent = err2.message || "Could not load your avatars.";
+  }
+  el.avatarsGo.disabled = false;
+  el.avatarsGo.textContent = "Get avatars";
+}
 function initAvatar() {
+  var _a3, _b3;
+  (_a3 = el.stickerGo) == null ? void 0 : _a3.addEventListener("click", loadStickers);
+  (_b3 = el.avatarsGo) == null ? void 0 : _b3.addEventListener("click", loadAvatars);
   el.avatarLoad.addEventListener("click", fetchAvatar);
   el.avatarQ.addEventListener("input", renderAvatar);
   el.avatarRows.addEventListener("click", (e) => {
@@ -9302,8 +11570,8 @@ function initAvatar() {
     if (row) toggleAvatarPart(row.dataset.part);
   });
   el.avatarRows.addEventListener("keydown", (e) => {
-    var _a2, _b2;
-    const row = (_b2 = (_a2 = e.target).closest) == null ? void 0 : _b2.call(_a2, "tr[data-part]");
+    var _a4, _b4;
+    const row = (_b4 = (_a4 = e.target).closest) == null ? void 0 : _b4.call(_a4, "tr[data-part]");
     if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
       toggleAvatarPart(row.dataset.part);
@@ -9312,11 +11580,11 @@ function initAvatar() {
   renderAvatar();
 }
 function toggleAvatarPart(part) {
-  var _a2;
+  var _a3;
   if (avatarOpen.has(part)) avatarOpen.delete(part);
   else avatarOpen.add(part);
   renderAvatar();
-  (_a2 = el.avatarRows.querySelector(`tr[data-part="${CSS.escape(part)}"]`)) == null ? void 0 : _a2.focus();
+  (_a3 = el.avatarRows.querySelector(`tr[data-part="${CSS.escape(part)}"]`)) == null ? void 0 : _a3.focus();
 }
 async function fetchAvatar() {
   avatarState.asked = true;
@@ -9381,7 +11649,7 @@ function avatarSetting(s) {
   return esc(s.value || "\u2014");
 }
 function renderAvatar() {
-  var _a2, _b2, _c, _d, _e, _f;
+  var _a3, _b3, _c, _d, _e, _f;
   const { data, asked, loading, note: note2 } = avatarState;
   const a = data != null ? data : {};
   el.avatarFacts.innerHTML = data ? factGroups([
@@ -9395,9 +11663,9 @@ function renderAvatar() {
         ["Held back for an OS update", yesNo(a.blockedForOs)]
       ]
     ],
-    ["Horizon gates", ((_a2 = a.gates) != null ? _a2 : []).map(([k, v]) => [esc(words2(k.replace(/^enable_/, ""))), v ? "On" : "Off"])]
+    ["Horizon gates", ((_a3 = a.gates) != null ? _a3 : []).map(([k, v]) => [esc(words2(k.replace(/^enable_/, ""))), v ? "On" : "Off"])]
   ]) : "";
-  const settings = (_b2 = a.settings) != null ? _b2 : [];
+  const settings = (_b3 = a.settings) != null ? _b3 : [];
   const q = el.avatarQ.value.trim().toLowerCase();
   const shown = settings.map((s) => ({ s, k: avatarKey(s.key) })).filter(({ s, k }) => !q || `${k.join(" ")} ${s.key}`.toLowerCase().includes(q));
   const parts = /* @__PURE__ */ new Map();
@@ -9455,12 +11723,12 @@ async function loadPresence() {
   renderDevices();
 }
 function presenceLine() {
-  var _a2;
+  var _a3;
   if (presenceState.note) return `Last active: ${presenceState.note}`;
   const p = presenceState.data;
   if (!(p == null ? void 0 : p.lastActive)) return "";
   const when = new Date(p.lastActive * 1e3).toISOString().slice(0, 16).replace("T", " ");
-  const where = (_a2 = p.app) != null ? _a2 : p.destination ? words2(p.destination) : null;
+  const where = (_a3 = p.app) != null ? _a3 : p.destination ? words2(p.destination) : null;
   const session = p.match ? ", in a match" : p.lobby ? ", in a lobby" : "";
   const party = p.party ? ` (${p.party} in the lobby)` : "";
   return `${p.current ? "Active now" : "Last active"} \u2014 ${when} UTC${where ? `, in ${where}` : ""}${session}${party}.`;
@@ -9480,8 +11748,8 @@ function deviceRank(d) {
 }
 function sortDevices(list, mode) {
   const byModel = (a, b) => {
-    var _a2, _b2;
-    return ((_a2 = a.model) != null ? _a2 : "").localeCompare((_b2 = b.model) != null ? _b2 : "") || a.serial.localeCompare(b.serial);
+    var _a3, _b3;
+    return ((_a3 = a.model) != null ? _a3 : "").localeCompare((_b3 = b.model) != null ? _b3 : "") || a.serial.localeCompare(b.serial);
   };
   if (mode === "release") return [...list].sort((a, b) => deviceRank(a) - deviceRank(b) || byModel(a, b));
   return [...list].sort(mode === "modelZa" ? (a, b) => -byModel(a, b) : byModel);
@@ -9495,9 +11763,9 @@ var DEVICE_IMAGES = {
   OCULUS_PANTHER: "img/Quest3S.png"
 };
 function deviceImage(d) {
-  var _a2, _b2;
-  const type = ((_a2 = d.deviceType) != null ? _a2 : "").toUpperCase();
-  const model = ((_b2 = d.model) != null ? _b2 : "").toLowerCase();
+  var _a3, _b3;
+  const type = ((_a3 = d.deviceType) != null ? _a3 : "").toUpperCase();
+  const model = ((_b3 = d.model) != null ? _b3 : "").toLowerCase();
   const xbox = /xbox/.test(model);
   if (DEVICE_IMAGES[type]) {
     return type === "OCULUS_PANTHER" && xbox ? "img/Quest3SXbox.png" : DEVICE_IMAGES[type];
@@ -9513,12 +11781,12 @@ function deviceImage(d) {
 function deviceRowsHtml(list) {
   const art = loadSettings().images;
   return list.map((d) => {
-    var _a2;
+    var _a3;
     const open2 = devicesOpen.has(d.serial);
     const pic = art && deviceImage(d) ? `<img class="art" src="${esc(deviceImage(d))}" alt="" loading="lazy">` : "";
     const otaType = otaTypeFor(d);
     return `<tr class="device-row${open2 ? " open" : ""}" data-headset="${esc(d.serial)}" tabindex="0" role="button" aria-expanded="${open2}">
-      <td class="name">${pic}<span class="device-name">${esc((_a2 = d.model) != null ? _a2 : "Unknown device")}</span><span class="row-caret" aria-hidden="true"></span></td>
+      <td class="name">${pic}<span class="device-name">${esc((_a3 = d.model) != null ? _a3 : "Unknown device")}</span><span class="row-caret" aria-hidden="true"></span></td>
       <td class="num device-ota">${otaType ? esc(otaType) : '<span class="dash">\u2014</span>'}</td>
       <td class="num">${esc(showSerials ? d.serial : maskSerial(d.serial))}</td>
       <td>${esc(deviceStatus(d))}</td>
@@ -9530,21 +11798,21 @@ function onDeviceRowClick(e) {
   if (row) toggleHeadset(row.dataset.headset);
 }
 function onDeviceRowKey(e) {
-  var _a2, _b2;
-  const row = (_b2 = (_a2 = e.target).closest) == null ? void 0 : _b2.call(_a2, "tr.device-row");
+  var _a3, _b3;
+  const row = (_b3 = (_a3 = e.target).closest) == null ? void 0 : _b3.call(_a3, "tr.device-row");
   if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
     e.preventDefault();
     toggleHeadset(row.dataset.headset);
   }
 }
 function toggleHeadset(serial) {
-  var _a2;
+  var _a3;
   if (!serial) return;
   if (devicesOpen.has(serial)) devicesOpen.delete(serial);
   else devicesOpen.add(serial);
   renderDevices();
   const sel = `tr.device-row[data-headset="${CSS.escape(serial)}"]`;
-  (_a2 = el.devicesRows.querySelector(sel) || el.sharedRows.querySelector(sel)) == null ? void 0 : _a2.focus();
+  (_a3 = el.devicesRows.querySelector(sel) || el.sharedRows.querySelector(sel)) == null ? void 0 : _a3.focus();
 }
 function insertHeadsetPanels(tbody, list) {
   for (const d of list) {
@@ -9561,14 +11829,14 @@ function insertHeadsetPanels(tbody, list) {
   }
 }
 function headsetPanel(device) {
-  var _a2;
+  var _a3;
   const serial = device.serial;
   const shared = device.ownership === "shared";
   const otaType = otaTypeFor(device);
   const catalog = otaCatalogFor(device);
   const tabs = [["overview", "Overview"]];
   if (!shared) tabs.push(["ptc", "Test channel"]);
-  let tab = (_a2 = devicesPanelTab.get(serial)) != null ? _a2 : "overview";
+  let tab = (_a3 = devicesPanelTab.get(serial)) != null ? _a3 : "overview";
   if (!tabs.some(([n]) => n === tab)) tab = "overview";
   const panel = document.createElement("div");
   panel.className = "panel headset-panel";
@@ -9671,8 +11939,8 @@ async function setHeadsetPtc(device, enable, pane) {
 function renderDevices() {
   const q = el.devicesQ.value.trim().toLowerCase();
   const match = (d) => {
-    var _a2;
-    return !q || d.serial.toLowerCase().includes(q) || ((_a2 = d.model) != null ? _a2 : "").toLowerCase().includes(q);
+    var _a3;
+    return !q || d.serial.toLowerCase().includes(q) || ((_a3 = d.model) != null ? _a3 : "").toLowerCase().includes(q);
   };
   const mode = el.devicesSort.value;
   const ownedAll = deviceList.filter((d) => d.ownership !== "shared");
@@ -9721,8 +11989,8 @@ function initExtSignIn() {
     document.getElementById("extSignedIn").hidden = true;
   };
   window.addEventListener("message", (e) => {
-    var _a2, _b2;
-    if (e.source !== window || e.origin !== location.origin || !((_a2 = e.data) == null ? void 0 : _a2.metadbExt)) return;
+    var _a3, _b3;
+    if (e.source !== window || e.origin !== location.origin || !((_a3 = e.data) == null ? void 0 : _a3.metadbExt)) return;
     const m = e.data;
     if (m.type === "here") {
       found = true;
@@ -9730,7 +11998,7 @@ function initExtSignIn() {
       useExtensionRelay(m.relay === true);
       out.textContent = "The MetaDB Sign-in extension is installed. Sign in with Meta fills in both tokens below from your Meta login." + (m.relay === true ? " Store requests go through the extension, not the relay." : "");
       syncExtSignIn();
-      if ((_b2 = m.update) == null ? void 0 : _b2.version) {
+      if ((_b3 = m.update) == null ? void 0 : _b3.version) {
         const note2 = document.getElementById("extUpdate");
         const a = document.createElement("a");
         a.href = "downloads/MetaDB-extension.zip";
@@ -9790,8 +12058,8 @@ function initExtSignIn() {
     if (!found) {
       go("/getapp");
       requestAnimationFrame(() => {
-        var _a2;
-        return (_a2 = document.getElementById("getext")) == null ? void 0 : _a2.scrollIntoView();
+        var _a3;
+        return (_a3 = document.getElementById("getext")) == null ? void 0 : _a3.scrollIntoView();
       });
       return;
     }
@@ -9813,7 +12081,7 @@ function syncExtSignIn() {
   document.getElementById("extSignedIn").hidden = !signed;
 }
 function initSettings() {
-  var _a2, _b2, _c, _d, _e;
+  var _a3, _b3, _c, _d, _e;
   if (IN_APP) {
     document.getElementById("appSignInField").hidden = false;
     document.getElementById("appSignIn").addEventListener("click", () => window.MetaDBApp.signIn("settings"));
@@ -9823,7 +12091,7 @@ function initSettings() {
     initExtSignIn();
   }
   const saved = loadSettings();
-  el.token.value = (_a2 = localStorage.getItem("metadb.token")) != null ? _a2 : "";
+  el.token.value = (_a3 = localStorage.getItem("metadb.token")) != null ? _a3 : "";
   el.acToken.value = saved.acToken;
   el.frlToken.value = saved.frlToken || "";
   el.updToken.value = saved.upToken || "";
@@ -9972,7 +12240,7 @@ function initSettings() {
       saveSettings({ notifyLinger: el.notifyLinger.value });
     });
   }
-  (_b2 = el.notifyTest) == null ? void 0 : _b2.addEventListener("click", () => {
+  (_b3 = el.notifyTest) == null ? void 0 : _b3.addEventListener("click", () => {
     toast({
       title: "Beat Saber \u2014 new build",
       body: "build 51 \u2192 54",
@@ -9996,7 +12264,7 @@ function initSettings() {
   el.autoOwned.checked = saved.autoOwned;
   el.autoOwned.addEventListener("change", () => {
     saveSettings({ autoOwned: el.autoOwned.checked });
-    if (el.autoOwned.checked && !mineAsked) loadEntitlements("quest");
+    if (el.autoOwned.checked && !mineAsked) autoLoadOwned();
     else renderAll();
   });
   for (const [node, key, load, state] of [
@@ -10048,12 +12316,12 @@ function initSettings() {
     }
   });
   (_d = el.importTokens) == null ? void 0 : _d.addEventListener("click", () => {
-    var _a3;
-    return (_a3 = el.importTokensFile) == null ? void 0 : _a3.click();
+    var _a4;
+    return (_a4 = el.importTokensFile) == null ? void 0 : _a4.click();
   });
   (_e = el.importTokensFile) == null ? void 0 : _e.addEventListener("change", async () => {
-    var _a3;
-    const file = (_a3 = el.importTokensFile.files) == null ? void 0 : _a3[0];
+    var _a4;
+    const file = (_a4 = el.importTokensFile.files) == null ? void 0 : _a4[0];
     el.importTokensFile.value = "";
     if (!file) return;
     let data;
@@ -10169,10 +12437,10 @@ function initSettings() {
 }
 function initDefaults() {
   const saved = loadSettings();
-  fillOptions(
-    el.defView,
-    [...el.navLinks].filter((a) => a.dataset.view !== "getapp").map((a) => [a.dataset.view, navLabel(a)])
-  );
+  fillOptions(el.defView, [
+    ...screenList(),
+    ...[...el.navLinks].filter((a) => a.dataset.view === "settings").map((a) => [a.dataset.view, navLabel(a)])
+  ]);
   fillOptions(el.defHmd, HMD_TYPES.map(([v, label]) => [v, `${label} (${v})`]));
   fillOptions(el.defSort, [...el.sort.options].map((o) => [o.value, o.textContent]));
   fillOptions(
@@ -10254,13 +12522,13 @@ function report(node, text, kind) {
   node.className = `settings-out ${kind}`;
 }
 var channelsOf = (app) => {
-  var _a2;
-  return (_a2 = app.channels) != null ? _a2 : [];
+  var _a3;
+  return (_a3 = app.channels) != null ? _a3 : [];
 };
 function primaryOf(app) {
-  var _a2, _b2, _c;
+  var _a3, _b3, _c;
   const list = channelsOf(app);
-  return (_c = (_b2 = (_a2 = list.find((c) => c.group === "PRIMARY")) != null ? _a2 : list.find((c) => c.name === "LIVE")) != null ? _b2 : list[0]) != null ? _c : null;
+  return (_c = (_b3 = (_a3 = list.find((c) => c.group === "PRIMARY")) != null ? _a3 : list.find((c) => c.name === "LIVE")) != null ? _b3 : list[0]) != null ? _c : null;
 }
 async function boot() {
   el.searchGo.addEventListener("click", runSearch);
@@ -10293,7 +12561,7 @@ async function boot() {
     b.addEventListener("click", () => loadEntitlements(b.dataset.lib));
   }
   if (!searchSeq) runSearch();
-  if (loadSettings().autoOwned) loadEntitlements("quest");
+  if (loadSettings().autoOwned) autoLoadOwned();
   const auto = loadSettings();
   if (auto.autoDlc) loadIaps();
   if (auto.autoPlaytime) loadPlaytime();
@@ -10340,6 +12608,7 @@ async function loadEntitlements(kind) {
   mineKind = kind;
   mineLoading = true;
   mineNote = "";
+  ownedLoading.add(kind);
   const labels = new Map([...el.libButtons].map((b) => [b, b.textContent]));
   for (const b of el.libButtons) {
     b.disabled = true;
@@ -10348,27 +12617,47 @@ async function loadEntitlements(kind) {
   renderAll();
   try {
     mineList = await myEntitlements(kind);
+    if (kind !== "expired") for (const a of mineList) ownedAcross.set(keyOf(a), a);
     if (adbInstalled.length) resolveHeadsetApps();
   } catch (err2) {
     mineList = [];
     mineNote = err2.message;
   } finally {
     mineLoading = false;
+    ownedLoading.delete(kind);
     for (const [b, label] of labels) {
       b.disabled = false;
       b.textContent = label;
     }
     syncRelayNote();
     renderAll();
+    refreshHome();
   }
+}
+async function addOwnedLib(kind) {
+  ownedLoading.add(kind);
+  refreshHome();
+  try {
+    const list = await myEntitlements(kind);
+    for (const a of list) ownedAcross.set(keyOf(a), a);
+    renderAll();
+  } catch {
+  } finally {
+    ownedLoading.delete(kind);
+    refreshHome();
+  }
+}
+async function autoLoadOwned() {
+  await loadEntitlements("quest");
+  await addOwnedLib("pc");
 }
 function pageSize() {
   return el.limit.value === "all" ? Infinity : Number(el.limit.value);
 }
 function matches(app, q) {
-  var _a2, _b2;
+  var _a3, _b3;
   if (!q) return true;
-  return app.name.toLowerCase().includes(q) || ((_a2 = app.id) != null ? _a2 : "").includes(q) || ((_b2 = app.packageName) != null ? _b2 : "").toLowerCase().includes(q);
+  return app.name.toLowerCase().includes(q) || ((_a3 = app.id) != null ? _a3 : "").includes(q) || ((_b3 = app.packageName) != null ? _b3 : "").toLowerCase().includes(q);
 }
 var visible = () => sorted(listing, el.sort.value);
 var PACKAGE_RE = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+){2,}$/i;
@@ -10431,11 +12720,11 @@ var focusId = null;
 var focusScope = null;
 var openKey = (scope, app) => `${scope}:${keyOf(app)}`;
 function onHiddenScreen(node) {
-  var _a2;
-  return Boolean((_a2 = node.closest('section[id^="view-"]')) == null ? void 0 : _a2.hidden);
+  var _a3;
+  return Boolean((_a3 = node.closest('section[id^="view-"]')) == null ? void 0 : _a3.hidden);
 }
 function buildRows(tbody, list, scope) {
-  var _a2, _b2;
+  var _a3, _b3;
   if (onHiddenScreen(tbody)) {
     staleTables.add(tbody);
     return;
@@ -10443,7 +12732,7 @@ function buildRows(tbody, list, scope) {
   staleTables.delete(tbody);
   const scrolled = /* @__PURE__ */ new Map();
   for (const d of tbody.querySelectorAll(":scope > tr.detail")) {
-    const id = (_a2 = d.previousElementSibling) == null ? void 0 : _a2.dataset.id;
+    const id = (_a3 = d.previousElementSibling) == null ? void 0 : _a3.dataset.id;
     if (id) scrolled.set(id, saveScrolls(d));
   }
   const out = [];
@@ -10453,17 +12742,18 @@ function buildRows(tbody, list, scope) {
   }
   tbody.replaceChildren(...out);
   for (const d of tbody.querySelectorAll(":scope > tr.detail")) {
-    const saved = scrolled.get((_b2 = d.previousElementSibling) == null ? void 0 : _b2.dataset.id);
+    const saved = scrolled.get((_b3 = d.previousElementSibling) == null ? void 0 : _b3.dataset.id);
     if (saved) restoreScrolls(d, saved);
   }
+  fillRowIcons(tbody);
 }
 function scrollKeys(root) {
   const seen = /* @__PURE__ */ new Map();
   return [...root.querySelectorAll(".vscroll")].map((v) => {
-    var _a2, _b2, _c, _d;
+    var _a3, _b3, _c, _d;
     let h = v.previousElementSibling;
     while (h && h.tagName !== "H3") h = h.previousElementSibling;
-    const base = `${(_b2 = (_a2 = v.closest("[data-pane]")) == null ? void 0 : _a2.dataset.pane) != null ? _b2 : ""}|${(_c = h == null ? void 0 : h.textContent) != null ? _c : ""}`;
+    const base = `${(_b3 = (_a3 = v.closest("[data-pane]")) == null ? void 0 : _a3.dataset.pane) != null ? _b3 : ""}|${(_c = h == null ? void 0 : h.textContent) != null ? _c : ""}`;
     const n = (_d = seen.get(base)) != null ? _d : 0;
     seen.set(base, n + 1);
     return [`${base}|${n}`, v];
@@ -10481,11 +12771,56 @@ function renderSoon() {
   clearTimeout(renderTimer);
   renderTimer = setTimeout(renderAll, 120);
 }
+function pumpOrgRows() {
+  if (orgPumping) return;
+  orgPumping = true;
+  const gen = orgGen;
+  const step = () => {
+    if (gen !== orgGen) return;
+    const frag = document.createDocumentFragment();
+    for (const app of orgQueue.splice(0, 100)) frag.append(appRow(app, "orgs"));
+    el.orgRows.append(frag);
+    if (orgQueue.length) {
+      requestAnimationFrame(step);
+      return;
+    }
+    orgPumping = false;
+    fillRowIcons(el.orgRows);
+    const after = orgAfterDrain;
+    orgAfterDrain = null;
+    if (after) after();
+  };
+  step();
+}
+function renderOrgSection() {
+  const orgShown = orgVisible();
+  const visibleTable = !onHiddenScreen(el.orgRows);
+  if (orgSkipRebuildOnce) {
+    orgSkipRebuildOnce = false;
+  } else if (orgShown.length > 150 && visibleTable && ![...open].some((k) => k.startsWith("orgs:"))) {
+    orgGen++;
+    orgPumping = false;
+    staleTables.delete(el.orgRows);
+    el.orgRows.replaceChildren();
+    orgQueue = [...orgShown];
+    pumpOrgRows();
+  } else {
+    orgGen++;
+    orgPumping = false;
+    orgQueue = [];
+    orgAfterDrain = null;
+    buildRows(el.orgRows, orgShown, "orgs");
+  }
+  orgDrawn = onHiddenScreen(el.orgRows) ? -1 : orgShown.length;
+  el.orgEmpty.hidden = orgShown.length > 0 || orgLoading;
+  el.orgEmpty.textContent = orgLoading ? "" : orgNote ? orgNote : !orgAsked ? "Enter an organization ID and press List apps." : orgList.length ? "Nothing matches." : "No apps for that organization.";
+  el.orgCount.textContent = orgLoading ? orgList.length ? `${orgList.length} apps so far \u2014 asking for more\u2026` : "Asking the store\u2026" : !orgAsked || orgNote ? "" : orgShown.length === orgList.length ? `${orgList.length} app${orgList.length === 1 ? "" : "s"}.` : `${orgShown.length} of ${orgList.length} apps.`;
+}
 function renderAll() {
-  var _a2;
+  var _a3;
   clearTimeout(renderTimer);
   refreshWatchArt([...listing, ...mineList, ...orgList]);
-  ownedKeys = loadSettings().autoOwned && mineKind !== "expired" ? new Set(mineList.map(keyOf)) : /* @__PURE__ */ new Set();
+  ownedKeys = loadSettings().autoOwned ? new Set(ownedAcross.keys()) : /* @__PURE__ */ new Set();
   const list = visible();
   const idle = !searching && !el.q.value.trim() && !listingNote;
   buildRows(el.rows, list, "main");
@@ -10499,11 +12834,7 @@ function renderAll() {
   el.mineEmpty.hidden = mine.length > 0 || mineLoading;
   el.mineEmpty.textContent = mineNote ? mineNote : !mineAsked ? "Press Get Quest, Get PC or Get expired entitlements to list what this account owns." : mineList.length ? "Nothing matches." : LIBRARIES[mineKind].none;
   el.mineEmpty.classList.toggle("warn", Boolean(mineNote));
-  const orgShown = orgVisible();
-  buildRows(el.orgRows, orgShown, "orgs");
-  el.orgEmpty.hidden = orgShown.length > 0 || orgLoading;
-  el.orgEmpty.textContent = orgLoading ? "" : orgNote ? orgNote : !orgAsked ? "Enter an organization ID and press List apps." : orgList.length ? "Nothing matches." : "No apps for that organization.";
-  el.orgCount.textContent = orgLoading ? "Asking the store\u2026" : !orgAsked || orgNote ? "" : orgShown.length === orgList.length ? `${orgList.length} app${orgList.length === 1 ? "" : "s"}.` : `${orgShown.length} of ${orgList.length} apps.`;
+  renderOrgSection();
   const defaultShown = defaultVisible();
   buildRows(el.defaultRows, defaultShown, "default");
   el.defaultEmpty.hidden = defaultShown.length > 0 || defaultLoading;
@@ -10513,10 +12844,15 @@ function renderAll() {
   const plusAll = plusState.rows;
   buildRows(el.plusRows, plusShown, "plus");
   el.plusEmpty.hidden = plusShown.length > 0 || plusState.loading;
-  el.plusEmpty.textContent = plusState.note ? plusState.note : !plusState.asked ? "Press Get Horizon+ games to list what the subscription offers right now." : plusAll.length ? "Nothing matches." : "The store lists no Horizon+ games for this account.";
-  const monthly = plusAll.filter((a) => a.plus === "monthly").length;
+  const pickOthers = el.plusPick.value && plusState.others.some((o) => o.sectionId === el.plusPick.value);
+  el.plusEmpty.textContent = plusState.note ? plusState.note : !plusState.asked ? "Press Get Horizon+ games to list what the subscription offers right now." : pickOthers && !plusShown.length ? "This section has no Quest apps \u2014 its titles are listed below." : plusAll.length ? "Nothing matches." : "The store lists no Horizon+ games for this account.";
   const claimed = plusAll.filter((a) => a.claimed).length;
-  el.plusCount.textContent = plusState.loading ? "Asking the store\u2026" : !plusAll.length ? "" : `${plusShown.length === plusAll.length ? plural(plusAll.length, "game") : `${plusShown.length} of ${plusAll.length} games`} \u2014 ${monthly} this month, ${plusAll.length - monthly} in the catalog; ${claimed} on this account.`;
+  const perSection = plusState.sections.map((s) => [s.name, plusAll.filter((a) => {
+    var _a4;
+    return (_a4 = a.plusSections) == null ? void 0 : _a4.includes(s.id);
+  }).length + plusState.others.filter((o) => o.sectionId === s.id).length]).filter(([, n]) => n).map(([name, n]) => `${name} ${n}`).join(" \xB7 ");
+  el.plusCount.textContent = plusState.loading ? "Asking the store\u2026" : !plusAll.length && !plusState.others.length ? "" : `${plusShown.length === plusAll.length ? plural(plusAll.length, "game") : `${plusShown.length} of ${plusAll.length} games`}${plusState.others.length ? ` and ${plural(plusState.others.length, "other title")}` : ""} \u2014 ${perSection}; ${claimed} on this account.`;
+  renderPlusOthers();
   const storeShown = storeVisible();
   const storeAll = storeState.rows;
   buildRows(el.storeRows, storeShown, "store");
@@ -10536,7 +12872,7 @@ function renderAll() {
   el.wishCount.textContent = wishState.loading ? "Asking the store\u2026" : !wishAll.length ? "" : `${wishShown.length === wishAll.length ? plural(wishAll.length, "app") : `${wishShown.length} of ${wishAll.length} apps`}${wishState.cursor ? " so far" : ""} on your wishlist.`;
   buildAdbRows();
   if (focusId) {
-    (_a2 = (focusScope != null ? focusScope : el.rows).querySelector(`tr.app[data-id="${focusId}"]`)) == null ? void 0 : _a2.focus();
+    (_a3 = (focusScope != null ? focusScope : el.rows).querySelector(`tr.app[data-id="${focusId}"]`)) == null ? void 0 : _a3.focus();
     focusId = null;
     focusScope = null;
   }
@@ -10551,10 +12887,10 @@ function mineStatus(shown) {
   return shown === total ? `${total} ${word}.` : `${shown} of ${total} ${word}.`;
 }
 function appRow(app, scope) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
   const key = openKey(scope, app);
-  const found = (_a2 = results.get(keyOf(app))) == null ? void 0 : _a2.latest;
-  const channels = ((_b2 = found == null ? void 0 : found.channels) == null ? void 0 : _b2.length) ? found.channels : channelsOf(app);
+  const found = (_a3 = results.get(keyOf(app))) == null ? void 0 : _a3.latest;
+  const channels = ((_b3 = found == null ? void 0 : found.channels) == null ? void 0 : _b3.length) ? found.channels : channelsOf(app);
   const primary = (_d = (_c = found != null ? found : primaryOf(app)) != null ? _c : app.latest) != null ? _d : null;
   const extra = Math.max(0, channels.length - 1);
   const showArt = loadSettings().images;
@@ -10565,7 +12901,7 @@ function appRow(app, scope) {
   tr.tabIndex = 0;
   tr.setAttribute("aria-expanded", String(open.has(key)));
   tr.innerHTML = `
-    <td class="name">${watchToggle(app)}${showArt && app.image ? `<img class="art" src="${esc(app.image)}" alt="" loading="lazy">` : ""}${esc(app.name)}</td>
+    <td class="name">${watchToggle(app)}${rowArt(app, showArt)}${esc(app.name)}</td>
     <td class="c-dev">${esc((_e = deviceName(app.platform)) != null ? _e : "\u2014")}</td>
     <td class="chan c-chan">${esc(
     /* Nothing known until a check runs — the same dash every other unknown
@@ -10631,19 +12967,19 @@ function ownedCells(app) {
     <td class="num c-dlc">${esc(dlcCount(app))}</td>`;
 }
 function dlcCount(app) {
-  var _a2;
+  var _a3;
   if (mineKind !== "quest" || app.platform === "PC") return "\u2014";
   if (!iapState.asked) return "";
   if (iapState.loading) return "\u2026";
-  return String(((_a2 = iapState.byApp.get(app.id)) == null ? void 0 : _a2.length) || "\u2014");
+  return String(((_a3 = iapState.byApp.get(app.id)) == null ? void 0 : _a3.length) || "\u2014");
 }
 function devCell(app) {
-  var _a2, _b2, _c;
-  const latest = (_a2 = results.get(keyOf(app))) == null ? void 0 : _a2.latest;
+  var _a3, _b3, _c;
+  const latest = (_a3 = results.get(keyOf(app))) == null ? void 0 : _a3.latest;
   if (!(latest == null ? void 0 : latest.newest)) return `<td class="num c-devb muted-cell">\u2014</td>`;
   const channelTop = Math.max(
     Number(latest.versionCode) || 0,
-    ...((_b2 = latest.channels) != null ? _b2 : []).map((c) => Number(c.versionCode) || 0)
+    ...((_b3 = latest.channels) != null ? _b3 : []).map((c) => Number(c.versionCode) || 0)
   );
   const dev = Number(latest.newest.versionCode) > channelTop ? latest.newest : null;
   if (!dev) return `<td class="num c-devb muted-cell">no</td>`;
@@ -10654,9 +12990,10 @@ function devCell(app) {
   )}">${esc(label)}</span></td>`;
 }
 function appPanel(app, { staged = false, scope = null } = {}) {
-  var _a2, _b2, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
+  var _a3, _b3, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
+  if (!staged) pushRecent(app);
   const found = results.get(keyOf(app));
-  const list = ((_b2 = (_a2 = found == null ? void 0 : found.latest) == null ? void 0 : _a2.channels) == null ? void 0 : _b2.length) ? found.latest.channels : channelsOf(app);
+  const list = ((_b3 = (_a3 = found == null ? void 0 : found.latest) == null ? void 0 : _a3.channels) == null ? void 0 : _b3.length) ? found.latest.channels : channelsOf(app);
   const listed = app.id && listings.get(app.id) || null;
   const store = (_c = listed == null ? void 0 : listed.data) != null ? _c : null;
   const L = found == null ? void 0 : found.latest;
@@ -10715,6 +13052,22 @@ function appPanel(app, { staged = false, scope = null } = {}) {
       ] : []
     ],
     [
+      "Traits",
+      traitRows(app)
+    ],
+    [
+      "Destinations",
+      ((_e = (_d = traitInfo.get(app.id)) == null ? void 0 : _d.dest) != null ? _e : []).map((d) => [esc(d.name), d.capacity ? `Up to ${d.capacity} in a group` : "\u2014"])
+    ],
+    [
+      "Included in",
+      ((_g = (_f = traitInfo.get(app.id)) == null ? void 0 : _f.bundles) != null ? _g : []).map((b) => [esc(b.name), b.price || "\u2014"])
+    ],
+    [
+      "More like this",
+      ((_i = (_h = traitInfo.get(app.id)) == null ? void 0 : _h.related) != null ? _i : []).map((r) => [esc(r.name), [r.price, r.owned ? "owned" : null].filter(Boolean).join(" \xB7 ") || "\u2014"])
+    ],
+    [
       "Published by",
       store ? [
         ["Publisher", store.publisher],
@@ -10725,7 +13078,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
     ]
   ];
   const opts = loadSettings();
-  const storePath = app.platform === "PC" ? "pcvr/" : /3DOF|^ANDROID$/.test((_d = app.platform) != null ? _d : "") ? "go/" : "";
+  const storePath = app.platform === "PC" ? "pcvr/" : /3DOF|^ANDROID$/.test((_j = app.platform) != null ? _j : "") ? "go/" : "";
   const storeLink = app.id && opts.store ? `<a href="https://www.meta.com/experiences/${storePath}${app.id}/" target="_blank"
            rel="noopener">Open in store</a>` : "";
   const actions = app.id ? `<button type="button" data-check="1">Check this app</button>${/* Binary info reads Android builds only; a Rift app has nothing to show. */
@@ -10735,7 +13088,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
      app is one the account already has. */
   app.free && app.offerId && scope !== "mine" ? `<button type="button" data-claim="1">Get entitlement</button>` : ""}${storeLink}` : `<button type="button" data-resolve="1">Find store ID</button>`;
   const mineCh = app.id ? myChannels.get(app.id) : null;
-  const onChannel = (mineCh == null ? void 0 : mineCh.current) ? (_f = (_e = mineCh.channels.find((c) => c.id === mineCh.current)) == null ? void 0 : _e.name) != null ? _f : null : null;
+  const onChannel = (mineCh == null ? void 0 : mineCh.current) ? (_l = (_k = mineCh.channels.find((c) => c.id === mineCh.current)) == null ? void 0 : _k.name) != null ? _l : null : null;
   const onLine = onChannel ? `<p class="hint">This account is on <strong>${esc(onChannel)}</strong>.</p>` : "";
   const channelTable = list.length ? `<h3>Channels</h3>${onLine}
        <div class="vscroll short">
@@ -10746,11 +13099,11 @@ function appPanel(app, { staged = false, scope = null } = {}) {
            <tbody>
              ${list.map(
     (c) => {
-      var _a3, _b3, _c2;
+      var _a4, _b4, _c2;
       return `<tr>
                    <td>${esc(c.name)}</td>
-                   <td>${esc((_a3 = c.version) != null ? _a3 : "\u2014")}</td>
-                   <td>${(_b3 = c.versionCode) != null ? _b3 : "\u2014"}</td>
+                   <td>${esc((_a4 = c.version) != null ? _a4 : "\u2014")}</td>
+                   <td>${(_b4 = c.versionCode) != null ? _b4 : "\u2014"}</td>
                    <td>${(_c2 = c.releasedAt) != null ? _c2 : "\u2014"}</td>
                  </tr>`;
     }
@@ -10758,26 +13111,25 @@ function appPanel(app, { staged = false, scope = null } = {}) {
            </tbody>
          </table>
        </div>` : `<p>${!app.id ? "No store ID to check against." : found ? "No published channel." : "Not checked yet \u2014 press Check this app for its channels and builds."}</p>`;
-  const revs = staged ? (_g = L == null ? void 0 : L.revisions) != null ? _g : [] : [];
+  const revs = staged ? (_m = L == null ? void 0 : L.revisions) != null ? _m : [] : [];
   const revisionTable = revs.length ? `<div class="revisions">
          <h3>Revisions</h3>
          <div class="vscroll short">
            <table class="vtable plain">
              <thead>
-               <tr><th>Status</th><th>Created</th><th>Submissions</th><th>ID</th></tr>
+               <tr><th>Status</th><th>Created</th><th class="rev-subs">Submissions</th><th>ID</th></tr>
              </thead>
              <tbody>
-               ${revs.map(
-    (r) => {
-      var _a3, _b3, _c2;
-      return `<tr>
-                     <td>${esc((_a3 = r.status) != null ? _a3 : "\u2014")}</td>
-                     <td>${esc((_b3 = r.created) != null ? _b3 : "\u2014")}</td>
-                     <td>${r.submissions}</td>
+               ${revs.map((r) => {
+    var _a4, _b4, _c2;
+    const can = r.id && extraOn("submissions");
+    return `<tr${can ? ` class="rev-row" data-rev="${esc(r.id)}" tabindex="0" aria-expanded="${revOpen.has(r.id)}"` : ""}>
+                     <td>${esc((_a4 = r.status) != null ? _a4 : "\u2014")}</td>
+                     <td>${esc((_b4 = r.created) != null ? _b4 : "\u2014")}</td>
+                     <td class="rev-subs">${r.submissions}</td>
                      <td class="bid">${esc((_c2 = r.id) != null ? _c2 : "\u2014")}</td>
-                   </tr>`;
-    }
-  ).join("")}
+                   </tr>${can && revOpen.has(r.id) ? revDetailRow(r.id) : ""}`;
+  }).join("")}
              </tbody>
            </table>
          </div>
@@ -10787,7 +13139,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   const tabKey = `${staged ? "stage" : scope}:${keyOf(app)}`;
   const panelsOff = loadSettings().panelsOff;
   const panelOn = (n) => !panelsOff.includes(n);
-  let tab = (_h = layoutState.panelTabs.get(tabKey)) != null ? _h : "store";
+  let tab = (_n = layoutState.panelTabs.get(tabKey)) != null ? _n : "store";
   if (!panelOn(tab)) tab = "store";
   if (tab === "mine") setTimeout(() => wantYourCopy());
   const storeFacts = `${factGroups(groups)}${(listed == null ? void 0 : listed.error) ? `<p class="warn">No store listing: ${esc(listed.error)}</p>` : ""}`;
@@ -10824,8 +13176,8 @@ function appPanel(app, { staged = false, scope = null } = {}) {
      no image is fetched from Meta's CDN here either — and the rest of the
      store's pictures are not offered, since fetching them is the whole
      point of the button. */
-  staged && opts.images && (app.image || app.id) ? `<div class="artbox">
-               ${app.image ? `<img class="panel__art" src="${esc(app.image)}" alt="">` : ""}
+  staged && opts.images && (appArt(app) || app.id) ? `<div class="artbox">
+               ${appArt(app) ? `<img class="panel__art" src="${esc(appArt(app))}" alt="">` : ""}
                ${app.id ? `<button type="button" data-images="1">Show more images</button>
                       <div class="images-out"></div>` : ""}
              </div>` : ""}
@@ -10860,23 +13212,23 @@ function appPanel(app, { staged = false, scope = null } = {}) {
       loadForApp(app, b.dataset.load);
     });
   }
-  (_i = panel.querySelector("[data-stage]")) == null ? void 0 : _i.addEventListener("click", (e) => {
+  (_o = panel.querySelector("[data-stage]")) == null ? void 0 : _o.addEventListener("click", (e) => {
     e.stopPropagation();
     toggleStage(app, scope);
   });
-  (_j = panel.querySelector("[data-check]")) == null ? void 0 : _j.addEventListener("click", (e) => {
+  (_p = panel.querySelector("[data-check]")) == null ? void 0 : _p.addEventListener("click", (e) => {
     e.stopPropagation();
     checkOne(app, { channel: true });
   });
-  (_k = panel.querySelector("[data-images]")) == null ? void 0 : _k.addEventListener("click", (e) => {
+  (_q = panel.querySelector("[data-images]")) == null ? void 0 : _q.addEventListener("click", (e) => {
     e.stopPropagation();
     showImages(app, e.currentTarget, panel.querySelector(".images-out"));
   });
-  (_l = panel.querySelector("[data-claim]")) == null ? void 0 : _l.addEventListener("click", (e) => {
+  (_r = panel.querySelector("[data-claim]")) == null ? void 0 : _r.addEventListener("click", (e) => {
     e.stopPropagation();
     claimOne(app, panel.querySelector(".claim-out"), e.currentTarget);
   });
-  (_m = panel.querySelector("[data-resolve]")) == null ? void 0 : _m.addEventListener("click", (e) => {
+  (_s = panel.querySelector("[data-resolve]")) == null ? void 0 : _s.addEventListener("click", (e) => {
     e.stopPropagation();
     resolveId(app, panel.querySelector(".resolve-out"), e.currentTarget);
   });
@@ -10893,7 +13245,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
     }
   }
   if (app.onHeadset || IN_APP && !isRift(app)) {
-    (_n = panel.querySelector(".versions-out")) == null ? void 0 : _n.addEventListener("click", (e) => {
+    (_t = panel.querySelector(".versions-out")) == null ? void 0 : _t.addEventListener("click", (e) => {
       const button = e.target.closest("[data-install-build]");
       if (!button) return;
       e.stopPropagation();
@@ -10901,7 +13253,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
     });
   }
   if (isRift(app)) {
-    (_o = panel.querySelector(".versions-out")) == null ? void 0 : _o.addEventListener("click", (e) => {
+    (_u = panel.querySelector(".versions-out")) == null ? void 0 : _u.addEventListener("click", (e) => {
       const button = e.target.closest("[data-rift-build]");
       if (!button) return;
       e.stopPropagation();
@@ -10936,7 +13288,7 @@ function appPanel(app, { staged = false, scope = null } = {}) {
   if (postsPane) wirePosts(app, postsPane);
   const relnotesOut = panel.querySelector(".relnotes-out");
   if (relnotesOut) {
-    (_p = panel.querySelector("[data-relnotes-get]")) == null ? void 0 : _p.addEventListener("click", (e) => {
+    (_v = panel.querySelector("[data-relnotes-get]")) == null ? void 0 : _v.addEventListener("click", (e) => {
       e.stopPropagation();
       loadRelNotes(app, relnotesOut, e.currentTarget);
     });
@@ -10977,11 +13329,11 @@ function drawRelNotes(out, map) {
   out.innerHTML = `<h3>Release notes</h3><div class="relnote-list">${rows}</div>`;
 }
 function detailRow(app, span, scope = null) {
-  var _a2;
+  var _a3;
   const tr = document.createElement("tr");
   tr.className = "detail";
   const td2 = document.createElement("td");
-  td2.colSpan = (_a2 = span != null ? span : ROW_SPAN[scope]) != null ? _a2 : app.owned ? 11 : 8;
+  td2.colSpan = (_a3 = span != null ? span : ROW_SPAN[scope]) != null ? _a3 : app.owned ? 11 : 8;
   td2.append(appPanel(app, { scope }));
   tr.append(td2);
   return tr;
@@ -11003,7 +13355,7 @@ function reviewsPaneHtml(app) {
        <p class="hint">The store's star ratings and written reviews for this app.</p>`;
 }
 function renderReviews(c) {
-  var _a2, _b2;
+  var _a3, _b3;
   const s = c.summary;
   const max2 = Math.max(1, ...s.histogram.map((h) => h.count));
   const hist = s.histogram.length ? `<div class="rev-hist">${s.histogram.map(
@@ -11014,12 +13366,12 @@ function renderReviews(c) {
             </div>`
   ).join("")}</div>` : "";
   const counts = [
-    s.ratingCount != null ? `${(_a2 = s.ratingCountText) != null ? _a2 : bigNumber(s.ratingCount)} ratings` : null,
+    s.ratingCount != null ? `${(_a3 = s.ratingCountText) != null ? _a3 : bigNumber(s.ratingCount)} ratings` : null,
     s.reviewCount ? `${bigNumber(s.reviewCount)} written` : null
   ].filter(Boolean).join(" \xB7 ");
   const summary = s.score != null || s.histogram.length ? `<div class="rev-summary">
            <div class="rev-score-box">
-             <div class="rev-score">${esc((_b2 = s.scoreText) != null ? _b2 : s.score != null ? s.score.toFixed(1) : "\u2014")}</div>
+             <div class="rev-score">${esc((_b3 = s.scoreText) != null ? _b3 : s.score != null ? s.score.toFixed(1) : "\u2014")}</div>
              ${reviewStars(s.score)}
              ${counts ? `<div class="rev-score-sub">${esc(counts)}</div>` : ""}
            </div>
@@ -11051,28 +13403,28 @@ function reviewCard(r) {
     </div>`;
 }
 function wireReviews(app, pane) {
-  var _a2, _b2;
+  var _a3, _b3;
   if (!app.id) return;
-  (_a2 = pane.querySelector("[data-reviews-get]")) == null ? void 0 : _a2.addEventListener("click", (e) => {
+  (_a3 = pane.querySelector("[data-reviews-get]")) == null ? void 0 : _a3.addEventListener("click", (e) => {
     e.stopPropagation();
     loadReviews(app, pane, { sort: "top", button: e.currentTarget });
   });
   for (const b of pane.querySelectorAll("[data-review-sort]")) {
     b.addEventListener("click", (e) => {
-      var _a3;
+      var _a4;
       e.stopPropagation();
       const sort = b.dataset.reviewSort;
-      if (((_a3 = reviewCache.get(app.id)) == null ? void 0 : _a3.sort) === sort) return;
+      if (((_a4 = reviewCache.get(app.id)) == null ? void 0 : _a4.sort) === sort) return;
       loadReviews(app, pane, { sort, button: b });
     });
   }
-  (_b2 = pane.querySelector("[data-reviews-more]")) == null ? void 0 : _b2.addEventListener("click", (e) => {
+  (_b3 = pane.querySelector("[data-reviews-more]")) == null ? void 0 : _b3.addEventListener("click", (e) => {
     e.stopPropagation();
     loadReviews(app, pane, { more: true, button: e.currentTarget });
   });
 }
 async function loadReviews(app, pane, { sort, more = false, button } = {}) {
-  var _a2;
+  var _a3;
   const prev = reviewCache.get(app.id);
   const label = button == null ? void 0 : button.textContent;
   if (button) {
@@ -11086,7 +13438,7 @@ async function loadReviews(app, pane, { sort, more = false, button } = {}) {
       prev.reviews = [...prev.reviews, ...page.reviews];
       prev.cursor = page.cursor;
     } else {
-      const summary = (_a2 = prev == null ? void 0 : prev.summary) != null ? _a2 : await appReviewSummary(app.id);
+      const summary = (_a3 = prev == null ? void 0 : prev.summary) != null ? _a3 : await appReviewSummary(app.id);
       const page = await appReviews(app.id, { count: REVIEW_PAGE, sort });
       reviewCache.set(app.id, { summary, reviews: page.reviews, cursor: page.cursor, sort });
     }
@@ -11123,8 +13475,8 @@ function addonsPaneHtml(app) {
 function renderAddons(c) {
   if (!c.items.length) return `<p>This app has no add-ons.</p>`;
   const rows = c.items.map((a) => {
-    var _a2, _b2;
-    const price = a.owned ? `<span class="addon-owned">Owned</span>` : a.strikethrough && a.strikethrough !== a.price ? `<span class="addon-was">${esc(a.strikethrough)}</span> <span class="addon-price">${esc((_a2 = a.price) != null ? _a2 : "\u2014")}</span>` : `<span class="addon-price">${esc((_b2 = a.price) != null ? _b2 : "\u2014")}</span>`;
+    var _a3, _b3;
+    const price = a.owned ? `<span class="addon-owned">Owned</span>` : a.strikethrough && a.strikethrough !== a.price ? `<span class="addon-was">${esc(a.strikethrough)}</span> <span class="addon-price">${esc((_a3 = a.price) != null ? _a3 : "\u2014")}</span>` : `<span class="addon-price">${esc((_b3 = a.price) != null ? _b3 : "\u2014")}</span>`;
     return `<tr${a.owned ? ' class="owned"' : ""}>
           <td>${esc(a.name)}${a.description ? `<div class="addon-desc">${esc(a.description)}</div>` : ""}</td>
           <td class="addon-pricecell">${price}</td>
@@ -11135,13 +13487,13 @@ function renderAddons(c) {
      <table><thead><tr><th>Item</th><th>Price</th></tr></thead><tbody>${rows}</tbody></table>${more}`;
 }
 function wireAddons(app, pane) {
-  var _a2, _b2;
+  var _a3, _b3;
   if (!app.id) return;
-  (_a2 = pane.querySelector("[data-addons-get]")) == null ? void 0 : _a2.addEventListener("click", (e) => {
+  (_a3 = pane.querySelector("[data-addons-get]")) == null ? void 0 : _a3.addEventListener("click", (e) => {
     e.stopPropagation();
     loadAddons(app, pane, { button: e.currentTarget });
   });
-  (_b2 = pane.querySelector("[data-addons-more]")) == null ? void 0 : _b2.addEventListener("click", (e) => {
+  (_b3 = pane.querySelector("[data-addons-more]")) == null ? void 0 : _b3.addEventListener("click", (e) => {
     e.stopPropagation();
     loadAddons(app, pane, { more: true, button: e.currentTarget });
   });
@@ -11185,11 +13537,11 @@ function achPaneHtml(app) {
 function renderAch(c) {
   if (!c.achievements.length) return `<p>This app has no achievements.</p>`;
   const cards = c.achievements.map((a) => {
-    var _a2, _b2;
+    var _a3, _b3;
     const hidden = a.secret && !a.unlocked;
     const art = a.image ? `<img class="ach-art" src="${esc(a.image)}" alt="" loading="lazy">` : `<span class="ach-art"></span>`;
-    const title = hidden ? "Secret achievement" : esc((_a2 = a.title) != null ? _a2 : "\u2014");
-    const desc = hidden ? "Hidden until unlocked." : esc((_b2 = a.description) != null ? _b2 : "");
+    const title = hidden ? "Secret achievement" : esc((_a3 = a.title) != null ? _a3 : "\u2014");
+    const desc = hidden ? "Hidden until unlocked." : esc((_b3 = a.description) != null ? _b3 : "");
     const prog = !a.unlocked && a.type === "COUNT" && a.target > 0 ? `<div class="ach-prog">${bigNumber(a.countProgress)} / ${bigNumber(a.target)}</div>` : "";
     return `<div class="ach${a.unlocked ? " on" : ""}">
           ${art}
@@ -11205,9 +13557,9 @@ function renderAch(c) {
      <div class="ach-grid">${cards}</div>`;
 }
 function wireAch(app, pane) {
-  var _a2;
+  var _a3;
   if (!app.id) return;
-  (_a2 = pane.querySelector("[data-ach-get]")) == null ? void 0 : _a2.addEventListener("click", (e) => {
+  (_a3 = pane.querySelector("[data-ach-get]")) == null ? void 0 : _a3.addEventListener("click", (e) => {
     e.stopPropagation();
     loadAch(app, pane, e.currentTarget);
   });
@@ -11253,10 +13605,10 @@ function renderLb(c) {
     const score = (v) => v != null && /^-?\d+$/.test(String(v)) ? bigNumber(v) : esc(v != null ? v : "\u2014");
     const rows = s.entries.map(
       (e) => {
-        var _a2;
+        var _a3;
         return `<tr>
           <td class="lb-rank">${e.rank != null ? bigNumber(e.rank) : "\u2014"}</td>
-          <td><span class="lb-player">${e.photo ? `<img src="${esc(e.photo)}" alt="" loading="lazy">` : ""}${esc((_a2 = e.name) != null ? _a2 : "\u2014")}</span></td>
+          <td><span class="lb-player">${e.photo ? `<img src="${esc(e.photo)}" alt="" loading="lazy">` : ""}${esc((_a3 = e.name) != null ? _a3 : "\u2014")}</span></td>
           <td class="lb-score">${score(e.score)}</td>
         </tr>`;
       }
@@ -11268,9 +13620,9 @@ function renderLb(c) {
   return `<div class="controls">${boardPick}${viewPick}</div>${body}`;
 }
 function wireLb(app, pane) {
-  var _a2;
+  var _a3;
   if (!app.id) return;
-  (_a2 = pane.querySelector("[data-lb-get]")) == null ? void 0 : _a2.addEventListener("click", (e) => {
+  (_a3 = pane.querySelector("[data-lb-get]")) == null ? void 0 : _a3.addEventListener("click", (e) => {
     e.stopPropagation();
     loadLb(app, pane, e.currentTarget);
   });
@@ -11286,14 +13638,14 @@ function wireLb(app, pane) {
   }
 }
 async function loadLb(app, pane, button) {
-  var _a2, _b2;
+  var _a3, _b3;
   if (button) {
     button.disabled = true;
     button.textContent = "Loading leaderboards\u2026";
   }
   try {
     const boards = await appLeaderboards(app.id);
-    const c = { boards, board: (_b2 = (_a2 = boards[0]) == null ? void 0 : _a2.id) != null ? _b2 : null, view: "GLOBAL", shown: null };
+    const c = { boards, board: (_b3 = (_a3 = boards[0]) == null ? void 0 : _a3.id) != null ? _b3 : null, view: "GLOBAL", shown: null };
     lbCache.set(app.id, c);
     if (redrawnMeanwhile(app, pane)) return;
     if (!c.board) {
@@ -11336,13 +13688,13 @@ function postsPaneHtml(app) {
 function renderPosts(posts) {
   if (!posts.length) return `<p>The developer has no posts on this app's store page.</p>`;
   const cards = posts.map((p) => {
-    var _a2;
+    var _a3;
     const art = p.image ? `<img class="post-art" src="${esc(p.image)}" alt="" loading="lazy">` : "";
     const meta = [p.author, p.time].filter(Boolean).map(esc).join(" \xB7 ");
     return `<article class="post">
           ${art}
           <div class="post-body">
-            <div class="post-title">${esc((_a2 = p.title) != null ? _a2 : "Untitled post")}</div>
+            <div class="post-title">${esc((_a3 = p.title) != null ? _a3 : "Untitled post")}</div>
             ${meta ? `<div class="post-meta">${meta}</div>` : ""}
             ${p.body ? `<div class="post-text">${esc(p.body)}</div>` : ""}
           </div>
@@ -11352,9 +13704,9 @@ function renderPosts(posts) {
      <div class="post-list">${cards}</div>`;
 }
 function wirePosts(app, pane) {
-  var _a2;
+  var _a3;
   if (!app.id) return;
-  (_a2 = pane.querySelector("[data-posts-get]")) == null ? void 0 : _a2.addEventListener("click", (e) => {
+  (_a3 = pane.querySelector("[data-posts-get]")) == null ? void 0 : _a3.addEventListener("click", (e) => {
     e.stopPropagation();
     loadPosts(app, pane, e.currentTarget);
   });
@@ -11481,8 +13833,8 @@ var versionCache = /* @__PURE__ */ new Map();
 var VERSION_PAGE = 100;
 var CHANNEL_LOOKUPS = 4;
 function buildId(v) {
-  var _a2;
-  if (v.id == null) return (_a2 = v.versionCode) != null ? _a2 : "\u2014";
+  var _a3;
+  if (v.id == null) return (_a3 = v.versionCode) != null ? _a3 : "\u2014";
   if (v.versionCode == null) return v.id;
   return `${v.id} (${v.versionCode})`;
 }
@@ -11533,8 +13885,8 @@ async function loadFflate() {
 }
 var RIFT_PARALLEL = 8;
 function siteVersion() {
-  var _a2;
-  const v = (((_a2 = document.querySelector('link[href*="style.css"]')) == null ? void 0 : _a2.getAttribute("href").match(/v=(\d+)/)) || [])[1];
+  var _a3;
+  const v = (((_a3 = document.querySelector('link[href*="style.css"]')) == null ? void 0 : _a3.getAttribute("href").match(/v=(\d+)/)) || [])[1];
   return v ? `?v=${v}` : "";
 }
 async function riftZipTarget(fileName) {
@@ -11610,8 +13962,8 @@ async function downloadRiftBuild(app, data, button) {
     const entries = Object.entries(manifest.files || {});
     if (!entries.length) throw new Error("the manifest listed no files");
     const segHash = (seg) => {
-      var _a2;
-      return String(Array.isArray(seg) ? seg[1] : (_a2 = seg.sha256) != null ? _a2 : seg);
+      var _a3;
+      return String(Array.isArray(seg) ? seg[1] : (_a3 = seg.sha256) != null ? _a3 : seg);
     };
     const files = entries.map(([name, file], i) => {
       const hashes = (file.segments || []).map(segHash);
@@ -11679,7 +14031,7 @@ function riftManifestText(f, bytes) {
   }
 }
 function downloadCell(v, offerDev, app = null) {
-  var _a2;
+  var _a3;
   if (!v.id) return "";
   const dev = !v.channels.length;
   if (dev && !offerDev) return "";
@@ -11700,7 +14052,7 @@ function downloadCell(v, offerDev, app = null) {
     return `<button type="button" class="dl${dev ? " dl-dev" : ""}"
               data-install-build="${esc(v.id)}"
               data-version="${esc(v.version)}"
-              data-code="${(_a2 = v.versionCode) != null ? _a2 : ""}"
+              data-code="${(_a3 = v.versionCode) != null ? _a3 : ""}"
               title="${esc(
       older ? `Go back to ${v.version} \u2014 uninstalls first, losing this app's data` : `Install ${v.version}`
     )}">Install</button>`;
@@ -11731,12 +14083,12 @@ function downloadCell(v, offerDev, app = null) {
   )}">Download</a>`;
 }
 function drawVersions(out, list, limit, mode = loadSettings().buildSort, keepScroll = false, app = null) {
-  var _a2, _b2, _c, _d, _e, _f;
+  var _a3, _b3, _c, _d, _e, _f;
   if (!list.length) {
     out.innerHTML = `<p>No builds returned.</p>`;
     return;
   }
-  const wasAt = keepScroll ? (_b2 = (_a2 = out.querySelector(".vscroll")) == null ? void 0 : _a2.scrollTop) != null ? _b2 : 0 : 0;
+  const wasAt = keepScroll ? (_b3 = (_a3 = out.querySelector(".vscroll")) == null ? void 0 : _a3.scrollTop) != null ? _b3 : 0 : 0;
   const ordered = [...list].sort((_c = BUILD_SORTS[mode]) != null ? _c : BUILD_SORTS.released);
   const page = ordered.slice(0, limit);
   const released = list.filter((v) => v.channels.length).length;
@@ -11764,14 +14116,14 @@ function drawVersions(out, list, limit, mode = loadSettings().buildSort, keepScr
         <tbody>
           ${page.map(
     (v) => {
-      var _a3;
+      var _a4;
       return `<tr class="${[
         v.channels.length ? "on-channel" : "",
         (app == null ? void 0 : app.onHeadset) && v.versionCode === app.installedVersionCode ? "installed" : ""
       ].filter(Boolean).join(" ")}">
                 <td>${esc(v.version)}</td>
                 <td class="bid">${buildId(v)}</td>
-                <td>${(_a3 = v.releasedAt) != null ? _a3 : "\u2014"}</td>
+                <td>${(_a4 = v.releasedAt) != null ? _a4 : "\u2014"}</td>
                 <td>${v.channels.length ? esc(v.channels.join(", ")) : "\u2014"}</td>
                 <td>${(app == null ? void 0 : app.id) && app.platform !== "PC" && v.versionCode != null ? `<button type="button" class="build-btn" data-build="${esc(v.versionCode)}"
                          data-build-version="${esc(v.version)}" aria-expanded="false">Details</button>` : ""}${downloadCell(v, offerDev, app)}</td>
@@ -11803,9 +14155,9 @@ function drawVersions(out, list, limit, mode = loadSettings().buildSort, keepScr
   });
 }
 async function toggleBuildDetails(app, button) {
-  var _a2;
+  var _a3;
   const row = button.closest("tr");
-  const open2 = (_a2 = row.nextElementSibling) == null ? void 0 : _a2.classList.contains("build-detail");
+  const open2 = (_a3 = row.nextElementSibling) == null ? void 0 : _a3.classList.contains("build-detail");
   if (open2) {
     row.nextElementSibling.remove();
     button.setAttribute("aria-expanded", "false");
@@ -11880,8 +14232,46 @@ function note(found) {
   }
   return "";
 }
+var TRAIT_LABELS = {
+  CORE_GAMEPLAY: "Gameplay",
+  ACTION_TYPE: "Action",
+  GAME_THEME: "Theme",
+  ART_STYLE: "Art style",
+  LEVEL_OF_IMMERSION: "Immersion",
+  PLAY_AREA: "Play area",
+  PRICING: "Pricing"
+};
+function traitRows(app) {
+  var _a3;
+  if (!app.id || !(listings.get(app.id) || results.get(keyOf(app)))) return [];
+  const t = traitInfo.get(app.id);
+  if (!t && !["traits", "destinations", "related", "bundles"].some(extraOn)) return [];
+  if (!t) {
+    const { token, frlToken } = loadSettings();
+    if ([token, frlToken].some((x) => (x || "").trim() && !x.includes("|"))) loadTraits(app);
+    return [];
+  }
+  if (!t.list) return [];
+  const by = /* @__PURE__ */ new Map();
+  for (const { key, name } of t.list) if (TRAIT_LABELS[key]) by.set(key, [...(_a3 = by.get(key)) != null ? _a3 : [], name]);
+  return Object.keys(TRAIT_LABELS).filter((k) => by.has(k)).map((k) => [TRAIT_LABELS[k], by.get(k).join(", ")]);
+}
+async function loadTraits(app) {
+  var _a3, _b3, _c;
+  traitInfo.set(app.id, { loading: true });
+  const ask = (name, fn) => extraOn(name) ? fn(app.id) : Promise.resolve(null);
+  const [list, dest, related, bundles] = await Promise.allSettled([
+    ask("traits", appTraits),
+    ask("destinations", appDestinations),
+    ask("related", relatedApps),
+    ask("bundles", appBundles)
+  ]);
+  const val = (r) => r.status === "fulfilled" ? r.value : null;
+  traitInfo.set(app.id, { list: val(list), dest: (_a3 = val(dest)) != null ? _a3 : [], related: (_b3 = val(related)) != null ? _b3 : [], bundles: (_c = val(bundles)) != null ? _c : [] });
+  refreshRow(app);
+}
 function refreshRow(app) {
-  var _a2;
+  var _a3;
   for (const tr of document.querySelectorAll(`tr.app[data-id="${keyOf(app)}"]`)) {
     const tbody = tr.closest("tbody");
     const scope = tbody === el.adbRows ? "adb" : tbody === el.mineRows ? "mine" : tbody === el.orgRows ? "orgs" : tbody === el.defaultRows ? "default" : tbody === el.plusRows ? "plus" : tbody === el.storeRows ? "store" : tbody === el.wishRows ? "wishlist" : "main";
@@ -11892,7 +14282,7 @@ function refreshRow(app) {
     }
   }
   if (isStaged(app)) refreshStage();
-  const wrow = (_a2 = el.watchRows) == null ? void 0 : _a2.querySelector(`tr.watch-row[data-id="${keyOf(app)}"]`);
+  const wrow = (_a3 = el.watchRows) == null ? void 0 : _a3.querySelector(`tr.watch-row[data-id="${keyOf(app)}"]`);
   const wnext = wrow == null ? void 0 : wrow.nextElementSibling;
   if (wnext == null ? void 0 : wnext.classList.contains("detail")) {
     const w = readWatch().find((x) => x.id === String(keyOf(app)));
@@ -12013,8 +14403,8 @@ function syncBinRow() {
   if (!on) el.binNote.hidden = true;
 }
 function tourTarget(selector) {
-  var _a2;
-  return (_a2 = [...document.querySelectorAll(selector)].find((e) => e.getClientRects().length)) != null ? _a2 : null;
+  var _a3;
+  return (_a3 = [...document.querySelectorAll(selector)].find((e) => e.getClientRects().length)) != null ? _a3 : null;
 }
 function tourSteps() {
   return [
@@ -12041,7 +14431,7 @@ function tourSteps() {
     {
       target: ".nav",
       title: "The other screens",
-      body: "Apps also holds the default apps, Horizon+, Horizon worlds and an organization's apps. User has your headsets and what you own. Device has ADB and CompanionServer."
+      body: "Apps also holds the Store (its front page and Horizon+), the default apps, Horizon worlds, an organization's apps and the watchlist. User has your headsets and their OS updates, your Library (what you own, bought and wished for), people, photos and your avatar. Device has ADB."
     }
   ];
 }
@@ -12099,8 +14489,8 @@ function startTour() {
     returnFocus: document.activeElement
   };
   card.addEventListener("click", (e) => {
-    var _a2;
-    const action = (_a2 = e.target.closest("[data-tour]")) == null ? void 0 : _a2.dataset.tour;
+    var _a3;
+    const action = (_a3 = e.target.closest("[data-tour]")) == null ? void 0 : _a3.dataset.tour;
     if (action === "skip") endTour();
     else if (action === "back") showStep(tour.index - 1);
     else if (action === "next") {
@@ -12205,8 +14595,8 @@ function initAccountTabs() {
     if (row) toggleWorld(row.dataset.world);
   });
   el.worldRows.addEventListener("keydown", (e) => {
-    var _a2, _b2;
-    const row = (_b2 = (_a2 = e.target).closest) == null ? void 0 : _b2.call(_a2, "tr[data-world]");
+    var _a3, _b3;
+    const row = (_b3 = (_a3 = e.target).closest) == null ? void 0 : _b3.call(_a3, "tr[data-world]");
     if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
       toggleWorld(row.dataset.world);
@@ -12223,9 +14613,9 @@ function library() {
   return libraryToken === loadSettings().token ? libraryNames : null;
 }
 function appNames() {
-  var _a2;
+  var _a3;
   if (library()) return Promise.resolve(libraryNames);
-  (_a2 = layoutState.names) != null ? _a2 : layoutState.names = (async () => {
+  (_a3 = layoutState.names) != null ? _a3 : layoutState.names = (async () => {
     const { token } = loadSettings();
     let list = mineKind === "quest" && mineList.length ? mineList : null;
     let error = "";
@@ -12246,9 +14636,9 @@ function appNames() {
   return layoutState.names;
 }
 function headsetLabel(serial) {
-  var _a2;
+  var _a3;
   const d = deviceList.find((x) => x.serial === serial);
-  const model = (_a2 = d == null ? void 0 : d.model) != null ? _a2 : "Unknown headset";
+  const model = (_a3 = d == null ? void 0 : d.model) != null ? _a3 : "Unknown headset";
   return `${model} (${showSerials ? serial : maskSerial(serial)})`;
 }
 function textMatch(q, ...fields) {
@@ -12268,13 +14658,13 @@ function plural(n, word) {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
 }
 function loadPlaytime() {
-  var _a2;
-  (_a2 = playState.promise) != null ? _a2 : playState.promise = fetchPlaytime().finally(() => playState.promise = null);
+  var _a3;
+  (_a3 = playState.promise) != null ? _a3 : playState.promise = fetchPlaytime().finally(() => playState.promise = null);
   return playState.promise;
 }
 function loadBackups() {
-  var _a2;
-  (_a2 = backupState.promise) != null ? _a2 : backupState.promise = fetchBackups().finally(() => backupState.promise = null);
+  var _a3;
+  (_a3 = backupState.promise) != null ? _a3 : backupState.promise = fetchBackups().finally(() => backupState.promise = null);
   return backupState.promise;
 }
 function renderAccountTabs() {
@@ -12326,8 +14716,8 @@ async function fetchBackups() {
   }
 }
 function recordKey(r) {
-  var _a2, _b2;
-  return (_b2 = (_a2 = r.appId) != null ? _a2 : r.packageName) != null ? _b2 : "?";
+  var _a3, _b3;
+  return (_b3 = (_a3 = r.appId) != null ? _a3 : r.packageName) != null ? _b3 : "?";
 }
 function accountTable({ title, state, what, none, rows, summary, head, cells, load }) {
   let body;
@@ -12347,12 +14737,12 @@ function accountTable({ title, state, what, none, rows, summary, head, cells, lo
   return `${title ? `<h3>${title}</h3>` : ""}${body}`;
 }
 function accountSections(app, scope, { load = false } = {}) {
-  var _a2, _b2;
+  var _a3, _b3;
   const key = keyOf(app);
   if (scope === "backup") {
     const backs = backupState.rows.filter((r) => recordKey(r) === key).sort((a, b) => {
-      var _a3, _b3;
-      return ((_a3 = b.backedUpAt) != null ? _a3 : 0) - ((_b3 = a.backedUpAt) != null ? _b3 : 0);
+      var _a4, _b4;
+      return ((_a4 = b.backedUpAt) != null ? _a4 : 0) - ((_b4 = a.backedUpAt) != null ? _b4 : 0);
     });
     const size = backs.reduce((sum, r) => sum + r.size, 0);
     return accountTable({
@@ -12361,13 +14751,13 @@ function accountSections(app, scope, { load = false } = {}) {
       what: "cloud backups",
       rows: backs,
       load: load ? { key: "backup", label: "Get cloud backups" } : null,
-      summary: `${plural(backs.length, "backup")}, ${esc((_a2 = mb(size)) != null ? _a2 : "0 MB")} in all, the latest ${esc(
-        isoDay((_b2 = backs[0]) == null ? void 0 : _b2.backedUpAt)
+      summary: `${plural(backs.length, "backup")}, ${esc((_a3 = mb(size)) != null ? _a3 : "0 MB")} in all, the latest ${esc(
+        isoDay((_b3 = backs[0]) == null ? void 0 : _b3.backedUpAt)
       )}.`,
       head: ["Headset", "Type", "Size", "Backed up"],
       cells: (r) => {
-        var _a3;
-        return `<td>${esc(r.serial ? headsetLabel(r.serial) : "\u2014")}</td><td>${esc(r.type ? words2(r.type) : "\u2014")}</td><td>${esc((_a3 = mb(r.size)) != null ? _a3 : "\u2014")}</td><td>${esc(isoDay(r.backedUpAt))}</td>`;
+        var _a4;
+        return `<td>${esc(r.serial ? headsetLabel(r.serial) : "\u2014")}</td><td>${esc(r.type ? words2(r.type) : "\u2014")}</td><td>${esc((_a4 = mb(r.size)) != null ? _a4 : "\u2014")}</td><td>${esc(isoDay(r.backedUpAt))}</td>`;
       }
     });
   }
@@ -12385,8 +14775,8 @@ function accountSections(app, scope, { load = false } = {}) {
   });
 }
 function loadIaps() {
-  var _a2;
-  (_a2 = iapState.promise) != null ? _a2 : iapState.promise = fetchIaps().finally(() => iapState.promise = null);
+  var _a3;
+  (_a3 = iapState.promise) != null ? _a3 : iapState.promise = fetchIaps().finally(() => iapState.promise = null);
   return iapState.promise;
 }
 async function fetchIaps() {
@@ -12406,11 +14796,11 @@ async function fetchIaps() {
   }
 }
 function dlcTable(app) {
-  var _a2;
-  const items = [...(_a2 = iapState.byApp.get(app.id)) != null ? _a2 : []].sort(
+  var _a3;
+  const items = [...(_a3 = iapState.byApp.get(app.id)) != null ? _a3 : []].sort(
     (a, b) => {
-      var _a3, _b2;
-      return ((_a3 = b.grantedAt) != null ? _a3 : 0) - ((_b2 = a.grantedAt) != null ? _b2 : 0);
+      var _a4, _b3;
+      return ((_a4 = b.grantedAt) != null ? _a4 : 0) - ((_b3 = a.grantedAt) != null ? _b3 : 0);
     }
   );
   return accountTable({
@@ -12492,8 +14882,8 @@ async function browseMore(state, button = el.worldMore) {
   }
 }
 function loadShelf() {
-  var _a2;
-  const [source, name] = (_a2 = WORLD_SHELVES.find(([s]) => s === el.worldShelf.value)) != null ? _a2 : WORLD_SHELVES[0];
+  var _a3;
+  const [source, name] = (_a3 = WORLD_SHELVES.find(([s]) => s === el.worldShelf.value)) != null ? _a3 : WORLD_SHELVES[0];
   browseWorlds(shelfState, name, (cursor) => worldShelf(source, cursor), el.worldShelfGo);
 }
 function setCreatorNote(text, bad = false) {
@@ -12538,8 +14928,8 @@ function loadCreatorWorlds() {
 }
 function worldSorter(mode) {
   const most = (key) => (a, b) => {
-    var _a2, _b2;
-    return ((_a2 = b[key]) != null ? _a2 : -1) - ((_b2 = a[key]) != null ? _b2 : -1);
+    var _a3, _b3;
+    return ((_a3 = b[key]) != null ? _a3 : -1) - ((_b3 = a[key]) != null ? _b3 : -1);
   };
   if (mode === "visits" || mode === "online" || mode === "likes") return most(mode);
   if (mode === "az") return (a, b) => a.name.localeCompare(b.name);
@@ -12553,7 +14943,7 @@ function anyWorld(id) {
   return [...worldLookups, ...shelfState.rows, ...creatorState.rows, ...worldState.rows].find((w) => w.id === id);
 }
 function renderWorlds() {
-  var _a2, _b2, _c, _d, _e;
+  var _a3, _b3, _c, _d, _e;
   const q = el.worldQ.value.trim().toLowerCase();
   const sort = worldSorter(el.worldSort.value);
   const paged = pagedWorlds();
@@ -12561,7 +14951,7 @@ function renderWorlds() {
   const shown = all.filter((w) => textMatch(q, w.name, w.id));
   const rows = sort ? shown.sort(sort) : shown;
   const art = loadSettings().images;
-  const focused = (_c = (_b2 = (_a2 = document.activeElement) == null ? void 0 : _a2.closest) == null ? void 0 : _b2.call(_a2, "#worldRows tr[data-world]")) == null ? void 0 : _c.dataset.world;
+  const focused = (_c = (_b3 = (_a3 = document.activeElement) == null ? void 0 : _a3.closest) == null ? void 0 : _b3.call(_a3, "#worldRows tr[data-world]")) == null ? void 0 : _c.dataset.world;
   el.worldRows.innerHTML = rows.map(
     (w) => `<tr class="app" tabindex="0" data-world="${esc(w.id)}" aria-expanded="${worldOpen.has(w.id)}">
       <td class="name">${art && w.image ? `<img class="art" src="${esc(w.image)}" alt="" loading="lazy">` : ""}${esc(w.name)}</td>
@@ -12572,6 +14962,11 @@ function renderWorlds() {
     </tr>${worldOpen.has(w.id) ? worldDetail(w) : ""}`
   ).join("");
   if (focused) (_d = el.worldRows.querySelector(`tr[data-world="${CSS.escape(focused)}"]`)) == null ? void 0 : _d.focus();
+  for (const img of el.worldRows.querySelectorAll(".world-pics img"))
+    img.addEventListener("error", () => {
+      var _a4;
+      return (_a4 = img.closest("figure")) == null ? void 0 : _a4.remove();
+    }, { once: true });
   const state = worldTab === "saved" ? worldState : paged;
   const loading = (_e = state == null ? void 0 : state.loading) != null ? _e : false;
   const asked = worldTab === "lookup" ? worldLookups.length > 0 : state.asked;
@@ -12620,29 +15015,29 @@ function cloudPaneHtml(app) {
     list = `<p class="warn">${esc(backupState.note)}</p>`;
   } else {
     const backs = backupState.rows.filter((r) => recordKey(r) === keyOf(app)).sort((a, b) => {
-      var _a2, _b2;
-      return ((_a2 = b.backedUpAt) != null ? _a2 : 0) - ((_b2 = a.backedUpAt) != null ? _b2 : 0);
+      var _a3, _b3;
+      return ((_a3 = b.backedUpAt) != null ? _a3 : 0) - ((_b3 = a.backedUpAt) != null ? _b3 : 0);
     });
     list = backs.length ? backupsTable(backs) : `<p>No cloud backups for this app.</p>`;
   }
   return `${list}${app.platform !== "PC" ? backupRulesSection(app) : ""}`;
 }
 function backupsTable(backs) {
-  var _a2, _b2;
+  var _a3, _b3;
   const size = backs.reduce((sum, r) => sum + r.size, 0);
   const rows = backs.map((r) => {
-    var _a3;
+    var _a4;
     const open2 = Boolean(backupDetailCache.get(r.id));
     return `<tr>
           <td>${esc(r.serial ? headsetLabel(r.serial) : "\u2014")}</td>
           <td>${esc(r.type ? words2(r.type) : "\u2014")}</td>
-          <td>${esc((_a3 = mb(r.size)) != null ? _a3 : "\u2014")}</td>
+          <td>${esc((_a4 = mb(r.size)) != null ? _a4 : "\u2014")}</td>
           <td>${esc(isoDay(r.backedUpAt))}</td>
           <td class="backup-act"><button type="button" class="build-btn" data-backup-detail="${esc(r.id)}" aria-expanded="${open2}">${open2 ? "Hide" : "Details"}</button></td>
         </tr>${backupDetailRow(r)}`;
   }).join("");
-  return `<p class="hint">${plural(backs.length, "backup")}, ${esc((_a2 = mb(size)) != null ? _a2 : "0 MB")} in all, the latest ${esc(
-    isoDay((_b2 = backs[0]) == null ? void 0 : _b2.backedUpAt)
+  return `<p class="hint">${plural(backs.length, "backup")}, ${esc((_a3 = mb(size)) != null ? _a3 : "0 MB")} in all, the latest ${esc(
+    isoDay((_b3 = backs[0]) == null ? void 0 : _b3.backedUpAt)
   )}.</p>
     <div class="vscroll short">
       <table class="vtable plain">
@@ -12652,6 +15047,7 @@ function backupsTable(backs) {
     </div>`;
 }
 function backupDetailRow(r) {
+  var _a3, _b3;
   const c = backupDetailCache.get(r.id);
   if (!c) return "";
   let inner;
@@ -12663,11 +15059,115 @@ function backupDetailRow(r) {
       d.segments != null ? `${bigNumber(d.segments)} segment${d.segments === 1 ? "" : "s"}` : null,
       d.checksum ? `checksum ${esc(d.checksum.slice(0, 20))}${d.checksum.length > 20 ? "\u2026" : ""}` : null
     ].filter(Boolean).join(" \xB7 ");
-    inner = `${d.downloadUri ? `<div class="backup-uri">${esc(d.downloadUri)}</div>` : `<span class="muted">No download address returned.</span>`}
+    const dlBtn = (url, label) => `<a class="backup-dl" href="${esc(url)}" target="_blank" rel="noopener" download>${esc(label)}</a>`;
+    const where = d.downloadUri ? `<div class="backup-dl-row">${dlBtn(d.downloadUri, "Download backup")}</div>` : ((_a3 = d.segmentUris) == null ? void 0 : _a3.length) ? `<div class="backup-dl-row">${d.segmentUris.map((u, i) => dlBtn(u, `Segment ${i + 1} of ${d.segmentUris.length}`)).join("")}</div>` : `<span class="muted">No download address returned.</span>${((_b3 = d.fields) == null ? void 0 : _b3.length) ? `<div class="backup-fields">The store's reply carried only: <span class="mono">${esc(d.fields.join(", "))}</span></div>` : ""}`;
+    inner = `${where}
         ${facts ? `<div class="backup-facts">${facts}</div>` : ""}
-        <p class="hint backup-note">End-to-end encrypted with a key kept in the headset that made it (and your PIN, if you set one). The blob can be downloaded, but it can only be restored to a headset \u2014 its contents can't be read here.</p>`;
+        <p class="hint backup-note">End-to-end encrypted with a key kept in the headset that made it (and your PIN, if you set one), so only a headset can restore it. Download it, then read the downloaded file here to see how it is put together \u2014 it is read in this browser and sent nowhere.</p>
+        <div class="backup-dl-row"><button type="button" class="backup-dl" data-backup-pick="${esc(r.id)}">${c.reading ? "Reading\u2026" : "Read a downloaded copy"}</button><input type="file" hidden data-backup-file="${esc(r.id)}"></div>
+        ${backupReadHtml(c)}`;
   }
   return `<tr class="backup-detail"><td colspan="5">${inner}</td></tr>`;
+}
+async function readBackupBlob(file, expectedChecksum) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  if (buf.length < 76) throw new Error("This file is too short to be a cloud backup.");
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const version = [dv.getUint32(0), dv.getUint32(4), dv.getUint32(8)];
+  const key = new TextDecoder().decode(buf.subarray(12, 76));
+  if (!/^[0-9a-f]{64}$/.test(key)) throw new Error("This file doesn't start like a Quest cloud backup.");
+  const head = buf.subarray(0, 76);
+  const starts = [];
+  for (let i = 0; i <= buf.length - 76; i++) {
+    if (buf[i] !== head[0] || buf[i + 12] !== head[12] || buf[i + 75] !== head[75]) continue;
+    let same = true;
+    for (let j = 1; j < 76 && same; j++) same = buf[i + j] === head[j];
+    if (same) {
+      starts.push(i);
+      i += 75;
+    }
+  }
+  const sizes = starts.map((at, k) => {
+    var _a3;
+    return ((_a3 = starts[k + 1]) != null ? _a3 : buf.length) - at - 76;
+  });
+  const counts = new Array(256).fill(0);
+  let seen = 0;
+  for (const [k, at] of starts.entries()) {
+    if (starts.length > 200 && k % Math.ceil(starts.length / 200)) continue;
+    for (let i = at + 76, end = at + 76 + Math.min(sizes[k], 4096); i < end; i++) counts[buf[i]]++;
+    seen += Math.min(sizes[k], 4096);
+  }
+  const entropy = seen ? -counts.reduce((h, n) => n ? h + n / seen * Math.log2(n / seen) : h, 0) : null;
+  const sha = [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const want = String(expectedChecksum || "").toLowerCase().replace(/[^0-9a-f]/g, "");
+  return {
+    name: file.name,
+    size: buf.length,
+    version: version.join("."),
+    key,
+    records: starts.length,
+    smallest: Math.min(...sizes),
+    largest: Math.max(...sizes),
+    entropy,
+    sha,
+    checksum: want.length === 64 ? want === sha : null
+  };
+}
+function backupReadHtml(c) {
+  if (c.readError) return `<p class="warn">${esc(c.readError)}</p>`;
+  const r = c.read;
+  if (!r) return "";
+  const kb = (n) => n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${(n / 1024).toFixed(1)} KB`;
+  return factGroups([
+    [
+      `What ${esc(r.name)} is`,
+      [
+        ["Format", `Quest cloud backup, version ${r.version}`],
+        ["Size", `${kb(r.size)} (${bigNumber(r.size)} bytes)`],
+        [
+          "Records",
+          `${bigNumber(r.records)} encrypted record${r.records === 1 ? "" : "s"}${r.records > 1 ? `, ${kb(r.smallest)} to ${kb(r.largest)} each` : ""}`
+        ],
+        ["Locked with key", `${r.key.slice(0, 12)}\u2026${r.key.slice(-12)} \u2014 held by the headset that made it`],
+        [
+          "Inside",
+          r.entropy != null && r.entropy > 7.9 ? `Ciphertext throughout (${r.entropy.toFixed(2)} bits per byte); no file names or sizes are stored in the clear` : r.entropy != null ? `${r.entropy.toFixed(2)} bits per byte \u2014 less random than ciphertext usually is` : null
+        ],
+        [
+          "Checksum",
+          r.checksum === true ? "Matches the store's \u2014 this is the backup listed above" : r.checksum === false ? "Doesn't match the store's \u2014 this may be a different backup" : `SHA-256 ${r.sha.slice(0, 16)}\u2026`
+        ]
+      ]
+    ]
+  ]);
+}
+function initBackupReader() {
+  document.addEventListener("click", (e) => {
+    var _a3, _b3, _c;
+    const b = (_b3 = (_a3 = e.target).closest) == null ? void 0 : _b3.call(_a3, "[data-backup-pick]");
+    if (!b) return;
+    e.stopPropagation();
+    (_c = b.parentElement.querySelector("[data-backup-file]")) == null ? void 0 : _c.click();
+  });
+  document.addEventListener("change", async (e) => {
+    var _a3, _b3, _c;
+    const input = (_b3 = (_a3 = e.target).closest) == null ? void 0 : _b3.call(_a3, "[data-backup-file]");
+    const file = (_c = input == null ? void 0 : input.files) == null ? void 0 : _c[0];
+    if (!file) return;
+    const id = input.dataset.backupFile;
+    const c = backupDetailCache.get(id);
+    if (!(c == null ? void 0 : c.detail)) return;
+    Object.assign(c, { reading: true, read: null, readError: null });
+    renderAccountTabs();
+    try {
+      c.read = await readBackupBlob(file, c.detail.checksum);
+    } catch (err2) {
+      c.readError = err2.message || "Could not read this file.";
+    }
+    c.reading = false;
+    renderAccountTabs();
+  });
 }
 function toggleBackupDetail(id) {
   const cur = backupDetailCache.get(id);
@@ -12712,11 +15212,11 @@ function channelSection(app) {
           <thead><tr><th>Channel</th><th>Version</th><th>Build</th><th>Open to</th><th></th></tr></thead>
           <tbody>${mine.channels.map(
       (c) => {
-        var _a2, _b2;
+        var _a3, _b3;
         return `<tr>
                 <td>${esc(c.name)}</td>
-                <td>${esc((_a2 = c.version) != null ? _a2 : "\u2014")}</td>
-                <td>${(_b2 = c.versionCode) != null ? _b2 : "\u2014"}</td>
+                <td>${esc((_a3 = c.version) != null ? _a3 : "\u2014")}</td>
+                <td>${(_b3 = c.versionCode) != null ? _b3 : "\u2014"}</td>
                 <td>${c.public ? "Everyone" : "Invited"}</td>
                 <td>${c.id === mine.current ? "You're on this" : ""}</td>
               </tr>`;
@@ -12731,11 +15231,11 @@ function wantYourCopy() {
   if (!library()) appNames().then(() => renderAccountTabs());
 }
 function loadForApp(app, what) {
-  var _a2;
+  var _a3;
   if (what === "dlc") return loadIaps();
   if (what === "play") return loadPlaytime();
   if (what === "backup" || what === "cloudbackups") return loadBackups();
-  if (what === "backuprules" && (app == null ? void 0 : app.id) && !((_a2 = backupRulesCache.get(app.id)) == null ? void 0 : _a2.loading)) {
+  if (what === "backuprules" && (app == null ? void 0 : app.id) && !((_a3 = backupRulesCache.get(app.id)) == null ? void 0 : _a3.loading)) {
     backupRulesCache.set(app.id, { loading: true });
     renderAccountTabs();
     backupRules(app.id).then((rules) => backupRulesCache.set(app.id, { rules })).catch((err2) => backupRulesCache.set(app.id, { error: `Could not load backup settings: ${err2.message}` })).finally(() => renderAccountTabs());
@@ -12749,13 +15249,13 @@ function loadForApp(app, what) {
   }
 }
 function toggleWorld(id) {
-  var _a2;
+  var _a3;
   if (worldOpen.has(id)) worldOpen.delete(id);
   else {
     worldOpen.add(id);
   }
   renderWorlds();
-  (_a2 = el.worldRows.querySelector(`tr[data-world="${CSS.escape(id)}"]`)) == null ? void 0 : _a2.focus();
+  (_a3 = el.worldRows.querySelector(`tr[data-world="${CSS.escape(id)}"]`)) == null ? void 0 : _a3.focus();
 }
 function getWorldDetails(id) {
   if (!worldInfo.has(id)) loadWorld(id);
@@ -12767,7 +15267,9 @@ async function loadWorld(id) {
   worldInfo.set(id, { loading: true, data: null, note: "" });
   renderWorlds();
   try {
-    worldInfo.set(id, { loading: false, data: await worldDetails(world), note: "" });
+    const data = await worldDetails(world);
+    if (extraOn("worldExtras")) data.store = await worldStoreExtras(world.id, data.storeDestinationId).catch(() => null);
+    worldInfo.set(id, { loading: false, data, note: "" });
   } catch (err2) {
     worldInfo.set(id, { loading: false, data: null, note: err2.message || "Could not load this world." });
   } finally {
@@ -12788,6 +15290,7 @@ async function loadWorldFlags(id) {
 }
 var yesNo = (v) => v == null ? null : v ? "Yes" : "No";
 function worldDetail(w) {
+  var _a3, _b3, _c, _d, _e, _f;
   const info = worldInfo.get(w.id);
   const flags = worldFlagInfo.get(w.id);
   let body;
@@ -12826,12 +15329,25 @@ function worldDetail(w) {
           ["Mixed reality", ask(yesNo(f.mixedReality))],
           ["Beta", ask(yesNo(f.beta))],
           ["Cloud streaming", ask(yesNo(f.streamable))],
-          ["Runtime", ask(f.runtime)]
+          ["Runtime", ask(f.runtime)],
+          ["Genres", ((_b3 = (_a3 = d.store) == null ? void 0 : _a3.genres) == null ? void 0 : _b3.length) ? d.store.genres.join(", ") : null],
+          ["Content rating", (_c = d.store) == null ? void 0 : _c.rating],
+          ["Visited by you", ((_d = d.store) == null ? void 0 : _d.visited) == null ? null : d.store.visited ? "Yes" : "No"]
         ]
-      ]
-    ])}${f.description ? `<h3>Description</h3><p>${esc(f.description).replace(/\n/g, "<br>")}</p>` : ""}${d.launchLink ? `<h3>Launch link</h3><p class="world-link">${esc(d.launchLink)}</p>` : ""}${pictures}`;
+      ],
+      ["Similar worlds", ((_f = (_e = d.store) == null ? void 0 : _e.similar) != null ? _f : []).map((x) => [esc(x.name), x.price || "\u2014"])]
+    ])}${f.description ? `<h3>Description</h3><p>${esc(f.description).replace(/\n/g, "<br>")}</p>` : ""}${d.launchLink ? `<h3>Launch link</h3><p class="world-link">${esc(launchTarget(d.launchLink))}</p>` : ""}${pictures}`;
   }
   return `<tr class="detail"><td colspan="5"><div class="panel">${body}</div></td></tr>`;
+}
+function launchTarget(raw) {
+  var _a3;
+  try {
+    const j = JSON.parse(raw);
+    return ((_a3 = j == null ? void 0 : j.ovr_social_launch) == null ? void 0 : _a3.deeplink_message) || raw;
+  } catch {
+    return raw;
+  }
 }
 function setWorldNote(text, bad = false) {
   el.worldLookupNote.textContent = text;
@@ -12839,7 +15355,7 @@ function setWorldNote(text, bad = false) {
   el.worldLookupNote.hidden = !text;
 }
 async function lookUpWorld() {
-  var _a2;
+  var _a3;
   const id = parseWorldId(el.worldLookup.value);
   if (!id) {
     setWorldNote("That is not a world ID \u2014 paste the long number, or a horizon.meta.com world link.", true);
@@ -12866,6 +15382,6 @@ async function lookUpWorld() {
   worldOpen.add(id);
   setRoute({ world: id });
   renderWorlds();
-  (_a2 = el.worldRows.querySelector(`tr[data-world="${CSS.escape(id)}"]`)) == null ? void 0 : _a2.scrollIntoView({ block: "nearest" });
+  (_a3 = el.worldRows.querySelector(`tr[data-world="${CSS.escape(id)}"]`)) == null ? void 0 : _a3.scrollIntoView({ block: "nearest" });
 }
 window.__metadbStarted = true;

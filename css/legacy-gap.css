@@ -10,8 +10,7 @@
 .form .check > * + * { margin-left: .5rem; }
 .defaults-grid label > * + * { margin-top: .25rem; }
 .logbar > * + * { margin-left: .5rem; }
-.chan-rev > * + * { margin-left: 2.5rem; }
-.chan-rev > * { margin-top: .25rem; }
+.chan-rev > * + * { margin-top: 1.5rem; }
 .av-slider > * + * { margin-left: .6rem; }
 .perms > * + * { margin-left: 2rem; }
 .actions > * + * { margin-left: .5rem; }
@@ -57,6 +56,21 @@ details.hint > summary::before { margin-right: .35rem; }
 .upd-found-tools > * { margin-top: .5rem; }
 .notfound-links > * + * { margin-left: 1.25rem; }
 .notfound-links > * { margin-top: .25rem; }
+.home-ph > * + * { margin-left: 1rem; }
+.home-appline > * + * { margin-left: .55rem; }
+.home-me--bg > * + * { margin-left: 2rem; }
+@media (max-width: 600px) { .home-me--bg > * + * { margin-left: 1.4rem; } }
+@media (max-width: 600px) { .photo-grid > * + * { margin-left: .6rem; } }
+.inline-field > * + * { margin-left: .4rem; }
+.rev-body .facts > * + * { margin-left: 2.5rem; }
+.rev-body .facts > * { margin-top: 0; }
+.media-detail > * + * { margin-left: 1.25rem; }
+.watch-list > * + * { margin-left: 1.25rem; }
+.watch-list > * { margin-top: .4rem; }
+.home-me > * + * { margin-left: 1rem; }
+.home-me-alias > * + * { margin-left: 1rem; }
+.home-me-alias > * { margin-top: .15rem; }
+@media (max-width: 600px) { .home-stats > * + * { margin-left: 1.25rem; } }
 .wifi-bar > * + * { margin-left: .75rem; }
 .wifi-bar > * { margin-top: .5rem; }
 .wifi-row > * + * { margin-left: .6rem; }
@@ -73,6 +87,8 @@ details.hint > summary::before { margin-right: .35rem; }
 .rev-sorts > * + * { margin-left: .35rem; }
 .review-head > * + * { margin-left: .6rem; }
 .ach > * + * { margin-left: .7rem; }
+.backup-dl-row > * + * { margin-left: .4rem; }
+.backup-dl-row > * { margin-top: .4rem; }
 .lb-player > * + * { margin-left: .5rem; }
 .post > * + * { margin-left: .7rem; }
 .dg-bar > * + * { margin-left: .6rem; }
@@ -94,8 +110,6 @@ details.hint > summary::before { margin-right: .35rem; }
 .bar > h1::before { margin-right: .5rem; }
 @media (max-width: 600px) { #view-purchases tbody tr > * + * { margin-left: .9rem; } }
 @media (max-width: 600px) { #view-purchases tbody tr > * { margin-top: .2rem; } }
-.watch-actions > * + * { margin-left: .6rem; }
-.watch-actions > * { margin-top: .6rem; }
 .setup-body > * + * { margin-top: 1.4rem; }
 .setup-grid .check > * + * { margin-left: .5rem; }
 .setup-actions > * + * { margin-left: .5rem; }

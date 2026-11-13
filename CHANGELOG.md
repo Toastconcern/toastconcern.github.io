@@ -25,6 +25,192 @@ Newest first. Every update gets an entry before it is pushed.
 
 ## Site v=268 — 2026-11-11
 
+- **Fewer menu entries: related screens are now tabs of one screen.** User → Library
+  holds Entitlements, Purchases, Store credit and Wishlist; User → Headsets holds your
+  headsets and the Updater; Apps → Store holds Store front and Horizon+. Store credit moved
+  out of the bottom of Purchases into its own tab. Every tab keeps its own address
+  (`/purchases`, `/updater`, `/plus` and the rest still open the right tab), and each one
+  can still be switched off on its own in the setup guide, which drops its tab. On a phone
+  the tabs scroll sideways and the open one is scrolled into view.
+- **Revisions open to what they were.** In an expanded app's Builds tab, each row of
+  the Revisions table opens to that submission: its review and release state, when it
+  was published, the build it shipped and the store listing it set (publisher,
+  category, genres, comfort, play area, languages…), and what changed in the build and
+  listing since the revision before it. Fetched when the row is opened (a failed read is
+  asked again on the next open), switchable under Extra lookups. Needs your own access
+  token.
+- **Channels and Revisions read properly in an expanded app.** They were squeezed side by
+  side, so a channel's date scrolled out of sight and an opened revision was a narrow strip;
+  now Channels runs the full width with Revisions under it (about ten rows before it
+  scrolls), and an opened revision lays its groups side by side. On a phone the revisions
+  drop the submissions count and let the ID wrap, so nothing runs off the edge. The app's
+  name is now a bar that stays at the top with Close on it, so the page scrolls under the
+  bar instead of under a loose button.
+- **A home dashboard** at `/home`, reached from the MetaDB logo and from the 404
+  page's new button. It is a front page, not the default screen — Apps and games
+  still is — with panels built from what this browser already knows: your watchlist
+  (apps with a new build first), the apps you have recently opened, and your
+  account/setup status (sign-in, downloads, how requests go out, how many apps you
+  watch). It works signed out and makes no request on arrival — with one exception:
+  a watched or recently-viewed app that kept no icon has its one fetched from the
+  store and filled in (and saved, so it is instant next time).
+- **More apps show their icon.** A search row now shows any icon the app already
+  carries (its launcher icon, not just the square cover), an app looked up by ID now
+  comes back with its square icon (from the product-page query, the one place it can
+  be had by ID), the search falls back through cover → icon → poster, and the
+  watchlist/dashboard fill in any still-missing icons — so letter-tile and blank
+  placeholders are rare rather than common. (The by-ID icon needs you signed in.)
+  Every list does this now — search, store front, wishlist, Horizon+, organizations,
+  default apps, entitlements, package search and the ADB tab: the store front and
+  organizations no longer show a cropped landscape banner where the icon belongs,
+  and any row whose list sent no art at all gets its icon fetched by ID.
+- **Marking owned apps covers your PC library too.** The "mark owned apps" setting now
+  loads your Rift (PC) library alongside your Quest one, so a title you own on either
+  store is flagged across the site, whichever library the Entitlements screen shows.
+- **The dashboard has a full "Your account" section** under the watchlist and
+  recently viewed panels: your profile photo (looked up by your alias when the
+  "who am I" reply leaves it out), name and @alias, with your email and account ID
+  each hidden behind a Show button until you press it. Under that, three sets:
+  **Account details** — the name on the account, country, language, birthday, when
+  it was made, time zone, whether it is verified and its type, whichever of these the
+  store gives (it works out which fields your account answers and remembers them);
+  **Activity** — your presence in full (in VR now or when you last were, the app and
+  the destination in it, lobby or match, party size, and whatever else the presence
+  reply says, such as status and platform), your Quest and PC library counts and the
+  worlds you have published; and **This browser** — which sign-ins are saved and how
+  requests go out. Account details come from the headset's own account queries (out
+  of the system apps in a Quest firmware): the age on the account, whether it is a
+  Salsa account, a developer account, linked to Facebook, its profile standing, its
+  privacy settings and its active-status setting — plus your email and photo. The
+  account parts are asked together once per sign-in; anything the store will not give
+  is left off rather than shown blank.
+- **A People screen** (User → People): the people you follow, as the headset's People
+  tab lists them — each one's photo, whether they are online and what they are doing
+  ("Last seen 1 day ago"), whether they follow you back and whether you can message
+  them — with your follower, following, follow-request and recently-met counts above.
+  Filter by name, by who is online, or by who follows you back. Needs your Meta
+  sign-in.
+- **More People lists**, picked beside Get people: follow requests, people you
+  recently met (where — "Met in Worlds" — and how long ago), who is in your lobby
+  right now, and your chats (who is in each, its last message, unread or not, and
+  whether someone is in it now). Each list is fetched only when you press Get people.
+- **More account details on the dashboard**: who can talk to you by voice, who can join
+  you without an invite, and which kinds of community you may create. The account
+  details ask only what they show: the older privacy queries only if the newer one is
+  refused, supervision only on a supervised account, the background only with images
+  on, and the sign-in that answered is tried first after that. The
+  privacy and active-status settings now read as the headset words them ("Online",
+  "Appear offline"). With images on, your profile's background picture (a square)
+  shows whole beside your name, with your photo over its corner.
+- **Search everything** (Apps → Search everything): the headset's own search box —
+  apps, movies, TV series, sports events, Xbox cloud games and people, up to ten of
+  each. An app opens its panel; an Xbox game opens Xbox Cloud Gaming in a new tab.
+  Search with the box empty for what the headset suggests before you type: your
+  recent apps (with when you last opened them), people and websites. Needs your Meta
+  sign-in.
+- **Photos** (User → Photos): the photos and videos your headsets have uploaded, as
+  the headset's Gallery lists them — a grid, newest first, with the app or world each
+  was taken in and each video's length; filter to photos, videos or favourites, and
+  open any one full size. Get photos fetches every page by itself, drawing each as it
+  lands (the button counts as it goes), and **Taken from / to** narrows what is loaded
+  to a date range, instantly and exactly. Needs your Meta sign-in.
+- **Store account on the dashboard**: store credit, the subscriptions you pay for (and
+  when each next bills), whether a store PIN is set, and the store content filter.
+- **Library → Store credit**: the balance, what added to it or was paid from it, and
+  your app-referral totals for the year.
+- **More like this on an app's Store tab** (once checked): the store's related apps,
+  with their prices and which you own.
+- **Every person gets a photo**: people the store's lists carry no picture for (the
+  complete follower lists, and people in Search everything) are filled in with one
+  batch request — switchable under Extra lookups.
+- **Store → Store front → For you → Apps you might like**: the headset Store's picks for this
+  account, as its search shows them before you type. Needs your Meta sign-in.
+- **A switch for every extra lookup**: the setup guide (first visit, or Settings) has
+  a new list, Extra lookups, with one switch per request MetaDB sends alongside a
+  screen — each piece of the dashboard, the complete follower lists, last-met times
+  and profile counts on People, and an app's or world's extras. Anything switched off
+  is never asked for, and its row disappears.
+- **Avatar → Your avatars**: every avatar on the account, full body, with the style
+  and the profile each is assigned to.
+- **Worlds**: a world's details add its genres, content rating, whether you have
+  visited, and similar worlds, from the headset Store's world page.
+- **Included in** on an app's Store tab: the bundles it is sold in.
+- **Fixes from a code review**: names the store supplies (similar worlds, an app's
+  destinations, bundles and related apps) and a picked backup file's name are escaped
+  before they reach the page, so a world titled with HTML cannot run script. The
+  dashboard asks again as soon as the Meta token, images or an extra lookup changes,
+  instead of after a reload. People gets your id from the profile query alone rather
+  than the whole dashboard batch, fills in each person's follow relation from which
+  list they are on when the store leaves it out, and a profile fetch that failed
+  outright is no longer kept for the visit.
+- **Layout fixes**: the GitHub button and the Show picker no longer float over the page
+  (GitHub is a link in the footer line; Show sits beside Search and Check shown on
+  Apps and games). A long name in a details list (Similar worlds, More like this)
+  wraps instead of squeezing its value to one letter a line. A world's launch link
+  shows as the link itself, not the store's JSON, and a picture that fails to load
+  goes rather than leaving an empty frame. The Search everything box is wide enough
+  for its hint; the store-credit Amount header matches the others; avatar previews
+  are cropped to the figure; a chat with only you in it says so; People you may know
+  keeps the store's ranking; and the line under your name on the dashboard wraps
+  without leaving a dot at the end.
+- Text actions inside sentences ("Take the tour" and the like) are no longer blue,
+  default-underlined links: neutral text with a light underline that darkens on hover.
+- **Horizon+ shows everything, section by section**: the screen now reads the
+  Horizon+ tab of the headset's Store and loads each of its sections in full — this
+  month's games, the catalog, the indie catalog (the half of "100+ games" it used
+  to miss: 102 games now, not 52) and the Xbox Game Pass titles, which are listed
+  under the games as Also in Horizon+. The section picker is the store's own list,
+  so a section Meta adds later — movies, say — appears without a change here.
+- **Movies and TV in Search everything open to their page**: the art, what it is
+  about, genres, year, length or seasons, the age rating, and where to watch it —
+  each service (Disney+, Prime Video, Pluto in the browser…) a link that opens the
+  title there. Fetched when the row is opened.
+- **Avatar → Stickers**: the animated stickers made from your avatar, as the headset
+  offers them in chats, on their own Get stickers button.
+- **Horizon+ on the dashboard**: whether this account is subscribed.
+- **People, complete**: Following and followers now lists everyone, not just the
+  first part the headset's blended list returns. New list: People you may know.
+  Open anyone for their profile — username, private or public, Facebook name, what
+  they are doing, whether you can call them in VR or join them, unread messages, bio,
+  and how many followers and following they have.
+- **Traits and destinations on an app's Store tab** once it is checked: gameplay,
+  action, theme, art style, immersion, play area and pricing, as the headset's library
+  groups apps; and the places in the app you can launch straight into, with how many
+  can go in one group.
+- **Cloud backups**: the download address is no longer printed under the button.
+  A downloaded backup can be read on the page (Read a downloaded copy): its format,
+  the key that locked it, how many encrypted records it holds and their sizes, and
+  whether it matches the store's checksum. The file is read in the browser and sent
+  nowhere; what is inside stays encrypted to the headset that made it.
+- **Worlds → Top lists → Your headset's feed**: the worlds your headset's home suggests
+  to you, each opening to the same details as any other world.
+- **Cloud backups can be downloaded.** A backup's details now find its download
+  address wherever the store's reply puts it — a single file gets a Download button,
+  a backup uploaded in pieces gets one per segment — instead of only looking under
+  one field name and reporting "No download address returned." When there truly is
+  no address, the row lists the field names the reply did carry.
+- **The dashboard's library count fills in by itself.** With "mark owned apps" on, the
+  library loads on its own; the dashboard now says "Loading…" until it lands and
+  then shows the counts, instead of offering a load that had already started.
+- **No repeats on the dashboard:** an app on your watchlist no longer shows again
+  under Recently viewed, the watched count lives only in the watchlist panel, and
+  "Not affiliated with Meta" is said once, in the footer.
+- **Organizations load much faster, without stutter.** Each request asks for up to 500
+  apps (stepping down to 100, then 20, if the store will not take that, and
+  remembering the size that worked), so most organizations arrive in one or two
+  requests instead of dozens. Apps appear as each page lands, drawn a hundred per
+  frame and added below the ones already shown — nothing already on screen is redrawn,
+  so the page never freezes or flickers. An organization you have already opened in
+  this visit comes back instantly, with no request.
+- **Checks run several at a time**, not one after another: the watchlist sweep and a
+  multi-headset OS check now fire their requests in parallel (a few at once), so a
+  long watchlist or a stack of headsets finishes in a fraction of the time.
+- **The 404 page** now leads with a clear "Go to the home page" button before its
+  list of links.
+- **The Updater reaches Meta again on the live site:** when the US relay hands back
+  an unusable reply (a worker error page instead of Meta's JSON), the relay now
+  falls back to asking Meta directly, instead of letting the page report "could not
+  reach graph.oculus.com".
 - **OS builds show when they were released, and how big they are:** each build the Updater
   turns up now lists its release date and time (from the build's creation time) and its
   download size among its main facts, instead of being tucked under Details. The date reads

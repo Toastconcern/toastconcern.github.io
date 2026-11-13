@@ -16,6 +16,34 @@ import {
   mergeMedia,
   spatialIcons,
   myEntitlements,
+  appIcon,
+  accountProfile,
+  peopleCounts,
+  peopleList,
+  peopleRequests,
+  peopleRecentlyMet,
+  peopleNearby,
+  peopleChats,
+  peopleSuggested,
+  personDetails,
+  globalSearch,
+  appTraits,
+  appDestinations,
+  avatarStickers,
+  headsetPhotos,
+  storeAccount,
+  storeCreditHistory,
+  relatedApps,
+  extraOn,
+  FOR_YOU_SECTION,
+  appBundles,
+  storeReferrals,
+  worldStoreExtras,
+  accountAvatars,
+  mediaDetails,
+  submissionDetail,
+  horizonPlusSections,
+  horizonPlusSection,
   myReleaseChannels,
   headsetPlaytime,
   cloudBackups,
@@ -63,6 +91,7 @@ import {
   riftSegmentUrl,
   riftSegmentDirectUrl,
   useExtensionRelay,
+  extensionRelayOn,
   searchStore,
   defaultApps,
   DEFAULT_APP_TRIGGERS,
@@ -284,6 +313,10 @@ const el = {
   setupSections: document.getElementById("setupSections"),
   setupPanels: document.getElementById("setupPanels"),
   setupData: document.getElementById("setupData"),
+  setupExtras: document.getElementById("setupExtras"),
+  avatarsGo: document.getElementById("avatarsGo"),
+  avatarsCount: document.getElementById("avatarsCount"),
+  avatarsGrid: document.getElementById("avatarsGrid"),
   setupSave: document.getElementById("setupSave"),
   setupAll: document.getElementById("setupAll"),
   openSetup: document.getElementById("openSetup"),
@@ -293,6 +326,42 @@ const el = {
   viewUpdater: document.getElementById("view-updater"),
   viewNotfound: document.getElementById("view-notfound"),
   notfoundPath: document.getElementById("notfoundPath"),
+  viewHome: document.getElementById("view-home"),
+  homeBody: document.getElementById("homeBody"),
+  viewPeople: document.getElementById("view-people"),
+  peopleGo: document.getElementById("peopleGo"),
+  peopleQ: document.getElementById("peopleQ"),
+  peopleShow: document.getElementById("peopleShow"),
+  peopleKind: document.getElementById("peopleKind"),
+  peopleHead: document.getElementById("peopleHead"),
+  viewExplore: document.getElementById("view-explore"),
+  exploreQ: document.getElementById("exploreQ"),
+  exploreGo: document.getElementById("exploreGo"),
+  exploreShow: document.getElementById("exploreShow"),
+  exploreCount: document.getElementById("exploreCount"),
+  exploreRows: document.getElementById("exploreRows"),
+  exploreEmpty: document.getElementById("exploreEmpty"),
+  stickerGo: document.getElementById("stickerGo"),
+  viewPhotos: document.getElementById("view-photos"),
+  photoGo: document.getElementById("photoGo"),
+  photoShow: document.getElementById("photoShow"),
+  photoFrom: document.getElementById("photoFrom"),
+  photoTo: document.getElementById("photoTo"),
+  photoCount: document.getElementById("photoCount"),
+  photoGrid: document.getElementById("photoGrid"),
+  photoEmpty: document.getElementById("photoEmpty"),
+  photoMoreBar: document.getElementById("photoMoreBar"),
+  photoMore: document.getElementById("photoMore"),
+  creditGo: document.getElementById("creditGo"),
+  creditCount: document.getElementById("creditCount"),
+  creditRows: document.getElementById("creditRows"),
+  creditTable: document.getElementById("creditTable"),
+  creditEmpty: document.getElementById("creditEmpty"),
+  stickerCount: document.getElementById("stickerCount"),
+  stickerGrid: document.getElementById("stickerGrid"),
+  peopleCount: document.getElementById("peopleCount"),
+  peopleRows: document.getElementById("peopleRows"),
+  peopleEmpty: document.getElementById("peopleEmpty"),
   updaterLoad: document.getElementById("updaterLoad"),
   updaterSerials: document.getElementById("updaterSerials"),
   updaterMode: document.getElementById("updaterMode"),
@@ -339,6 +408,8 @@ const el = {
   checkPlus: document.getElementById("checkPlus"),
   plusQ: document.getElementById("plusQ"),
   plusPick: document.getElementById("plusPick"),
+  plusOthers: document.getElementById("plusOthers"),
+  plusOtherRows: document.getElementById("plusOtherRows"),
   plusSort: document.getElementById("plusSort"),
   plusRows: document.getElementById("plusRows"),
   plusCount: document.getElementById("plusCount"),
@@ -463,6 +534,7 @@ const el = {
   mineCount: document.getElementById("mineCount"),
 
   viewPurchases: document.getElementById("view-purchases"),
+  viewCredit: document.getElementById("view-credit"),
   viewAvatar: document.getElementById("view-avatar"),
   avatarLoad: document.getElementById("avatarLoad"),
   avatarQ: document.getElementById("avatarQ"),
@@ -518,6 +590,28 @@ const el = {
    before then (the init-order rule in CLAUDE.md). */
 const WATCH_KEY = "metadb.watchlist";
 const WATCH_LAST_KEY = "metadb.watchLast";
+/* Same reason as WATCH_KEY: the home dashboard (renderHome) reads these, and the
+   first applyView() can render /home on a deep link during module setup — before a
+   const declared down beside their own code would exist. Declared up here so that
+   deep-link render does not hit their temporal dead zone (and silently read empty). */
+const RECENT_KEY = "metadb.recentApps";
+const RECENT_MAX = 12;
+const REPOS_KEY = "metadb.githubRepos";
+/* App ids whose icon we have already tried to fetch this visit (watchlist and home
+   dashboard), so a re-render does not ask again. Up here for the same init-order
+   reason as the keys above. */
+const iconTried = new Set();
+/* App id -> icon URL fetched by ID this visit (appIcon), for any row whose list query
+   carried no art. Every app-icon render reads it first (appArt), so a fetched icon
+   sticks across redraws instead of vanishing on the next render. */
+const iconCache = new Map();
+/* The home dashboard's account card: who the token belongs to and when the account
+   was last in VR, fetched once per token when the dashboard is opened signed in.
+   Up here for the init-order rule — renderHome runs during setup on a /home link. */
+let homeAccount = { token: null, loading: false };
+/* The account's email and ID on the dashboard stay hidden until asked for ("email",
+   "id"); once shown, each stays shown for the visit, through redraws. */
+const homeShown = new Set();
 /* Guard against hammering the store on quick reloads while still checking on
    essentially every visit. "Check now" ignores it. */
 const WATCH_THROTTLE = 15 * 60 * 1000;
@@ -569,6 +663,50 @@ const obbChecked = new Set();
 let obbNote = "";
 const open = new Set();
 
+
+/* The People screen: who you follow and who follows you, and the counts above it.
+   Fetched on Get people only. Up here for the init-order rule (a /people link draws
+   the screen during setup). */
+const peopleState = { lists: {}, counts: null, loading: false };
+/* Which person rows are open, and each one's mini profile once asked for. */
+const peopleOpen = new Set();
+const personInfo = new Map();
+/* Search everything: the last search and what came back. */
+const exploreState = { query: "", result: null, loading: false, note: "" };
+/* Search everything: which movie / TV rows are open, and each one's details. */
+const mediaOpen = new Set();
+const mediaInfo = new Map();
+/* An app's Revisions table: which revisions are open, and each one's details
+   ({ loading } | { data, prev } | { note }), kept for the visit. */
+const revOpen = new Set();
+const revInfo = new Map();
+const EXPLORE_KINDS = [
+  ["apps", "App"],
+  ["movies", "Movie"],
+  ["series", "TV series"],
+  ["sports", "Sports event"],
+  ["xbox", "Xbox cloud game"],
+  ["people", "Person"],
+  ["events", "Event"],
+  ["websites", "Website"],
+];
+/* The Photos screen: what has loaded, the next page's cursor. */
+const photoState = { items: [], cursor: null, loading: false, asked: false, note: "" };
+/* An app's store traits (GetAppTaxonomy), per app: { loading } | { list } | { note }. */
+const traitInfo = new Map();
+/* Each list on the People screen: what fetches it, and what to say when it is empty. */
+const PEOPLE_KINDS = {
+  follows: { load: () => peopleList(), what: "who you follow and who follows you", none: "You don't follow anyone yet, and nobody follows you." },
+  requests: { load: () => peopleRequests(), what: "who has asked to follow you", none: "No one has asked to follow you." },
+  met: { load: () => peopleRecentlyMet(), what: "the people you recently met in a world or app", none: "You haven't met anyone recently." },
+  suggested: { load: () => peopleSuggested(), what: "people you may know", none: "The store has no suggestions for you right now." },
+  nearby: {
+    load: () => peopleNearby(),
+    what: "who is in your lobby now",
+    none: "No one else is in your lobby. This list fills while you are in a lobby on the headset.",
+  },
+  chats: { load: () => peopleChats(), what: "your chats", none: "You have no chats." },
+};
 
 /** What the account owns, once it has been asked for. */
 let mineList = [];
@@ -634,7 +772,7 @@ let defaultNote = "";
 
 /* The Horizon+ games, fetched whole by their button and then filtered and
    sorted in place, like the default apps. */
-const plusState = { rows: [], asked: false, loading: false, note: "" };
+const plusState = { rows: [], others: [], sections: [], asked: false, loading: false, note: "" };
 
 /* The store front: the sections the store picked for one headset, and the apps
    of the section on show, a page at a time. `front` is what Get store fetched
@@ -708,11 +846,20 @@ let restoringRoute = false;
 /* The address is a path — /apps/<id>/builds, /search/<words> — read by the "links"
    section further down; what has to exist before the init block runs is here. */
 const PANEL_TABS = ["store", "builds", "reviews", "posts", "addons", "achievements", "leaderboards", "cloud", "mine"];
-const VIEWS = ["apps", "search", "mine", "purchases", "wishlist", "watchlist", "avatar", "devices", "updater", "worlds", "orgs", "default",
+const VIEWS = ["home", "apps", "search", "mine", "purchases", "credit", "wishlist", "people", "photos", "explore", "watchlist", "avatar", "devices", "updater", "worlds", "orgs", "default",
   "plus", "store", "adb", "companion", "settings", "getapp", "downgrade"];
 /* Screens still being built: no nav link, and their address shows the 404 screen.
    The code stays; take a screen out of here (and put its nav link back) to open it. */
 const WIP_VIEWS = ["companion"];
+/* Screens that share one menu entry, shown as tabs under one heading. Each tab is
+   still its own screen with its own address (/purchases, /updater, /plus), and
+   each can be switched off on its own in the setup guide. The menu link is the
+   one carrying data-views; it goes to the first tab still switched on. */
+const SCREEN_GROUPS = [
+  { name: "Store", views: [["store", "Store front"], ["plus", "Horizon+"]] },
+  { name: "Headsets", views: [["devices", "Your headsets"], ["updater", "Updater"]] },
+  { name: "Library", views: [["mine", "Entitlements"], ["purchases", "Purchases"], ["credit", "Store credit"], ["wishlist", "Wishlist"]] },
+];
 /* The last search on Apps and games, so closing the app opened from it goes back to it. */
 let routeSearch = "";
 const routeView = () => {
@@ -744,8 +891,18 @@ let adbBusy = false;
 
 /* The keys (store id or package name) of everything the account owns, so the
    search and Meta lists can flag a row without walking the whole library each
-   time. Rebuilt from mineList at the top of every render. */
+   time. Rebuilt from ownedAcross at the top of every render. */
 let ownedKeys = new Set();
+
+/* Everything the account owns, across every library loaded this session (Quest and
+   PC), keyed by keyOf. The Entitlements screen still shows one library at a time
+   (mineList), but owned-marking and headset resolution read this, so a PC-only or
+   Quest-only title is flagged whichever library happens to be on screen. Up here
+   for the init-order rule, like ownedKeys. */
+let ownedAcross = new Map();
+/* The libraries ("quest", "pc") being fetched right now, so the dashboard can say
+   "Loading…" instead of offering a load that the owned-apps setting already started. */
+const ownedLoading = new Set();
 
 /** Which library is on screen — "quest", "pc" or "expired". */
 let mineKind = "quest";
@@ -845,6 +1002,14 @@ initSearchBar();
 initViews();
 initSettings();
 initOrgs();
+/* The Show picker lives in the Apps controls row, beside what it limits. */
+el.viewApps?.querySelector(".controls")?.append(el.limitbar);
+initPeople();
+initExplore();
+initBackupReader();
+initPhotos();
+initCredit();
+initRevisions();
 initDevices();
 initUpdater();
 initPurchases();
@@ -1620,7 +1785,7 @@ async function restoreRoute() {
 /* The first screen still switched on, in menu order, for when a disabled one is
    asked for. Settings is the last resort and is never switchable. */
 function firstEnabledSection(off) {
-  const order = ["apps", "store", "default", "plus", "worlds", "orgs", "watchlist", "devices", "updater", "mine", "purchases", "wishlist", "avatar", "adb"];
+  const order = ["apps", "store", "plus", "default", "worlds", "orgs", "explore", "watchlist", "devices", "updater", "mine", "purchases", "credit", "wishlist", "people", "photos", "avatar", "adb"];
   return order.find((v) => !off.includes(v)) ?? "settings";
 }
 
@@ -1634,13 +1799,63 @@ function navLabel(a) {
   return copy.textContent.replace(/\s+/g, " ").trim();
 }
 
+/** The screens a nav link stands for: its own, or each tab of its group. */
+function navViews(a) {
+  return (a.dataset.views || a.dataset.view).split(" ");
+}
+
+/** Every switchable screen as [view, label], in menu order — a grouped entry
+    gives one per tab ("Library — Purchases"). The setup guide and the landing
+    picker list these. */
+function screenList() {
+  const out = [];
+  for (const a of el.navLinks) {
+    const v = a.dataset.view;
+    if (v === "settings" || v === "getapp") continue;
+    const group = a.dataset.views && SCREEN_GROUPS.find((g) => g.views.some(([x]) => x === v));
+    if (group) out.push(...group.views.map(([x, label]) => [x, `${group.name} — ${label}`]));
+    else out.push([v, navLabel(a)]);
+  }
+  return out;
+}
+
+/* The tab strip under a grouped screen's heading: links, one per tab still
+   switched on, the current one marked. Made the first time, then kept in step. */
+function syncScreenTabs(off) {
+  for (const g of SCREEN_GROUPS) {
+    const on = g.views.filter(([v]) => !off.has(v));
+    for (const [v] of g.views) {
+      const section = document.getElementById(`view-${v}`);
+      if (!section) continue;
+      let strip = section.querySelector(":scope > .screen-tabs");
+      if (!strip) {
+        strip = document.createElement("nav");
+        strip.className = "companion-tabs panel-tabs screen-tabs";
+        strip.setAttribute("aria-label", g.name);
+        section.querySelector(":scope > h2")?.after(strip);
+      }
+      strip.innerHTML = on
+        .map(
+          ([x, label]) =>
+            `<a class="companion-tab${x === v ? " on" : ""}" href="/${x}"${x === v ? ` aria-current="page"` : ""}>${esc(label)}</a>`
+        )
+        .join("");
+      /* One tab left is no choice: the heading stands alone. */
+      strip.hidden = on.length < 2;
+    }
+  }
+}
+
 function applyFeatureVisibility() {
   const off = new Set(loadSettings().sectionsOff);
   for (const a of el.navLinks) {
     const v = a.dataset.view;
     if (v === "settings" || v === "getapp") continue;
-    a.hidden = off.has(v);
+    const first = navViews(a).find((x) => !off.has(x));
+    a.hidden = !first;
+    if (a.dataset.views && first) a.setAttribute("href", `/${first}`);
   }
+  syncScreenTabs(off);
   for (const g of el.navGroups) {
     const links = [...g.querySelectorAll("a[data-view]")];
     g.hidden = links.length > 0 && links.every((a) => a.hidden);
@@ -1671,7 +1886,7 @@ function applyView() {
     }
   }
 
-  const views = ["mine", "purchases", "wishlist", "watchlist", "avatar", "devices", "updater", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
+  const views = ["home", "mine", "purchases", "credit", "wishlist", "people", "photos", "explore", "watchlist", "avatar", "devices", "updater", "worlds", "orgs", "default", "plus", "store", "adb", "companion", "settings", "getapp"];
   let view = views.includes(hash) && !(IN_APP && (hash === "adb" || hash === "companion")) ? hash : "apps";
   /* An address that names no screen (or a screen with parts it does not take) is
      the 404 screen, not a silent Apps and games. */
@@ -1687,13 +1902,22 @@ function applyView() {
   el.viewApps.hidden = view !== "apps";
   el.viewMine.hidden = view !== "mine";
   el.viewPurchases.hidden = view !== "purchases";
+  el.viewCredit.hidden = view !== "credit";
   el.viewWishlist.hidden = view !== "wishlist";
+  el.viewPeople.hidden = view !== "people";
+  if (view === "people") renderPeople();
+  el.viewExplore.hidden = view !== "explore";
+  el.viewPhotos.hidden = view !== "photos";
+  if (view === "photos") renderPhotos();
+  if (view === "explore") renderExplore();
   el.viewWatchlist.hidden = view !== "watchlist";
   el.viewAvatar.hidden = view !== "avatar";
   el.viewDevices.hidden = view !== "devices";
   el.viewUpdater.hidden = view !== "updater";
   el.viewNotfound.hidden = view !== "notfound";
   if (view === "notfound") el.notfoundPath.textContent = `/${routeParts().join("/")}`;
+  el.viewHome.hidden = view !== "home";
+  if (view === "home") renderHome();
   /* Next tick: the first applyView runs during module setup, before the Updater's
      constants further down exist. */
   if (view === "updater") setTimeout(renderUpdater, 0);
@@ -1726,18 +1950,27 @@ function applyView() {
   if ([...staleTables].some((t) => !onHiddenScreen(t))) renderAll();
 
   applyFeatureVisibility();
-  for (const a of el.navLinks) a.classList.toggle("on", a.dataset.view === view);
+  for (const a of el.navLinks) a.classList.toggle("on", navViews(a).includes(view));
   /* A menu is marked as the current one when the screen on show is one of its own. */
   for (const g of el.navGroups) {
     g.querySelector(".navtop").classList.toggle("on", !!g.querySelector("a.on"));
   }
   window.scrollTo(0, 0);
+  /* On a phone a grouped screen's tabs scroll sideways: bring the open one into
+     view rather than leave it past the edge. */
+  const tabStrip = document.getElementById(`view-${view}`)?.querySelector(":scope > .screen-tabs");
+  const openTab = tabStrip?.querySelector(".on");
+  if (openTab && tabStrip.scrollWidth > tabStrip.clientWidth) {
+    tabStrip.scrollLeft = 0;
+    const over = openTab.getBoundingClientRect().right - tabStrip.getBoundingClientRect().right + 48;
+    if (over > 0) tabStrip.scrollLeft = over;
+  }
 
   /* The screen that just arrived, not the one that left: a leaving screen
      would have to be kept on the page to be animated, and it is the arriving
      one the reader is looking for. */
   play(
-    [el.viewApps, el.viewMine, el.viewPurchases, el.viewWishlist, el.viewWatchlist, el.viewAvatar, el.viewDevices, el.viewUpdater, el.viewNotfound, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
+    [el.viewHome, el.viewApps, el.viewMine, el.viewPurchases, el.viewCredit, el.viewWishlist, el.viewPeople, el.viewPhotos, el.viewExplore, el.viewWatchlist, el.viewAvatar, el.viewDevices, el.viewUpdater, el.viewNotfound, el.viewWorlds, el.viewOrgs, el.viewDefault, el.viewPlus, el.viewStore, el.viewHeadset, el.viewCompanion, el.viewSettings].find(
       (s) => !s.hidden
     ),
     "view-in"
@@ -1754,6 +1987,25 @@ function applyView() {
 /* Apps published by the organization last looked up. They are ordinary store
    apps, so they render and expand through the same list code as every tab. */
 let orgList = [];
+/* Organizations already loaded this visit: id -> { list, at }. A lookup within
+   ORG_CACHE_MS is drawn from here at once instead of asked again. */
+const orgCache = new Map();
+const ORG_CACHE_MS = 10 * 60 * 1000;
+/* How many org rows are on screen in arrival order while a lookup streams in (so
+   each page only appends its new rows), or -1 when the table must be fully redrawn. */
+let orgDrawn = -1;
+/* Set when the streamed rows already stand in their final order, so the redraw at
+   the end of a lookup can be skipped — no flash, no images built twice. */
+let orgSkipRebuildOnce = false;
+let orgRenderTimer = 0;
+/* Org rows waiting to be drawn, in order, put in a hundred per animation frame
+   (pumpOrgRows) so a long organization never locks the page while it is drawn.
+   orgGen is bumped by every full redraw; a pump from an older one stops on its own.
+   orgAfterDrain runs once the queue is empty (the end-of-lookup tidy-up). */
+let orgQueue = [];
+let orgGen = 0;
+let orgPumping = false;
+let orgAfterDrain = null;
 let orgLoading = false;
 let orgAsked = false;
 let orgNote = "";
@@ -1787,25 +2039,769 @@ async function runOrgApps() {
   }
   if (orgLoading) return;
 
+  /* Looked up already this visit: drawn at once, no request. */
+  const hit = orgCache.get(id);
+  if (hit && Date.now() - hit.at < ORG_CACHE_MS) {
+    orgAsked = true;
+    orgNote = "";
+    orgList = hit.list;
+    setRoute({ org: id });
+    renderAll();
+    return;
+  }
+
   orgAsked = true;
   orgLoading = true;
   orgNote = "";
+  /* A new organization starts empty, so the last one's apps are not counted or
+     shown as this one's first page. */
+  orgList = [];
   el.orgGo.disabled = true;
   el.orgGo.textContent = "Loading…";
   renderAll();
 
+  /* Each page is drawn as it lands. With no filter and the default A–Z order (the
+     order the store sends), the new rows are appended and the rows already on screen
+     — and their images — are left alone, so nothing flickers or jumps. With a filter
+     or another sort, the table is redrawn instead, at most four times a second. */
+  const appendable = () =>
+    orgDrawn >= 0 &&
+    !el.orgQ.value.trim() &&
+    !el.orgPlatform.value &&
+    el.orgSort.value === "az" &&
+    !onHiddenScreen(el.orgRows);
+
   try {
-    orgList = await orgApps(id);
+    orgList = await orgApps(id, {
+      onPage: (list, more) => {
+        orgList = list;
+        if (more) el.orgGo.textContent = `Loading… ${list.length}`;
+        if (appendable() && orgDrawn <= list.length) {
+          /* Into the queue, drawn a hundred a frame behind any rows still going in. */
+          orgQueue.push(...list.slice(orgDrawn));
+          orgDrawn = list.length;
+          el.orgEmpty.hidden = list.length > 0;
+          if (more) el.orgCount.textContent = `${list.length} apps so far — asking for more…`;
+          pumpOrgRows();
+        } else if (!orgRenderTimer) {
+          orgRenderTimer = setTimeout(() => {
+            orgRenderTimer = 0;
+            renderOrgSection();
+          }, 250);
+        }
+      },
+    });
+    orgCache.set(id, { list: orgList, at: Date.now() });
     setRoute({ org: id });
   } catch (err) {
     orgList = [];
     orgNote = err.message || "Could not load the organization's apps.";
   } finally {
+    clearTimeout(orgRenderTimer);
+    orgRenderTimer = 0;
     orgLoading = false;
     el.orgGo.disabled = false;
     el.orgGo.textContent = "List apps";
-    renderAll();
+    /* Once every streamed row is in: if they already stand in the sorted order, the
+       final redraw is skipped — the table is right as it is. */
+    const finish = () => {
+      const want = orgVisible().map(keyOf).join("\n");
+      const have = [...el.orgRows.querySelectorAll(":scope > tr")].map((tr) => tr.dataset.id).join("\n");
+      orgSkipRebuildOnce = orgDrawn >= 0 && want === have;
+      renderAll();
+    };
+    if (orgPumping || orgQueue.length) orgAfterDrain = finish;
+    else finish();
   }
+}
+
+/* ---------- people ----------
+   The headset's People-tab lists (check.js): who you follow and who follows you,
+   follow requests, recently met, your lobby, and your chats. Each list is fetched
+   on Get people only, and kept for the visit, so switching back shows it again. */
+function initPeople() {
+  el.peopleGo?.addEventListener("click", loadPeople);
+  el.peopleQ?.addEventListener("input", renderPeople);
+  el.peopleShow?.addEventListener("change", renderPeople);
+  el.peopleKind?.addEventListener("change", renderPeople);
+  /* A person row opens to their profile; Get profile asks for it. */
+  el.peopleRows?.addEventListener("click", (e) => {
+    const get = e.target.closest("button[data-person-load]");
+    if (get) return loadPerson(get.dataset.personLoad);
+    if (e.target.closest("tr.detail")) return;
+    const row = e.target.closest("tr[data-person]");
+    if (row) togglePerson(row.dataset.person);
+  });
+  el.peopleRows?.addEventListener("keydown", (e) => {
+    const row = e.target.closest?.("tr[data-person]");
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      togglePerson(row.dataset.person);
+    }
+  });
+}
+
+function togglePerson(id) {
+  if (peopleOpen.has(id)) peopleOpen.delete(id);
+  else peopleOpen.add(id);
+  renderPeople();
+  el.peopleRows.querySelector(`tr[data-person="${CSS.escape(id)}"]`)?.focus();
+}
+
+async function loadPerson(id) {
+  if (personInfo.get(id)?.loading) return;
+  personInfo.set(id, { loading: true });
+  renderPeople();
+  try {
+    personInfo.set(id, { data: await personDetails(id) });
+  } catch (err) {
+    personInfo.set(id, { note: err.message || "Could not load this profile." });
+  }
+  renderPeople();
+}
+
+/** The open row under a person: their mini profile, once Get profile is pressed. */
+function personDetail(p) {
+  const info = personInfo.get(p.id);
+  let body;
+  if (!info) body = `<button type="button" data-person-load="${esc(p.id)}">Get profile</button>`;
+  else if (info.loading) body = `<button type="button" disabled>Loading…</button>`;
+  else if (info.note) body = `<p class="warn">${esc(info.note)}</p>`;
+  else {
+    const d = info.data;
+    const yn = (v) => (v == null ? null : v ? "Yes" : "No");
+    body = `${factGroups([
+      [
+        "Profile",
+        [
+          ["Account ID", p.id],
+          ["Username", d.alias ? `@${d.alias}` : null],
+          ["Followers", d.followers == null ? null : bigNumber(d.followers)],
+          ["Following", d.following == null ? null : bigNumber(d.following)],
+          ["Instagram", d.instagram?.length ? d.instagram.map((x) => `@${x}`).join(", ") : null],
+          ["Profile", d.privateProfile == null ? null : d.privateProfile ? "Private" : "Public"],
+          ["Facebook name", d.facebookName],
+          ["Doing now", d.presence],
+          ["Can call in VR", d.canCall ? words(d.canCall) : null],
+          ["Joinable now", yn(d.joinable)],
+          ["Unread messages", yn(d.unread)],
+        ],
+      ],
+    ])}${d.bio ? `<h3>Bio</h3><p>${esc(d.bio).replace(/\n/g, "<br>")}</p>` : ""}`;
+  }
+  return `<tr class="detail"><td colspan="4"><div class="panel">${body}</div></td></tr>`;
+}
+
+async function loadPeople() {
+  if (peopleState.loading) return;
+  const kind = el.peopleKind?.value || "follows";
+  peopleState.loading = true;
+  el.peopleGo.disabled = el.peopleKind.disabled = true;
+  el.peopleGo.textContent = "Loading…";
+  renderPeople();
+  /* The counts ride along with the first list asked for, once. */
+  const [list, counts] = await Promise.allSettled([
+    PEOPLE_KINDS[kind].load(),
+    peopleState.counts ? Promise.resolve(peopleState.counts) : peopleCounts(),
+  ]);
+  peopleState.lists[kind] =
+    list.status === "fulfilled"
+      ? { rows: list.value.people ?? list.value.chats ?? [], more: Boolean(list.value.more), note: "" }
+      : { rows: [], more: false, note: list.reason?.message || `Could not load ${PEOPLE_KINDS[kind].what}.` };
+  if (counts.status === "fulfilled") peopleState.counts = counts.value;
+  peopleState.loading = false;
+  el.peopleGo.disabled = el.peopleKind.disabled = false;
+  el.peopleGo.textContent = "Get people";
+  renderPeople();
+}
+
+function renderPeople() {
+  if (!el.peopleRows) return;
+  const kind = el.peopleKind?.value || "follows";
+  const isChats = kind === "chats";
+  /* How each person and you relate. The store's values, put in words; one it adds
+     later reads as itself rather than going blank. FOLLOWS_EACH_OTHER,
+     VIEWER_FOLLOWS_PROFILE, PROFILE_REQUESTED_FOLLOW and NO_FOLLOW are what the store
+     sends; PROFILE_FOLLOWS_VIEWER is the remaining case, for when it lists one. */
+  const relation = (f) =>
+    f === "FOLLOWS_EACH_OTHER"
+      ? "mutual"
+      : f === "PROFILE_REQUESTED_FOLLOW"
+        ? "requested"
+        : f === "PROFILE_FOLLOWS_VIEWER" || /FOLLOWED_BY|FOLLOWER$/.test(f || "")
+          ? "followers"
+          : f === "VIEWER_FOLLOWS_PROFILE" || /FOLLOWING|FOLLOWS$/.test(f || "")
+            ? "following"
+            : f === "NO_FOLLOW"
+              ? "none"
+              : "";
+  const relationText = (f) =>
+    ({
+      mutual: "Each other",
+      followers: "Follows you",
+      following: kind === "follows" ? "Doesn't follow you back" : "You follow them",
+      requested: "Wants to follow you",
+      none: "Neither follows",
+    })[relation(f)] ||
+    (f ? String(f).toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : "—");
+
+  el.peopleHead.innerHTML = (isChats ? ["Chat", "Status", "Last message", "Kind"] : ["Person", "Status", "Follow", "Can message"])
+    .map((h) => `<th scope="col">${h}</th>`)
+    .join("");
+  /* The follow filters mean nothing for a chat; there "online" is "someone's in it". */
+  for (const o of el.peopleShow.options) o.hidden = isChats && (o.value === "mutual" || o.value === "following");
+  if (isChats && ["mutual", "following"].includes(el.peopleShow.value)) el.peopleShow.value = "all";
+
+  const state = peopleState.lists[kind];
+  const all = state?.rows ?? [];
+  const q = el.peopleQ.value.trim().toLowerCase();
+  const show = el.peopleShow.value;
+  const named = (p) => p.name.toLowerCase().includes(q) || (p.alias || "").toLowerCase().includes(q);
+  const live = (p) => (isChats ? p.active || p.members.some((m) => m.online) : p.online);
+  const shown = all
+    .filter((p) => !q || named(p) || (p.members ?? []).some(named))
+    .filter((p) => {
+      if (show === "online") return live(p);
+      if (isChats) return true;
+      const r = relation(p.follow);
+      if (show === "mutual") return r === "mutual";
+      if (show === "following") return r === "following";
+      return true;
+    });
+  /* Recently met keeps the store's order (latest first), suggestions its ranking,
+     and chats theirs (latest message first); the other lists put who is online
+     first, then by name. */
+  if (kind !== "met" && kind !== "suggested" && !isChats)
+    shown.sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+
+  const showArt = loadSettings().images;
+  const pic = (photo) =>
+    showArt && photo
+      ? `<img class="art" src="${esc(photo)}" alt="" loading="lazy">`
+      : showArt
+        ? `<span class="art art-fill" aria-hidden="true"></span>`
+        : "";
+  el.peopleRows.innerHTML = shown
+    .map((p) => {
+      if (isChats) {
+        const on = p.members.filter((m) => m.online).length;
+        const now = p.active ? "Someone's in it now" : on ? `${on} online` : "";
+        return `<tr>
+          <td class="name">${pic(p.photo)}<strong>${esc(p.name)}</strong>${
+            p.oneToOne ? "" : ` <span class="ppl-alias">${p.members.length ? `${p.members.length + 1} people` : "just you"}</span>`
+          }</td>
+          <td>${p.unread ? `<span class="ppl-on">Unread</span>` : `<span class="ppl-off">Read</span>`}${
+            now ? `<div class="ppl-pres">${esc(now)}</div>` : ""
+          }</td>
+          <td>${p.snippet ? esc(p.snippet) : "—"}</td>
+          <td>${p.oneToOne ? "One to one" : "Group"}</td>
+        </tr>`;
+      }
+      /* The store's own line for what they are doing — unless it only says "online",
+         which the status already does — and, for recently met, where and when. */
+      const met = [p.met, p.metAt ? `Last met ${agoText(p.metAt)}` : null].filter(Boolean).join(" · ");
+      const lines = [p.presence && !/^online( now)?$/i.test(p.presence) ? p.presence : null, met || null, p.context]
+        .filter(Boolean)
+        .map((t) => `<div class="ppl-pres">${esc(t)}</div>`)
+        .join("");
+      const open = peopleOpen.has(p.id);
+      return `<tr class="app" tabindex="0" data-person="${esc(p.id)}" aria-expanded="${open}">
+        <td class="name">${pic(p.photo)}<strong>${esc(p.name)}</strong>${
+          p.alias && p.alias !== p.name ? ` <span class="ppl-alias">@${esc(p.alias)}</span>` : ""
+        }</td>
+        <td>${p.online ? `<span class="ppl-on">Online</span>` : `<span class="ppl-off">Offline</span>`}${lines}</td>
+        <td>${esc(relationText(p.follow))}</td>
+        <td>${p.canMessage ? "Yes" : "No"}</td>
+      </tr>${open ? personDetail(p) : ""}`;
+    })
+    .join("");
+
+  const c = peopleState.counts;
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const totals =
+    c && kind === "follows"
+      ? [
+          c.followers != null ? plural(c.followers, "follower") : null,
+          c.following != null ? `${c.following} following` : null,
+          c.requests ? plural(c.requests, "follow request") : null,
+          c.recentlyMet ? `${c.recentlyMet} recently met` : null,
+        ].filter(Boolean).join(" · ")
+      : isChats
+        ? plural(all.length, "chat")
+        : `${all.length} ${all.length === 1 ? "person" : "people"}`;
+  const tally = isChats ? `${all.filter((p) => p.unread).length} unread` : `${all.filter(live).length} online`;
+  el.peopleCount.textContent = peopleState.loading
+    ? "Asking the store…"
+    : !state || state.note || (!all.length && kind !== "follows")
+      ? ""
+      : `${totals}${state.more && kind !== "follows" ? ", more on the headset" : ""} — ${tally}${
+          shown.length !== all.length ? `, showing ${shown.length} of ${all.length}` : ""
+        }.`;
+
+  el.peopleEmpty.hidden = shown.length > 0 || peopleState.loading;
+  el.peopleEmpty.textContent = state?.note
+    ? state.note
+    : !state
+      ? `Press Get people to list ${PEOPLE_KINDS[kind].what}.`
+      : all.length
+        ? "Nobody matches."
+        : PEOPLE_KINDS[kind].none;
+  el.peopleEmpty.classList.toggle("warn", Boolean(state?.note));
+}
+
+/* ---------- search everything ----------
+   The headset's own search box (globalSearch in check.js): apps, movies, TV series,
+   sports events, Xbox cloud games and people. Fetched on Search only. An app opens
+   its panel; an Xbox game opens Xbox Cloud Gaming in a new tab. */
+
+function initExplore() {
+  el.exploreGo?.addEventListener("click", runExplore);
+  el.exploreQ?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      runExplore();
+    }
+  });
+  el.exploreShow?.addEventListener("change", renderExplore);
+  const open = (row) => {
+    if (row.dataset.app) openAppById(row.dataset.app);
+    else if (row.dataset.link) window.open(row.dataset.link, "_blank", "noopener");
+  };
+  el.exploreRows?.addEventListener("click", (e) => {
+    if (e.target.closest("tr.detail")) return;
+    const media = e.target.closest("tr[data-media]");
+    if (media) return toggleMedia(media.dataset.media);
+    const row = e.target.closest("tr[data-app], tr[data-link]");
+    if (row) open(row);
+  });
+  el.exploreRows?.addEventListener("keydown", (e) => {
+    const row = e.target.closest?.("tr[data-app], tr[data-link], tr[data-media]");
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      if (row.dataset.media) toggleMedia(row.dataset.media);
+      else open(row);
+    }
+  });
+}
+
+async function runExplore() {
+  /* An empty box is the headset's suggestions. */
+  const text = el.exploreQ.value.trim();
+  if (exploreState.loading) return;
+  Object.assign(exploreState, { query: text, loading: true, note: "" });
+  el.exploreGo.disabled = true;
+  el.exploreGo.textContent = "Searching…";
+  renderExplore();
+  try {
+    exploreState.result = await globalSearch(text);
+  } catch (err) {
+    exploreState.result = null;
+    exploreState.note = err.message || "The search failed.";
+  }
+  exploreState.loading = false;
+  el.exploreGo.disabled = false;
+  el.exploreGo.textContent = "Search";
+  renderExplore();
+}
+
+function renderExplore() {
+  if (!el.exploreRows) return;
+  const r = exploreState.result;
+  const show = el.exploreShow.value;
+  const art = loadSettings().images;
+  const when = (sec) =>
+    new Date(sec * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const details = (kind, x) => {
+    switch (kind) {
+      case "apps":
+        return [x.packageName, x.lastOpened ? `opened ${agoText(x.lastOpened)}` : null].filter(Boolean).join(" · ");
+      case "movies":
+        return [x.year, x.genre, x.runtime ? `${Math.round(x.runtime / 60)} min` : null].filter(Boolean).join(" · ");
+      case "series":
+        return [x.year, x.genre, x.seasons ? `${x.seasons} season${x.seasons === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ");
+      case "sports":
+        return [x.live ? "Live now" : x.start ? when(x.start) : null, x.app ? `on ${x.app}` : null].filter(Boolean).join(" · ");
+      case "xbox":
+        return x.link ? "Play in the browser →" : null;
+      case "people":
+        return [x.alias ? `@${x.alias}` : null, x.presence].filter(Boolean).join(" · ");
+      case "events":
+        return x.start ? when(x.start) : null;
+      case "websites":
+        return x.link ? x.link.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
+    }
+    return null;
+  };
+  const rows = r
+    ? EXPLORE_KINDS.filter(([k]) => show === "all" || show === k).flatMap(([k, label]) => r[k].map((x) => ({ k, label, x })))
+    : [];
+  el.exploreRows.innerHTML = rows
+    .map(({ k, label, x }) => {
+      const isMedia = k === "movies" || k === "series";
+      const act =
+        k === "apps"
+          ? ` data-app="${esc(x.id)}"`
+          : isMedia
+            ? ` data-media="${esc(x.id)}" aria-expanded="${mediaOpen.has(x.id)}"`
+            : (k === "xbox" || k === "websites") && x.link
+              ? ` data-link="${esc(x.link)}"`
+              : "";
+      const pic = art
+        ? x.image
+          ? `<img class="art" src="${esc(x.image)}" alt="" loading="lazy">`
+          : `<span class="art art-fill" aria-hidden="true"></span>`
+        : "";
+      return `<tr${act ? ` class="app" tabindex="0"${act}` : ""}>
+        <td class="name">${pic}<span class="ex-title">${esc(x.title)}<span class="ex-kind">${esc(label)}</span></span></td>
+        <td class="ex-detail">${esc(details(k, x) || "—")}</td>
+      </tr>${isMedia && mediaOpen.has(x.id) ? mediaDetailRow(x.id) : ""}`;
+    })
+    .join("");
+
+  const total = r ? EXPLORE_KINDS.reduce((n, [k]) => n + r[k].length, 0) : 0;
+  const parts = r
+    ? EXPLORE_KINDS.filter(([k]) => r[k].length).map(([k]) => {
+        const n = r[k].length;
+        const [one, many] = {
+          apps: ["app", "apps"],
+          movies: ["movie", "movies"],
+          series: ["TV series", "TV series"],
+          sports: ["sports event", "sports events"],
+          xbox: ["Xbox cloud game", "Xbox cloud games"],
+          people: ["person", "people"],
+          events: ["event", "events"],
+          websites: ["website", "websites"],
+        }[k];
+        return `${n} ${n === 1 ? one : many}`;
+      })
+    : [];
+  el.exploreCount.textContent = exploreState.loading
+    ? "Asking the store…"
+    : r && total
+      ? `${exploreState.query ? `"${exploreState.query}"` : "Suggested before you type"}: ${parts.join(" · ")}.`
+      : "";
+  el.exploreEmpty.hidden = rows.length > 0 || exploreState.loading;
+  el.exploreEmpty.textContent = exploreState.note
+    ? exploreState.note
+    : !r
+      ? "Type something and press Search — or press Search with the box empty for the headset's suggestions."
+      : total
+        ? "Nothing of that kind matched."
+        : `Nothing matched "${exploreState.query}".`;
+  el.exploreEmpty.classList.toggle("warn", Boolean(exploreState.note));
+}
+
+/* ---------- photos ----------
+   The headset Gallery's own list (headsetPhotos in check.js): thumbnails in a grid,
+   each opening its full-size copy. Fetched on Get photos, then a page per Load more. */
+function initPhotos() {
+  el.photoGo?.addEventListener("click", () => loadPhotos(true));
+  el.photoMore?.addEventListener("click", () => loadPhotos(false));
+  el.photoShow?.addEventListener("change", renderPhotos);
+  el.photoFrom?.addEventListener("change", renderPhotos);
+  el.photoTo?.addEventListener("change", renderPhotos);
+}
+
+/* Get photos loads every page, drawing each as it lands; the button counts as it
+   goes. The date range filters what is loaded, so it is exact and costs nothing.
+   Load more stays for a load that stopped part-way (a page that failed). */
+async function loadPhotos(fresh) {
+  if (photoState.loading) return;
+  if (fresh) Object.assign(photoState, { items: [], cursor: null });
+  Object.assign(photoState, { loading: true, asked: true, note: "" });
+  const button = fresh ? el.photoGo : el.photoMore;
+  const label = button.textContent;
+  button.disabled = true;
+  try {
+    for (let guard = 0; guard < 200; guard++) {
+      button.textContent = photoState.items.length ? `Loading… ${photoState.items.length}` : "Loading…";
+      renderPhotos();
+      const page = await headsetPhotos(photoState.cursor);
+      const have = new Set(photoState.items.map((x) => x.id));
+      photoState.items.push(...page.items.filter((x) => !have.has(x.id)));
+      photoState.cursor = page.cursor;
+      if (!page.cursor) break;
+    }
+  } catch (err) {
+    photoState.note = err.message || "Could not load your photos.";
+  }
+  photoState.loading = false;
+  button.disabled = false;
+  button.textContent = label;
+  renderPhotos();
+}
+
+function renderPhotos() {
+  if (!el.photoGrid) return;
+  const show = el.photoShow.value;
+  const all = photoState.items;
+  /* The date boxes, as seconds: from the start of the first day to the end of the last. */
+  const secs = (v, end) => (v ? Math.floor(new Date(`${v}T${end ? "23:59:59" : "00:00:00"}`).getTime() / 1000) : null);
+  const from = secs(el.photoFrom.value, false);
+  const to = secs(el.photoTo.value, true);
+  const shown = all.filter(
+    (x) =>
+      (show === "photos" ? !x.video : show === "videos" ? x.video : show === "favorites" ? x.favorite : true) &&
+      (from == null || (x.taken && x.taken >= from)) &&
+      (to == null || (x.taken && x.taken <= to))
+  );
+  const day = (sec) => new Date(sec * 1000).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  const len = (ms) => {
+    const s = Math.round(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+  el.photoGrid.innerHTML = shown
+    .map((x) => {
+      const where = x.world || x.app || "Headset";
+      const label = `${x.video ? "Video" : "Photo"} from ${where}${x.taken ? `, ${day(x.taken)}` : ""}`;
+      return `<a class="photo" href="${esc(x.url)}" target="_blank" rel="noopener" aria-label="${esc(label)}">
+        <img src="${esc(x.thumb)}" alt="" loading="lazy">
+        ${x.video ? `<span class="photo-badge">${x.duration ? esc(len(x.duration)) : "Video"}</span>` : ""}
+        <span class="photo-cap"><span class="photo-where">${esc(where)}</span>${
+          x.taken ? `<span class="photo-when">${esc(day(x.taken))}${x.favorite ? " · Favourite" : ""}</span>` : ""
+        }</span>
+      </a>`;
+    })
+    .join("");
+  const videos = all.filter((x) => x.video).length;
+  el.photoCount.textContent = photoState.loading && !all.length
+    ? "Asking the store…"
+    : all.length
+      ? `${all.length - videos} photo${all.length - videos === 1 ? "" : "s"} and ${videos} video${videos === 1 ? "" : "s"}${
+          photoState.loading ? " so far" : photoState.cursor ? " — stopped part-way; Load more carries on" : ""
+        }${shown.length !== all.length ? `, showing ${shown.length}` : ""}.`
+      : "";
+  el.photoEmpty.hidden = shown.length > 0 || (photoState.loading && !all.length);
+  el.photoEmpty.textContent = photoState.note
+    ? photoState.note
+    : !photoState.asked
+      ? "Press Get photos to list what your headsets have uploaded."
+      : all.length
+        ? photoState.cursor
+          ? "Nothing of that kind so far — Load more carries on from where it stopped."
+          : "Nothing matches that kind and those dates."
+        : "Your headsets haven't uploaded any photos or videos.";
+  el.photoEmpty.classList.toggle("warn", Boolean(photoState.note));
+  el.photoMoreBar.hidden = !photoState.cursor || photoState.loading;
+}
+
+/* ---------- store credit (Library → Store credit) ---------- */
+function initCredit() {
+  el.creditGo?.addEventListener("click", loadCredit);
+}
+
+async function loadCredit() {
+  el.creditGo.disabled = true;
+  el.creditGo.textContent = "Loading…";
+  el.creditCount.textContent = "Asking the store…";
+  try {
+    const [h, refs] = await Promise.all([storeCreditHistory(), storeReferrals().catch(() => null)]);
+    const day = (sec) => new Date(sec * 1000).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    el.creditRows.innerHTML = h.entries
+      .map(
+        (e) => `<tr>
+          <td>${esc(e.title || words(e.type || "") || "—")}${e.detail ? `<div class="ppl-pres">${esc(e.detail)}</div>` : ""}</td>
+          <td>${e.time ? esc(day(e.time)) : "—"}</td>
+          <td class="num">${esc(e.amount || "—")}</td>
+        </tr>`
+      )
+      .join("");
+    el.creditCount.textContent = `Balance ${h.balance ?? "unknown"} — ${h.entries.length} entr${h.entries.length === 1 ? "y" : "ies"}${
+      h.more ? ", the most recent ones" : ""
+    }.${
+      refs
+        ? ` App referrals: ${refs.accepted} accepted, ${refs.earned ?? "$0"} earned this year${refs.limit ? ` of ${refs.limit}` : ""}.`
+        : ""
+    }`;
+    el.creditTable.hidden = !h.entries.length;
+    el.creditEmpty.hidden = Boolean(h.entries.length);
+    el.creditEmpty.classList.remove("warn");
+    el.creditEmpty.textContent = "Nothing has added to or been paid from your store credit.";
+  } catch (err) {
+    el.creditRows.innerHTML = "";
+    el.creditTable.hidden = true;
+    el.creditCount.textContent = "";
+    el.creditEmpty.hidden = false;
+    el.creditEmpty.classList.add("warn");
+    el.creditEmpty.textContent = err.message || "Could not load your credit history.";
+  }
+  el.creditGo.disabled = false;
+  el.creditGo.textContent = "Get credit history";
+}
+
+/* A movie or series opens to its page (mediaDetails, fetched when the row opens):
+   the art, what it is about, and where to watch it — each provider a link that
+   opens the title on that service. */
+function toggleMedia(id) {
+  if (mediaOpen.has(id)) mediaOpen.delete(id);
+  else {
+    mediaOpen.add(id);
+    if (!mediaInfo.has(id)) loadMedia(id);
+  }
+  renderExplore();
+  el.exploreRows.querySelector(`tr[data-media="${CSS.escape(id)}"]`)?.focus();
+}
+
+async function loadMedia(id) {
+  mediaInfo.set(id, { loading: true });
+  try {
+    mediaInfo.set(id, { data: await mediaDetails(id) });
+  } catch (err) {
+    mediaInfo.set(id, { note: err.message || "Could not load this title." });
+  }
+  renderExplore();
+}
+
+function mediaDetailRow(id) {
+  const info = mediaInfo.get(id);
+  let body;
+  if (!info || info.loading) body = `<p class="muted">Loading…</p>`;
+  else if (info.note) body = `<p class="warn">${esc(info.note)}</p>`;
+  else {
+    const m = info.data;
+    const len = m.runtime ? `${Math.floor(m.runtime / 3600) ? `${Math.floor(m.runtime / 3600)} h ` : ""}${Math.round((m.runtime % 3600) / 60)} min` : null;
+    const watch = m.watch.length
+      ? `<h3>Where to watch</h3><ul class="watch-list">${m.watch
+          .map((w) =>
+            w.url
+              ? `<li><a class="linkbtn" href="${esc(w.url)}" target="_blank" rel="noopener">${esc(w.provider)}</a></li>`
+              : `<li>${esc(w.provider)}</li>`
+          )
+          .join("")}</ul>`
+      : `<p class="hint">The store lists nowhere to watch it right now.</p>`;
+    body = `<div class="media-detail">${
+      loadSettings().images && m.art ? `<img class="media-art" src="${esc(m.art)}" alt="" loading="lazy">` : ""
+    }<div class="media-text">${factGroups([
+      [
+        m.kind === "series" ? "TV series" : "Movie",
+        [
+          ["Genres", m.genres.join(", ")],
+          ["Year", m.year ? String(m.year) : null],
+          [m.kind === "series" ? "Seasons" : "Length", m.kind === "series" ? (m.seasons ? String(m.seasons) : null) : len],
+          ["Age rating", m.rating],
+        ],
+      ],
+    ])}${m.description ? `<p>${esc(m.description)}</p>` : ""}${watch}</div></div>`;
+  }
+  return `<tr class="detail"><td colspan="2"><div class="panel">${body}</div></td></tr>`;
+}
+
+/* ---------- a revision's details (an app's Revisions table) ----------
+   A revision opens to what it was: its review and release state, the build it
+   shipped and the store listing it set (submissionDetail), plus what changed
+   since the revision before it, which is asked for alongside. Fetched when the
+   row is opened, kept for the visit; switchable under Extra lookups. */
+function initRevisions() {
+  const toggle = (row) => {
+    const id = row.dataset.rev;
+    if (revOpen.has(id)) {
+      revOpen.delete(id);
+      row.nextElementSibling?.matches(".rev-detail") && row.nextElementSibling.remove();
+    } else {
+      revOpen.add(id);
+      /* A failed read is asked again on the next open (after signing in, say). */
+      if (!revInfo.has(id) || revInfo.get(id).note) loadRevision(id);
+      row.insertAdjacentHTML("afterend", revDetailRow(id));
+    }
+    row.setAttribute("aria-expanded", String(revOpen.has(id)));
+  };
+  document.addEventListener("click", (e) => {
+    const row = e.target.closest?.(".revisions tr.rev-row");
+    if (row) toggle(row);
+  });
+  document.addEventListener("keydown", (e) => {
+    const row = e.target.closest?.(".revisions tr.rev-row");
+    if (row && e.target === row && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      toggle(row);
+    }
+  });
+}
+
+async function loadRevision(id) {
+  revInfo.set(id, { loading: true });
+  try {
+    const data = await submissionDetail(id);
+    /* The one before it, to say what changed; a refusal just leaves that out. */
+    const prev = data.previousId ? await submissionDetail(data.previousId).catch(() => null) : null;
+    revInfo.set(id, { data, prev });
+  } catch (err) {
+    revInfo.set(id, { note: err.message || "Could not load this revision." });
+  }
+  /* Redraw every open copy of it (the row may be in the inline panel and the overlay). */
+  for (const cell of document.querySelectorAll(`tr.rev-detail[data-rev-detail="${CSS.escape(id)}"]`)) {
+    cell.outerHTML = revDetailRow(id);
+  }
+}
+
+/* A revision's fields as [group, label, value] rows, the shape both the facts and
+   the comparison read. */
+function revisionFields(d) {
+  const yn = (v) => (v == null ? null : v ? "Yes" : "No");
+  const L = d.listing;
+  return [
+    ["Submission", "Status", d.status],
+    ["Submission", "Review", d.reviewStatus],
+    ["Submission", "Release type", d.releaseType],
+    ["Submission", "Release status", d.releaseStatus],
+    ["Submission", "Published", d.publishDate],
+    ["Submission", "Approved automatically", yn(d.autoApproved)],
+    ["Submission", "First release", yn(d.isInitial)],
+    ["Submission", "Previous revision", d.previousId],
+    ["Build", "Version", d.binary?.version],
+    ["Build", "Mode", d.binary?.appMode],
+    ["Build", "Release status", d.binary?.releaseStatus],
+    ["Build", "Binary ID", d.binary?.id],
+    ["Store listing", "Publisher", L.publisher],
+    ["Store listing", "Website", L.website],
+    ["Store listing", "Category", L.category],
+    ["Store listing", "Genres", L.genres.join(", ")],
+    ["Store listing", "Comfort", L.comfort],
+    ["Store listing", "Play area", L.playArea],
+    ["Store listing", "Internet", L.internet],
+    ["Store listing", "Subscription", L.subscription],
+    ["Store listing", "Early access", L.earlyAccess],
+    ["Store listing", "Languages", L.languages.join(", ")],
+    ["Store listing", "Age rating certificate", L.iarc],
+  ];
+}
+
+function revDetailRow(id) {
+  const info = revInfo.get(id);
+  let body;
+  if (!info || info.loading) body = `<p class="muted">Loading…</p>`;
+  else if (info.note) body = `<p class="warn">${esc(info.note)}</p>`;
+  else {
+    const now = revisionFields(info.data);
+    const groups = [];
+    for (const [g, label, value] of now) {
+      let grp = groups.find(([t]) => t === g);
+      if (!grp) groups.push((grp = [g, []]));
+      grp[1].push([label, value]);
+    }
+    /* What differs from the revision before in its build and listing, field by
+       field. Its own state and dates always differ, and so do the identifiers, so
+       those are left out. */
+    let changes = "";
+    if (info.prev) {
+      const before = new Map(revisionFields(info.prev).map(([g, l, v]) => [`${g}|${l}`, v]));
+      const diff = now.filter(
+        ([g, l, v]) => g !== "Submission" && l !== "Binary ID" && (v || null) !== (before.get(`${g}|${l}`) || null)
+      );
+      changes = diff.length
+        ? `<h4>Changed since the revision before</h4><ul class="rev-changes">${diff
+            .map(
+              ([g, l, v]) =>
+                `<li><span class="rev-field">${esc(g === "Build" ? `Build ${l.toLowerCase()}` : l)}</span> ${esc(before.get(`${g}|${l}`) || "—")} → ${esc(v || "—")}</li>`
+            )
+            .join("")}</ul>`
+        : `<p class="hint">Nothing in its build or listing changed since the revision before.</p>`;
+    } else if (info.data.previousId) {
+      changes = `<p class="hint">The revision before it could not be read, so what changed is not shown.</p>`;
+    }
+    body = `${factGroups(groups)}${changes}`;
+  }
+  return `<tr class="detail rev-detail" data-rev-detail="${esc(id)}"><td colspan="4"><div class="rev-body">${body}</div></td></tr>`;
 }
 
 function initOrgs() {
@@ -1904,13 +2900,13 @@ async function runDefaultApps() {
 
 /* ---------- horizon+ ---------- */
 
-/* Narrowed to monthly or catalog, filtered by the box and sorted — all on the
+/* Narrowed to one section, filtered by the box and sorted — all on the
    already-fetched list. */
 function plusVisible() {
   const q = el.plusQ.value.trim().toLowerCase();
   const pick = el.plusPick.value;
   return sorted(
-    plusState.rows.filter((a) => (!pick || a.plus === pick) && matches(a, q)),
+    plusState.rows.filter((a) => (!pick || a.plusSections?.includes(pick)) && matches(a, q)),
     el.plusSort.value
   );
 }
@@ -1933,9 +2929,41 @@ async function runHorizonPlus() {
   renderAll();
 
   try {
-    plusState.rows = await horizonPlus();
+    /* The Store tab's sections, each loaded in full; the subscription's own list
+       says which games this account has claimed. Either alone is enough. */
+    const [sections, own] = await Promise.all([
+      horizonPlusSections().catch(() => []),
+      horizonPlus().catch(() => []),
+    ]);
+    const claimedIds = new Set(own.filter((a) => a.claimed).map((a) => a.id));
+    const byId = new Map();
+    const others = [];
+    const parts = await mapLimit(sections, 3, (s) => horizonPlusSection(s.id).catch(() => ({ apps: [], others: [] })));
+    sections.forEach((s, i) => {
+      for (const app of parts[i].apps) {
+        const row = byId.get(app.id) ?? { ...app, plusSections: [], plusNames: [] };
+        row.plusSections.push(s.id);
+        row.plusNames.push(s.name);
+        row.claimed = row.claimed || app.claimed || claimedIds.has(app.id);
+        byId.set(app.id, row);
+      }
+      for (const o of parts[i].others) others.push({ ...o, section: s.name, sectionId: s.id });
+    });
+    /* No sections came back (no Meta sign-in, say): the subscription's own two
+       lists, this month's games and the catalog, which the access token reads. */
+    if (!sections.length) {
+      for (const a of own) byId.set(a.id, { ...a, plusSections: [a.plus], plusNames: [a.plus === "monthly" ? "This month's games" : "Games catalog"] });
+    }
+    plusState.sections = sections.length
+      ? sections
+      : [{ id: "monthly", name: "This month's games" }, { id: "catalog", name: "Games catalog" }];
+    plusState.rows = [...byId.values()];
+    plusState.others = others;
+    el.plusPick.replaceChildren(new Option("Every section", ""), ...plusState.sections.map((s) => new Option(s.name, s.id)));
+    if (!plusState.rows.length && !others.length) throw new Error("the store returned no Horizon+ catalog for this account");
   } catch (err) {
     plusState.rows = [];
+    plusState.others = [];
     plusState.note = err.message || "Could not load the Horizon+ games.";
   } finally {
     plusState.loading = false;
@@ -1944,6 +2972,27 @@ async function runHorizonPlus() {
     renderAll();
     syncRelayNote();
   }
+}
+
+/* What Horizon+ carries that is not a Quest app — Xbox cloud games, movies and
+   series — in its own table under the games, narrowed by the same section picker
+   and filter box. */
+function renderPlusOthers() {
+  if (!el.plusOtherRows) return;
+  const q = el.plusQ.value.trim().toLowerCase();
+  const pick = el.plusPick.value;
+  const shown = plusState.others.filter((o) => (!pick || o.sectionId === pick) && (!q || o.title.toLowerCase().includes(q)));
+  const art = loadSettings().images;
+  el.plusOtherRows.innerHTML = shown
+    .map(
+      (o) => `<tr>
+        <td class="name">${art ? (o.image ? `<img class="art" src="${esc(o.image)}" alt="" loading="lazy">` : `<span class="art art-fill" aria-hidden="true"></span>`) : ""}<span class="ex-title">${esc(o.title)}<span class="ex-kind">${esc(o.kind)}</span></span></td>
+        <td>${esc(o.section)}</td>
+        <td class="ex-detail">${esc([o.genres.slice(0, 3).join(", "), o.note].filter(Boolean).join(" · ") || "—")}</td>
+      </tr>`
+    )
+    .join("");
+  el.plusOthers.hidden = !shown.length;
 }
 
 /* ---------- store front ---------- */
@@ -2005,9 +3054,12 @@ async function runStoreFront(viewId) {
       g.append(...options(list));
       return g;
     };
+    /* With a Meta sign-in, the headset Store's own picks for this account too. */
+    const { frlToken } = loadSettings();
+    const forYou = (frlToken || "").trim() ? [FOR_YOU_SECTION] : [];
     el.storeSection.replaceChildren(
-      ...(charts.length
-        ? [group("Sections", front.sections), group("Top charts", charts)]
+      ...(charts.length || forYou.length
+        ? [group("Sections", front.sections), ...(forYou.length ? [group("For you", forYou)] : []), ...(charts.length ? [group("Top charts", charts)] : [])]
         : options(front.sections))
     );
     if (!front.sections.length) storeState.note = "The store lists no sections for this headset.";
@@ -2031,7 +3083,7 @@ async function runStoreFront(viewId) {
 
 /** List one section's apps from the top. */
 function loadStoreSection(id) {
-  const section = [...(storeState.front?.sections ?? []), ...storeState.charts].find((s) => s.id === id);
+  const section = [...(storeState.front?.sections ?? []), ...storeState.charts, FOR_YOU_SECTION].find((s) => s.id === id);
   if (!section) return;
   Object.assign(storeState, { section, rows: [], cursor: null, note: "" });
   el.storeSection.value = id;
@@ -2328,8 +3380,10 @@ async function loadHeadsetApps() {
    entitlements often arrive after the headset list, and this is what lets the
    rows fill in when they do. */
 function ownedByPackage() {
+  /* Across every loaded library, not just the one on screen, so a headset app is
+     still matched to its entitlement when the PC library is the one displayed. */
   return new Map(
-    mineList.filter((a) => a.packageName).map((a) => [a.packageName, a])
+    [...ownedAcross.values()].filter((a) => a.packageName).map((a) => [a.packageName, a])
   );
 }
 
@@ -2397,9 +3451,10 @@ function adbRow(app) {
   tr.setAttribute("aria-expanded", String(open.has(key)));
   tr.innerHTML = `
     <td class="name">${
-      showArt && app.image
-        ? `<img class="art" src="${esc(app.image)}" alt="" loading="lazy">`
-        : ""
+      /* The store's icon, else the one the headset itself has installed. */
+      showArt && (appArt(app) || dgHeadsetIcon(app.packageName))
+        ? `<img class="art" src="${esc(appArt(app) || dgHeadsetIcon(app.packageName))}" alt="" loading="lazy">`
+        : rowArt(app, showArt)
     }${esc(app.name)}</td>
     <td class="num">${esc(app.installedVersion ?? "—")}</td>
     <td class="num c-build">${app.installedVersionCode ?? "—"}</td>
@@ -2694,6 +3749,33 @@ function addHistory(entry) {
   try {
     const list = [{ at: Date.now(), ...entry }, ...readHistory()].slice(0, HISTORY_MAX);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+/* ---------- recently viewed ----------
+   The apps whose panel was opened on this browser, newest first — purely local,
+   so the home dashboard has something to show without a request. RECENT_KEY/MAX are
+   declared up by WATCH_KEY (init-order rule); squareArt is a hoisted function
+   further down, safe to call here. */
+function readRecent() {
+  try {
+    const v = JSON.parse(localStorage.getItem(RECENT_KEY));
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+function pushRecent(app) {
+  if (!app?.id || !app.name) return;
+  try {
+    const id = String(app.id);
+    const cur = readRecent();
+    /* Already the most recent: do nothing, so a re-render of an open panel does
+       not churn the list or its timestamps. */
+    if (cur[0]?.id === id) return;
+    const rest = cur.filter((r) => r.id !== id);
+    const entry = { id, name: app.name, image: squareArt(app) ?? app.image ?? null, slug: app.slug ?? null, platform: app.platform ?? null, at: Date.now() };
+    localStorage.setItem(RECENT_KEY, JSON.stringify([entry, ...rest].slice(0, RECENT_MAX)));
   } catch {}
 }
 
@@ -3092,6 +4174,7 @@ async function signOut() {
   if (el.frlToken) el.frlToken.value = "";
   if (el.updToken) el.updToken.value = "";
   mineList = [];
+  ownedAcross = new Map();
   adbApps = [];
   dgState.loaded = false;
   dgState.selected = null;
@@ -3156,9 +4239,9 @@ function dgSideApp(pkg) {
    A repo is linked to an app by its package (or, before the app is installed, by
    gh:owner/repo, moved to the package the first time one of its APKs is saved or
    installed). Kept in this headset's localStorage: it is a convenience, and the
-   backups themselves remember which repo a copy came from. */
-const REPOS_KEY = "metadb.githubRepos";
-
+   backups themselves remember which repo a copy came from. REPOS_KEY is declared
+   up by WATCH_KEY (init-order rule), since the home dashboard reads it on a deep
+   link during module setup. */
 function readRepos() {
   try {
     return JSON.parse(localStorage.getItem(REPOS_KEY)) ?? {};
@@ -3343,6 +4426,57 @@ function squareArt(app) {
   }
   return app?.image ?? null;
 }
+/** The one icon an app row shows, wherever it is drawn: an icon fetched by ID this
+    visit, else the square cover or launcher icon the list carried, else its image. */
+function appArt(app) {
+  return (app?.id != null && iconCache.get(String(app.id))) || squareArt(app) || null;
+}
+
+/** Which store to ask for an app's icon, from the platform its list gave. */
+function hmdFor(app) {
+  return app?.platform === "PC" ? "RIFT" : app?.platform === "ANDROID_3DOF" || app?.platform === "ANDROID" ? "PACIFIC" : "EUREKA";
+}
+
+/** An app row's art cell: the icon, or — with app art on and none in the list's
+    reply — a blank slot that fillRowIcons fills from the store by ID. */
+function rowArt(app, showArt) {
+  if (!showArt) return "";
+  const art = appArt(app);
+  if (art) return `<img class="art" src="${esc(art)}" alt="" loading="lazy">`;
+  return app?.id
+    ? `<span class="art art-fill" data-iconid="${esc(String(app.id))}" data-hmd="${hmdFor(app)}" aria-hidden="true"></span>`
+    : "";
+}
+
+/* Fill every blank art slot under `root` with the app's icon fetched by ID, a few at
+   a time. Each id is asked once a visit; a found icon is cached (so redraws keep it),
+   saved onto any watchlist/recent entry, and dropped into every slot for that app on
+   the page — including ones a redraw made while the request was out. */
+async function fillRowIcons(root) {
+  if (!root || !loadSettings().images) return;
+  const ids = new Map();
+  for (const ph of root.querySelectorAll(".art-fill[data-iconid]")) {
+    const id = ph.dataset.iconid;
+    if (!iconTried.has(id) && !ids.has(id)) ids.set(id, ph.dataset.hmd || "EUREKA");
+  }
+  if (!ids.size) return;
+  for (const id of ids.keys()) iconTried.add(id);
+  await mapLimit([...ids], 4, async ([id, hmd]) => {
+    const url = await appIcon(id, hmd);
+    if (!url) return;
+    iconCache.set(id, url);
+    saveAppImage(id, url);
+    for (const ph of document.querySelectorAll(`.art-fill[data-iconid="${CSS.escape(id)}"]`)) {
+      const img = document.createElement("img");
+      img.className = "art";
+      img.alt = "";
+      img.loading = "lazy";
+      img.src = url;
+      ph.replaceWith(img);
+    }
+  });
+}
+
 function hasSquareArt(app) {
   return (app?.media ?? []).some((x) => squareLabels().includes(x?.label) && x.uri);
 }
@@ -3437,8 +4571,27 @@ function updateWatchBadge() {
   el.watchBadge.hidden = n === 0;
 }
 
+/* Run an async job over a list a few at a time, instead of one after another:
+   `limit` run at once, and as each finishes the next starts, so N requests take
+   about N/limit round-trips rather than N. Results keep the input's order. Used
+   wherever the site fires a batch of independent store requests (the watchlist
+   sweep, a multi-headset OS check) so they do not queue up behind each other. */
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(Math.max(1, limit), items.length) }, worker));
+  return out;
+}
+
 /* Check every watched app's live build. Reuses checkApp (check.js). Throttled
-   unless forced; writes results back as it goes so the screen fills in. */
+   unless forced; a few run at once (mapLimit) and results write back as each
+   lands, so the screen fills in and a long watchlist is not a long wait. */
 async function sweepWatch({ force = false } = {}) {
   const list = readWatch();
   if (!list.length || sweepWatch.busy) return;
@@ -3454,12 +4607,15 @@ async function sweepWatch({ force = false } = {}) {
   sweepWatch.busy = true;
   if (!el.viewWatchlist.hidden) renderWatch();
   try {
-    for (const entry of list) {
+    /* Up to six at a time. Each app's write-back (readWatch → change → saveWatch)
+       runs synchronously once its own check resolves, so the concurrent checks
+       never clobber one another's save. */
+    await mapLimit(list, 6, async (entry) => {
       try {
         const head = await checkApp({ id: entry.id, name: entry.name });
         const cur = readWatch();
         const w = cur.find((x) => x.id === entry.id);
-        if (!w) continue;
+        if (!w) return;
         /* The build known before this check, so a pop-up fires only on a build
            that genuinely appeared in this sweep — not every load that re-confirms
            an already-known new build. */
@@ -3501,7 +4657,7 @@ async function sweepWatch({ force = false } = {}) {
       }
       updateWatchBadge();
       if (!el.viewWatchlist.hidden) renderWatch();
-    }
+    });
     localStorage.setItem(WATCH_LAST_KEY, String(Date.now()));
   } finally {
     sweepWatch.busy = false;
@@ -3511,11 +4667,472 @@ async function sweepWatch({ force = false } = {}) {
 }
 sweepWatch.busy = false;
 
-/* One row per watched app: its icon and name, the build last seen (version +
-   release date), and the new build (version + date) once one turns up. Clicking
-   a row opens the shared app drop-down (detailRow → appPanel) with its channels
-   and build history. An app with no new build simply shows nothing in the New
-   build column — it is just an app on the list, not a status to read. */
+/* ---------- home ----------
+   A dashboard: the watchlist and recently viewed apps, then your account. Signed in,
+   it asks the store about the account together, once per token — who you are (and
+   your photo), when you were last in VR, and the worlds you have published; the
+   library comes from the owned-apps setting.
+   The missing-icon fill is the only other request it makes. */
+
+/* Fetch the account card's profile and last-active presence for a token, both at
+   once, then redraw the dashboard if it is still on screen. Once per token. */
+async function loadHomeAccount(token) {
+  homeAccount = { token, loading: true };
+  const ok = (r) => (r.status === "fulfilled" ? r.value : null);
+  const profileP = accountProfile();
+  const storeP = extraOn("homeStore") ? storeAccount() : Promise.resolve(null);
+  /* The worlds you have published need your id, so they follow the profile. */
+  const worldsP = extraOn("homeWorlds") ? profileP.then((p) => (p?.id ? publishedWorlds(p.id) : null)) : Promise.resolve(null);
+  const presenceP = extraOn("homePresence") ? recentPresence() : Promise.resolve(null);
+  const [profile, presence, worlds, store] = await Promise.allSettled([profileP, presenceP, worldsP, storeP]);
+  if (homeAccount.token !== token) return;
+  homeAccount = {
+    token,
+    profile: ok(profile),
+    presence: ok(presence),
+    worlds: ok(worlds),
+    store: ok(store),
+    loading: false,
+  };
+  refreshHome();
+}
+
+/** Redraw the dashboard if it is the screen on show — for data that lands after it
+    was drawn (the library the owned-apps setting loads, the account fetch). */
+function refreshHome() {
+  if (el.viewHome && !el.viewHome.hidden) renderHome();
+}
+
+/** "just now", "12 min ago", "3 h ago", "5 days ago", else the date — from epoch seconds. */
+function agoText(sec) {
+  const s = Math.max(0, Date.now() / 1000 - Number(sec));
+  if (s < 90) return "just now";
+  const m = s / 60;
+  if (m < 60) return `${Math.round(m)} min ago`;
+  const h = m / 60;
+  if (h < 24) return `${Math.round(h)} h ago`;
+  const d = h / 24;
+  if (d < 30) return `${Math.round(d)} day${Math.round(d) === 1 ? "" : "s"} ago`;
+  return new Date(Number(sec) * 1000).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+/** An app's small icon for a dashboard line: its stored art when it has any (with
+    the letter tile ready as a fallback, since the address can expire), else the
+    letter tile — which a missing-icon fetch (fillMissingIcons) later fills in. */
+function homeAppIcon(name, image) {
+  const letter = esc((name || "?").trim().charAt(0).toUpperCase());
+  return image
+    ? `<img class="home-ic" src="${esc(image)}" alt="" loading="lazy" data-letter="${letter}">`
+    : `<span class="home-ic home-ic--ph" aria-hidden="true">${letter}</span>`;
+}
+
+function renderHome() {
+  if (!el.homeBody) return;
+  const s = loadSettings();
+  const t = (s.token || "").trim();
+  /* A personal token has no "|"; the built-in public one (OC|…|) does. */
+  const signed = Boolean(t) && !t.includes("|");
+  const acToken = (s.acToken || "").trim();
+
+  const watch = readWatch();
+  const updatedCount = watch.filter(watchUpdated).length;
+  /* Apps with a new build first, then the rest; display order only. */
+  const wl = [...watch].sort((a, b) => (watchUpdated(b) ? 1 : 0) - (watchUpdated(a) ? 1 : 0));
+  const appLine = (id, name, image, right) =>
+    `<a class="home-appline" href="/apps/${esc(String(id))}" data-appid="${esc(String(id))}">${homeAppIcon(name, iconCache.get(String(id)) || image)}<span class="home-appnm">${esc(name)}</span>${right || ""}</a>`;
+  const wlRows = wl.slice(0, 6).map((w) => {
+    const right = watchUpdated(w)
+      ? `<span class="home-tag is-new">New${w.latestVer ? ` · v${esc(w.latestVer)}` : ""}</span>`
+      : w.error
+        ? `<span class="home-tag is-bad">check failed</span>`
+        : w.latest == null
+          ? `<span class="home-tag">not checked</span>`
+          : `<span class="home-tag">up to date</span>`;
+    return appLine(w.id, w.name, w.image, right);
+  }).join("");
+
+  /* Recently viewed leaves out what the Watchlist panel already lists, so no app
+     appears twice on the one screen. */
+  const watchedIds = new Set(watch.map((w) => String(w.id)));
+  const recent = readRecent().filter((r) => !watchedIds.has(String(r.id)));
+  const recentRows = recent.slice(0, 6).map((r) => appLine(r.id, r.name, r.image, "")).join("");
+
+  /* The account bar: who the token belongs to, when it was last in VR and on which
+     headsets (one cached fetch per token, started here when signed in), then what
+     this browser already knows — the library, the saved tokens, how requests go out.
+     Each fact appears once on the dashboard: the watchlist's count lives in its own
+     panel, and Settings is linked once, at the end of the bar. */
+  /* Keyed on everything that changes what is asked: both sign-ins, images and the
+     extras — so saving the Meta token or switching an extra shows at once. */
+  const acctKey = [t, (s.frlToken || "").trim(), s.images, s.extrasOff.join(",")].join("\n");
+  if (signed && homeAccount.token !== acctKey && !homeAccount.loading) loadHomeAccount(acctKey);
+  const acct = signed && homeAccount.token === acctKey ? homeAccount : null;
+  const prof = acct?.profile;
+  const relayHow = extensionRelayOn()
+    ? "Browser extension"
+    : (s.relay || "").trim()
+      ? "Your own relay"
+      : "Built-in relay";
+  const repoCount = Object.keys(readRepos()).length;
+  const link = (path, view, text) => `<a href="${path}" data-view="${view}">${esc(text)}</a>`;
+
+  /* The library. With the owned-apps setting on it loads by itself, so until it
+     lands this says so rather than offering a load that has already started. */
+  const owned = [...ownedAcross.values()];
+  const pcOwned = owned.filter((a) => a.platform === "PC").length;
+  const library = owned.length
+    ? `${owned.length - pcOwned} Quest${pcOwned ? ` · ${pcOwned} PC` : ""}${
+        ownedLoading.has("pc") ? '<span class="home-stat-note">PC library still loading…</span>' : ""
+      }`
+    : ownedLoading.size || (s.autoOwned && !mineAsked)
+      ? "Loading…"
+      : mineNote
+        ? link("/mine", "mine", "Couldn't load — try again")
+        : mineAsked
+          ? "Nothing owned"
+          : link("/mine", "mine", "Load your library");
+
+  /* The worlds you have published — left off when there are none. */
+  const worldCount = acct?.worlds?.worlds?.length ?? 0;
+  const worldsText = worldCount ? `${worldCount}${acct.worlds.cursor ? "+" : ""} published` : null;
+
+  /* Presence: whether you are in VR now or when you last were — the rest of what the
+     presence reply says gets rows of its own under Activity (presenceRows). */
+  const pres = acct?.presence;
+  const lastActive = acct?.loading
+    ? "…"
+    : !pres
+      ? "—"
+      : pres.current
+        ? "In VR now"
+        : pres.lastActive
+          ? agoText(pres.lastActive)
+          : "—";
+
+  /* Which sign-ins are saved — the account one is what downloads need. */
+  const saved = [
+    ["Access", signed],
+    ["Account", Boolean(acToken)],
+    ["Meta", Boolean((s.frlToken || "").trim())],
+    ["Updater", Boolean((s.upToken || "").trim())],
+  ].filter(([, on]) => on).map(([k]) => k);
+  const tokens = `${saved.join(" · ") || "None"}${signed && !acToken ? '<span class="home-stat-note">No downloads without the account token</span>' : ""}`;
+
+  /* The account's own details, as the store gave them — each only when it did. */
+  const det = prof?.details ?? {};
+  const fmtDate = (v) => {
+    const n = Number(v);
+    const d = Number.isFinite(n) && n > 0 ? new Date(n * 1000) : new Date(String(v));
+    return Number.isNaN(d.getTime())
+      ? String(v)
+      : d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  };
+  const shout = (v) => String(v).toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  const yesNo = (v) => (v ? "Yes" : "No");
+  /* An audience setting: a short label for the ones the headset words as a sentence,
+     and the name of the option it is set to ("Online", "Appear offline"). */
+  const privacyRow = (st) => {
+    if (st.key === "BIDIRECTIONAL_FOLLOWER_JOINABILITY")
+      return ["Who can join you uninvited", st.value === "ON" ? "Followers you follow back" : st.value === "OFF" ? "Any follower" : "—"];
+    const label = { OC_VR_PRIVATE_PROFILE: "Private profile", ACTIVE_STATUS: "Active status" }[st.key] ?? st.name;
+    return [label, esc(st.valueName || (st.value ? shout(st.value) : "—"))];
+  };
+
+  /* A fact's label and value from its own field name, for the presence rows. */
+  const factLabel = (k) => {
+    const s = k
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/_/g, " ")
+      .trim()
+      .toLowerCase()
+      .replace(/^(is|has|viewer) /, "");
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+  const factValue = (k, v) =>
+    typeof v === "boolean"
+      ? v ? "Yes" : "No"
+      : typeof v === "number" && v > 1e9 && v < 4e9 && /time|date|since|created|joined|_at$|At$/.test(k)
+        ? fmtDate(v)
+        : /^[A-Z][A-Z0-9_]+$/.test(String(v))
+          ? shout(v)
+          : String(v);
+  /* The account, from the headset's own account queries — each row only when the
+     store answered it. The privacy settings come as the store names them. */
+  const details = signed
+    ? [
+        det.age != null ? ["Age on account", `${det.age}`] : null,
+        det.salsa != null ? ["Salsa", yesNo(det.salsa)] : null,
+        det.developer != null ? ["Developer account", yesNo(det.developer)] : null,
+        det.facebookLinked != null ? ["Facebook linked", yesNo(det.facebookLinked)] : null,
+        det.violations != null
+          ? ["Profile standing", det.violations ? `${det.violations} violation${det.violations === 1 ? "" : "s"}` : "No violations"]
+          : null,
+        ...(det.privacy ?? []).map(privacyRow),
+        det.activeStatus ? ["Active status", esc(shout(det.activeStatus))] : null,
+        det.horizonPlus != null ? ["Horizon+", det.horizonPlus ? "Subscribed" : "Not subscribed"] : null,
+        acct?.store?.credit ? ["Store credit", esc(acct.store.credit)] : null,
+        acct?.store?.subscriptions
+          ? [
+              "Subscriptions",
+              acct.store.subscriptions.length
+                ? acct.store.subscriptions
+                    .map(
+                      (x) =>
+                        `${esc([x.app, x.name].filter(Boolean).join(" — "))}${x.active ? "" : " (ended)"}${
+                          x.next ? `<span class="home-stat-note">${esc(x.next)}</span>` : ""
+                        }`
+                    )
+                    .join("")
+                : "None",
+            ]
+          : null,
+        acct?.store?.pinSet != null ? ["Store PIN", acct.store.pinSet ? "Set" : "Not set"] : null,
+        acct?.store?.contentFilter ? ["Store content filter", esc(shout(acct.store.contentFilter))] : null,
+        det.voiceChannel
+          ? [
+              "Who can talk to you",
+              esc(shout(String(det.voiceChannel).replace(/^VOICE_CHANNEL_/, ""))) +
+                (det.voiceParental ? '<span class="home-stat-note">Set by a parent</span>' : ""),
+            ]
+          : null,
+        det.communities && (det.communities.adult != null || det.communities.minor != null)
+          ? [
+              "Can create communities",
+              esc(
+                [det.communities.adult ? "Adults only" : null, det.communities.minor ? "Open to teens" : null]
+                  .filter(Boolean)
+                  .join(" · ") || "No"
+              ),
+            ]
+          : null,
+        /* Only for a supervised (Salsa) account: on any other it is a default that means nothing. */
+        det.salsa && det.supervisionNotifications != null ? ["Supervision notifications", yesNo(det.supervisionNotifications)] : null,
+      ].filter(Boolean)
+    : [];
+  /* Everything else presence says, one row each: the app, the destination in it,
+     lobby or match, the party, then any other fact the reply carried. */
+  const humanize = (v) =>
+    String(v)
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/[_-]+/g, " ")
+      .toLowerCase()
+      .replace(/^./, (c) => c.toUpperCase());
+  const presenceRows = pres
+    ? [
+        pres.app ? [pres.current ? "Playing" : "Last in", esc(pres.app)] : null,
+        pres.destinationName || pres.destination
+          ? ["Destination", esc(pres.destinationName || humanize(pres.destination))]
+          : null,
+        pres.lobby || pres.match
+          ? ["Session", [pres.lobby ? "In a lobby" : null, pres.match ? "In a match" : null].filter(Boolean).join(" · ")]
+          : null,
+        pres.party ? ["Party", `${pres.party} ${pres.party === 1 ? "person" : "people"}`] : null,
+        ...Object.entries(pres.facts ?? {}).map(([k, v]) => [factLabel(k), esc(factValue(k, v))]),
+      ].filter(Boolean)
+    : [];
+  const activity = signed
+    ? [
+        extraOn("homePresence") ? ["Last active", lastActive] : null,
+        ...presenceRows,
+        ["Library", library],
+        worldsText ? ["Worlds you made", worldsText] : null,
+      ].filter(Boolean)
+    : [];
+  const browser = [
+    signed ? ["Saved tokens", tokens] : null,
+    ["Requests via", esc(relayHow)],
+    repoCount ? ["GitHub sources", `${repoCount} linked`] : null,
+  ].filter(Boolean);
+  const group = (title, rows) =>
+    rows.length
+      ? `<div class="home-group"><h4>${esc(title)}</h4><dl class="home-stats">${rows
+          .map(([k, v]) => `<div class="home-stat"><dt>${esc(k)}</dt><dd>${v}</dd></div>`)
+          .join("")}</dl></div>`
+      : "";
+  /* No details at all: say why, in the store's own words, rather than leaving the
+     set out silently — so a refusal is visible, not mistaken for a missing feature. */
+  const detailsBlock = details.length
+    ? group("Account details", details)
+    : signed && !acct?.loading && prof?.detailsError
+      ? `<div class="home-group"><h4>Account details</h4><p class="home-empty">The store wouldn't give your account details: ${esc(prof.detailsError)}${
+          (s.frlToken || "").trim() ? "" : " — saving your Meta token (Settings → Sign in with Meta) may help."
+        }</p></div>`
+      : "";
+  const groups = detailsBlock + group("Activity", activity) + group("This browser", browser);
+
+  /* Who: profile photo, name, then @alias, and the email and ID — each hidden behind
+     a "Show" until pressed, since this is a screen people share. */
+  const meName = prof?.name || prof?.alias || (acct?.loading ? "Loading your account…" : "Signed in");
+  const meInitial = esc((prof?.name || prof?.alias || "?").trim().charAt(0).toUpperCase());
+  const reveal = (key, value, label, cls = "") =>
+    value
+      ? homeShown.has(key)
+        ? `<span class="${cls}">${esc(value)}</span>`
+        : `<button type="button" class="home-reveal" data-home-reveal="${key}">${esc(label)}</button>`
+      : null;
+  /* Each its own item, spaced by the row's gap rather than " · ", so a wrap never
+     leaves a dot hanging at the end of a line. */
+  const meSub = [
+    prof?.alias && prof.alias !== prof.name ? `<span>@${esc(prof.alias)}</span>` : null,
+    reveal("email", prof?.email, "Show email"),
+    reveal("id", prof?.id, "Show account ID", "mono"),
+  ].filter(Boolean).join("");
+  const mePic = prof?.photo
+    ? `<img class="home-me-pic" src="${esc(prof.photo)}" alt="" data-letter="${meInitial}">`
+    : `<span class="home-me-pic home-me-pic--ph" aria-hidden="true">${meInitial}</span>`;
+  /* The profile's background picture is square: shown whole, with the photo over its
+     corner, as the headset puts a profile in front of its background. */
+  const bgUri = prof?.background?.uri && s.images ? prof.background.uri : null;
+  const me = signed
+    ? `<div class="home-me${bgUri ? " home-me--bg" : ""}">
+        ${bgUri
+          ? `<div class="home-me-media"><img class="home-me-bg" src="${esc(bgUri)}" alt="Your profile background" loading="lazy">${mePic}</div>`
+          : mePic}
+        <div class="home-me-text">
+          <div class="home-me-name">${esc(meName)}</div>
+          ${meSub ? `<div class="home-me-alias">${meSub}</div>` : ""}
+        </div>
+      </div>`
+    : `<div class="home-me">
+        <span class="home-me-pic home-me-pic--ph" aria-hidden="true">?</span>
+        <div class="home-me-text">
+          <div class="home-me-name">Not signed in</div>
+          <div class="home-me-alias">Sign in to see your account details and library.</div>
+        </div>
+      </div>`;
+
+  el.homeBody.innerHTML = `
+    <div class="home-dash">
+      <section class="home-panel">
+        <div class="home-ph"><h3>Watchlist</h3>${watch.length ? `<a class="home-more" href="/watchlist" data-view="watchlist">${watch.length} watched${updatedCount ? ` · ${updatedCount} new` : ""}</a>` : ""}</div>
+        ${watch.length
+          ? `<div class="home-list">${wlRows}</div>${wl.length > 6 ? `<a class="home-more home-more--foot" href="/watchlist" data-view="watchlist">and ${wl.length - 6} more</a>` : ""}`
+          : `<p class="home-empty">No apps watched yet. Open an app and press Watch to track its builds here.</p>`}
+      </section>
+
+      <section class="home-panel">
+        <div class="home-ph"><h3>Recently viewed</h3></div>
+        ${recent.length
+          ? `<div class="home-list">${recentRows}</div>`
+          : `<p class="home-empty">${watch.length ? "Apps you open that aren't on your watchlist show up here." : "Apps you open show up here, so you can jump back to them."}</p>`}
+      </section>
+    </div>
+
+    <section class="home-acct" aria-label="Your account">
+      <div class="home-ph">
+        <h3>Your account</h3>
+        ${signed
+          ? `<a class="home-more" href="/settings" data-view="settings">Settings</a>`
+          : `<a class="home-btn home-btn--sm" href="/settings" data-view="settings">Sign in</a>`}
+      </div>
+      ${me}
+      ${groups}
+    </section>`;
+
+  /* A cover whose address has expired goes, rather than leaving an empty strip. */
+  el.homeBody.querySelector(".home-me-bg")?.addEventListener("error", (e) => {
+    e.target.closest(".home-me")?.classList.remove("home-me--bg");
+    e.target.remove();
+  });
+  /* The email and ID show only when asked for, then stay for the visit. */
+  for (const b of el.homeBody.querySelectorAll("[data-home-reveal]")) {
+    b.addEventListener("click", () => {
+      homeShown.add(b.dataset.homeReveal);
+      renderHome();
+    });
+  }
+
+  /* A profile photo that will not load falls back to the initial. */
+  const pic = el.homeBody.querySelector("img.home-me-pic");
+  if (pic) {
+    pic.addEventListener("error", () => {
+      const ph = document.createElement("span");
+      ph.className = "home-me-pic home-me-pic--ph";
+      ph.setAttribute("aria-hidden", "true");
+      ph.textContent = pic.dataset.letter || "?";
+      pic.replaceWith(ph);
+    }, { once: true });
+  }
+
+  /* Any expired app-icon address falls back to its letter tile. */
+  for (const img of el.homeBody.querySelectorAll("img.home-ic")) {
+    const fallBack = () => {
+      const ph = document.createElement("span");
+      ph.className = "home-ic home-ic--ph";
+      ph.setAttribute("aria-hidden", "true");
+      ph.textContent = img.dataset.letter || "?";
+      img.replaceWith(ph);
+    };
+    if (img.complete && !img.naturalWidth) fallBack();
+    else img.addEventListener("error", fallBack, { once: true });
+  }
+
+  /* An app that kept no icon has its one fetched from the store and filled in —
+     the one place home asks the store for anything, and only for the few shown. */
+  fillMissingIcons([...el.homeBody.querySelectorAll(".home-appline")].map((a) => ({
+    id: a.dataset.appid,
+    name: a.querySelector(".home-appnm")?.textContent || "",
+    ph: a.querySelector(".home-ic--ph"),
+  })));
+}
+
+/* Save a fetched icon onto any watchlist or recent entry for this app that had
+   none, so it persists and is not fetched again. */
+function saveAppImage(id, image) {
+  try {
+    const sid = String(id);
+    const w = readWatch();
+    let changed = false;
+    for (const e of w) if (e.id === sid && !e.image) { e.image = image; changed = true; }
+    if (changed) saveWatch(w);
+    const r = readRecent();
+    let changed2 = false;
+    for (const e of r) if (e.id === sid && !e.image) { e.image = image; changed2 = true; }
+    if (changed2) localStorage.setItem(RECENT_KEY, JSON.stringify(r));
+  } catch {}
+}
+
+/** An app's store icon. The square launcher icon by ID first (appIcon — the right
+    art), then a name search matched on id as a fallback. Null when the store is not
+    reachable or has none. */
+async function fetchAppIcon(id, name) {
+  const byId = await appIcon(id);
+  if (byId) return byId;
+  try {
+    const hits = await searchStore(String(name), { limit: 20 });
+    return hits.find((r) => String(r.id) === String(id))?.image ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/* Fill in the icons that are missing from a set of rendered app rows: fetch each
+   one a few at a time, save it (so it persists and other screens get it), and swap
+   that row's letter tile for the real icon. Used by the watchlist and the home
+   dashboard. `items` is {id, name, ph} per row, ph being its letter-tile element. */
+async function fillMissingIcons(items) {
+  const need = (items || []).filter((x) => x && x.id && x.name && x.ph && x.ph.isConnected && !iconTried.has(x.id));
+  if (!need.length) return;
+  for (const x of need) iconTried.add(x.id);
+  await mapLimit(need, 4, async (x) => {
+    const image = await fetchAppIcon(x.id, x.name);
+    if (!image) return;
+    iconCache.set(String(x.id), image);
+    saveAppImage(x.id, image);
+    if (!x.ph.isConnected) return;
+    const base = [...x.ph.classList].filter((c) => !c.endsWith("--ph")).join(" ") || "home-ic";
+    const img = document.createElement("img");
+    img.className = base;
+    img.loading = "lazy";
+    img.alt = "";
+    img.dataset.letter = x.ph.textContent || "?";
+    img.src = image;
+    /* If even the fresh address will not load, put the letter tile back. */
+    img.addEventListener("error", () => { if (img.isConnected) img.replaceWith(x.ph); }, { once: true });
+    x.ph.replaceWith(img);
+  });
+}
+
 function renderWatch() {
   if (!el.watchRows) return;
   const list = readWatch();
@@ -3532,8 +5149,8 @@ function renderWatch() {
      The letter tile stands in only when there is no icon or it will not load. */
   const letter = (w) => esc((w.name || "?").trim().charAt(0).toUpperCase());
   const icon = (w) =>
-    w.image
-      ? `<img class="wl-ic" src="${esc(w.image)}" alt="" loading="lazy" data-letter="${letter(w)}">`
+    iconCache.get(w.id) || w.image
+      ? `<img class="wl-ic" src="${esc(iconCache.get(w.id) || w.image)}" alt="" loading="lazy" data-letter="${letter(w)}">`
       : `<span class="wl-ic wl-ic--ph" aria-hidden="true">${letter(w)}</span>`;
   /* A build cell: the version (monospace) over its release date (muted). */
   const buildCell = (ver, date, cls = "") =>
@@ -3587,6 +5204,14 @@ function renderWatch() {
     else img.addEventListener("error", fallBack, { once: true });
   }
 
+  /* A watched app that kept no icon has its one fetched from the store and filled
+     in (and saved), so the list shows real icons rather than letter tiles. */
+  fillMissingIcons([...el.watchRows.querySelectorAll("tr.watch-row")].map((tr) => ({
+    id: tr.dataset.id,
+    name: tr.querySelector(".wl-nm")?.textContent || "",
+    ph: tr.querySelector(".wl-ic--ph"),
+  })));
+
   /* Re-insert any drop-down that was open before this redraw (reuse the live
      node where we kept it, else rebuild from the stored entry). */
   for (const tr of el.watchRows.querySelectorAll("tr.watch-row")) {
@@ -3631,17 +5256,6 @@ function toggleWatchDetail(row) {
     row.after(detailRow(appFromWatch(w), 4, "watchlist"));
     row.setAttribute("aria-expanded", "true");
   }
-}
-
-/** A compact "x ago" for the last-checked line. */
-function relTime(ms) {
-  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-  if (s < 60) return "just now";
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} min ago`;
-  const h = Math.round(m / 60);
-  if (h < 24) return `${h} h ago`;
-  return `${Math.round(h / 24)} d ago`;
 }
 
 function initWatch() {
@@ -3706,6 +5320,26 @@ const SETUP_PANELS = [
   ["leaderboards", "Leaderboards"],
   ["cloud", "Cloud"],
 ];
+/* Extra lookups: requests sent alongside a screen, each switchable (extrasOff in
+   check.js, read with extraOn). Off means never asked for. */
+const SETUP_EXTRAS = [
+  ["homeSettings", "Dashboard: voice and community settings"],
+  ["homeHplus", "Dashboard: Horizon+ status"],
+  ["homeStore", "Dashboard: store credit, subscriptions and store PIN"],
+  ["homePresence", "Dashboard: last active and what you are doing"],
+  ["homeWorlds", "Dashboard: worlds you made"],
+  ["homeBackground", "Dashboard: your profile's background picture"],
+  ["fullFollows", "People: complete follower lists (two more requests)"],
+  ["metTimes", "People: when you last met someone"],
+  ["personCounts", "People: follower counts on a profile"],
+  ["personPhotos", "People: photos for everyone the list has none for (one more request)"],
+  ["traits", "Apps: store traits (gameplay, art style…)"],
+  ["destinations", "Apps: destinations inside the app"],
+  ["related", "Apps: more like this"],
+  ["bundles", "Apps: bundles it is included in"],
+  ["worldExtras", "Worlds: genres, rating and similar worlds"],
+  ["submissions", "Apps: open a revision for its build, listing and what changed"],
+];
 /* Existing settings keys, surfaced in the guide. They stay booleans in the
    settings schema, so the guide writes them straight through saveSettings. */
 const SETUP_DATA = [
@@ -3714,7 +5348,7 @@ const SETUP_DATA = [
   ["details", "“Latest Binary Info” button"],
   ["devDownloads", "Developer (non-channel) builds"],
   ["obb", "Fetch OBB files for builds that need them"],
-  ["autoOwned", "Fetch your library on load to mark owned apps"],
+  ["autoOwned", "Fetch your Quest and PC libraries on load to mark owned apps"],
   ["autoDlc", "Fetch your DLC automatically"],
   ["autoPlaytime", "Fetch your playtime automatically"],
   ["autoBackups", "Fetch your cloud backups automatically"],
@@ -3729,14 +5363,17 @@ function buildSetup() {
   const secOff = new Set(opts.sectionsOff);
   const panOff = new Set(opts.panelsOff);
 
-  el.setupSections.innerHTML = [...el.navLinks]
-    .filter((a) => a.dataset.view !== "settings" && a.dataset.view !== "getapp")
-    .map((a) => setupCheckbox("section", a.dataset.view, navLabel(a), !secOff.has(a.dataset.view)))
+  el.setupSections.innerHTML = screenList()
+    .map(([v, label]) => setupCheckbox("section", v, label, !secOff.has(v)))
     .join("");
 
   el.setupPanels.innerHTML = SETUP_PANELS.map(([name, label]) => setupCheckbox("panel", name, label, !panOff.has(name))).join("");
 
   el.setupData.innerHTML = SETUP_DATA.map(([name, label]) => setupCheckbox("data", name, label, Boolean(opts[name]))).join("");
+
+  const extOff = new Set(opts.extrasOff);
+  if (el.setupExtras)
+    el.setupExtras.innerHTML = SETUP_EXTRAS.map(([name, label]) => setupCheckbox("extra", name, label, !extOff.has(name))).join("");
 }
 
 function openSetup() {
@@ -3754,6 +5391,7 @@ function closeSetup() {
 function saveSetup() {
   const sectionsOff = [];
   const panelsOff = [];
+  const extrasOff = [];
   const dataPatch = {};
   for (const input of el.setupOverlay.querySelectorAll("input[data-feat]")) {
     const { kind, feat } = input.dataset;
@@ -3761,11 +5399,13 @@ function saveSetup() {
       if (!input.checked) sectionsOff.push(feat);
     } else if (kind === "panel") {
       if (!input.checked) panelsOff.push(feat);
+    } else if (kind === "extra") {
+      if (!input.checked) extrasOff.push(feat);
     } else if (kind === "data") {
       dataPatch[feat] = input.checked;
     }
   }
-  saveSettings({ ...dataPatch, sectionsOff, panelsOff, setupDone: true });
+  saveSettings({ ...dataPatch, sectionsOff, panelsOff, extrasOff, setupDone: true });
 
   /* Keep the Settings page's own copies of the data toggles in step, since it
      was wired once at load and would otherwise show stale values. */
@@ -4648,7 +6288,7 @@ async function installAppOverAdb() {
   }
 }
 
-/* ---------- Updater (User → Updater) ----------
+/* ---------- Updater (User → Headsets → Updater) ----------
    The requests the headset's own OSUpdater app makes to Meta, for any of the
    account's headsets: which OS build it would be handed, or a build asked for by
    number. A browser cannot install it, so every result is listed with its download.
@@ -4781,8 +6421,6 @@ function otaCatalogFor(device) {
   if (code === "PANTHER" && /xbox/i.test(device.model || "")) return OTA_DEVICE_TYPES.find((t) => t.hmd === "XSE_PANTHER");
   return OTA_DEVICE_TYPES.find((t) => t.hmd === code || t.hwm?.includes(code));
 }
-/** A device_type's model name, or the type itself when it is not in the catalog. */
-const updTypeName = (type) => OTA_DEVICE_TYPES.find((t) => t.type === type)?.label || type;
 
 /** The fields string the boxes of a section make: only the pieces typed in. The
     root (ota / app_update) goes in only when one of its pieces or the selection has
@@ -4861,22 +6499,30 @@ function updEasyOs(opts, device) {
 }
 /* ---- running checks ---- */
 
-/** Send a section's requests one after another, the button saying how far it is. */
+/** Send a section's requests a few at a time (mapLimit), the button saying how
+    many are done. Results keep their order, so each stays under its headset. */
 async function updRun(sec, requests) {
-  const runs = [];
-  updResults.set(sec, { busy: "Checking…", runs: updResults.get(sec)?.runs ?? [] });
+  updResults.set(sec, {
+    busy: requests.length > 1 ? `Checking 0 of ${requests.length}…` : "Checking…",
+    runs: updResults.get(sec)?.runs ?? [],
+  });
   renderUpdater();
-  for (const [i, req] of requests.entries()) {
-    if (requests.length > 1) {
-      updResults.get(sec).busy = `Checking ${i + 1} of ${requests.length}…`;
+  let done = 0;
+  const runs = await mapLimit(requests, 4, async (req) => {
+    let run;
+    try {
+      run = { label: req.label, json: await otaRequest(req) };
+    } catch (e) {
+      run = { label: req.label, error: e.message };
+    }
+    done++;
+    const r = updResults.get(sec);
+    if (requests.length > 1 && r) {
+      r.busy = `Checking ${done} of ${requests.length}…`;
       renderUpdater();
     }
-    try {
-      runs.push({ label: req.label, json: await otaRequest(req) });
-    } catch (e) {
-      runs.push({ label: req.label, error: e.message });
-    }
-  }
+    return run;
+  });
   updResults.set(sec, { busy: null, runs });
   renderUpdater();
   return runs;
@@ -6106,7 +7752,56 @@ function renderPurchases() {
 /* ---------- avatar ----------
    Nothing is fetched until Get avatar is pressed; the filter then narrows the
    settings table without asking again. */
+/* The avatar's stickers: one request, on Get stickers. */
+async function loadStickers() {
+  el.stickerGo.disabled = true;
+  el.stickerGo.textContent = "Loading…";
+  el.stickerCount.textContent = "Asking the store…";
+  try {
+    const list = await avatarStickers();
+    el.stickerGrid.innerHTML = list
+      .map((x) => `<img src="${esc(x.url)}" alt="Avatar sticker ${esc(x.id)}" loading="lazy">`)
+      .join("");
+    el.stickerCount.textContent = list.length
+      ? `${list.length} sticker${list.length === 1 ? "" : "s"}.`
+      : "The store has no stickers for this avatar.";
+  } catch (err) {
+    el.stickerGrid.innerHTML = "";
+    el.stickerCount.textContent = err.message || "Could not load the stickers.";
+  }
+  el.stickerGo.disabled = false;
+  el.stickerGo.textContent = "Get stickers";
+}
+
+/* Every avatar on the account: one request, on Get avatars. */
+async function loadAvatars() {
+  el.avatarsGo.disabled = true;
+  el.avatarsGo.textContent = "Loading…";
+  el.avatarsCount.textContent = "Asking the store…";
+  try {
+    const list = await accountAvatars();
+    el.avatarsGrid.innerHTML = list
+      .map(
+        (a) => `<figure class="avatar-card">
+          ${a.body ? `<img src="${esc(a.body)}" alt="Avatar, full body" loading="lazy">` : a.face ? `<img src="${esc(a.face)}" alt="Avatar" loading="lazy">` : ""}
+          <figcaption><strong>${esc(a.kind ? words(a.kind) : "Avatar")}</strong>${
+            a.profiles.length ? `<span>${esc(a.profiles.join(", "))}</span>` : `<span>Not assigned</span>`
+          }</figcaption>
+        </figure>`
+      )
+      .join("");
+    el.avatarsCount.textContent = `${list.length} avatar${list.length === 1 ? "" : "s"}.`;
+  } catch (err) {
+    el.avatarsGrid.innerHTML = "";
+    el.avatarsCount.textContent = err.message || "Could not load your avatars.";
+  }
+  el.avatarsGo.disabled = false;
+  el.avatarsGo.textContent = "Get avatars";
+}
+
 function initAvatar() {
+  el.stickerGo?.addEventListener("click", loadStickers);
+  el.avatarsGo?.addEventListener("click", loadAvatars);
   el.avatarLoad.addEventListener("click", fetchAvatar);
   el.avatarQ.addEventListener("input", renderAvatar);
   el.avatarRows.addEventListener("click", (e) => {
@@ -7033,7 +8728,7 @@ function initSettings() {
   el.autoOwned.checked = saved.autoOwned;
   el.autoOwned.addEventListener("change", () => {
     saveSettings({ autoOwned: el.autoOwned.checked });
-    if (el.autoOwned.checked && !mineAsked) loadEntitlements("quest");
+    if (el.autoOwned.checked && !mineAsked) autoLoadOwned();
     else renderAll();
   });
 
@@ -7238,12 +8933,10 @@ function initDefaults() {
   /* Which screen opens on the bare home page. Options are the nav screens, by
      their own labels and in nav order (Get the app excepted — it is a utility,
      not a landing place). */
-  fillOptions(
-    el.defView,
-    [...el.navLinks]
-      .filter((a) => a.dataset.view !== "getapp")
-      .map((a) => [a.dataset.view, navLabel(a)])
-  );
+  fillOptions(el.defView, [
+    ...screenList(),
+    ...[...el.navLinks].filter((a) => a.dataset.view === "settings").map((a) => [a.dataset.view, navLabel(a)]),
+  ]);
   fillOptions(el.defHmd, HMD_TYPES.map(([v, label]) => [v, `${label} (${v})`]));
   fillOptions(el.defSort, [...el.sort.options].map((o) => [o.value, o.textContent]));
   fillOptions(
@@ -7414,7 +9107,7 @@ async function boot() {
 
   /* With the setting on, pull the library in the background so the tint is
      ready by the time a search returns. Its own errors stay on the mine tab. */
-  if (loadSettings().autoOwned) loadEntitlements("quest");
+  if (loadSettings().autoOwned) autoLoadOwned();
 
   /* The same for the account lists behind an app's Entitlement tab. */
   const auto = loadSettings();
@@ -7484,6 +9177,7 @@ async function loadEntitlements(kind) {
   mineKind = kind;
   mineLoading = true;
   mineNote = "";
+  ownedLoading.add(kind);
   /* Only one library loads at a time, so all three wait; the pressed one says so. */
   const labels = new Map([...el.libButtons].map((b) => [b, b.textContent]));
   for (const b of el.libButtons) {
@@ -7494,6 +9188,9 @@ async function loadEntitlements(kind) {
 
   try {
     mineList = await myEntitlements(kind);
+    /* Owned-marking spans every library, so fold this one into the running set
+       (an expired entitlement is not owned, so it stays out). */
+    if (kind !== "expired") for (const a of mineList) ownedAcross.set(keyOf(a), a);
     /* The headset list may already be on screen, named only by package. */
     if (adbInstalled.length) resolveHeadsetApps();
   } catch (err) {
@@ -7501,13 +9198,40 @@ async function loadEntitlements(kind) {
     mineNote = err.message;
   } finally {
     mineLoading = false;
+    ownedLoading.delete(kind);
     for (const [b, label] of labels) {
       b.disabled = false;
       b.textContent = label;
     }
     syncRelayNote();
     renderAll();
+    refreshHome();
   }
+}
+
+/* Fetch a library only to widen owned-marking — fold it into ownedAcross without
+   touching the Entitlements screen (mineList/mineKind). Quiet on failure: a missing
+   token already shows on the screen's own quest load. */
+async function addOwnedLib(kind) {
+  ownedLoading.add(kind);
+  refreshHome();
+  try {
+    const list = await myEntitlements(kind);
+    for (const a of list) ownedAcross.set(keyOf(a), a);
+    renderAll();
+  } catch {
+  } finally {
+    ownedLoading.delete(kind);
+    refreshHome();
+  }
+}
+
+/* The owned-apps setting on load (and when switched on): show the Quest library as
+   before, then pull the PC (Rift) library in the background too, so a title owned on
+   either store is marked across the site. */
+async function autoLoadOwned() {
+  await loadEntitlements("quest");
+  await addOwnedLib("pc");
 }
 
 
@@ -7652,6 +9376,9 @@ function buildRows(tbody, list, scope) {
     const saved = scrolled.get(d.previousElementSibling?.dataset.id);
     if (saved) restoreScrolls(d, saved);
   }
+
+  /* Any row whose list carried no art gets its icon fetched by ID. */
+  fillRowIcons(tbody);
 }
 
 /* Each scrolling table in a panel, named by the tab it sits in and the heading
@@ -7684,14 +9411,85 @@ function renderSoon() {
   renderTimer = setTimeout(renderAll, 120);
 }
 
+/* The Organizations table, its empty message and its count — on its own so a
+   lookup streaming in can redraw just this, not every list on the site. */
+/* Draw the queued org rows a hundred a frame, in order. Stops quietly if a full
+   redraw has replaced the table since it started. */
+function pumpOrgRows() {
+  if (orgPumping) return;
+  orgPumping = true;
+  const gen = orgGen;
+  const step = () => {
+    if (gen !== orgGen) return; // replaced by a newer redraw, which runs its own pump
+    const frag = document.createDocumentFragment();
+    for (const app of orgQueue.splice(0, 100)) frag.append(appRow(app, "orgs"));
+    el.orgRows.append(frag);
+    if (orgQueue.length) {
+      requestAnimationFrame(step);
+      return;
+    }
+    orgPumping = false;
+    fillRowIcons(el.orgRows);
+    const after = orgAfterDrain;
+    orgAfterDrain = null;
+    if (after) after();
+  };
+  step();
+}
+
+function renderOrgSection() {
+  const orgShown = orgVisible();
+  const visibleTable = !onHiddenScreen(el.orgRows);
+  if (orgSkipRebuildOnce) {
+    /* The streamed rows already stand in this order: leave them be. */
+    orgSkipRebuildOnce = false;
+  } else if (orgShown.length > 150 && visibleTable && ![...open].some((k) => k.startsWith("orgs:"))) {
+    /* A long list goes in through the queue, a hundred rows a frame: the first
+       hundred show at once and the page stays responsive while the rest fill in. */
+    orgGen++;
+    orgPumping = false;
+    staleTables.delete(el.orgRows);
+    el.orgRows.replaceChildren();
+    orgQueue = [...orgShown];
+    pumpOrgRows();
+  } else {
+    orgGen++;
+    orgPumping = false;
+    orgQueue = [];
+    orgAfterDrain = null; // drawn in full right here, nothing left to tidy
+    buildRows(el.orgRows, orgShown, "orgs");
+  }
+  /* Rows on screen in full, unless the table is on a hidden screen (left stale). */
+  orgDrawn = onHiddenScreen(el.orgRows) ? -1 : orgShown.length;
+  el.orgEmpty.hidden = orgShown.length > 0 || orgLoading;
+  el.orgEmpty.textContent = orgLoading
+    ? ""
+    : orgNote
+      ? orgNote
+      : !orgAsked
+        ? "Enter an organization ID and press List apps."
+        : orgList.length
+          ? "Nothing matches."
+          : "No apps for that organization.";
+  el.orgCount.textContent = orgLoading
+    ? orgList.length
+      ? `${orgList.length} apps so far — asking for more…`
+      : "Asking the store…"
+    : !orgAsked || orgNote
+      ? ""
+      : orgShown.length === orgList.length
+        ? `${orgList.length} app${orgList.length === 1 ? "" : "s"}.`
+        : `${orgShown.length} of ${orgList.length} apps.`;
+}
+
 function renderAll() {
   clearTimeout(renderTimer);
   refreshWatchArt([...listing, ...mineList, ...orgList]);
-  /* Only tint when the setting is on and there is a library to match against. */
-  ownedKeys =
-    loadSettings().autoOwned && mineKind !== "expired"
-      ? new Set(mineList.map(keyOf))
-      : new Set();
+  /* Only tint when the setting is on; match against every owned library loaded
+     (Quest and PC), not just the one the Entitlements screen is showing. */
+  ownedKeys = loadSettings().autoOwned
+    ? new Set(ownedAcross.keys())
+    : new Set();
 
   const list = visible();
 
@@ -7730,25 +9528,7 @@ function renderAll() {
         : LIBRARIES[mineKind].none;
   el.mineEmpty.classList.toggle("warn", Boolean(mineNote));
 
-  const orgShown = orgVisible();
-  buildRows(el.orgRows, orgShown, "orgs");
-  el.orgEmpty.hidden = orgShown.length > 0 || orgLoading;
-  el.orgEmpty.textContent = orgLoading
-    ? ""
-    : orgNote
-      ? orgNote
-      : !orgAsked
-        ? "Enter an organization ID and press List apps."
-        : orgList.length
-          ? "Nothing matches."
-          : "No apps for that organization.";
-  el.orgCount.textContent = orgLoading
-    ? "Asking the store…"
-    : !orgAsked || orgNote
-      ? ""
-      : orgShown.length === orgList.length
-        ? `${orgList.length} app${orgList.length === 1 ? "" : "s"}.`
-        : `${orgShown.length} of ${orgList.length} apps.`;
+  renderOrgSection();
 
   const defaultShown = defaultVisible();
   buildRows(el.defaultRows, defaultShown, "default");
@@ -7774,21 +9554,32 @@ function renderAll() {
   const plusAll = plusState.rows;
   buildRows(el.plusRows, plusShown, "plus");
   el.plusEmpty.hidden = plusShown.length > 0 || plusState.loading;
+  /* A section of only Xbox games or movies has no Quest apps — say where they are. */
+  const pickOthers = el.plusPick.value && plusState.others.some((o) => o.sectionId === el.plusPick.value);
   el.plusEmpty.textContent = plusState.note
     ? plusState.note
     : !plusState.asked
       ? "Press Get Horizon+ games to list what the subscription offers right now."
-      : plusAll.length
-        ? "Nothing matches."
-        : "The store lists no Horizon+ games for this account.";
-  const monthly = plusAll.filter((a) => a.plus === "monthly").length;
+      : pickOthers && !plusShown.length
+        ? "This section has no Quest apps — its titles are listed below."
+        : plusAll.length
+          ? "Nothing matches."
+          : "The store lists no Horizon+ games for this account.";
   const claimed = plusAll.filter((a) => a.claimed).length;
+  /* Section by section, as the store names them: "Monthly titles 2 · Indie catalog 50". */
+  const perSection = plusState.sections
+    .map((s) => [s.name, plusAll.filter((a) => a.plusSections?.includes(s.id)).length + plusState.others.filter((o) => o.sectionId === s.id).length])
+    .filter(([, n]) => n)
+    .map(([name, n]) => `${name} ${n}`)
+    .join(" · ");
   el.plusCount.textContent = plusState.loading
     ? "Asking the store…"
-    : !plusAll.length
+    : !plusAll.length && !plusState.others.length
       ? ""
       : `${plusShown.length === plusAll.length ? plural(plusAll.length, "game") : `${plusShown.length} of ${plusAll.length} games`}` +
-        ` — ${monthly} this month, ${plusAll.length - monthly} in the catalog; ${claimed} on this account.`;
+        `${plusState.others.length ? ` and ${plural(plusState.others.length, "other title")}` : ""}` +
+        ` — ${perSection}; ${claimed} on this account.`;
+  renderPlusOthers();
 
   const storeShown = storeVisible();
   const storeAll = storeState.rows;
@@ -7883,11 +9674,7 @@ function appRow(app, scope) {
   tr.tabIndex = 0;
   tr.setAttribute("aria-expanded", String(open.has(key)));
   tr.innerHTML = `
-    <td class="name">${watchToggle(app)}${
-      showArt && app.image
-        ? `<img class="art" src="${esc(app.image)}" alt="" loading="lazy">`
-        : ""
-    }${esc(app.name)}</td>
+    <td class="name">${watchToggle(app)}${rowArt(app, showArt)}${esc(app.name)}</td>
     <td class="c-dev">${esc(deviceName(app.platform) ?? "—")}</td>
     <td class="chan c-chan">${esc(
       /* Nothing known until a check runs — the same dash every other unknown
@@ -8038,6 +9825,7 @@ function devCell(app) {
  * — which is what stopped it flickering as the row emptied itself.
  */
 function appPanel(app, { staged = false, scope = null } = {}) {
+  if (!staged) pushRecent(app);
   const found = results.get(keyOf(app));
   const list = found?.latest?.channels?.length
     ? found.latest.channels
@@ -8115,6 +9903,22 @@ function appPanel(app, { staged = false, scope = null } = {}) {
             ["Comfort", store.comfort],
           ]
         : [],
+    ],
+    [
+      "Traits",
+      traitRows(app),
+    ],
+    [
+      "Destinations",
+      (traitInfo.get(app.id)?.dest ?? []).map((d) => [esc(d.name), d.capacity ? `Up to ${d.capacity} in a group` : "—"]),
+    ],
+    [
+      "Included in",
+      (traitInfo.get(app.id)?.bundles ?? []).map((b) => [esc(b.name), b.price || "—"]),
+    ],
+    [
+      "More like this",
+      (traitInfo.get(app.id)?.related ?? []).map((r) => [esc(r.name), [r.price, r.owned ? "owned" : null].filter(Boolean).join(" · ") || "—"]),
     ],
     [
       "Published by",
@@ -8211,18 +10015,19 @@ function appPanel(app, { staged = false, scope = null } = {}) {
          <div class="vscroll short">
            <table class="vtable plain">
              <thead>
-               <tr><th>Status</th><th>Created</th><th>Submissions</th><th>ID</th></tr>
+               <tr><th>Status</th><th>Created</th><th class="rev-subs">Submissions</th><th>ID</th></tr>
              </thead>
              <tbody>
                ${revs
-                 .map(
-                   (r) => `<tr>
+                 .map((r) => {
+                   const can = r.id && extraOn("submissions");
+                   return `<tr${can ? ` class="rev-row" data-rev="${esc(r.id)}" tabindex="0" aria-expanded="${revOpen.has(r.id)}"` : ""}>
                      <td>${esc(r.status ?? "—")}</td>
                      <td>${esc(r.created ?? "—")}</td>
-                     <td>${r.submissions}</td>
+                     <td class="rev-subs">${r.submissions}</td>
                      <td class="bid">${esc(r.id ?? "—")}</td>
-                   </tr>`
-                 )
+                   </tr>${can && revOpen.has(r.id) ? revDetailRow(r.id) : ""}`;
+                 })
                  .join("")}
              </tbody>
            </table>
@@ -8307,9 +10112,9 @@ function appPanel(app, { staged = false, scope = null } = {}) {
            no image is fetched from Meta's CDN here either — and the rest of the
            store's pictures are not offered, since fetching them is the whole
            point of the button. */
-        staged && opts.images && (app.image || app.id)
+        staged && opts.images && (appArt(app) || app.id)
           ? `<div class="artbox">
-               ${app.image ? `<img class="panel__art" src="${esc(app.image)}" alt="">` : ""}
+               ${appArt(app) ? `<img class="panel__art" src="${esc(appArt(app))}" alt="">` : ""}
                ${
                  app.id
                    ? `<button type="button" data-images="1">Show more images</button>
@@ -9773,6 +11578,53 @@ function note(found) {
   return "";
 }
 
+/* An app's store traits (GetAppTaxonomy) — the ones its listing does not already
+   give: art style, gameplay, theme, immersion, play area, pricing. Asked once per
+   app, only for an app that has been checked and whose panel is open, so a bulk
+   sweep never adds a request. Needs a signed-in token (the Meta one does). */
+const TRAIT_LABELS = {
+  CORE_GAMEPLAY: "Gameplay",
+  ACTION_TYPE: "Action",
+  GAME_THEME: "Theme",
+  ART_STYLE: "Art style",
+  LEVEL_OF_IMMERSION: "Immersion",
+  PLAY_AREA: "Play area",
+  PRICING: "Pricing",
+};
+function traitRows(app) {
+  /* Once the app has been checked (its builds or listing are in), not before. */
+  if (!app.id || !(listings.get(app.id) || results.get(keyOf(app)))) return [];
+  const t = traitInfo.get(app.id);
+  if (!t && !["traits", "destinations", "related", "bundles"].some(extraOn)) return [];
+  if (!t) {
+    const { token, frlToken } = loadSettings();
+    if ([token, frlToken].some((x) => (x || "").trim() && !x.includes("|"))) loadTraits(app);
+    return [];
+  }
+  if (!t.list) return [];
+  const by = new Map();
+  for (const { key, name } of t.list) if (TRAIT_LABELS[key]) by.set(key, [...(by.get(key) ?? []), name]);
+  return Object.keys(TRAIT_LABELS)
+    .filter((k) => by.has(k))
+    .map((k) => [TRAIT_LABELS[k], by.get(k).join(", ")]);
+}
+/* With the traits come the app's destinations (appDestinations): the places in it
+   you can launch straight into, and how many can go together. */
+async function loadTraits(app) {
+  traitInfo.set(app.id, { loading: true });
+  /* Each part only when its extra is on. */
+  const ask = (name, fn) => (extraOn(name) ? fn(app.id) : Promise.resolve(null));
+  const [list, dest, related, bundles] = await Promise.allSettled([
+    ask("traits", appTraits),
+    ask("destinations", appDestinations),
+    ask("related", relatedApps),
+    ask("bundles", appBundles),
+  ]);
+  const val = (r) => (r.status === "fulfilled" ? r.value : null);
+  traitInfo.set(app.id, { list: val(list), dest: val(dest) ?? [], related: val(related) ?? [], bundles: val(bundles) ?? [] });
+  refreshRow(app);
+}
+
 /* ---------- checking ---------- */
 
 function refreshRow(app) {
@@ -10064,8 +11916,10 @@ function tourSteps() {
       target: ".nav",
       title: "The other screens",
       body:
-        "Apps also holds the default apps, Horizon+, Horizon worlds and an organization's apps. " +
-        "User has your headsets and what you own. Device has ADB and CompanionServer.",
+        "Apps also holds the Store (its front page and Horizon+), the default apps, Horizon " +
+        "worlds, an organization's apps and the watchlist. User has your headsets and their OS " +
+        "updates, your Library (what you own, bought and wished for), people, photos and your " +
+        "avatar. Device has ADB.",
     },
   ];
 }
@@ -10722,6 +12576,8 @@ function renderWorlds() {
     )
     .join("");
   if (focused) el.worldRows.querySelector(`tr[data-world="${CSS.escape(focused)}"]`)?.focus();
+  for (const img of el.worldRows.querySelectorAll(".world-pics img"))
+    img.addEventListener("error", () => img.closest("figure")?.remove(), { once: true });
 
   /* What the tab that is on says when its list is empty, and its count. */
   const state = worldTab === "saved" ? worldState : paged;
@@ -10851,11 +12707,159 @@ function backupDetailRow(r) {
     ]
       .filter(Boolean)
       .join(" · ");
-    inner = `${d.downloadUri ? `<div class="backup-uri">${esc(d.downloadUri)}</div>` : `<span class="muted">No download address returned.</span>`}
+    /* A download button for the blob — or one per segment when it was uploaded in
+       pieces. The address itself is not printed: it is long, signed, and the button
+       already carries it. No address at all: say so, and list
+       the field names the reply did carry (names only, never values), so where the
+       store put it this time can be read off the screen. */
+    const dlBtn = (url, label) =>
+      `<a class="backup-dl" href="${esc(url)}" target="_blank" rel="noopener" download>${esc(label)}</a>`;
+    const where = d.downloadUri
+      ? `<div class="backup-dl-row">${dlBtn(d.downloadUri, "Download backup")}</div>`
+      : d.segmentUris?.length
+        ? `<div class="backup-dl-row">${d.segmentUris
+            .map((u, i) => dlBtn(u, `Segment ${i + 1} of ${d.segmentUris.length}`))
+            .join("")}</div>`
+        : `<span class="muted">No download address returned.</span>${
+            d.fields?.length
+              ? `<div class="backup-fields">The store's reply carried only: <span class="mono">${esc(d.fields.join(", "))}</span></div>`
+              : ""
+          }`;
+    inner = `${where}
         ${facts ? `<div class="backup-facts">${facts}</div>` : ""}
-        <p class="hint backup-note">End-to-end encrypted with a key kept in the headset that made it (and your PIN, if you set one). The blob can be downloaded, but it can only be restored to a headset — its contents can't be read here.</p>`;
+        <p class="hint backup-note">End-to-end encrypted with a key kept in the headset that made it (and your PIN, if you set one), so only a headset can restore it. Download it, then read the downloaded file here to see how it is put together — it is read in this browser and sent nowhere.</p>
+        <div class="backup-dl-row"><button type="button" class="backup-dl" data-backup-pick="${esc(r.id)}">${
+          c.reading ? "Reading…" : "Read a downloaded copy"
+        }</button><input type="file" hidden data-backup-file="${esc(r.id)}"></div>
+        ${backupReadHtml(c)}`;
   }
   return `<tr class="backup-detail"><td colspan="5">${inner}</td></tr>`;
+}
+
+/* ---------- reading a downloaded cloud backup ----------
+   The blob is a run of records, each opening with three 32-bit numbers (the format,
+   1 1 1 so far) and the 64-character fingerprint of the key that locked it, then
+   that record's ciphertext. The key never leaves the headset, so what is inside
+   cannot be read; what can is the container: its format, which key, how many
+   records and how big, and whether the file is the one the store describes. The
+   file is read here and sent nowhere. */
+async function readBackupBlob(file, expectedChecksum) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  if (buf.length < 76) throw new Error("This file is too short to be a cloud backup.");
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const version = [dv.getUint32(0), dv.getUint32(4), dv.getUint32(8)];
+  const key = new TextDecoder().decode(buf.subarray(12, 76));
+  if (!/^[0-9a-f]{64}$/.test(key)) throw new Error("This file doesn't start like a Quest cloud backup.");
+
+  /* Every record start: the same 76-byte head again. */
+  const head = buf.subarray(0, 76);
+  const starts = [];
+  for (let i = 0; i <= buf.length - 76; i++) {
+    if (buf[i] !== head[0] || buf[i + 12] !== head[12] || buf[i + 75] !== head[75]) continue;
+    let same = true;
+    for (let j = 1; j < 76 && same; j++) same = buf[i + j] === head[j];
+    if (same) {
+      starts.push(i);
+      i += 75;
+    }
+  }
+  const sizes = starts.map((at, k) => (starts[k + 1] ?? buf.length) - at - 76);
+
+  /* How random the ciphertext is, in bits per byte (8 is the most): sampled from
+     the records, so a large backup is not walked twice. */
+  const counts = new Array(256).fill(0);
+  let seen = 0;
+  for (const [k, at] of starts.entries()) {
+    if (starts.length > 200 && k % Math.ceil(starts.length / 200)) continue;
+    for (let i = at + 76, end = at + 76 + Math.min(sizes[k], 4096); i < end; i++) counts[buf[i]]++;
+    seen += Math.min(sizes[k], 4096);
+  }
+  const entropy = seen ? -counts.reduce((h, n) => (n ? h + (n / seen) * Math.log2(n / seen) : h), 0) : null;
+
+  const sha = [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))]
+    .map((x) => x.toString(16).padStart(2, "0"))
+    .join("");
+  const want = String(expectedChecksum || "").toLowerCase().replace(/[^0-9a-f]/g, "");
+  return {
+    name: file.name,
+    size: buf.length,
+    version: version.join("."),
+    key,
+    records: starts.length,
+    smallest: Math.min(...sizes),
+    largest: Math.max(...sizes),
+    entropy,
+    sha,
+    checksum: want.length === 64 ? want === sha : null,
+  };
+}
+
+/** What reading a downloaded backup found, for its detail row. */
+function backupReadHtml(c) {
+  if (c.readError) return `<p class="warn">${esc(c.readError)}</p>`;
+  const r = c.read;
+  if (!r) return "";
+  const kb = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${(n / 1024).toFixed(1)} KB`);
+  return factGroups([
+    [
+      `What ${esc(r.name)} is`,
+      [
+        ["Format", `Quest cloud backup, version ${r.version}`],
+        ["Size", `${kb(r.size)} (${bigNumber(r.size)} bytes)`],
+        [
+          "Records",
+          `${bigNumber(r.records)} encrypted record${r.records === 1 ? "" : "s"}${
+            r.records > 1 ? `, ${kb(r.smallest)} to ${kb(r.largest)} each` : ""
+          }`,
+        ],
+        ["Locked with key", `${r.key.slice(0, 12)}…${r.key.slice(-12)} — held by the headset that made it`],
+        [
+          "Inside",
+          r.entropy != null && r.entropy > 7.9
+            ? `Ciphertext throughout (${r.entropy.toFixed(2)} bits per byte); no file names or sizes are stored in the clear`
+            : r.entropy != null
+              ? `${r.entropy.toFixed(2)} bits per byte — less random than ciphertext usually is`
+              : null,
+        ],
+        [
+          "Checksum",
+          r.checksum === true
+            ? "Matches the store's — this is the backup listed above"
+            : r.checksum === false
+              ? "Doesn't match the store's — this may be a different backup"
+              : `SHA-256 ${r.sha.slice(0, 16)}…`,
+        ],
+      ],
+    ],
+  ]);
+}
+
+/* The Read button opens the file picker beside it; the picked file is read and its
+   findings join that backup's details. Delegated, as the rows are redrawn often. */
+function initBackupReader() {
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest?.("[data-backup-pick]");
+    if (!b) return;
+    e.stopPropagation();
+    b.parentElement.querySelector("[data-backup-file]")?.click();
+  });
+  document.addEventListener("change", async (e) => {
+    const input = e.target.closest?.("[data-backup-file]");
+    const file = input?.files?.[0];
+    if (!file) return;
+    const id = input.dataset.backupFile;
+    const c = backupDetailCache.get(id);
+    if (!c?.detail) return;
+    Object.assign(c, { reading: true, read: null, readError: null });
+    renderAccountTabs();
+    try {
+      c.read = await readBackupBlob(file, c.detail.checksum);
+    } catch (err) {
+      c.readError = err.message || "Could not read this file.";
+    }
+    c.reading = false;
+    renderAccountTabs();
+  });
 }
 
 /* Details opens (fetching once), Hide closes. */
@@ -10987,7 +12991,10 @@ async function loadWorld(id) {
   worldInfo.set(id, { loading: true, data: null, note: "" });
   renderWorlds();
   try {
-    worldInfo.set(id, { loading: false, data: await worldDetails(world), note: "" });
+    const data = await worldDetails(world);
+    /* The headset Store's world page: genres, rating, similar worlds. */
+    if (extraOn("worldExtras")) data.store = await worldStoreExtras(world.id, data.storeDestinationId).catch(() => null);
+    worldInfo.set(id, { loading: false, data, note: "" });
   } catch (err) {
     worldInfo.set(id, { loading: false, data: null, note: err.message || "Could not load this world." });
   } finally {
@@ -11065,15 +13072,29 @@ function worldDetail(w) {
           ["Beta", ask(yesNo(f.beta))],
           ["Cloud streaming", ask(yesNo(f.streamable))],
           ["Runtime", ask(f.runtime)],
+          ["Genres", d.store?.genres?.length ? d.store.genres.join(", ") : null],
+          ["Content rating", d.store?.rating],
+          ["Visited by you", d.store?.visited == null ? null : d.store.visited ? "Yes" : "No"],
         ],
       ],
+      ["Similar worlds", (d.store?.similar ?? []).map((x) => [esc(x.name), x.price || "—"])],
     ])}${
       f.description ? `<h3>Description</h3><p>${esc(f.description).replace(/\n/g, "<br>")}</p>` : ""
     }${
-      d.launchLink ? `<h3>Launch link</h3><p class="world-link">${esc(d.launchLink)}</p>` : ""
+      d.launchLink ? `<h3>Launch link</h3><p class="world-link">${esc(launchTarget(d.launchLink))}</p>` : ""
     }${pictures}`;
   }
   return `<tr class="detail"><td colspan="5"><div class="panel">${body}</div></td></tr>`;
+}
+
+/** A world's launch link: the deeplink inside the store's JSON wrapper when it has one. */
+function launchTarget(raw) {
+  try {
+    const j = JSON.parse(raw);
+    return j?.ovr_social_launch?.deeplink_message || raw;
+  } catch {
+    return raw;
+  }
 }
 
 /* ---------- looking a world up ---------- */

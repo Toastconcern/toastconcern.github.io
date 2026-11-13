@@ -144,6 +144,11 @@ function readSettings() {
       panelsOff: (localStorage.getItem("metadb.panelsOff") ?? "")
         .split(",")
         .filter(Boolean),
+      /* Extra lookups turned off in the setup guide (EXTRAS in app.js): each is a
+         request MetaDB otherwise sends alongside something else. */
+      extrasOff: (localStorage.getItem("metadb.extrasOff") ?? "")
+        .split(",")
+        .filter(Boolean),
     };
   } catch {
     return {
@@ -184,8 +189,14 @@ function readSettings() {
       setupDone: false,
       sectionsOff: [],
       panelsOff: [],
+      extrasOff: [],
     };
   }
+}
+
+/** Whether an extra lookup (see EXTRAS in app.js) is switched on. */
+export function extraOn(name) {
+  return !loadSettings().extrasOff.includes(name);
 }
 
 /**
@@ -220,7 +231,7 @@ export function saveSettings(patch) {
 export function clearSettings() {
   settingsCache = null;
   try {
-    for (const key of ["token", "acToken", "frlToken", "upToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "watchAuto", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll", "watchButtons", "setupDone", "sectionsOff", "panelsOff", "updaterOpts"]) {
+    for (const key of ["token", "acToken", "frlToken", "upToken", "relay", "images", "details", "devDownloads", "binDownload", "tourDone", "obb", "autoOwned", "autoDlc", "autoPlaytime", "autoBackups", "wide", "motion", "motionSpeed", "fontSize", "hidden", "limit", "store", "watchAuto", "hmd", "searchSort", "mineSort", "buildSort", "defaultTrigger", "log", "layout", "dgAll", "watchButtons", "setupDone", "sectionsOff", "panelsOff", "extrasOff", "updaterOpts"]) {
       localStorage.removeItem(`metadb.${key}`);
     }
   } catch {}
@@ -446,9 +457,10 @@ async function getJSON(url) {
   const q = url.indexOf("?");
   const base = q === -1 ? url : url.slice(0, q);
   const query = q === -1 ? "" : url.slice(q + 1);
-  const post = base === ENDPOINT;
+  /* meta.graph.meta.com's GraphQL (the headset Gallery's photos) is a POST the same way. */
+  const post = base === ENDPOINT || base === "https://meta.graph.meta.com/graphql";
 
-  const target = post ? route(ENDPOINT) : route(url);
+  const target = post ? route(base) : route(url);
   const init = post
     ? {
         method: "POST",
@@ -468,10 +480,10 @@ async function getJSON(url) {
   }
 
   /* What the log box shows: the endpoint and every field but the token. */
-  const logUrl = post ? `${ENDPOINT}?${withoutToken(query)}` : forLog(url);
+  const logUrl = post ? `${base}?${withoutToken(query)}` : forLog(url);
 
   let res = null;
-  if (extRelay && !relay && EXT_HOSTS.test(post ? ENDPOINT : url)) {
+  if (extRelay && !relay && EXT_HOSTS.test(post ? base : url)) {
     try {
       res = await viaExtension(post ? ENDPOINT : url, init);
     } catch {
@@ -711,6 +723,41 @@ function parseHistory(json) {
   return { builds, channels, live, newest: builds[0] ?? null, revisions };
 }
 
+export async function fetchHistory(id) {
+  return parseHistory(await storeQuery(HISTORY_DOC_ID, { applicationID: String(id) }));
+}
+
+/**
+ * What the store has for one app.
+ *
+ * Read from the build history rather than the release-channel query, so the
+ * answer covers both halves: `version` is the newest build actually published
+ * to a channel, and `newest` is the newest build full stop — often an internal
+ * one that is ahead of everything released.
+ *
+ * Resolves to { version, versionCode, releasedAt, channel, channels, newest,
+ * builds, total } or throws.
+ */
+export async function checkApp(app) {
+  const { builds, channels, live, newest, revisions } = await fetchHistory(app.id);
+
+  if (!live && !newest) throw new Error("no published binary");
+
+  const head = live ?? newest;
+
+  return {
+    version: head.version,
+    versionCode: head.versionCode,
+    releasedAt: head.releasedAt,
+    channel: live ? live.name : "unreleased",
+    channels,
+    newest,
+    builds,
+    total: builds.length,
+    revisions,
+  };
+}
+
 /* The full contents of one store submission (a revision), by its id — the
    developer view behind the Revisions table. Where the revisions list carries
    only a status and a date, this returns the build the submission shipped and
@@ -765,41 +812,6 @@ export async function submissionDetail(submissionID) {
       languages: (p.supported_in_app_languages ?? []).filter(Boolean).map(String),
       iarc: p.iarc_cert?.external_id ?? null,
     },
-  };
-}
-
-export async function fetchHistory(id) {
-  return parseHistory(await storeQuery(HISTORY_DOC_ID, { applicationID: String(id) }));
-}
-
-/**
- * What the store has for one app.
- *
- * Read from the build history rather than the release-channel query, so the
- * answer covers both halves: `version` is the newest build actually published
- * to a channel, and `newest` is the newest build full stop — often an internal
- * one that is ahead of everything released.
- *
- * Resolves to { version, versionCode, releasedAt, channel, channels, newest,
- * builds, total } or throws.
- */
-export async function checkApp(app) {
-  const { builds, channels, live, newest, revisions } = await fetchHistory(app.id);
-
-  if (!live && !newest) throw new Error("no published binary");
-
-  const head = live ?? newest;
-
-  return {
-    version: head.version,
-    versionCode: head.versionCode,
-    releasedAt: head.releasedAt,
-    channel: live ? live.name : "unreleased",
-    channels,
-    newest,
-    builds,
-    total: builds.length,
-    revisions,
   };
 }
 
@@ -935,10 +947,30 @@ export async function lookupApp(id) {
 
   const latest = await checkApp({ id });
 
+  /* The app's icon. The node itself will not give a usable image URL (its image
+     fields come back with only an id), and the app-page query carries no square
+     icon — only the store search does (cover_square or, failing that, the launcher
+     icon). So the name is searched and the matching id taken, exactly like the
+     watchlist's art refresh. Both of these are non-fatal: a miss (an app not in
+     search, or no account token) just falls through, and the app page's poster or
+     hero stands in, so an ID search still shows a picture. */
+  const hmd = meta.platform === "PC" ? "RIFT" : "EUREKA";
+  /* The square launcher icon by ID, the right art for a row. Falls back to the app
+     page's poster or hero only when the icon query is refused (no login). */
+  let image = await appIcon(id, hmd);
+  if (!image) {
+    try {
+      const page = await appPage(id, hmd);
+      const byLabel = (label) => page.media?.find((m) => m.label === label && m.uri)?.uri ?? null;
+      image = byLabel("Poster") ?? byLabel("Hero") ?? byLabel("Trailer still") ?? null;
+    } catch {}
+  }
+
   return {
     id: String(id),
     name: meta.display_name,
     platform: meta.platform,
+    image,
     channels: latest.channels ?? [],
   };
 }
@@ -1017,7 +1049,16 @@ function extractApps(json, fallbackPlatform = null) {
         releasedAt: app.release_date
           ? new Date(app.release_date * 1000).toISOString().slice(0, 10)
           : null,
-        image: app.cover_square_image?.uri ?? null,
+        /* Square cover first, then the launcher/VR icon, then the portrait poster
+           or the hero — some apps publish only one of these, so without the chain
+           their row is blank. Whatever the search node actually carries is used. */
+        image:
+          app.cover_square_image?.uri ??
+          app.icon_image?.uri ??
+          app.vr_icon_image?.uri ??
+          app.mobilePoster?.thumbnail?.uri ??
+          app.hero_image?.uri ??
+          null,
         media: nodeMedia(app),
       });
     }
@@ -1469,6 +1510,48 @@ export async function appPage(id, hmdType = loadSettings().hmd) {
   };
 }
 
+/* The phone app's product-page query (OCProductDetailSurfaceQuery): the one place an
+   app's square launcher icon (coverSquare) can be had by ID. The node gives no usable
+   image URL, and the app-page query above carries only the hero and poster. It is
+   refused to the built-in public token ("Unauthorized logged out query"), so an icon
+   fetched this way appears only once you are signed in. The variables are the app's
+   own, as its product route fills them (the two fixed catalog/window values and the
+   relay-provider flags the store requires). */
+const PDP_DOC_ID = "28952468254442061";
+const pdpVariables = (appID, hmdType) => ({
+  appID: String(appID),
+  hmdType,
+  encode: "JPEG",
+  LIBRARY_INFO_LAST_ACTIVE_WINDOW: -1,
+  SELECTED_DEVICE_SERIAL: null,
+  metaStoreCatalogID: "517700695939066",
+  shouldShowNewPostPurchaseCTAs: false,
+  shouldRenderRelatedItemsSubsection: false,
+  shouldShowUninstallAction: false,
+  __relay_internal__pv__loggingPriceTyperelayprovider: false,
+  __relay_internal__pv__showPremiumBundlerelayprovider: false,
+  __relay_internal__pv__showPreOrderBundlerelayprovider: false,
+  __relay_internal__pv__showExclusiveIapForBundlesrelayprovider: false,
+  __relay_internal__pv__horizonPlusBadgerelayprovider: false,
+  __relay_internal__pv__shouldEnableMetaCreditrelayprovider: false,
+});
+
+/**
+ * An app's square launcher icon by ID (coverSquare), from the phone app's
+ * product-page query — the right art for a row, not a landscape hero. Falls through
+ * square → landscape. Resolves to a URL or null (the store refusing it, or having
+ * none). hmdType picks which store is asked; a cross-store title answers on any.
+ */
+export async function appIcon(id, hmdType = "EUREKA") {
+  try {
+    const json = await storeQuery(PDP_DOC_ID, pdpVariables(id, hmdType));
+    const it = json?.data?.item;
+    return it?.coverSquare?.uri ?? it?.coverLandscape?.uri ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Search the store by name. Resolves to [{ id, name, price, … }] or throws. */
 export async function searchStore(query, { limit = 5, hmdType = "EUREKA" } = {}) {
   const json = await storeQuery(SEARCH_DOC_ID, {
@@ -1564,34 +1647,6 @@ function defaultAppRow(n) {
   };
 }
 
-/* The lighter sibling the app manager also has (QUERY_NAME "DefaultAppsList"):
-   the same set with fewer fields. Its client_doc_id is
-   185084892615440180935645326511 (OCMS 1048), but off the headset the store
-   answers it with an empty list and a field_exception error on
-   default_applications, whatever the variables — hmd, node_id, the image sizes,
-   fetchEntitlementInfo either way. So it stays switched off; DefaultApps above
-   is the one that works. Put the ID below to try it again. */
-const DEFAULT_APPS_LIST_DOC_ID = "";
-
-export async function defaultAppsList(hmdType = "HOLLYWOOD", trigger = "AUTO_UPDATER") {
-  if (!DEFAULT_APPS_LIST_DOC_ID) {
-    throw new Error(
-      "DefaultAppsList is not wired up — its client_doc_id is unknown. Fill in " +
-        "DEFAULT_APPS_LIST_DOC_ID in check.js once you have it from the manifest."
-    );
-  }
-
-  const json = await storeQuery(DEFAULT_APPS_LIST_DOC_ID, {
-    hmd: hmdType,
-    node_id: DEFAULT_APPS_STORE_ID,
-    install_trigger: trigger,
-  }, { client: true });
-  refuse(json, "Default apps");
-
-  const nodes = json.data?.fetch__AppStore?.default_applications ?? [];
-  return nodes.map(defaultAppRow);
-}
-
 /* Maps Android package names to store app IDs. Takes an array, so a whole
    screen's worth resolves in one request. Note this one uses `client_doc_id`,
    not `doc_id`, and it is refused unless the token belongs to a logged-in
@@ -1677,6 +1732,10 @@ export async function lookupByPackage(packageName) {
   } catch {
     out.channels = [];
   }
+
+  /* A package search names the app but carries no art; fetch its icon by ID so the
+     row is not blank. */
+  out.image = await appIcon(out.id, hit.platform === "PC" ? "RIFT" : "EUREKA");
 
   return out;
 }
@@ -1991,34 +2050,57 @@ export async function fetchCloudBackup(backupId) {
   const json = await storeQuery(FETCH_BACKUP_DOC_ID, { id: String(backupId) }, { client: true });
   refuse(json, "Backup details");
 
-  let downloadUri, size, checksum, type, time, segments, fallbacks;
-  (function walk(n) {
+  /* The reply's layout is not documented, so rather than trust one field name every
+     web address in it is collected with the path it sits at. The download is the one
+     whose name says so, else a lone address outside any segment; a backup uploaded
+     in segments has one address per segment, kept in order. Pictures (icons, covers)
+     are left out. The field names seen are kept too, so a reply that hides its
+     address somewhere new can be read off the screen and handled. */
+  let size, checksum, type, time, segments, fallbacks;
+  const links = [];
+  const fields = new Set();
+  (function walk(n, path) {
     if (!n || typeof n !== "object") return;
     for (const [k, v] of Object.entries(n)) {
+      const p = path ? `${path}.${k}` : k;
+      if (!/^\d+$/.test(k)) fields.add(k);
       if (typeof v === "string") {
-        if (/^download_ur[il]$/i.test(k) && !downloadUri) downloadUri = v;
-        else if (/(checksum|sha256)/i.test(k) && !checksum) checksum = v;
+        if (/^https?:\/\//i.test(v) && !/image|icon|photo|thumbnail|cover|logo|avatar/i.test(p)) {
+          links.push({ path: p, key: k, url: v });
+        } else if (/(checksum|sha256)/i.test(k) && !checksum) checksum = v;
         else if (/backup_type/i.test(k) && !type) type = v;
       } else if (typeof v === "number") {
         if (/(file|total)_size/i.test(k) && !size) size = v;
         else if (/backup_time/i.test(k) && time == null) time = v;
       } else if (Array.isArray(v)) {
-        if (/fallback.*url/i.test(k) && !fallbacks) fallbacks = v.filter((x) => typeof x === "string");
+        if (/fallback/i.test(k) && !fallbacks) fallbacks = v.filter((x) => typeof x === "string");
         else if (/segment/i.test(k) && segments == null) segments = v.length;
       }
-      walk(v);
+      walk(v, p);
     }
-  })(json.data);
+  })(json.data, "");
 
-  if (!downloadUri && size == null) throw new Error("the store returned no details for this backup");
+  const inSegment = (l) => /segment/i.test(l.path);
+  const segmentUris = links.filter(inSegment).map((l) => l.url);
+  const whole = links.filter((l) => !inSegment(l) && !/fallback/i.test(l.path));
+  const downloadUri =
+    whole.find((l) => /download/i.test(l.key))?.url ??
+    whole.find((l) => /ur[il]$/i.test(l.key))?.url ??
+    (whole.length === 1 ? whole[0].url : null);
+
+  if (!downloadUri && !segmentUris.length && size == null) throw new Error("the store returned no details for this backup");
   return {
     downloadUri: downloadUri ?? null,
+    segmentUris,
     fallbackUris: fallbacks ?? [],
     size: Number(size) || null,
     checksum: checksum ?? null,
     type: type ?? null,
     backedUpAt: Number(time) || null,
-    segments: segments ?? null,
+    segments: segments ?? (segmentUris.length || null),
+    /* Only what the reply was made of — names, never values — for when no address
+       turns up. */
+    fields: [...fields].sort(),
     encrypted: true,
   };
 }
@@ -2117,6 +2199,8 @@ async function worldDestination(destinationId) {
     world: d.horizon_world ?? null,
     details: {
       destinationId: d.destination_id ?? destinationId,
+      /* The store's id for the destination, which its similar-worlds list is keyed by. */
+      storeDestinationId: d.app_store_destination_id ? String(d.app_store_destination_id) : null,
       /* Seconds since the epoch, when the account has been there at all. */
       lastVisit: Number(d.last_visit_time) || null,
       launchLink: d.launch_deeplink ?? null,
@@ -2281,10 +2365,42 @@ export const WORLD_SHELVES = [
   ["HORIZON_TWILIGHT_SIMULATION_WORLDS", "Simulation"],
   ["HORIZON_TWILIGHT_SPORTS_WORLDS", "Sports"],
   ["HORIZON_TWILIGHT_STORY_WORLDS", "Story"],
+  /* Not a shelf: the headset's own Worlds feed (HorizonWorldsFeedQuery), one page. */
+  ["HEADSET_FEED", "Your headset's feed"],
 ];
+
+/* HorizonWorldsFeedQuery: the worlds the headset's home suggests to this account.
+   Each is a destination; its world ID rides in the launch link. Meta sign-in first. */
+const WORLD_FEED_DOC_ID = "18313389642418814290992361446";
+
+async function worldFeed() {
+  const d = await accountRead(WORLD_FEED_DOC_ID);
+  const worlds = (d.viewer?.hubble?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.target_object?.id || n?.target_object_id)
+    .map((n) => {
+      const dest = String(n.target_object?.id ?? n.target_object_id);
+      let link = n.cta_info?.oculus_deeplink ?? "";
+      try {
+        link = JSON.parse(link)?.ovr_social_launch?.deeplink_message ?? link;
+      } catch {}
+      const worldId = String(link).match(/world_id=(\d+)/)?.[1] ?? null;
+      return {
+        id: worldId ?? dest,
+        name: n.title || worldId || dest,
+        image: n.thumbnail_image?.uri ?? null,
+        destinationId: dest,
+        visits: null,
+        online: null,
+        likes: null,
+      };
+    });
+  return { worlds, cursor: null };
+}
 
 /** One page of a world shelf. */
 export async function worldShelf(feedSource, cursor = null) {
+  if (feedSource === "HEADSET_FEED") return worldFeed();
   const data = await relayQuery(
     WORLD_SHELF_DOC_ID,
     { count: 30, cursor, feedSource, ...HZW_FLAGS },
@@ -2463,6 +2579,829 @@ export function viewerId() {
     viewer = entry;
   }
   return viewer.id;
+}
+
+/* ---------- your account ----------
+   The headset's own account queries, as its Settings and profile panels ask them
+   (client_doc_ids out of the system apps' oculus-schema persist lists). None takes a
+   variable. They answer the Meta (FRL) sign-in, so that token is tried first and the
+   access token after. Each is read on its own and is non-fatal: a part the store will
+   not give is simply null. */
+const ACCOUNT_DOC = {
+  /* HorizonMyUserProfileQuery: id, email, name, alias, profile photo. */
+  profile: "15781071945474818381929742825",
+  /* IsSalsaQuery: is_salsa, and the account's age (frlm_age). */
+  salsa: "11463303871393809524197000268",
+  /* UserAccountQuery: whether the account is a developer account. */
+  account: "31772769717381786053600513641",
+  /* LivestreamCheckFbAccountLinkedQuery: whether a Facebook account is linked. */
+  facebook: "13622734023337182406839690626",
+  /* IntegrityProfileCCVEStatusQuery: policy violations on the profile. */
+  standing: "113253097215972460514425058861",
+  /* PrivateProfile: the account's privacy settings — asked only when the audience
+     query below is refused. */
+  privacy: "413585144715035790835233513414",
+  /* UserStatusQuery: the active-status setting — likewise only a fallback. */
+  status: "281760966115686460002451747815",
+  /* AudienceAndVisibilityQuery: every audience setting with the choice it is set to,
+     in the words the headset's Settings shows. Supersedes privacy + status when it answers. */
+  audience: "61321609115891111603464934425",
+  /* OCVoiceChannelQuery: who can talk to you by default, and whether a parent set it. */
+  voice: "296047381212925687328552986458",
+  /* XMFCFetaSupervisionNotificationSettingsQuery: supervision notifications — asked
+     only for a supervised (Salsa) account, where it means something. */
+  supervision: "8021600106917781191779105",
+  /* OCCommunityCreationEligibility: which kinds of community you may create. */
+  communities: "39795877206476994265164377408",
+  /* HorizonPlusSubscriptionStatusQuery: whether this account has Horizon+ now. */
+  horizonPlus: "159912708818125870982669045338",
+  /* ProfileBackgroundQuery: the picture behind your profile — only with images on. */
+  background: "8892860606036005149334457836",
+};
+
+/* The sign-in the account queries last answered, tried first next time, so a refused
+   Meta token does not cost a wasted request on every query. */
+let accountTokenOk = null;
+
+/** One of the account queries, asked with the Meta token first, then the access token. */
+/* `plain`: a React Native (Relay) query, sent by doc_id rather than client_doc_id;
+   `endpoint`: another GraphQL host (meta.graph.meta.com for the Gallery). */
+async function accountRead(docId, variables = {}, { plain = false, endpoint = ENDPOINT } = {}) {
+  const { token, frlToken } = loadSettings();
+  const tokens = [...new Set([(frlToken || "").trim(), (token || "").trim()])].filter(
+    (t) => t && !t.includes("|")
+  );
+  if (accountTokenOk && tokens.includes(accountTokenOk)) tokens.sort((a, b) => (b === accountTokenOk) - (a === accountTokenOk));
+  let last = "no signed-in token saved";
+  for (const t of tokens) {
+    try {
+      const json = await getJSON(
+        `${endpoint}?` +
+          new URLSearchParams({ access_token: t, [plain ? "doc_id" : "client_doc_id"]: docId, variables: JSON.stringify(variables) })
+      );
+      /* Data with only warnings beside it (a field the store could not fill) is an
+         answer; errors with nothing in the data are a refusal. */
+      const fatal = (json?.errors ?? []).some((e) => e?.severity !== "WARNING");
+      if (json?.data && (!fatal || Object.values(json.data).some((v) => v != null))) {
+        accountTokenOk = t;
+        return json.data;
+      }
+      last = json?.errors?.[0]?.message ?? json?.error?.message ?? "the store refused";
+    } catch (err) {
+      last = err.message;
+    }
+  }
+  throw new Error(last);
+}
+
+/* ---------- people ----------
+   The headset's People tab (SocialPlatform): who you follow and who follows you, each
+   with their online status and what they are doing, and the counts above it. Neither
+   query takes a variable; both answer the Meta sign-in first, like the account ones. */
+const PEOPLE_DOC = {
+  /* PeopleFollowCountsQuery: followers, following, follow requests, recently met. */
+  counts: "1517111573189500436995675608",
+  /* PeopleTabFollowsQuery: followers and following together, with presence. */
+  list: "209115519317059146500281110007",
+  /* PeopleTabFollowRequestsQuery: who has asked to follow you. */
+  requests: "6867526546653215924743625714",
+  /* PeopleTabRecentlyMetQuery: people you were in a world or app with, and where. */
+  met: "35520022493517897887369417634",
+  /* RecentlyMetRosterQuery: the same people, with when you last met them. */
+  metRoster: "75720102512560747509655454325",
+  /* PeopleTabNearbyQuery: who is in the same lobby as you right now. */
+  nearby: "24887553057711262502737685",
+  /* PeopleTabGroupsQuery: your chats, with their last message. */
+  chats: "51633306317420163998488732751",
+  /* PeopleTabPYMKQuery: people you may know. { initial_load, first } */
+  suggested: "33314788255216183693165770553",
+  /* OculusFollowersQuery / OculusFollowsQuery: every follower and everyone you follow,
+     paged — complete where the blended list above stops short, but with no photos.
+     { node_id, first, after, profile_picture_size_string } */
+  followers: "12787062841172923645609902350",
+  follows: "252407844718047616381546991557",
+  /* MiniProfileUserQDSQuery: one person, as the headset's mini profile shows them. { user_id } */
+  person: "307214475610106213041554219891",
+  /* OculusFollowCountsQuery: anyone's follower and following counts, and the
+     Instagram accounts they show. { node_id } */
+  personCounts: "3653406633392707327058615055",
+};
+
+/** One person off any People-tab query, in one shape. */
+function personOf(u) {
+  return {
+    id: String(u.id),
+    name: u.profile_name || u.display_name || u.alias || String(u.id),
+    alias: u.alias ?? null,
+    photo: (u.profile_picture ?? u.profile_photo)?.uri ?? null,
+    online: u.presence_status === "ONLINE",
+    presence:
+      (u.rich_presence ?? []).map((r) => r?.content?.text).filter(Boolean).join(" · ") ||
+      (typeof u.presence === "string" && !/^(online|offline)$/i.test(u.presence) ? u.presence : null),
+    follow: u.follow_status ?? null,
+    canMessage: Boolean(u.can_viewer_message),
+    salsa: Boolean(u.is_salsa),
+    suspended: Boolean(u.is_social_suspended),
+    blocked: Boolean(u.is_blocked_by_viewer),
+    /* Why the store shows them ("Followed by …"), when it says. */
+    context:
+      [u.mutual_context_string, ...(u.profile_contexts ?? []).map((c) => c?.content?.text)].filter(Boolean).join(" · ") || null,
+  };
+}
+
+/** { followers, following, requests, recentlyMet, contacts } — any the store left out is null. */
+export async function peopleCounts() {
+  const d = await accountRead(PEOPLE_DOC.counts);
+  const u = d.viewer?.user ?? {};
+  const n = (c) => (Number.isFinite(Number(c?.count)) ? Number(c.count) : null);
+  return {
+    followers: n(u.followers),
+    following: n(u.follows),
+    requests: n(u.follower_requests_received),
+    recentlyMet: n(d.viewer?.recently_met),
+    contacts: n(u.approved_contacts),
+  };
+}
+
+/**
+ * The people you follow and who follow you, as the headset's People tab lists them:
+ * [{ id, name, alias, photo, online, presence, follow, canMessage, salsa, suspended }].
+ * `presence` is the store's own line ("Playing Beat Saber", "Last seen 1 day ago");
+ * `follow` is FOLLOWS_EACH_OTHER, FOLLOWED_BY_USER (follows you) or FOLLOWING.
+ */
+export async function peopleList() {
+  /* The blended list carries photos and presence but stops short; the two complete
+     lists fill in whoever it leaves out. All three at once, each non-fatal. */
+  /* Your id, from the profile query alone (not the whole dashboard batch). */
+  const me = extraOn("fullFollows")
+    ? await accountRead(ACCOUNT_DOC.profile).then((d) => (d.viewer?.user?.id ? String(d.viewer.user.id) : null), () => null)
+    : null;
+  const [blended, followers, follows] = await Promise.all([
+    accountRead(PEOPLE_DOC.list).catch((e) => ({ error: e })),
+    me && extraOn("fullFollows") ? everyPage(PEOPLE_DOC.followers, me, "followers").catch(() => null) : null,
+    me && extraOn("fullFollows") ? everyPage(PEOPLE_DOC.follows, me, "follows").catch(() => null) : null,
+  ]);
+  const conn = blended.error ? null : blended.viewer?.user?.blended_followers_and_following;
+  if (!conn && !followers && !follows) throw blended.error ?? new Error("the store gave no people");
+  const byId = new Map();
+  for (const u of (conn?.edges ?? []).map((e) => e?.node)) if (u?.id && !u.is_viewer) byId.set(String(u.id), personOf(u));
+  /* Which list each person is on gives the relation when the store leaves it out. */
+  const inFollowers = new Set((followers?.nodes ?? []).map((u) => String(u?.id)));
+  const inFollows = new Set((follows?.nodes ?? []).map((u) => String(u?.id)));
+  for (const u of [...(followers?.nodes ?? []), ...(follows?.nodes ?? [])]) {
+    if (!u?.id || u.is_viewer) continue;
+    const id = String(u.id);
+    const had = byId.get(id);
+    const p = personOf(u);
+    p.follow ??=
+      inFollowers.has(id) && inFollows.has(id)
+        ? "FOLLOWS_EACH_OTHER"
+        : inFollowers.has(id)
+          ? "PROFILE_FOLLOWS_VIEWER"
+          : "VIEWER_FOLLOWS_PROFILE";
+    byId.set(id, had ? { ...p, ...Object.fromEntries(Object.entries(had).filter(([, v]) => v != null && v !== "")) } : p);
+  }
+  const people = await fillPhotos([...byId.values()]);
+  return {
+    people,
+    total: people.length,
+    more: false,
+    followers: followers?.count ?? null,
+    following: follows?.count ?? null,
+  };
+}
+
+/** Every page of a follower/follows list: { count, nodes }. */
+async function everyPage(docId, nodeId, key) {
+  const nodes = [];
+  let after = null;
+  let count = null;
+  for (let i = 0; i < 20; i++) {
+    const d = await accountRead(docId, { node_id: String(nodeId), first: 100, after, profile_picture_size_string: "96" });
+    const c = d.node?.[key];
+    count ??= Number(c?.count) || null;
+    nodes.push(...(c?.edges ?? []).map((e) => e?.node).filter(Boolean));
+    if (!c?.page_info?.has_next_page || !c.page_info.end_cursor) break;
+    after = c.page_info.end_cursor;
+  }
+  return { count, nodes };
+}
+
+/** People you may know: { people, total, more }. */
+export async function peopleSuggested() {
+  const d = await accountRead(PEOPLE_DOC.suggested, { initial_load: true, first: 50 });
+  const conn = d.viewer?.people_you_may_know;
+  const people = (conn?.edges ?? []).map((e) => e?.node).filter((u) => u?.id && !u.is_viewer).map(personOf);
+  return { people, total: people.length, more: Boolean(conn?.page_info?.has_next_page) };
+}
+
+/**
+ * One person's mini profile: { name, alias, bio, photo, privateProfile, facebookName,
+ * friends, canCall, unread, presence, follow }.
+ */
+export async function personDetails(userId) {
+  const [d, c] = await Promise.all([
+    accountRead(PEOPLE_DOC.person, { user_id: String(userId) }),
+    extraOn("personCounts") ? accountRead(PEOPLE_DOC.personCounts, { node_id: String(userId) }).catch(() => null) : null,
+  ]);
+  const u = d.node;
+  const cn = c?.node ?? {};
+  const num = (x) => (Number.isFinite(Number(x?.count)) ? Number(x.count) : null);
+  if (!u?.id) throw new Error("the store has no profile for this person");
+  return {
+    name: u.profile_name ?? null,
+    alias: u.profile_username ?? null,
+    bio: u.biography || null,
+    photo: u.profile_picture?.uri ?? null,
+    privateProfile: u.profile_status ? u.profile_status === "PRIVATE_PROFILE" : null,
+    facebookName: u.facebook_name || null,
+    canCall: u.can_viewer_vr_call ?? null,
+    unread: typeof u.has_unread_message === "boolean" ? u.has_unread_message : null,
+    presence:
+      (u.rich_presence ?? []).map((r) => r?.content?.text).filter(Boolean).join(" · ") || u.presence || null,
+    follow: u.follow_status ?? null,
+    joinable: Boolean(u.is_presence_deeplink_joinable),
+    followers: num(cn.followers),
+    following: num(cn.follows),
+    instagram: (cn.instagram_usernames ?? []).filter((x) => typeof x === "string" && x),
+  };
+}
+
+/** Who has asked to follow you: { people, total, more }. */
+export async function peopleRequests() {
+  const d = await accountRead(PEOPLE_DOC.requests);
+  const conn = d.me?.follower_requests_received ?? d.viewer?.user?.follower_requests_received;
+  const people = (conn?.edges ?? []).map((e) => e?.node).filter((u) => u?.id && !u.is_viewer).map(personOf);
+  return { people, total: Number(conn?.count) || people.length, more: Boolean(conn?.page_info?.has_next_page) };
+}
+
+/**
+ * People you were recently in a world or app with: { people, total, more }, each with
+ * `met` (the store's line, "Met in Worlds") and `metAt` (seconds) when the roster
+ * query gives it.
+ */
+export async function peopleRecentlyMet() {
+  const [list, roster] = await Promise.all([
+    accountRead(PEOPLE_DOC.met),
+    extraOn("metTimes") ? accountRead(PEOPLE_DOC.metRoster).catch(() => null) : null,
+  ]);
+  const when = new Map(
+    (roster?.viewer?.recently_met?.edges ?? [])
+      .map((e) => e?.node)
+      .filter((n) => n?.peer?.id)
+      .map((n) => [String(n.peer.id), Number(n.last_encounter_time) || null])
+  );
+  const conn = list.viewer?.recently_met;
+  const people = (conn?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.peer?.id)
+    .map((n) => ({ ...personOf(n.peer), met: n.detailed_context_string ?? null, metAt: when.get(String(n.peer.id)) ?? null }));
+  return { people, total: Number(conn?.count) || people.length, more: Boolean(conn?.page_info?.has_next_page) };
+}
+
+/** Who is in the same lobby as you right now: { people, total, more }. */
+export async function peopleNearby() {
+  const d = await accountRead(PEOPLE_DOC.nearby);
+  const conn = d.viewer?.user?.lobby_roster;
+  const people = (conn?.edges ?? [])
+    .map((e) => e?.node?.user ?? e?.node?.peer ?? e?.node)
+    .filter((u) => u?.id && !u.is_viewer)
+    .map(personOf);
+  return { people, total: Number(conn?.count) || people.length, more: Boolean(conn?.page_info?.has_next_page) };
+}
+
+/**
+ * Your chats, as the People tab lists them: [{ id, name, members: [person], snippet,
+ * unread, active, oneToOne }]. `name` is the chat's own when it has one, else who is
+ * in it besides you. Also { party } — whether you are in a party now.
+ */
+export async function peopleChats() {
+  const d = await accountRead(PEOPLE_DOC.chats);
+  const chats = (d.vr_group_list?.vr_group ?? [])
+    .filter((c) => c?.id)
+    .map((c) => {
+      const members = (c.group?.users?.edges ?? [])
+        .map((e) => e?.node)
+        .filter((u) => u?.id && !u.is_viewer)
+        .map(personOf);
+      return {
+        id: String(c.id),
+        name: c.group?.name || members.map((m) => m.name).join(", ") || "Chat",
+        members,
+        photo: c.group?.group_thread_image?.uri ?? members[0]?.photo ?? null,
+        snippet: c.last_message_snippet ?? null,
+        unread: Boolean(c.is_unread),
+        active: Boolean(c.has_active_member),
+        oneToOne: Boolean(c.group?.is_one_to_one),
+      };
+    });
+  return { chats, party: Boolean(d.viewer?.user?.current_party) };
+}
+
+/* HzGlobalSearchHorizonEntitiesForSearchQuery: the headset's own search box — apps,
+   movies, TV series, sports events, Xbox cloud games, people and events, each up to
+   ten. { query, include_movies, include_tvseries, include_sports_events, include_xbox } */
+const GLOBAL_SEARCH_DOC_ID = "30670291099668386557224565653";
+/* HzGlobalSearchHorizonEntitiesPrefetchQuery: what the search box shows before you
+   type — your recent apps (with when), people and websites. No variables. */
+const GLOBAL_SUGGEST_DOC_ID = "2985838347370243137379424618";
+
+/**
+ * { apps, movies, series, sports, xbox, people, events } — each a list of
+ * { id, title, image, … } with the fields its kind carries.
+ */
+export async function globalSearch(text) {
+  /* An empty box asks for the suggestions instead. */
+  const d = String(text).trim()
+    ? await accountRead(GLOBAL_SEARCH_DOC_ID, {
+        query: String(text),
+        include_movies: true,
+        include_tvseries: true,
+        include_sports_events: true,
+        include_xbox: true,
+      })
+    : await accountRead(GLOBAL_SUGGEST_DOC_ID);
+  const pe = d.partitioned_entities ?? {};
+  const list = (k) => (pe[k]?.edges ?? []).map((e) => e?.node).filter((n) => n?.id);
+  const base = (n) => ({ id: String(n.id), title: n.title || n.display_name || String(n.id), image: n.icon?.uri ?? null });
+  const people = await fillPhotos(
+    list("people").map((n) => ({
+      ...base(n),
+      alias: n.alias ?? null,
+      presence: n.presence_string ?? null,
+      follow: n.viewer_follow_status ?? null,
+    })),
+    "image"
+  );
+  return {
+    apps: list("apps").map((n) => ({
+      ...base(n),
+      packageName: n.package_name ?? null,
+      lastOpened: Number(n.last_considered_time) || null,
+    })),
+    movies: list("movie").map((n) => ({
+      ...base(n),
+      year: n.release_year ?? null,
+      genre: n.genre ?? null,
+      runtime: Number(n.run_time_in_seconds) || null,
+    })),
+    series: list("series").map((n) => ({ ...base(n), year: n.release_year ?? null, genre: n.genre ?? null, seasons: n.season_count ?? null })),
+    sports: list("sports_events").map((n) => ({
+      ...base(n),
+      start: Number(n.start_time) || null,
+      end: Number(n.end_time) || null,
+      live: Boolean(n.is_live),
+      app: n.app_name ?? null,
+    })),
+    xbox: list("xbox").map((n) => ({ ...base(n), link: /^https:\/\//.test(n.launch_deeplink ?? "") ? n.launch_deeplink : null })),
+    people,
+    events: list("events").map((n) => ({ ...base(n), start: Number(n.start_time) || null })),
+    websites: list("browser").map((n) => ({
+      ...base(n),
+      image: n.icon_url ?? n.icon?.uri ?? null,
+      link: /^https?:\/\//.test(n.website_url ?? "") ? n.website_url : null,
+    })),
+  };
+}
+
+/* OcExpressoAvatarStickers: the animated stickers made from this account's avatar,
+   as the headset's messaging offers them. No variables. */
+const AVATAR_STICKERS_DOC_ID = "28923220153412598514073512516";
+
+/** [{ id, url }] */
+export async function avatarStickers() {
+  const d = await accountRead(AVATAR_STICKERS_DOC_ID);
+  return (d.viewer?.user?.avatar_v3?.messaging?.stickers?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.preview_url?.url)
+    .map((n) => ({ id: String(n.stable_id ?? n.storage_key), url: n.preview_url.url }));
+}
+
+/* ---------- from the headset's React Native apps ----------
+   Relay queries read out of the Gallery and Store bundles (Hermes bytecode), sent by
+   doc_id. They answer the Meta (FRL) sign-in. */
+
+/* HzOSGalleryMediaQuery (Gallery, on meta.graph.meta.com): the photos and videos this
+   account's headsets have uploaded, newest first, paged. */
+const GALLERY_MEDIA_DOC_ID = "37605900805721531";
+
+/**
+ * One page: { items: [{ id, video, thumb, url, app, world, taken, size, width, height,
+ * duration, favorite, stereo }], cursor } — cursor is null on the last page.
+ */
+export async function headsetPhotos(cursor = null) {
+  const d = await accountRead(
+    GALLERY_MEDIA_DOC_ID,
+    {
+      first: 48,
+      after: cursor,
+      filter_options: null,
+      server_updated_after: null,
+      mediaHeight: 1080,
+      mediaWidth: 1920,
+      thumbnailHeight: 320,
+      thumbnailWidth: 320,
+    },
+    { plain: true, endpoint: "https://meta.graph.meta.com/graphql" }
+  );
+  const conn = d.viewer?.account?.photos_hub?.filtered_media_items;
+  const items = (conn?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.id && (n.thumbnail_url || n.screen_size_media_url))
+    .map((n) => ({
+      id: String(n.id),
+      video: /video/i.test(`${n.__typename} ${n.oculus_media_type}`) || Number(n.duration_in_ms) > 0,
+      thumb: n.thumbnail_url ?? n.screen_size_media_url,
+      url: n.screen_size_media_url ?? n.thumbnail_url,
+      app: n.oculus_app_display_name || null,
+      world: n.horizon_world_name || null,
+      taken: Number(n.datetime_taken) || null,
+      size: Number(n.server_file_size) || null,
+      width: Number(n.width) || null,
+      height: Number(n.height) || null,
+      duration: Number(n.duration_in_ms) || null,
+      favorite: Boolean(n.is_favorited),
+      stereo: n.stereoscopic_mode && n.stereoscopic_mode !== "MONO" ? n.stereoscopic_mode : null,
+    }));
+  return { items, cursor: conn?.page_info?.has_next_page ? conn.page_info.end_cursor : null };
+}
+
+/* The headset Store app's account queries: credit balance, store settings, and the
+   subscriptions this account pays for. No variables. */
+const STORE_DOC = {
+  credit: "25329845226649988", // useStoreCreditBalanceQuery
+  settings: "27957534520541894", // StoreAccountSettingsContainerQuery
+  subscriptions: "27994220820231578", // StoreSubscriptionsMgmtContainerQuery
+  creditHistory: "38930029713262720", // StoreWalletCreditHistoryQuery
+  related: "28316143671418456", // StoreDiscoPDPRelatedItemsViewQuery { appID, imageScale, isControllerConnected }
+  includedIn: "28175204638768052", // StoreDiscoPDPIncludedInViewPaginationQuery { id, count, cursor, … }
+  referrals: "28323344543939008", // StoreAppReferralHubContainerQuery
+  worldPage: "35508296145483891", // StoreWorldPDPRootQuery { itemID, imageScale }
+  similarWorlds: "38384761897836065", // StoreWorldPDPSimilarWorldsViewQuery { worldID: store destination id, … }
+  avatars: "25033180872976625", // AvatarEditorMaxSwitcherSideSheetQuery (Avatar Editor bundle)
+  users: "24033352489605925", // relayFetchUsersQuery { userIDs } — many people in one request
+  media: "28354221460895045", // StoreMiniMediaPDPRootQuery { itemID, enableTVODContent, imageScale }
+};
+
+/**
+ * A movie or TV series, as the headset Store's media page shows it: { kind, title,
+ * description, art, rating, genres, year, runtime, seasons, watch: [{ provider,
+ * url, appId }] } — `watch` is where it streams, each with the link that opens it.
+ */
+export async function mediaDetails(itemId) {
+  const d = await accountRead(STORE_DOC.media, { enableTVODContent: true, imageScale: 1, itemID: String(itemId) }, { plain: true });
+  const m = d.item;
+  if (!m) throw new Error("the store has no page for this title");
+  return {
+    kind: /Series/.test(m.__typename ?? "") ? "series" : "movie",
+    title: m.title ?? null,
+    description: m.description ?? null,
+    art: m.images?.art?.nodes?.[0]?.uri ?? null,
+    rating: m.media_age_rating ?? null,
+    genres: Array.isArray(m.media_genres) ? m.media_genres.filter(Boolean) : [],
+    year: m.release_year ?? null,
+    runtime: Number(m.run_time_in_seconds) || null,
+    seasons: Number(m.seasons?.count) || null,
+    watch: (m.watch_options?.nodes ?? [])
+      .filter((w) => w?.provider_name)
+      .map((w) => ({
+        provider: w.provider_name,
+        url: /^https:\/\//.test(w.deeplink?.data ?? "") ? w.deeplink.data : null,
+        appId: w.provider_app?.id ? String(w.provider_app.id) : null,
+      })),
+  };
+}
+
+/** Profile photos for many people at once: Map id → uri (50 to a request). */
+async function userPhotos(ids) {
+  const out = new Map();
+  const list = [...new Set(ids.map(String))];
+  for (let i = 0; i < list.length; i += 50) {
+    const d = await accountRead(STORE_DOC.users, { userIDs: list.slice(i, i + 50) }, { plain: true }).catch(() => null);
+    for (const u of d?.user_or_blocked_users ?? []) {
+      const id = String(u?.id ?? u?.possibly_blocked_real_user_id ?? "");
+      if (id && u?.profile_photo?.uri) out.set(id, u.profile_photo.uri);
+    }
+  }
+  return out;
+}
+
+/** Fill in the photo of every person in `people` that has none (personPhotos extra). */
+async function fillPhotos(people, key = "photo") {
+  if (!extraOn("personPhotos")) return people;
+  const missing = people.filter((p) => !p[key]).map((p) => p.id);
+  if (!missing.length) return people;
+  const photos = await userPhotos(missing).catch(() => new Map());
+  for (const p of people) if (!p[key] && photos.has(p.id)) p[key] = photos.get(p.id);
+  return people;
+}
+
+/** The bundles an app is sold in: [{ id, name, price }]. */
+export async function appBundles(appId) {
+  const d = await accountRead(
+    STORE_DOC.includedIn,
+    { id: String(appId), count: 20, cursor: null, imageScale: 1, isControllerConnected: true },
+    { plain: true }
+  );
+  const n = d.node ?? {};
+  return [...(n.premium_bundles ?? []), ...(n.included_bundles_connection?.edges ?? []).map((e) => e?.node)]
+    .filter((b) => b?.id)
+    .map((b) => ({
+      id: String(b.id),
+      name: b.display_unit_title || b.display_name || String(b.id),
+      price: b.surfaced_price_display?.text ?? null,
+    }));
+}
+
+/** { accepted, redeemed, earned, limit } — the app-referral program's yearly totals. */
+export async function storeReferrals() {
+  const d = await accountRead(STORE_DOC.referrals, {}, { plain: true });
+  const s = d.viewer?.user?.app_referral_program?.program_stats;
+  if (!s) return null;
+  return {
+    accepted: Number(s.num_sent_app_referrals_accepted) || 0,
+    redeemed: Number(s.num_sent_app_referrals_reward_redeemed) || 0,
+    earned: s.yearly_credit_earned_formatted ?? null,
+    limit: s.yearly_credit_limit_formatted ?? null,
+  };
+}
+
+/**
+ * What the headset Store's world page adds: { genres, rating, visited, creator,
+ * population, likes, mixedReality, similar: [{ name, price }] }.
+ */
+export async function worldStoreExtras(worldId, storeDestinationId) {
+  const [page, similar] = await Promise.all([
+    accountRead(STORE_DOC.worldPage, { itemID: String(worldId), imageScale: 1 }, { plain: true }).catch(() => null),
+    storeDestinationId
+      ? accountRead(
+          STORE_DOC.similarWorlds,
+          { worldID: String(storeDestinationId), imageScale: 1, isControllerConnected: true },
+          { plain: true }
+        ).catch(() => null)
+      : null,
+  ]);
+  const w = page?.item?.oc_destination?.vr_destination?.app_store_destination?.destination?.horizon_world ?? {};
+  return {
+    genres: Array.isArray(w.world_genre_names) ? w.world_genre_names.filter(Boolean) : [],
+    rating: w.horizon_content_rating?.content_rating_text ?? null,
+    visited: typeof w.viewer_has_visited === "boolean" ? w.viewer_has_visited : null,
+    creator: w.owner?.owner_name ?? null,
+    population: Number.isFinite(Number(w.total_population)) ? Number(w.total_population) : null,
+    likes: Number(w.oc_destination?.reactor_count) || null,
+    similar: (similar?.node?.related_items_v1 ?? [])
+      .map((r) => r?.item)
+      .filter((i) => i?.id)
+      .map((i) => ({ name: i.display_unit_title || String(i.id), price: i.surfaced_price_display?.text ?? null })),
+  };
+}
+
+/** Every avatar on the account: [{ id, kind, body, face, profiles: [name] }]. */
+export async function accountAvatars() {
+  const d = await accountRead(STORE_DOC.avatars, {}, { plain: true });
+  return (d.xfb_avatar_max_get_avatars?.all_avatars ?? [])
+    .filter((a) => a?.avatar_id || a?.id)
+    .map((a) => ({
+      id: String(a.avatar_id ?? a.id),
+      kind: a.avatar_class ?? null,
+      body: a.full_body_preview_uri ?? null,
+      face: a.face_tile_preview_uri ?? null,
+      profiles: (a.assigned_identities ?? [])
+        .map((i) => {
+          const where = { FRL: "Meta", FB: "Facebook", FACEBOOK: "Facebook", IG: "Instagram", INSTAGRAM: "Instagram" }[i?.profile_platform] ?? i?.profile_platform;
+          return [i?.name, where].filter(Boolean).join(" on ");
+        })
+        .filter(Boolean),
+    }));
+}
+
+/**
+ * { credit, pinSet, contentFilter, subscriptions: [{ name, app, appId, active, next }] }
+ * — each part null when the store would not give it.
+ */
+export async function storeAccount() {
+  const read = (doc) => accountRead(doc, {}, { plain: true }).catch(() => null);
+  const [credit, settings, subs] = await Promise.all([read(STORE_DOC.credit), read(STORE_DOC.settings), read(STORE_DOC.subscriptions)]);
+  const su = settings?.viewer?.user;
+  return {
+    credit: credit?.viewer?.user?.payment_account?.credit?.balance?.formatted_amount ?? null,
+    pinSet: typeof su?.is_pin_set === "boolean" ? su.is_pin_set : null,
+    contentFilter: su?.store_content_filter_preference ?? null,
+    subscriptions: subs
+      ? (subs.viewer?.user?.digital_subscriptions?.nodes ?? [])
+          .filter((n) => n?.item)
+          .map((n) => ({
+            name: n.item.display_name ?? null,
+            app: n.item.parent_application?.display_name ?? null,
+            appId: n.item.parent_application?.id ? String(n.item.parent_application.id) : null,
+            active: Boolean(n.is_active),
+            next: n.term_expiration_details ?? null,
+          }))
+      : null,
+  };
+}
+
+/** { balance, entries: [{ type, time, title, amount, icon }], more } */
+export async function storeCreditHistory() {
+  const d = await accountRead(STORE_DOC.creditHistory, {}, { plain: true });
+  const c = d.viewer?.user?.payment_account?.credit;
+  return {
+    balance: c?.balance?.formatted_amount ?? null,
+    entries: (c?.transactions?.edges ?? [])
+      .map((e) => e?.node)
+      .filter(Boolean)
+      .map((n) => ({
+        type: n.type ?? null,
+        time: Number(n.time) || null,
+        title: n.title ?? null,
+        detail: n.subtitle ?? null,
+        amount: n.value?.formatted_amount ?? null,
+        icon: n.icon?.uri ?? null,
+      })),
+    more: Boolean(c?.transactions?.page_info?.has_next_page),
+  };
+}
+
+/** The store's "more like this" for an app: [{ id, name, price, image, owned }]. */
+export async function relatedApps(appId) {
+  const d = await accountRead(STORE_DOC.related, { appID: String(appId), imageScale: 1, isControllerConnected: true }, { plain: true });
+  return (d.node?.related_items_with_ranking_trace?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.id)
+    .map((n) => ({
+      id: String(n.id),
+      name: n.display_unit_title || String(n.id),
+      price: n.surfaced_price_display?.text ?? null,
+      image: n.assets?.square_image_180?.uri ?? n.assets?.icon_image_80?.uri ?? null,
+      owned: Boolean(n.is_viewer_entitled),
+    }));
+}
+
+/* AppSubdestinationsQuery: the places inside an app you can launch straight into
+   (a mode, a map, a lobby), each with how many can go in one group. { app_id } */
+const APP_DESTINATIONS_DOC_ID = "416618167111068373708718042057";
+
+/** [{ id, name, capacity, image }] for one app. */
+export async function appDestinations(appId) {
+  const d = await accountRead(APP_DESTINATIONS_DOC_ID, { app_id: String(appId) });
+  return (d.node?.grouping?.destinations?.edges ?? [])
+    .map((e) => e?.node)
+    .filter((n) => n?.id)
+    .map((n) => ({
+      id: String(n.id),
+      name: n.display_name || String(n.id),
+      capacity: Number(n.max_group_launch_capacity) || null,
+      image: typeof n.image === "string" ? n.image : n.image?.uri ?? null,
+    }));
+}
+
+/* GetAppTaxonomy: the store's traits for apps — player modes, genres, art style,
+   comfort, whether it needs the internet — as the headset's library groups them.
+   { appIds } */
+const APP_TAXONOMY_DOC_ID = "196995623014805601402940604810";
+const taxonomyCache = new Map();
+
+/** [{ key, name }] for one app, cached for the visit. */
+export function appTraits(appId) {
+  const id = String(appId);
+  if (!taxonomyCache.has(id)) {
+    const p = accountRead(APP_TAXONOMY_DOC_ID, { appIds: [id] }).then((d) =>
+      ((d.multifetch__Application ?? []).find((a) => String(a?.node?.id) === id)?.node?.ordered_dimensions ?? [])
+        .filter((x) => x?.dimension_key && x?.untranslated_display_name)
+        .map((x) => ({ key: x.dimension_key, name: x.untranslated_display_name }))
+    );
+    p.catch(() => taxonomyCache.delete(id));
+    taxonomyCache.set(id, p);
+  }
+  return taxonomyCache.get(id);
+}
+
+/* Who the saved sign-in belongs to, for the home dashboard:
+   { id, name, alias, email, photo, details: { age, salsa, developer, facebookLinked,
+   violations, privacy: [{ name, value }] }, detailsError }. Fetched once per sign-in
+   pair, shared by callers. */
+let profileCache = { token: null, p: null };
+export function accountProfile() {
+  const { token, frlToken, images, extrasOff } = loadSettings();
+  /* Keyed on both sign-ins (saving the Meta token later should ask again), on
+     images and on the extras, which decide what else is asked for. */
+  const key = `${token}\n${frlToken}\n${images}\n${extrasOff.join(",")}`;
+  if (profileCache.token === key && profileCache.p) return profileCache.p;
+  const p = (async () => {
+    const read = (doc) => accountRead(doc).then((d) => ({ d }), (e) => ({ e: e.message }));
+    const none = { d: null };
+    /* Asked together: the ones every dashboard shows. The rest only when they add
+       something — the older privacy and status queries if the audience one is
+       refused, supervision only for a Salsa account, the background only with
+       images on. */
+    const salsaP = read(ACCOUNT_DOC.salsa);
+    const audienceP = read(ACCOUNT_DOC.audience);
+    const [profile, salsa, account, facebook, standing, audience, voice, communities, hplus, background, [privacy, status], supervision] =
+      await Promise.all([
+        read(ACCOUNT_DOC.profile),
+        salsaP,
+        read(ACCOUNT_DOC.account),
+        read(ACCOUNT_DOC.facebook),
+        read(ACCOUNT_DOC.standing),
+        audienceP,
+        extraOn("homeSettings") ? read(ACCOUNT_DOC.voice) : none,
+        extraOn("homeSettings") ? read(ACCOUNT_DOC.communities) : none,
+        extraOn("homeHplus") ? read(ACCOUNT_DOC.horizonPlus) : none,
+        images && extraOn("homeBackground") ? read(ACCOUNT_DOC.background) : none,
+        audienceP.then((a) =>
+          a.d?.viewer?.user?.privacy_settings_list?.edges?.length
+            ? [none, none]
+            : Promise.all([read(ACCOUNT_DOC.privacy), read(ACCOUNT_DOC.status)])
+        ),
+        salsaP.then((r) => (r.d?.viewer?.user?.is_salsa ? read(ACCOUNT_DOC.supervision) : none)),
+      ]);
+    const u = profile.d?.viewer?.user ?? {};
+    const out = {
+      id: u.id ? String(u.id) : null,
+      name: u.name ?? null,
+      alias: u.alias ?? u.profile_name ?? null,
+      email: u.email ?? null,
+      photo: u.profile_photo?.uri ?? null,
+      background: null,
+      details: {},
+      detailsError: null,
+    };
+
+    /* The "who am I" query as a fallback for the header when the profile query is
+       refused. */
+    if (!out.id) {
+      try {
+        const v = (await relayQuery(VIEWER_DOC_ID, {}, "Account")).viewer?.user ?? {};
+        out.id = v.id ? String(v.id) : null;
+        out.name ??= v.display_name ?? v.name ?? null;
+        out.alias ??= v.alias ?? null;
+        out.photo ??= (v.profile_photo ?? v.profilePhoto)?.uri ?? null;
+      } catch {}
+    }
+
+    const su = salsa.d?.viewer?.user ?? {};
+    const age = Number(su.frlm_age);
+    const cc = standing.d?.viewer?.user?.profile_ccve_status;
+    const violations = cc
+      ? (Array.isArray(cc.violations) ? cc.violations.length : 0) +
+        (Array.isArray(cc.active_profile_violations_l7) ? cc.active_profile_violations_l7.length : 0)
+      : null;
+    /* The audience settings, each with the name of the option it is set to ("Online",
+       "Appear offline"); the older two queries only when that one is refused. */
+    const audienceList = (audience.d?.viewer?.user?.privacy_settings_list?.edges ?? [])
+      .map((e) => e?.node)
+      .filter((n) => n?.key || n?.description)
+      .map((n) => ({
+        key: n.key ?? null,
+        name: String(n.description || n.key),
+        value: n.selected_value ?? null,
+        valueName: (n.options ?? []).find((o) => o?.key === n.selected_value)?.name ?? null,
+      }));
+    const privacyList = audienceList.length
+      ? audienceList
+      : (privacy.d?.viewer?.user?.privacy_settings_list?.edges ?? [])
+          .map((e) => e?.node)
+          .filter((n) => n?.name)
+          .map((n) => ({ key: null, name: String(n.name), value: n.selected_value ?? null, valueName: null }));
+    const linked = facebook.d?.viewer?.is_fb_linked_with_sso_enabled;
+
+    const active = audienceList.some((a) => a.key === "ACTIVE_STATUS")
+      ? null
+      : status.d?.viewer?.user?.activeStatus?.edges?.[0]?.node?.selected_value ?? null;
+    const vu = voice.d?.viewer?.user?.together_app_user;
+    const sup = supervision.d?.xfb_youth_platform?.feta_supervision?.notification_settings;
+    const cv = communities.d?.viewer;
+    const bg = background.d?.viewer?.user?.profile_background;
+    const bool = (v) => (typeof v === "boolean" ? v : null);
+    out.background = bg?.uri ? { uri: bg.uri, color: bg.contextual_color ?? null, type: bg.background_type ?? null } : null;
+    out.details = {
+      voiceChannel: vu?.oc_voice_channel ?? null,
+      voiceParental: bool(vu?.oc_parental_controls_enabled_for_voice_channel),
+      supervisionNotifications: bool(sup?.is_supervision_notification_enabled),
+      communities: cv
+        ? { adult: bool(cv.can_create_adult_only_communities), minor: bool(cv.can_create_minor_eligible_communities) }
+        : null,
+      horizonPlus:
+        typeof hplus.d?.viewer?.user?.platform_subscription_details?.item?.is_viewer_entitled === "boolean"
+          ? hplus.d.viewer.user.platform_subscription_details.item.is_viewer_entitled
+          : null,
+      activeStatus: active,
+      age: Number.isFinite(age) && age > 0 ? age : null,
+      salsa: typeof su.is_salsa === "boolean" ? su.is_salsa : null,
+      developer: typeof account.d?.viewer?.user?.is_developer === "boolean" ? account.d.viewer.user.is_developer : null,
+      facebookLinked: typeof linked === "boolean" ? linked : null,
+      violations,
+      privacy: privacyList,
+    };
+    const anyDetail = Object.values(out.details).some((v) => (Array.isArray(v) ? v.length : v != null));
+    if (!anyDetail) out.detailsError = salsa.e ?? profile.e ?? account.e ?? "the store refused";
+    /* Nothing at all came back (a network blip, say): ask again next time rather
+       than keep the failure for the visit. */
+    if (!out.id && !anyDetail && profileCache.p === p) profileCache = { token: null, p: null };
+    return out;
+  })();
+  profileCache = { token: key, p };
+  return p;
 }
 
 /* Leaderboards, from the PC (Meta Horizon desktop) client like Add-ons and
@@ -2700,7 +3639,10 @@ export async function horizonPlus() {
     name: n.display_name || n.package_name || String(n.id),
     packageName: n.package_name ?? null,
     platform: "ANDROID_6DOF",
-    image: n.cover_square_image?.uri ?? n.vr_icon_image?.uri ?? null,
+    /* Square cover, then the launcher icon, then the VR icon — never blank when
+       the store sent any of them. */
+    image: n.cover_square_image?.uri ?? n.icon_image?.uri ?? n.vr_icon_image?.uri ?? null,
+    media: nodeMedia(n),
     price: null,
     offerId: null,
     free: false,
@@ -2717,6 +3659,121 @@ export async function horizonPlus() {
     if (!out.has(String(n.id))) out.set(String(n.id), row(n, "catalog"));
   }
   return [...out.values()];
+}
+
+/* ---------- Horizon+ as the headset Store shows it ----------
+   The Store app's Horizon+ tab ("Quest+" in the store's own names) is a set of
+   sections the server picks — monthly titles, the catalog, the indie catalog, the
+   Xbox Game Pass titles — and whatever it adds later (movies, say) arrives the same
+   way. StoreHomeRootPageQuery lists the store's tabs with their sections; the
+   Horizon+ ones are found by name. HomeDiscoStoreBrowseUnitsViewPaginationQuery
+   pages one section. Both answer the Meta sign-in. */
+const STORE_HOME_DOC_ID = "28677966775147985";
+const STORE_SECTION_UNITS_DOC_ID = "38780697354876824";
+
+/** The Horizon+ sections, in the store's order: [{ id, name }]. */
+export async function horizonPlusSections() {
+  const d = await accountRead(
+    STORE_HOME_DOC_ID,
+    {
+      count: 50,
+      cursor: null,
+      hmdType: "EUREKA",
+      imageScale: 1,
+      isControllerConnected: true,
+      isOsDefaultApp: false,
+      seedID: null,
+      shouldOnlyReturnFirstView: false,
+      storeIDOverride: null,
+      storeViewFilter: null,
+      storeViewTypes: ["STORE_VIEWS_WITH_CATEGORY_CONTEXT"],
+      useTestStore: false,
+    },
+    { plain: true }
+  );
+  const out = new Map();
+  for (const v of d.viewer?.appStore?.store_views ?? []) {
+    if (!/^\s*(quest|horizon)\s*\+/i.test(v?.untranslated_display_name ?? "")) continue;
+    for (const s of (v.subsections?.edges ?? []).map((e) => e?.node)) {
+      if (s?.id && s.section_name && !out.has(String(s.id))) out.set(String(s.id), { id: String(s.id), name: s.section_name });
+    }
+  }
+  return [...out.values()];
+}
+
+/**
+ * Everything in one Horizon+ section, every page: { apps, others } — `apps` in the
+ * shape every list renders; `others` is what is not an app (an Xbox cloud game, a
+ * movie, a series): [{ id, title, kind, image, genres, note }].
+ */
+export async function horizonPlusSection(sectionId) {
+  const apps = [];
+  const others = [];
+  let cursor = null;
+  for (let page = 0; page < 20; page++) {
+    const d = await accountRead(
+      STORE_SECTION_UNITS_DOC_ID,
+      {
+        id: String(sectionId),
+        count: 50,
+        cursor,
+        imageScale: 1,
+        initialCount: 50,
+        isControllerConnected: true,
+        seedID: null,
+        storeViewFilter: null,
+        ageRatingAnyFilter: null,
+        contentTopics: null,
+        interactionMode: null,
+        languageAnyFilter: null,
+        priceRange: null,
+        ratingAbove: null,
+        saleTypeAnyFilter: null,
+        sortOrder: null,
+        supportedControllers: null,
+        supportedPlayerModes: null,
+        surface: null,
+        unifiedTaxonomyDimensionIds: null,
+      },
+      { plain: true }
+    );
+    const units = d.node?.units;
+    for (const u of (units?.edges ?? []).map((e) => e?.node)) {
+      if (!u?.id) continue;
+      const a = u.assets ?? {};
+      const image = a.square_image_180?.uri ?? a.icon_image_80?.uri ?? a.square_image_360?.uri ?? null;
+      const title = u.display_unit_title || u.title || u.display_name || String(u.id);
+      if (u.__typename === "Application") {
+        apps.push({
+          id: String(u.id),
+          name: title,
+          packageName: null,
+          platform: "ANDROID_6DOF",
+          image,
+          media: [],
+          price: null,
+          offerId: null,
+          free: false,
+          channels: [],
+          claimed: Boolean(u.is_viewer_entitled),
+        });
+      } else {
+        const t = `${u.__typename} ${u.destination_content_type ?? ""}`;
+        others.push({
+          id: String(u.id),
+          title,
+          kind: /XBOX/i.test(t) ? "Xbox cloud game" : /Series/i.test(t) ? "TV series" : /Movie|Media/i.test(t) ? "Movie" : "Other",
+          media: /Movie|Series|Media/i.test(t),
+          image,
+          genres: u.third_party_game?.genre_names_ranked ?? u.media_genres ?? [],
+          note: u.surfaced_price_display?.text ?? null,
+        });
+      }
+    }
+    cursor = units?.page_info?.has_next_page ? units.page_info.end_cursor : null;
+    if (!cursor) break;
+  }
+  return { apps, others };
 }
 
 /* ---------- the store front, from the Horizon phone app ----------
@@ -2805,7 +3862,43 @@ export async function storeFront(hmdType = loadSettings().hmd, viewId = null) {
  * page. Banners, worlds and videos share the shelves with the apps; only the
  * apps are kept, and `rank` is their place in the section.
  */
+/* The headset Store search's own "Apps you might like" (SearchNullStateShelvesQuery):
+   picked for this account. Shown on Store front as a section of its own. */
+export const FOR_YOU_SECTION = { id: "HEADSET_FOR_YOU", name: "Apps you might like (for your account)" };
+const STORE_NULL_STATE_DOC_ID = "28810240491893654";
+
+async function headsetForYou(hmdType) {
+  const d = await accountRead(
+    STORE_NULL_STATE_DOC_ID,
+    { imageScale: 1, isControllerConnected: true, shelfCount: 10, shelfCursor: null },
+    { plain: true }
+  );
+  const platform = HMD_PLATFORM[hmdType] ?? "ANDROID_6DOF";
+  const apps = [];
+  for (const s of (d.viewer?.vr_search?.null_state?.shelves?.edges ?? []).map((e) => e?.node)) {
+    for (const u of (s?.rendering_strategy?.section?.units?.edges ?? []).map((e) => e?.node)) {
+      if (u?.__typename !== "Application" || !u.id || apps.some((a) => a.id === String(u.id))) continue;
+      const a = u.assets ?? {};
+      apps.push({
+        id: String(u.id),
+        name: u.display_unit_title || String(u.id),
+        packageName: null,
+        platform,
+        image: a.square_image_180?.uri ?? a.icon_image_80?.uri ?? a.square_image_360?.uri ?? null,
+        media: [],
+        price: u.surfaced_price_display?.text ?? null,
+        offerId: null,
+        free: /^free$/i.test(u.surfaced_price_display?.text ?? ""),
+        channels: [],
+        rank: apps.length + 1,
+      });
+    }
+  }
+  return { apps, cursor: null };
+}
+
 export async function storeSection(sectionId, hmdType = loadSettings().hmd, cursor = null, start = 0) {
+  if (sectionId === FOR_YOU_SECTION.id) return headsetForYou(hmdType);
   const data = await relayQuery(
     STORE_SECTION_DOC_ID,
     {
@@ -2831,7 +3924,18 @@ export async function storeSection(sectionId, hmdType = loadSettings().hmd, curs
       name: n.display_name || n.display_unit_title || String(n.id),
       packageName: n.package_name ?? null,
       platform,
-      image: a.cover_square_image?.uri ?? n.cover_landscape_image?.uri ?? a.icon_image?.uri ?? null,
+      /* The icon before the landscape: a row shows a small square, and a wide
+         banner cropped into it is the wrong picture. */
+      image:
+        a.cover_square_image?.uri ??
+        a.icon_image?.uri ??
+        n.cover_square_image?.uri ??
+        n.icon_image?.uri ??
+        a.vr_icon_image?.uri ??
+        n.vr_icon_image?.uri ??
+        n.cover_landscape_image?.uri ??
+        null,
+      media: [...nodeMedia(a), ...nodeMedia(n)],
       /* The store words the price itself ("Free", "$19.99", "Coming soon"),
          so that is shown as it is. */
       price: n.price_or_status_display?.text || offer?.price?.formatted || null,
@@ -2962,15 +4066,50 @@ export async function recentPresence() {
   if (!p) return null;
   const r = roster?.viewer?.user;
   const party = Number(r?.lobby_roster?.count);
+  /* Every other plain fact the presence carries — status text, platform, how it
+     shows to others… — read off both replies, so nothing the store says about where
+     you are is dropped. Ids, links and the fields read above are left out. */
+  const rp = r?.most_recent_presence ?? {};
+  const facts = {};
+  /* Read above already — not repeated as facts. */
+  const READ = new Set([
+    "vr_last_active_time", "is_current", "destination_api_name", "lobby_session_id", "match_session_id",
+    "application_display_name", "application_name", "destination_display_name", "destination_name",
+    "lobby_roster_count",
+  ]);
+  /* Plain values, and those inside small objects too (two levels down: a destination,
+     an application, a status), named by their path — "destination_display_name". */
+  const collect = (o, prefix, depth) => {
+    for (const [k, v] of Object.entries(o || {})) {
+      if (k.startsWith("__") || k === "most_recent_presence") continue;
+      /* Who you are is the account header's, not presence's — not repeated here. */
+      if (/^(alias|name|display_name|profile_name|unique_name|email)$/.test(k)) continue;
+      if (/(^|_)id$|Id$|ur[il]$|image|photo|token|session|cursor|hash/i.test(k)) continue;
+      const key = prefix ? `${prefix}_${k}` : k;
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        if (depth < 2) collect(v, key, depth + 1);
+        continue;
+      }
+      if (v == null || Array.isArray(v) || READ.has(key) || key in facts) continue;
+      if (typeof v === "string" && (/^https?:/i.test(v) || v.length > 80 || !v.trim())) continue;
+      facts[key] = v;
+    }
+  };
+  collect(p, "", 0);
+  collect(rp, "", 0);
+  if (r) collect(r, "", 0);
   return {
-    lobby: r ? Boolean(r.most_recent_presence?.lobby_session_id) : null,
-    match: r ? Boolean(r.most_recent_presence?.match_session_id) : null,
+    lobby: r ? Boolean(rp.lobby_session_id) : null,
+    match: r ? Boolean(rp.match_session_id) : null,
     party: Number.isFinite(party) && party > 0 ? party : null,
     /* Seconds since the epoch. */
     lastActive: Number(p.vr_last_active_time) || null,
     current: Boolean(p.is_current),
-    app: p.application?.display_name ?? p.application?.name ?? null,
-    destination: p.destination_api_name ?? null,
+    app: p.application?.display_name ?? p.application?.name ?? rp.application?.display_name ?? null,
+    destination: p.destination_api_name ?? rp.destination_api_name ?? null,
+    destinationName:
+      p.destination?.display_name ?? p.destination?.name ?? rp.destination?.display_name ?? null,
+    facts,
   };
 }
 
@@ -3213,23 +4352,52 @@ const ORG_APPS_DOC_ID = "27915674441422265";
  * `oc_www_at` — the built-in public token sees nothing here — so an empty result
  * on a real org usually means the token is missing.
  */
-export async function orgApps(orgID) {
+const ORG_PAGE_KEY = "metadb.orgPageSize";
+
+export async function orgApps(orgID, { onPage = null } = {}) {
   const out = new Map();
   let after = null;
+  /* Pages are cursor-chained, so they cannot be asked in parallel — the speed comes
+     from asking for as much per page as the store allows (fewest round trips) and
+     from handing each page to the screen as it lands (onPage). A store that quietly
+     caps the page is fine: the cursor carries on from wherever it stopped. */
+  /* As many a page as the store will take: 500, else 100, else the phone app's 20.
+     The size that worked is remembered, so later lookups start there instead of
+     spending a refused request finding it again. */
+  const SIZES = [500, 100, 20];
+  let si = Math.max(0, SIZES.indexOf(Number(localStorage.getItem(ORG_PAGE_KEY))));
+  let size = SIZES[si];
 
-  /* Safety cap: 40 pages × 20 is 800 apps, well past any real organization. */
-  for (let page = 0; page < 40; page += 1) {
-    const json = await storeQuery(ORG_APPS_DOC_ID, {
-      after,
-      display_name: null,
-      exclude_hyperscapes: true,
-      exclude_platforms: ["HORIZON_WORLD", "HORIZON_UNITY_WORLD"],
-      first: 20,
-      orderby: "DISPLAY_NAME",
-      platform: null,
-      id: String(orgID),
-    });
-    refuse(json, "An organization's apps");
+  /* Safety cap: 200 pages is far past any real organization at any size. */
+  for (let page = 0; page < 200; page += 1) {
+    const ask = () =>
+      storeQuery(ORG_APPS_DOC_ID, {
+        after,
+        display_name: null,
+        exclude_hyperscapes: true,
+        exclude_platforms: ["HORIZON_WORLD", "HORIZON_UNITY_WORLD"],
+        first: size,
+        orderby: "DISPLAY_NAME",
+        platform: null,
+        id: String(orgID),
+      });
+    let json = await ask();
+    /* A refused first page is asked again one size smaller, down to 20. */
+    for (;;) {
+      try {
+        refuse(json, "An organization's apps");
+        break;
+      } catch (err) {
+        if (page !== 0 || si >= SIZES.length - 1) throw err;
+        size = SIZES[++si];
+        json = await ask();
+      }
+    }
+    if (page === 0) {
+      try {
+        localStorage.setItem(ORG_PAGE_KEY, String(size));
+      } catch {}
+    }
 
     const conn =
       json.data?.node?.applications ?? json.data?.organization?.applications ?? {};
@@ -3249,13 +4417,21 @@ export async function orgApps(orgID) {
         offerId: null,
         free: false,
         releasedAt: null,
-        image: n.cover_landscape_image?.uri ?? null,
+        /* Square cover or icon first; the landscape only when it is all there is. */
+        image:
+          n.cover_square_image?.uri ??
+          n.icon_image?.uri ??
+          n.vr_icon_image?.uri ??
+          n.cover_landscape_image?.uri ??
+          null,
         media: nodeMedia(n),
       });
     }
 
     const pi = conn.page_info ?? {};
-    if (!pi.has_next_page || !pi.end_cursor) break;
+    const more = Boolean(pi.has_next_page && pi.end_cursor);
+    if (onPage) onPage([...out.values()], more);
+    if (!more) break;
     after = pi.end_cursor;
   }
 
@@ -3606,20 +4782,6 @@ export async function mintCombinedHeadsetTokens() {
 
   const user_id = await frlUserId(frlToken);
   return { access_token_meta, access_token_horizon_profile, user_id };
-}
-
-/* ---------- the account's headsets ----------
- * me.owned_devices: the serials of the headsets on the account and whether each is
- * banned. doc_id + shape verified live. Uses the signed-in access token (oc_www_at). */
-const OWNED_DEVICES_DOC_ID = "9144374255617281";
-export async function ownedDevices() {
-  const { token } = loadSettings();
-  if (!token) throw new Error("sign in first — this reads the headsets on your account");
-  const json = await getJSON(`${ENDPOINT}?` + new URLSearchParams({ access_token: token, doc_id: OWNED_DEVICES_DOC_ID }));
-  const edges = json?.data?.me?.owned_devices?.edges || [];
-  return edges
-    .map((e) => ({ serial: e?.node?.serial, banStatus: e?.node?.persisted_config?.device_ban_status || null }))
-    .filter((d) => d.serial);
 }
 
 /* ---------- the OS-updater token ----------

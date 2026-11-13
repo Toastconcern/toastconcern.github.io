@@ -113,7 +113,7 @@
 
 <header class="topbar">
   <div class="bar">
-    <h1>MetaDB</h1>
+    <h1><a href="/home" data-view="home">MetaDB</a></h1>
     <!-- The search box lives in the bar and works from any screen; Enter
          brings the results up. The screens that list store apps sit under one
          menu, the ones about the signed-in account under another, and the two
@@ -128,22 +128,21 @@
         <button class="navtop" type="button" aria-expanded="false">Apps</button>
         <div class="navmenu" hidden>
           <a href="/apps" data-view="apps">Apps and games</a>
-          <a href="/store" data-view="store">Store front</a>
+          <a href="/store" data-view="store" data-views="store plus">Store</a>
           <a href="/default" data-view="default">Default apps</a>
-          <a href="/plus" data-view="plus">Horizon+</a>
           <a href="/worlds" data-view="worlds">Worlds</a>
           <a href="/orgs" data-view="orgs">Organizations</a>
+          <a href="/explore" data-view="explore">Search everything</a>
           <a href="/watchlist" data-view="watchlist">Watchlist<span id="watchBadge" class="navbadge" hidden></span></a>
         </div>
       </div>
       <div class="navgroup">
         <button class="navtop" type="button" aria-expanded="false">User</button>
         <div class="navmenu" hidden>
-          <a href="/devices" data-view="devices">Headsets</a>
-          <a href="/updater" data-view="updater">Updater</a>
-          <a href="/mine" data-view="mine">Entitlements</a>
-          <a href="/purchases" data-view="purchases">Purchases</a>
-          <a href="/wishlist" data-view="wishlist">Wishlist</a>
+          <a href="/devices" data-view="devices" data-views="devices updater">Headsets</a>
+          <a href="/mine" data-view="mine" data-views="mine purchases credit wishlist">Library</a>
+          <a href="/people" data-view="people">People</a>
+          <a href="/photos" data-view="photos">Photos</a>
           <a href="/avatar" data-view="avatar">Avatar</a>
         </div>
       </div>
@@ -190,6 +189,11 @@
           <p class="setup-hint">Cover art and the account-wide lookups. The ones that fetch on load need your own token and cost a request each time the page opens.</p>
           <div class="setup-grid" id="setupData"></div>
         </fieldset>
+        <fieldset class="setup-group">
+          <legend>Extra lookups</legend>
+          <p class="setup-hint">The extra requests MetaDB sends alongside a screen — on the dashboard, People, an opened app or world. Each switched off is never asked for.</p>
+          <div class="setup-grid" id="setupExtras"></div>
+        </fieldset>
       </div>
       <div class="controls setup-actions">
         <button id="setupSave" class="primary" type="button">Save and continue</button>
@@ -209,6 +213,24 @@
     This copy has no relay of its own, and the browser is refused the store's reply
     without one. <a href="/settings">Set one up in Settings</a>.
   </p>
+
+  <!-- ---------- home ----------
+       A front page, reached from the logo and the 404 button, that is not the
+       default landing (Apps and games still is). renderHome() in app.js fills
+       #homeBody from this browser's own state only — the watchlist, the install
+       log, whether a token is saved — and never fetches on arrival, so it costs
+       nothing and works signed out. -->
+
+  <section id="view-home" hidden>
+
+    <div class="home-hero">
+      <h2>Dashboard</h2>
+      <p class="sub">Search any app, ID, store link or package name from the box at the top.</p>
+    </div>
+
+    <div id="homeBody"></div>
+
+  </section>
 
   <!-- ---------- apps and games ---------- -->
 
@@ -267,7 +289,7 @@
 
   <section id="view-mine" hidden>
 
-    <h2>Entitlements</h2>
+    <h2>Library</h2>
     <p class="sub">Everything on your account, from the same library queries a headset and the desktop app run. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
@@ -319,7 +341,7 @@
 
   <section id="view-purchases" hidden>
 
-    <h2>Purchases</h2>
+    <h2>Library</h2>
     <p class="sub" id="purchasesSub">Everything this account has bought — apps, DLC and in-app purchases — with what was paid, when, and how. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
@@ -351,11 +373,39 @@
 
   </section>
 
+  <!-- ---------- store credit (a Library tab) ---------- -->
+
+  <section id="view-credit" hidden>
+
+    <h2>Library</h2>
+    <p class="sub">Your Meta store credit as the headset's Store wallet shows it: the balance, what added to it or was paid from it, and what app referrals earned this year. Needs your Meta sign-in (Settings → Sign in with Meta).</p>
+
+    <div class="controls">
+      <button id="creditGo" class="primary" type="button">Get credit history</button>
+    </div>
+
+    <p class="count" id="creditCount"></p>
+
+    <table id="creditTable" hidden>
+      <thead>
+        <tr>
+          <th scope="col">What</th>
+          <th scope="col">Date</th>
+          <th scope="col" class="credit-amt">Amount</th>
+        </tr>
+      </thead>
+      <tbody id="creditRows"></tbody>
+    </table>
+
+    <p id="creditEmpty" class="empty">Press Get credit history for your balance and what changed it.</p>
+
+  </section>
+
   <!-- ---------- wishlist ---------- -->
 
   <section id="view-wishlist" hidden>
 
-    <h2>Wishlist</h2>
+    <h2>Library</h2>
     <p class="sub">The apps and games on your Meta wishlist, as the Horizon phone app lists them, with the store's price for each. Open one for its channels and build history. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
@@ -394,6 +444,118 @@
     <div class="controls morebar" id="wishMoreBar" hidden>
       <button id="wishMore" type="button">Load more</button>
     </div>
+
+  </section>
+
+  <!-- ---------- people ---------- -->
+
+  <section id="view-people" hidden>
+
+    <h2>People</h2>
+    <p class="sub">The lists the headset's People tab shows: who you follow and who follows you, follow requests, people you recently met in a world or app, people you may know, who is in your lobby now, and your chats. Each comes with who is online and what they are doing; open a person for their profile. Needs your Meta sign-in (Settings → Sign in with Meta).</p>
+
+    <div class="controls">
+      <select id="peopleKind" aria-label="List">
+        <option value="follows">Following and followers</option>
+        <option value="requests">Follow requests</option>
+        <option value="met">Recently met</option>
+        <option value="suggested">People you may know</option>
+        <option value="nearby">In your lobby</option>
+        <option value="chats">Chats</option>
+      </select>
+      <button id="peopleGo" type="button">Get people</button>
+      <input id="peopleQ" type="search" placeholder="Filter by name or alias" aria-label="Filter people" autocomplete="off" spellcheck="false">
+      <select id="peopleShow" aria-label="Show">
+        <option value="all">Everyone</option>
+        <option value="online">Online now</option>
+        <option value="mutual">Follow each other</option>
+        <option value="following">Don't follow you back</option>
+      </select>
+    </div>
+
+    <p class="count" id="peopleCount"></p>
+
+    <table>
+      <thead>
+        <tr id="peopleHead">
+          <th scope="col">Person</th>
+          <th scope="col">Status</th>
+          <th scope="col">Follow</th>
+          <th scope="col">Can message</th>
+        </tr>
+      </thead>
+      <tbody id="peopleRows"></tbody>
+    </table>
+
+    <p id="peopleEmpty" class="empty" hidden></p>
+
+  </section>
+
+  <!-- ---------- photos ---------- -->
+
+  <section id="view-photos" hidden>
+
+    <h2>Photos</h2>
+    <p class="sub">The photos and videos your headsets have uploaded, as the headset's Gallery lists them — newest first, with the app or world each was taken in. Get photos loads all of them; set a date range or pick a kind to narrow what shows. Open one for its full-size copy. Needs your Meta sign-in (Settings → Sign in with Meta).</p>
+
+    <div class="controls">
+      <button id="photoGo" type="button">Get photos</button>
+      <label class="inline-field">Taken from <input id="photoFrom" type="date"></label>
+      <label class="inline-field">to <input id="photoTo" type="date"></label>
+      <select id="photoShow" aria-label="Show">
+        <option value="all">Photos and videos</option>
+        <option value="photos">Photos</option>
+        <option value="videos">Videos</option>
+        <option value="favorites">Favourites</option>
+      </select>
+    </div>
+
+    <p class="count" id="photoCount"></p>
+    <div id="photoGrid" class="photo-grid"></div>
+    <p id="photoEmpty" class="empty" hidden></p>
+
+    <div class="controls morebar" id="photoMoreBar" hidden>
+      <button id="photoMore" type="button">Load more</button>
+    </div>
+
+  </section>
+
+  <!-- ---------- search everything ---------- -->
+
+  <section id="view-explore" hidden>
+
+    <h2>Search everything</h2>
+    <p class="sub">The headset's own search box: apps, movies, TV series, sports events, Xbox cloud games, people and websites, up to ten of each. Search with the box empty for what the headset suggests before you type — your recent apps among them. Open an app for its channels and builds, a movie or TV series for what it is about and where to watch it, an Xbox game to play it in the browser. Needs your Meta sign-in (Settings → Sign in with Meta).</p>
+
+    <div class="controls">
+      <input id="exploreQ" type="search" placeholder="Search apps, movies, TV, sports, Xbox and people" aria-label="Search everything" autocomplete="off" spellcheck="false">
+      <button id="exploreGo" type="button">Search</button>
+      <select id="exploreShow" aria-label="Show">
+        <option value="all">Everything</option>
+        <option value="apps">Apps and games</option>
+        <option value="movies">Movies</option>
+        <option value="series">TV series</option>
+        <option value="sports">Sports events</option>
+        <option value="xbox">Xbox cloud games</option>
+        <option value="people">People</option>
+        <option value="events">Events</option>
+        <option value="websites">Websites</option>
+      </select>
+    </div>
+
+    <p class="count" id="exploreCount"></p>
+
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Title</th>
+          <th scope="col">Details</th>
+        </tr>
+      </thead>
+      <tbody id="exploreRows"></tbody>
+    </table>
+
+    <p id="exploreEmpty" class="empty" hidden></p>
 
   </section>
 
@@ -459,6 +621,22 @@
 
     <p id="avatarEmpty" class="empty" hidden></p>
 
+    <h3 class="section-h">Your avatars</h3>
+    <p class="hint">Every avatar on this account, as the Avatar Editor's switcher shows them, and which profile each is assigned to. Needs your Meta sign-in.</p>
+    <div class="controls">
+      <button id="avatarsGo" type="button">Get avatars</button>
+    </div>
+    <p class="count" id="avatarsCount"></p>
+    <div id="avatarsGrid" class="avatars-grid"></div>
+
+    <h3 class="section-h">Stickers</h3>
+    <p class="hint">The animated stickers made from your avatar, as the headset offers them in chats. Needs your Meta sign-in.</p>
+    <div class="controls">
+      <button id="stickerGo" type="button">Get stickers</button>
+    </div>
+    <p class="count" id="stickerCount"></p>
+    <div id="stickerGrid" class="sticker-grid"></div>
+
   </section>
 
   <!-- ---------- your devices ---------- -->
@@ -466,7 +644,7 @@
   <section id="view-devices" hidden>
 
     <h2>Headsets</h2>
-    <p class="sub" id="devicesSub">Headsets registered to this account. Open one for its details and the test channel; its OS updates are on the <a href="/updater">Updater</a> screen. Needs your own access token, set in Settings.</p>
+    <p class="sub" id="devicesSub">Headsets registered to this account. Open one for its details and the test channel; its OS updates are on the <a class="linkbtn" href="/updater">Updater</a> tab. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
       <button id="devicesLoad" class="primary" type="button">Get devices</button>
@@ -521,7 +699,7 @@
 
   <section id="view-updater" hidden>
 
-    <h2>Updater</h2>
+    <h2>Headsets</h2>
     <p class="sub">Ask Meta which OS builds its updater would hand a headset, or look a build up by its number. These are the requests the headset's own updater makes. A browser can't install them, so each result comes with its download. Uses your updater token, made from your FRL token the first time (Settings).</p>
 
     <div class="controls">
@@ -546,7 +724,10 @@
         <h2>Nothing lives at this address</h2>
         <p class="notfound-path"><code id="notfoundPath"></code></p>
         <p class="sub">MetaDB has no screen here. The link may be old, cut short or mistyped. An app is <code>/apps/&lt;id&gt;</code>, a search <code>/search/&lt;words&gt;</code>.</p>
-        <p class="sub">Try the search box at the top, or go to one of these:</p>
+        <p class="notfound-actions">
+          <a class="home-btn" href="/home" data-view="home">Go to the home page</a>
+        </p>
+        <p class="sub">Or use the search box at the top, or jump straight to one of these:</p>
         <ul class="notfound-links">
           <li><a href="/apps">Apps and games</a></li>
           <li><a href="/store">Store front</a></li>
@@ -751,8 +932,8 @@
 
   <section id="view-store" hidden>
 
-    <h2>Store front</h2>
-    <p class="sub">The store as the Horizon phone app shows it: the sections the store picks for one headset, in its own order, and the apps in each, plus its top charts. Pick a headset and press Get store, then pick a section or a chart. Open an app for its channels and build history. Needs your own access token, set in Settings.</p>
+    <h2>Store</h2>
+    <p class="sub">The store as the Horizon phone app shows it: the sections the store picks for one headset, in its own order, and the apps in each, plus its top charts and (with your Meta sign-in) the apps it picks for you. Pick a headset and press Get store, then pick a section or a chart. Open an app for its channels and build history. Needs your own access token, set in Settings.</p>
 
     <div class="controls">
       <select id="storeHmd" aria-label="Headset"></select>
@@ -802,16 +983,14 @@
 
   <section id="view-plus" hidden>
 
-    <h2>Horizon+</h2>
-    <p class="sub">The games the Horizon+ subscription offers right now — this month's games to claim, and the catalog that comes and goes. Open one for its channels and build history. Needs your own access token, set in Settings.</p>
+    <h2>Store</h2>
+    <p class="sub">Everything the Horizon+ subscription offers right now, section by section as the headset's Store shows it — this month's games to claim, the catalog, the indie catalog, the Xbox Game Pass titles, and any section Meta adds later. Open a game for its channels and build history. Needs your Meta sign-in (Settings → Sign in with Meta).</p>
 
     <div class="controls">
       <button id="plusGo" class="primary" type="button">Get Horizon+ games</button>
       <input id="plusQ" type="search" placeholder="Filter these games by name or app ID" aria-label="Filter Horizon+ games" autocomplete="off" spellcheck="false">
-      <select id="plusPick" aria-label="Which games">
-        <option value="">Monthly and catalog</option>
-        <option value="monthly">This month's games</option>
-        <option value="catalog">Games catalog</option>
+      <select id="plusPick" aria-label="Which section">
+        <option value="">Every section</option>
       </select>
       <select id="plusSort" aria-label="Sort by">
         <option value="relevance">Store order</option>
@@ -840,6 +1019,21 @@
     </table>
 
     <p id="plusEmpty" class="empty" hidden></p>
+
+    <div id="plusOthers" hidden>
+      <h3 class="section-h">Also in Horizon+</h3>
+      <p class="hint">Not apps for the Quest store — Xbox cloud games, and any movies or series the subscription carries.</p>
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Title</th>
+            <th scope="col">Section</th>
+            <th scope="col">Details</th>
+          </tr>
+        </thead>
+        <tbody id="plusOtherRows"></tbody>
+      </table>
+    </div>
 
   </section>
 
@@ -1652,7 +1846,7 @@
 
   </section>
 
-  <p class="foot">Data comes from the Meta store. Not affiliated with Meta. <button type="button" id="tourAgain" class="linkbtn">Take the tour</button></p>
+  <p class="foot">Data comes from the Meta store. Not affiliated with Meta. <button type="button" id="tourAgain" class="linkbtn">Take the tour</button> · <a class="linkbtn gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a></p>
 
 </div>
 
@@ -1760,7 +1954,6 @@
   </select>
 </div>
 
-<a class="gh" href="https://github.com/Toastconcern/toastconcern.github.io" target="_blank" rel="noopener">GitHub</a>
 
 <script>
   /* Which build this engine can run, and which CSS fallbacks it needs. Each is
